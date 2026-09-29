@@ -1,0 +1,18 @@
+# Local-only config: secrets and machine-specific overrides never get committed.
+.env
+.env.*
+!.env.example
+.devcontainer/.env
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Go
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Editors / OS
+.DS_Store
+.idea/

@@ -1,0 +1,122 @@
+{
+  "name": "agent-control-plane",
+  "dockerComposeFile": ["compose.yaml"],
+  "service": "dev-container",
+  "workspaceFolder": "/workspace/agent-control-plane",
+  "shutdownAction": "none",
+  "runServices": [],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "golang.go",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "timonwong.shellcheck",
+        "mkhl.shfmt",
+        "sohamkamani.code-eol",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "esbenp.prettier-vscode",
+        "EditorConfig.EditorConfig",
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        // Keep identical to .vscode/settings.json.
+        "claudeCode.respectGitIgnore": true,
+        "claudeCode.useCtrlEnterToSend": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.wordWrap": "on",
+        "files.autoSave": "onFocusChange",
+        "files.eol": "\n",
+        // tmux is required for hook-driven terminal bells (README.md).
+        "accessibility.signals.terminalBell": {
+          "sound": "on"
+        },
+        "terminal.integrated.enableVisualBell": true, // 音の保険。タブ名の横に出る視覚ベル
+        "terminal.integrated.bellDuration": 150, // その表示時間（ms・既定 1000）
+        "terminal.integrated.defaultProfile.linux": "tmux",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          },
+          "tmux": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session -A -s \"${PWD/$HOME/\\~}\""]
+          },
+          "tmux-new": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session"]
+          }
+        },
+        "prettier.printWidth": 100,
+        "prettier.tabWidth": 2,
+        // Tools are pinned in the image; keep the Go extension from installing its own.
+        "go.toolsManagement.autoUpdate": false,
+        "go.toolsManagement.checkForUpdates": "off",
+        "go.lintTool": "golangci-lint-v2",
+        "go.lintFlags": ["--fast-only"],
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        // Keep the Python extension from injecting venv activation into terminal sessions.
+        "python.terminal.activateEnvironment": false,
+        "shellcheck.useWorkspaceRootAsCwd": true,
+        "yaml.format.enable": true,
+        "[Dockerfile]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.tabSize": 4,
+          "editor.insertSpaces": false,
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          },
+          "files.autoSave": "onFocusChange"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "files.autoSave": "onFocusChange"
+        },
+        "[shellscript]": {
+          "editor.defaultFormatter": "mkhl.shfmt",
+          "editor.formatOnSave": true,
+          "files.autoSave": "onFocusChange"
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[yml][yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  },
+  "remoteUser": "node",
+  // docker-entrypoint.sh owns UID/GID alignment (docs/target/adr/0001).
+  "updateRemoteUserUID": false,
+  "postAttachCommand": "/usr/local/bin/background-sync.sh"
+}

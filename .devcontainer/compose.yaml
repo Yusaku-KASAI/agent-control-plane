@@ -1,0 +1,58 @@
+# Dev environment only. Host-side one-time setup (network, volumes): see README.md.
+name: agent-control-plane-dev
+
+services:
+  dev-container:
+    build:
+      context: ..
+      dockerfile: ./.devcontainer/Dockerfile
+      target: go
+      args:
+        TZ: Asia/Tokyo
+        CLAUDE_CODE_VERSION: "latest"
+        GIT_DELTA_VERSION: "0.18.2"
+        ZSH_IN_DOCKER_VERSION: "1.2.0"
+        GO_VERSION: "1.27.1"
+        REPO_NAME: "agent-control-plane"
+    volumes:
+      # Siblings readable as reference, never writable. Docker mounts parents first, so the
+      # repo mount below overlays its own path read-write.
+      - ../..:/workspace:ro
+      - ..:/workspace/agent-control-plane:cached
+      - dev-gh-config:/home/node/.config/gh
+      - dev-go-mod:/home/node/go/pkg/mod
+      - dev-go-build:/home/node/.cache/go-build
+      - claude-code-bashhistory:/commandhistory
+      - claude-code-config:/home/node/.claude
+    environment:
+      - FIREWALL_ENABLED=false
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - CLAUDE_CONFIG_DIR=/home/node/.claude
+      - POWERLEVEL9K_DISABLE_GITSTATUS=true
+      - PROMPT_COMMAND=history -a
+      - HISTFILE=/commandhistory/.bash_history
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYSLOG
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+volumes:
+  dev-gh-config:
+  dev-go-mod:
+  dev-go-build:
+
+  # External + fixed name: Claude Code login/history/memory survive `down -v` and project renames.
+  claude-code-bashhistory:
+    external: true
+    name: agent-control-plane_claude-code-bashhistory
+  claude-code-config:
+    external: true
+    name: agent-control-plane_claude-code-config
+
+# Shared with any app stack so its services resolve by name from here.
+networks:
+  default:
+    name: agent-control-plane-net
+    external: true
