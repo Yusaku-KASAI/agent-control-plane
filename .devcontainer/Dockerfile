@@ -1,17 +1,4 @@
 # syntax=docker/dockerfile:1
-#
-# Derived from Anthropic's Claude Code devcontainer:
-#   https://github.com/anthropics/claude-code/tree/main/.devcontainer
-#
-# Stages:
-#   base — what any agent environment needs, regardless of the repository: OS tools, shell,
-#          claude-code, Node (from the base image) and Python (for ad-hoc scripts and
-#          uvx-launched MCP servers), the egress firewall, UID/GID handling.
-#   go   — this repository's toolchain. compose targets this stage.
-#
-# The build runs root → node → root: tools node uses at runtime are installed AS node so they
-# need no sudo; the image's final user is root because the entrypoint needs usermod + iptables
-# (the interactive user is `node` via devcontainer.json).
 
 # COPY --from cannot expand build args, so pinned upstream images are aliased as stages here.
 ARG UV_VERSION=0.12.20
@@ -19,9 +6,6 @@ ARG GO_VERSION=1.27.1
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
 FROM golang:${GO_VERSION} AS go-source
 
-###############################################################################
-# base
-###############################################################################
 FROM node:24 AS base
 
 ARG TZ
@@ -61,7 +45,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
     && apt-get clean
 
-# Without generated locales, programs fall back to C/POSIX and garble multibyte text.
 RUN echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen \
     && echo 'ja_JP.UTF-8 UTF-8' >> /etc/locale.gen \
     && locale-gen
@@ -125,15 +108,12 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/fix-permissions.sh \
         > /etc/sudoers.d/node-firewall && \
     chmod 0440 /etc/sudoers.d/node-firewall
 
+# Final user stays root: the entrypoint needs usermod + iptables.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 
-###############################################################################
-# go
-###############################################################################
 FROM base AS go
 
-# GOTOOLCHAIN=local: never auto-download a toolchain other than GO_VERSION.
 COPY --from=go-source /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/home/node/go/bin:$PATH \
     GOTOOLCHAIN=local

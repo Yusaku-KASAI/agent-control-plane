@@ -1,6 +1,4 @@
 #!/bin/bash
-# Run by postAttachCommand as `node`; warms the Go module cache in the background.
-
 echo "Background sync started..."
 
 if [ -f /workspace/agent-control-plane/go.mod ]; then
