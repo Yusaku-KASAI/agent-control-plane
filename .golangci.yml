@@ -1,0 +1,41 @@
+version: "2"
+
+linters:
+  enable:
+    - depguard
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    depguard:
+      # Dependency direction: adapter → usecase → domain (docs/codebase/adr/0001).
+      rules:
+        domain:
+          list-mode: strict
+          files: ["**/internal/domain/**"]
+          allow:
+            - "$gostd"
+            - github.com/Yusaku-KASAI/agent-control-plane/internal/domain
+        usecase:
+          list-mode: strict
+          files: ["**/internal/usecase/**"]
+          allow:
+            - "$gostd"
+            - github.com/Yusaku-KASAI/agent-control-plane/internal/domain
+            - github.com/Yusaku-KASAI/agent-control-plane/internal/usecase
+        adapter:
+          files: ["**/internal/adapter/**"]
+          deny:
+            - pkg: github.com/Yusaku-KASAI/agent-control-plane/cmd
+              desc: adapters must not depend on the composition root
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Yusaku-KASAI/agent-control-plane

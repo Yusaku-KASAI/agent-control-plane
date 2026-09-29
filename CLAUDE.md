@@ -7,6 +7,11 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 - [docs/README.md](docs/README.md) — ドキュメントの構成と ADR
 - [.devcontainer/README.md](.devcontainer/README.md) — 開発・エージェント実行環境
+- [docs/codebase/README.md](docs/codebase/README.md) — Go コードの層と書き方
+
+## 作業の完了条件
+
+変更後は `make check`（lint とテスト）を通す。
 
 ## 言語
 

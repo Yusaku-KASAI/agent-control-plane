@@ -1,0 +1,8 @@
+claude:
+  config_volume: agent-control-plane_claude-code-config
+agents:
+  - name: control-plane-dev
+    role: developer
+    target:
+      path: /absolute/path/on/host/to/agent-control-plane
+      image: agent-control-plane-dev-dev-container

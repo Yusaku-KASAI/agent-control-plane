@@ -16,3 +16,6 @@ coverage.*
 # Editors / OS
 .DS_Store
 .idea/
+
+# Local control-plane config (host paths)
+/acp.yaml
