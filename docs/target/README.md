@@ -11,4 +11,12 @@ control-plane はターゲットのイメージから使い捨てのコンテナ
 - entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）と `FIREWALL_ENABLED` を解釈する。
 - entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 
-このリポジトリの [devcontainer](../../.devcontainer/README.md) のイメージはこれを満たす。
+## ロール
+
+ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
+起動する（[ADR 0003](adr/0003-roles-as-claude-code-agents.md)）。
+
+- 共有のロールはプラグインで提供され、ターゲットは `.claude/settings.json` で使うプラグインを宣言する。
+  ターゲットの `.claude/agents/<ロール名>.md` に同名の定義を置くと、そちらが優先される。
+- ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は `CLAUDE.md` に書く。
+- 定義が見つからないロールで起動すると、エージェントはエラーで終了する。

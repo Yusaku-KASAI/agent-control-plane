@@ -86,7 +86,7 @@ func containerSpec(agent domain.Agent, prompt string, opts Options) client.Conta
 			// Relies on the target image contract in docs/target/README.md.
 			Cmd: []string{
 				"runuser", "-u", "node", "--",
-				"claude", "-p", prompt, "--dangerously-skip-permissions",
+				"claude", "-p", prompt, "--agent", string(agent.Role), "--dangerously-skip-permissions",
 			},
 			Env: []string{
 				"WORKSPACE_DIR=" + workdir,

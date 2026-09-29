@@ -31,8 +31,12 @@ func TestContainerSpec(t *testing.T) {
 	if spec.Config.WorkingDir != "/workspace/repo" {
 		t.Errorf("WorkingDir = %q", spec.Config.WorkingDir)
 	}
-	if !slices.Contains(spec.Config.Cmd, "fix it") || spec.Config.Cmd[0] != "runuser" {
-		t.Errorf("Cmd = %q", spec.Config.Cmd)
+	wantCmd := []string{
+		"runuser", "-u", "node", "--",
+		"claude", "-p", "fix it", "--agent", "developer", "--dangerously-skip-permissions",
+	}
+	if !slices.Equal(spec.Config.Cmd, wantCmd) {
+		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
 	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: "/src/repo", Target: "/workspace/repo"},
