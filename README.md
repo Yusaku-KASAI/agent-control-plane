@@ -13,8 +13,9 @@ acp run --agent <name> [--session <id>] [--config acp.yaml] "<指示>"
 - `--session` を省くと新しいセッションを始める。ターゲットのリポジトリを
   `<sessions.root>/<セッションID>/workspace/<リポジトリ名>` に `git clone` する（コミット済みの内容だけが入る）。
 - `--session <id>` を付けると、そのセッションの作業領域と会話を引き継いで続きを依頼する。
-- ターンごとにターゲットのイメージからコンテナを作り、作業領域をマウントして、エージェントのロールで
-  `claude -p` を実行する。コンテナは終了後に削除する。
+- 作業領域では `acp/<セッションIDの先頭8文字>` ブランチで作業し、`origin` は元のリポジトリと同じリモートを指す。
+- ターンごとに GitHub App のトークンを発行し、ターゲットのイメージからコンテナを作り、作業領域をマウントして、
+  エージェントのロールで `claude -p` を実行する。コンテナは終了後に削除する。
 - 結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。
 
 エージェントの変更を取り込むときは、作業領域で確認し、元のリポジトリから `git fetch <パス>` などで取得する。
@@ -25,6 +26,10 @@ acp run --agent <name> [--session <id>] [--config acp.yaml] "<指示>"
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - `claude.config_volume` に指定する Docker ボリュームに、Claude Code のログイン済み設定があること
   （devcontainer の `agent-control-plane_claude-code-config` を使える）。
+- エージェントに push と PR の作成をさせる場合は、エージェントごとに GitHub App を作る。
+  - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
+  - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。
+  - `github` を省くとトークンは渡さず、エージェントはコミットまでにとどめる。
 - 設定ファイルは [acp.example.yaml](acp.example.yaml) をコピーして `acp.yaml` を作る。
   `sessions.root` はターゲットのリポジトリの外に置く（中に置くと設定エラーになる）。
 

@@ -8,3 +8,10 @@ agents:
     target:
       path: /absolute/path/on/host/to/agent-control-plane
       image: agent-control-plane-dev-dev-container
+    git:
+      author_name: control-plane-dev (agent)
+      author_email: <id>+<user>@users.noreply.github.com
+    github:
+      app_id: 123456
+      installation_id: 12345678
+      private_key_path: /absolute/path/on/host/to/control-plane-dev.private-key.pem

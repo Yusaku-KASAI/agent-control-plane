@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/moby/moby/api/pkg/stdcopy"
@@ -14,6 +15,7 @@ import (
 	"github.com/moby/moby/client"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 // dockerAPI is the subset of *client.Client the runner uses.
@@ -38,8 +40,8 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 	return &Runner{api: api, opts: opts}
 }
 
-func (r *Runner) Run(ctx context.Context, agent domain.Agent, s domain.Session, prompt string) (string, error) {
-	created, err := r.api.ContainerCreate(ctx, containerSpec(agent, s, prompt, r.opts))
+func (r *Runner) Run(ctx context.Context, t usecase.Turn) (string, error) {
+	created, err := r.api.ContainerCreate(ctx, containerSpec(t, r.opts))
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
@@ -78,7 +80,8 @@ func (r *Runner) Run(ctx context.Context, agent domain.Agent, s domain.Session, 
 
 const claudeConfigDir = "/home/node/.claude"
 
-func containerSpec(agent domain.Agent, s domain.Session, prompt string, opts Options) client.ContainerCreateOptions {
+func containerSpec(t usecase.Turn, opts Options) client.ContainerCreateOptions {
+	agent, s := t.Agent, t.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := path.Join("/workspace", filepath.Base(agent.Target.Path))
 	sessionFlag := "--resume"
@@ -91,16 +94,17 @@ func containerSpec(agent domain.Agent, s domain.Session, prompt string, opts Opt
 			// Relies on the target image contract in docs/target/README.md.
 			Cmd: []string{
 				"runuser", "-u", "node", "--",
-				"claude", "-p", prompt,
+				"claude", "-p", t.Prompt,
 				"--agent", string(agent.Role),
 				sessionFlag, string(s.ID),
 				"--dangerously-skip-permissions",
 			},
-			Env: []string{
+			Env: append([]string{
 				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"FIREWALL_ENABLED=false",
-			},
+				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
+			}, credentialEnv(agent.Git, t.Credentials)...),
 			WorkingDir: workdir,
 		},
 		HostConfig: &container.HostConfig{
@@ -110,4 +114,35 @@ func containerSpec(agent domain.Agent, s domain.Session, prompt string, opts Opt
 			},
 		},
 	}
+}
+
+func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
+	var env []string
+	if git.Name != "" {
+		env = append(env,
+			"GIT_AUTHOR_NAME="+git.Name, "GIT_AUTHOR_EMAIL="+git.Email,
+			"GIT_COMMITTER_NAME="+git.Name, "GIT_COMMITTER_EMAIL="+git.Email,
+		)
+	}
+	if creds.GitHubToken != "" {
+		// gh reads GH_TOKEN; git authenticates through gh, over HTTPS even for SSH-style remotes.
+		env = append(env, "GH_TOKEN="+creds.GitHubToken)
+		env = append(env, gitConfigEnv(
+			[2]string{"credential.https://github.com.helper", "!gh auth git-credential"},
+			[2]string{"url.https://github.com/.insteadOf", "git@github.com:"},
+			[2]string{"url.https://github.com/.insteadOf", "ssh://git@github.com/"},
+		)...)
+	}
+	return env
+}
+
+func gitConfigEnv(entries ...[2]string) []string {
+	env := []string{"GIT_CONFIG_COUNT=" + strconv.Itoa(len(entries))}
+	for i, kv := range entries {
+		env = append(env,
+			fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, kv[0]),
+			fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, kv[1]),
+		)
+	}
+	return env
 }

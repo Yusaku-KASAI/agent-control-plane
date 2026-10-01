@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
@@ -19,6 +20,7 @@ func TestProvider_Prepare(t *testing.T) {
 	}
 	git(t, source, "add", "README.md")
 	git(t, source, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "init")
+	git(t, source, "remote", "add", "origin", "git@github.com:example/repo.git")
 	if err := os.WriteFile(filepath.Join(source, "dirty.txt"), []byte("uncommitted"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +42,12 @@ func TestProvider_Prepare(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(first.Path, "dirty.txt")); !os.IsNotExist(err) {
 		t.Errorf("uncommitted file was copied (stat err = %v)", err)
 	}
+	if got := gitOutput(t, first.Path, "remote", "get-url", "origin"); got != "git@github.com:example/repo.git" {
+		t.Errorf("origin = %q, want the target's origin", got)
+	}
+	if got := gitOutput(t, first.Path, "branch", "--show-current"); got != "acp/0f8fad5b" {
+		t.Errorf("branch = %q, want acp/0f8fad5b", got)
+	}
 }
 
 func TestProvider_Prepare_NotARepository(t *testing.T) {
@@ -51,9 +59,16 @@ func TestProvider_Prepare_NotARepository(t *testing.T) {
 
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
+	gitOutput(t, dir, args...)
+}
+
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
+	return strings.TrimSpace(string(out))
 }

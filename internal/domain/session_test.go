@@ -31,6 +31,12 @@ func TestParseSessionID(t *testing.T) {
 	}
 }
 
+func TestSessionID_Branch(t *testing.T) {
+	if got := domain.SessionID("0f8fad5b-d9cb-469f-a165-70867728950e").Branch(); got != "acp/0f8fad5b" {
+		t.Errorf("Branch() = %q", got)
+	}
+}
+
 func TestSession_CheckAgent(t *testing.T) {
 	s := domain.Session{ID: "id", AgentName: "repo-dev"}
 	if err := s.CheckAgent("repo-dev"); err != nil {

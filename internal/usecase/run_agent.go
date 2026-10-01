@@ -25,14 +25,21 @@ type RunAgentOutput struct {
 }
 
 type RunAgent struct {
-	agents     AgentRegistry
-	sessions   SessionRepository
-	workspaces WorkspaceProvider
-	runner     Runner
+	agents      AgentRegistry
+	sessions    SessionRepository
+	workspaces  WorkspaceProvider
+	credentials CredentialIssuer
+	runner      Runner
 }
 
-func NewRunAgent(agents AgentRegistry, sessions SessionRepository, workspaces WorkspaceProvider, runner Runner) *RunAgent {
-	return &RunAgent{agents: agents, sessions: sessions, workspaces: workspaces, runner: runner}
+func NewRunAgent(
+	agents AgentRegistry,
+	sessions SessionRepository,
+	workspaces WorkspaceProvider,
+	credentials CredentialIssuer,
+	runner Runner,
+) *RunAgent {
+	return &RunAgent{agents: agents, sessions: sessions, workspaces: workspaces, credentials: credentials, runner: runner}
 }
 
 func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutput, error) {
@@ -54,7 +61,11 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	}
 	defer unlock()
 
-	out, err := u.runner.Run(ctx, agent, session, in.Prompt)
+	creds, err := u.credentials.Issue(ctx, agent)
+	if err != nil {
+		return RunAgentOutput{Session: session}, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
+	}
+	out, err := u.runner.Run(ctx, Turn{Agent: agent, Session: session, Prompt: in.Prompt, Credentials: creds})
 	if err != nil {
 		return RunAgentOutput{Session: session}, fmt.Errorf("run agent %q: %w", agent.Name, err)
 	}

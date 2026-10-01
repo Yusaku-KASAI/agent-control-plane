@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/config"
@@ -17,6 +18,18 @@ claude:
 agents:
   - name: repo-dev
     role: developer
+    target:
+      path: /src/repo
+      image: repo-dev
+    git:
+      author_name: repo-dev (agent)
+      author_email: 1+someone@users.noreply.github.com
+    github:
+      app_id: 11
+      installation_id: 22
+      private_key_path: /keys/repo-dev.pem
+  - name: repo-pm
+    role: pm
     target:
       path: /src/repo
       image: repo-dev
@@ -35,9 +48,21 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindByName() error = %v", err)
 	}
-	want := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: "/src/repo", Image: "repo-dev"}}
+	want := domain.Agent{
+		Name:   "repo-dev",
+		Role:   "developer",
+		Target: domain.Target{Path: "/src/repo", Image: "repo-dev"},
+		Git:    domain.GitIdentity{Name: "repo-dev (agent)", Email: "1+someone@users.noreply.github.com"},
+	}
 	if got != want {
 		t.Errorf("FindByName() = %+v, want %+v", got, want)
+	}
+
+	wantApps := map[domain.AgentName]config.GitHubApp{
+		"repo-dev": {AppID: 11, InstallationID: 22, PrivateKeyPath: "/keys/repo-dev.pem"},
+	}
+	if !maps.Equal(cfg.GitHubApps, wantApps) {
+		t.Errorf("GitHubApps = %+v, want %+v", cfg.GitHubApps, wantApps)
 	}
 
 	if _, err := cfg.Agents.FindByName(context.Background(), "nobody"); !errors.Is(err, domain.ErrAgentNotFound) {
@@ -73,6 +98,12 @@ sessions: {root: /src/repo}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
+`,
+		"incomplete github app": `
+sessions: {root: /w}
+claude: {config_volume: v}
+agents:
+  - {name: a, role: developer, target: {path: /x, image: i}, github: {app_id: 1}}
 `,
 		"duplicate agent": `
 sessions: {root: /w}

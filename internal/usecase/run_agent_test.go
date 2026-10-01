@@ -57,18 +57,27 @@ func (f *fakeWorkspaces) Prepare(context.Context, domain.Agent, domain.SessionID
 	return f.ws, f.err
 }
 
+type fakeIssuer struct {
+	creds domain.Credentials
+	err   error
+}
+
+func (f *fakeIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, error) {
+	return f.creds, f.err
+}
+
 type fakeRunner struct {
 	output string
 	err    error
 
-	called     bool
-	gotSession domain.Session
-	heldLock   bool
-	sessions   *fakeSessions
+	called   bool
+	gotTurn  usecase.Turn
+	heldLock bool
+	sessions *fakeSessions
 }
 
-func (f *fakeRunner) Run(_ context.Context, _ domain.Agent, s domain.Session, _ string) (string, error) {
-	f.called, f.gotSession, f.heldLock = true, s, f.sessions.locked
+func (f *fakeRunner) Run(_ context.Context, t usecase.Turn) (string, error) {
+	f.called, f.gotTurn, f.heldLock = true, t, f.sessions.locked
 	return f.output, f.err
 }
 
@@ -83,6 +92,7 @@ const existingID domain.SessionID = "0f8fad5b-d9cb-469f-a165-70867728950e"
 type env struct {
 	sessions   *fakeSessions
 	workspaces *fakeWorkspaces
+	issuer     *fakeIssuer
 	runner     *fakeRunner
 	uc         *usecase.RunAgent
 }
@@ -92,12 +102,14 @@ func newEnv(runner *fakeRunner) env {
 		existingID: {ID: existingID, AgentName: dev.Name, Workspace: ws, Turns: 1},
 	}}
 	workspaces := &fakeWorkspaces{ws: ws}
+	issuer := &fakeIssuer{creds: domain.Credentials{GitHubToken: "ghs_test"}}
 	runner.sessions = sessions
 	return env{
 		sessions:   sessions,
 		workspaces: workspaces,
+		issuer:     issuer,
 		runner:     runner,
-		uc:         usecase.NewRunAgent(fakeRegistry{dev.Name: dev, pm.Name: pm}, sessions, workspaces, runner),
+		uc:         usecase.NewRunAgent(fakeRegistry{dev.Name: dev, pm.Name: pm}, sessions, workspaces, issuer, runner),
 	}
 }
 
@@ -111,8 +123,10 @@ func TestRunAgent_NewSession(t *testing.T) {
 	if got.Output != "done" || got.Session.Workspace != ws || got.Session.Turns != 1 {
 		t.Errorf("Execute() = %+v", got)
 	}
-	if !e.runner.gotSession.IsNew() || !e.runner.heldLock {
-		t.Errorf("runner got %+v (lock held: %v), want a new session under lock", e.runner.gotSession, e.runner.heldLock)
+	wantTurn := usecase.Turn{Agent: dev, Session: got.Session, Prompt: "fix the bug", Credentials: e.issuer.creds}
+	wantTurn.Session.Turns = 0
+	if e.runner.gotTurn != wantTurn || !e.runner.heldLock {
+		t.Errorf("runner got %+v (lock held: %v), want %+v under lock", e.runner.gotTurn, e.runner.heldLock, wantTurn)
 	}
 	if e.sessions.saved[got.Session.ID] != got.Session {
 		t.Errorf("saved session = %+v, want %+v", e.sessions.saved[got.Session.ID], got.Session)
@@ -132,15 +146,16 @@ func TestRunAgent_ContinueSession(t *testing.T) {
 	if e.workspaces.prepared {
 		t.Error("a continued session prepared a new workspace")
 	}
-	if e.runner.gotSession.Turns != 1 || got.Session.Turns != 2 || e.sessions.saved[existingID].Turns != 2 {
+	if e.runner.gotTurn.Session.Turns != 1 || got.Session.Turns != 2 || e.sessions.saved[existingID].Turns != 2 {
 		t.Errorf("turns: runner got %d, output %d, saved %d; want 1, 2, 2",
-			e.runner.gotSession.Turns, got.Session.Turns, e.sessions.saved[existingID].Turns)
+			e.runner.gotTurn.Session.Turns, got.Session.Turns, e.sessions.saved[existingID].Turns)
 	}
 }
 
 func TestRunAgent_Errors(t *testing.T) {
 	errRunner := errors.New("container failed")
 	errClone := errors.New("clone failed")
+	errIssue := errors.New("token request failed")
 
 	tests := []struct {
 		name      string
@@ -173,6 +188,13 @@ func TestRunAgent_Errors(t *testing.T) {
 			in:        usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"},
 			setup:     func(e env) { e.sessions.busy = true },
 			wantErr:   domain.ErrSessionBusy,
+			wantTurns: 1,
+		},
+		{
+			name:      "credential failure",
+			in:        usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"},
+			setup:     func(e env) { e.issuer.err = errIssue },
+			wantErr:   errIssue,
 			wantTurns: 1,
 		},
 		{

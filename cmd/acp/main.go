@@ -6,16 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/moby/moby/client"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/config"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/docker"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/filesession"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/githubapp"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -102,11 +105,29 @@ func runAgent(ctx context.Context, configPath string, in usecase.RunAgentInput) 
 	}
 	defer func() { _ = dockerClient.Close() }()
 
+	issuer, err := githubIssuer(cfg.GitHubApps)
+	if err != nil {
+		return usecase.RunAgentOutput{}, err
+	}
+
 	uc := usecase.NewRunAgent(
 		cfg.Agents,
 		filesession.NewStore(cfg.SessionsRoot),
 		gitworkspace.NewProvider(cfg.SessionsRoot),
+		issuer,
 		docker.NewRunner(dockerClient, docker.Options{ClaudeConfigVolume: cfg.Claude.ConfigVolume}),
 	)
 	return uc.Execute(ctx, in)
+}
+
+func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer, error) {
+	loaded := make(map[domain.AgentName]githubapp.App, len(apps))
+	for name, app := range apps {
+		key, err := githubapp.LoadPrivateKey(app.PrivateKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("agent %q: %w", name, err)
+		}
+		loaded[name] = githubapp.App{ID: app.AppID, InstallationID: app.InstallationID, PrivateKey: key}
+	}
+	return githubapp.NewIssuer(loaded, githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}), nil
 }

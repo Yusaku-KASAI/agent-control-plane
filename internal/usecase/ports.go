@@ -24,7 +24,19 @@ type WorkspaceProvider interface {
 	Prepare(ctx context.Context, agent domain.Agent, id domain.SessionID) (domain.Workspace, error)
 }
 
+type CredentialIssuer interface {
+	// Issue returns credentials valid for at least one turn.
+	Issue(ctx context.Context, agent domain.Agent) (domain.Credentials, error)
+}
+
+type Turn struct {
+	Agent       domain.Agent
+	Session     domain.Session
+	Prompt      string
+	Credentials domain.Credentials
+}
+
 type Runner interface {
-	// Run executes one non-interactive turn of the session and returns its final output.
-	Run(ctx context.Context, agent domain.Agent, s domain.Session, prompt string) (string, error)
+	// Run executes one non-interactive turn and returns its final output.
+	Run(ctx context.Context, t Turn) (string, error)
 }

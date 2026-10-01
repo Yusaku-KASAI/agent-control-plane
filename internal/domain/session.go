@@ -25,6 +25,11 @@ func ParseSessionID(s string) (SessionID, error) {
 	return SessionID(s), nil
 }
 
+// Branch is the session's default working branch.
+func (id SessionID) Branch() string {
+	return "acp/" + string(id)[:8]
+}
+
 func NewRandomSessionID() SessionID {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)

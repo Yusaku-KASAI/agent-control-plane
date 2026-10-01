@@ -19,6 +19,14 @@ type Config struct {
 	Claude Claude
 	// SessionsRoot is the host directory holding each session's record and workspace.
 	SessionsRoot string
+	// GitHubApps holds the GitHub App of each agent that has one.
+	GitHubApps map[domain.AgentName]GitHubApp
+}
+
+type GitHubApp struct {
+	AppID          int64
+	InstallationID int64
+	PrivateKeyPath string
 }
 
 type Claude struct {
@@ -40,6 +48,15 @@ type fileFormat struct {
 			Path  string `yaml:"path"`
 			Image string `yaml:"image"`
 		} `yaml:"target"`
+		Git struct {
+			AuthorName  string `yaml:"author_name"`
+			AuthorEmail string `yaml:"author_email"`
+		} `yaml:"git"`
+		GitHub *struct {
+			AppID          int64  `yaml:"app_id"`
+			InstallationID int64  `yaml:"installation_id"`
+			PrivateKeyPath string `yaml:"private_key_path"`
+		} `yaml:"github"`
 	} `yaml:"agents"`
 }
 
@@ -70,9 +87,11 @@ func Parse(data []byte) (Config, error) {
 	}
 
 	agents := make(map[domain.AgentName]domain.Agent, len(f.Agents))
+	apps := make(map[domain.AgentName]GitHubApp)
 	for _, e := range f.Agents {
 		a, err := domain.NewAgent(domain.AgentName(e.Name), domain.Role(e.Role),
-			domain.Target{Path: e.Target.Path, Image: e.Target.Image})
+			domain.Target{Path: e.Target.Path, Image: e.Target.Image},
+			domain.GitIdentity{Name: e.Git.AuthorName, Email: e.Git.AuthorEmail})
 		if err != nil {
 			return Config{}, err
 		}
@@ -82,12 +101,19 @@ func Parse(data []byte) (Config, error) {
 		if within(f.Sessions.Root, a.Target.Path) {
 			return Config{}, fmt.Errorf("sessions.root %q is inside the target of agent %q", f.Sessions.Root, a.Name)
 		}
+		if gh := e.GitHub; gh != nil {
+			if gh.AppID <= 0 || gh.InstallationID <= 0 || !filepath.IsAbs(gh.PrivateKeyPath) {
+				return Config{}, fmt.Errorf("agent %q: github needs app_id, installation_id and an absolute private_key_path", a.Name)
+			}
+			apps[a.Name] = GitHubApp{AppID: gh.AppID, InstallationID: gh.InstallationID, PrivateKeyPath: gh.PrivateKeyPath}
+		}
 		agents[a.Name] = a
 	}
 	return Config{
 		Agents:       &Registry{agents: agents},
 		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
+		GitHubApps:   apps,
 	}, nil
 }
 
