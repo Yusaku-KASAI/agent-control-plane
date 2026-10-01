@@ -13,9 +13,11 @@ var ErrEmptyPrompt = errors.New("prompt is empty")
 
 type RunAgentInput struct {
 	AgentName domain.AgentName
-	// SessionID continues an existing session; empty starts a new one.
+	// SessionID continues an existing session; empty starts a new one with a random ID.
 	SessionID domain.SessionID
-	Prompt    string
+	// CreateIfMissing starts a session with SessionID when it does not exist yet.
+	CreateIfMissing bool
+	Prompt          string
 }
 
 type RunAgentOutput struct {
@@ -55,7 +57,7 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	if err != nil {
 		return RunAgentOutput{}, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
 	}
-	session, err := u.openSession(ctx, agent, in.SessionID, creds)
+	session, err := u.openSession(ctx, agent, in, creds)
 	if err != nil {
 		return RunAgentOutput{}, err
 	}
@@ -76,19 +78,23 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	return RunAgentOutput{Output: out, Session: session}, nil
 }
 
-func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (domain.Session, error) {
+func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, in RunAgentInput, creds domain.Credentials) (domain.Session, error) {
+	id := in.SessionID
 	if id != "" {
 		s, err := u.sessions.Find(ctx, id)
-		if err != nil {
+		switch {
+		case err == nil:
+			if err := s.CheckAgent(agent.Name); err != nil {
+				return domain.Session{}, err
+			}
+			return s, nil
+		case !in.CreateIfMissing || !errors.Is(err, domain.ErrSessionNotFound):
 			return domain.Session{}, fmt.Errorf("find session %s: %w", id, err)
 		}
-		if err := s.CheckAgent(agent.Name); err != nil {
-			return domain.Session{}, err
-		}
-		return s, nil
+	} else {
+		id = domain.NewRandomSessionID()
 	}
 
-	id = domain.NewRandomSessionID()
 	ws, err := u.workspaces.Prepare(ctx, agent, id, creds)
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("prepare workspace for agent %q: %w", agent.Name, err)

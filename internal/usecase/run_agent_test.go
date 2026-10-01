@@ -156,6 +156,28 @@ func TestRunAgent_ContinueSession(t *testing.T) {
 	}
 }
 
+func TestRunAgent_CreateIfMissing(t *testing.T) {
+	const id domain.SessionID = "22222222-2222-5222-8222-222222222222"
+
+	e := newEnv(&fakeRunner{output: "first"})
+	in := usecase.RunAgentInput{AgentName: dev.Name, SessionID: id, CreateIfMissing: true, Prompt: "hi"}
+	got, err := e.uc.Execute(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got.Session.ID != id || !e.workspaces.prepared || !e.runner.gotTurn.Session.IsNew() {
+		t.Errorf("Execute() = %+v (prepared %v), want a new session with the given ID", got, e.workspaces.prepared)
+	}
+
+	e.workspaces.prepared = false
+	if _, err := e.uc.Execute(context.Background(), in); err != nil {
+		t.Fatalf("second Execute() error = %v", err)
+	}
+	if e.workspaces.prepared || e.runner.gotTurn.Session.Turns != 1 {
+		t.Errorf("second turn prepared a workspace (%v) or did not resume (turns %d)", e.workspaces.prepared, e.runner.gotTurn.Session.Turns)
+	}
+}
+
 func TestRunAgent_Errors(t *testing.T) {
 	errRunner := errors.New("container failed")
 	errClone := errors.New("clone failed")

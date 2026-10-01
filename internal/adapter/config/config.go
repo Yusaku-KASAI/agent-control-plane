@@ -21,6 +21,21 @@ type Config struct {
 	SessionsRoot string
 	// GitHubApps holds the GitHub App of each agent that has one.
 	GitHubApps map[domain.AgentName]GitHubApp
+	// SlackApps holds the Slack app of each agent that has one.
+	SlackApps map[domain.AgentName]SlackApp
+	Access    AccessList
+}
+
+type SlackApp struct {
+	AppTokenPath string
+	BotTokenPath string
+}
+
+// AccessList allows the requesters listed for each agent.
+type AccessList map[domain.AgentName]map[domain.Requester]bool
+
+func (l AccessList) Allows(agent domain.AgentName, r domain.Requester) bool {
+	return l[agent][r]
 }
 
 type GitHubApp struct {
@@ -57,6 +72,11 @@ type fileFormat struct {
 			InstallationID int64  `yaml:"installation_id"`
 			PrivateKeyPath string `yaml:"private_key_path"`
 		} `yaml:"github"`
+		Slack *struct {
+			AppTokenPath string   `yaml:"app_token_path"`
+			BotTokenPath string   `yaml:"bot_token_path"`
+			AllowedUsers []string `yaml:"allowed_users"`
+		} `yaml:"slack"`
 	} `yaml:"agents"`
 }
 
@@ -88,6 +108,8 @@ func Parse(data []byte) (Config, error) {
 
 	agents := make(map[domain.AgentName]domain.Agent, len(f.Agents))
 	apps := make(map[domain.AgentName]GitHubApp)
+	slackApps := make(map[domain.AgentName]SlackApp)
+	access := make(AccessList)
 	for _, e := range f.Agents {
 		a, err := domain.NewAgent(domain.AgentName(e.Name), domain.Role(e.Role),
 			domain.Target{Path: e.Target.Path, Image: e.Target.Image},
@@ -107,6 +129,16 @@ func Parse(data []byte) (Config, error) {
 			}
 			apps[a.Name] = GitHubApp{AppID: gh.AppID, InstallationID: gh.InstallationID, PrivateKeyPath: gh.PrivateKeyPath}
 		}
+		if sl := e.Slack; sl != nil {
+			if !filepath.IsAbs(sl.AppTokenPath) || !filepath.IsAbs(sl.BotTokenPath) || len(sl.AllowedUsers) == 0 {
+				return Config{}, fmt.Errorf("agent %q: slack needs absolute app_token_path and bot_token_path, and allowed_users", a.Name)
+			}
+			slackApps[a.Name] = SlackApp{AppTokenPath: sl.AppTokenPath, BotTokenPath: sl.BotTokenPath}
+			access[a.Name] = make(map[domain.Requester]bool, len(sl.AllowedUsers))
+			for _, u := range sl.AllowedUsers {
+				access[a.Name][domain.Requester{Platform: "slack", ID: u}] = true
+			}
+		}
 		agents[a.Name] = a
 	}
 	return Config{
@@ -114,6 +146,8 @@ func Parse(data []byte) (Config, error) {
 		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
 		GitHubApps:   apps,
+		SlackApps:    slackApps,
+		Access:       access,
 	}, nil
 }
 

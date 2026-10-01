@@ -28,6 +28,10 @@ agents:
       app_id: 11
       installation_id: 22
       private_key_path: /keys/repo-dev.pem
+    slack:
+      app_token_path: /keys/repo-dev.slack-app-token
+      bot_token_path: /keys/repo-dev.slack-bot-token
+      allowed_users: [U_ALICE]
   - name: repo-pm
     role: pm
     target:
@@ -63,6 +67,18 @@ func TestParse(t *testing.T) {
 	}
 	if !maps.Equal(cfg.GitHubApps, wantApps) {
 		t.Errorf("GitHubApps = %+v, want %+v", cfg.GitHubApps, wantApps)
+	}
+
+	wantSlack := map[domain.AgentName]config.SlackApp{
+		"repo-dev": {AppTokenPath: "/keys/repo-dev.slack-app-token", BotTokenPath: "/keys/repo-dev.slack-bot-token"},
+	}
+	if !maps.Equal(cfg.SlackApps, wantSlack) {
+		t.Errorf("SlackApps = %+v, want %+v", cfg.SlackApps, wantSlack)
+	}
+	alice := domain.Requester{Platform: "slack", ID: "U_ALICE"}
+	if !cfg.Access.Allows("repo-dev", alice) || cfg.Access.Allows("repo-pm", alice) ||
+		cfg.Access.Allows("repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}) {
+		t.Error("Access does not match allowed_users")
 	}
 
 	if _, err := cfg.Agents.FindByName(context.Background(), "nobody"); !errors.Is(err, domain.ErrAgentNotFound) {
@@ -104,6 +120,12 @@ sessions: {root: /w}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, github: {app_id: 1}}
+`,
+		"slack without allowed users": `
+sessions: {root: /w}
+claude: {config_volume: v}
+agents:
+  - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
 `,
 		"duplicate agent": `
 sessions: {root: /w}

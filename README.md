@@ -4,11 +4,18 @@ Claude Code エージェントをコンテナで隔離して実行する制御�
 
 ## 構成
 
-- `acp serve`：依頼を HTTP API で受け、エージェントのコンテナを動かすサーバー。`compose.yaml` でコンテナとして
+- `acp serve`：依頼を Slack と HTTP API で受け、エージェントのコンテナを動かすサーバー。`compose.yaml` でコンテナとして
   動かす。Docker へは、使う API だけを通すプロキシ経由でアクセスする。
 - `acp run`：サーバーに依頼して結果を表示するクライアント。
 
 ## 依頼する
+
+### Slack から
+
+エージェントの Bot をメンションすると、そのスレッドで依頼を受け付け、結果をスレッドに返信する。
+スレッドの中で続けてメンションすると、同じセッションの続きになる。
+
+### CLI から
 
 ```bash
 acp run --agent <name> [--session <id>] [--server <url>] "<指示>"
@@ -43,6 +50,11 @@ docker compose up -d --build
   - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
   - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。
   - `github` を省くとトークンは渡さず、エージェントはコミットまでにとどめる。
+- Slack から依頼する場合は、エージェントごとに Slack アプリを作る。
+  - [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml) から作り、名前をエージェントに合わせる。
+  - Basic Information で `connections:write` の App-Level Token を作り、ワークスペースにインストールして
+    Bot User OAuth Token を得る。それぞれをファイルに保存し、`slack` の `app_token_path` と `bot_token_path` に設定する。
+  - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
 
 ## クライアントをビルドする
 

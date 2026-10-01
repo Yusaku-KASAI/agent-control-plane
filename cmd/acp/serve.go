@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/moby/moby/client"
@@ -18,6 +20,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/githubapp"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackbot"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
@@ -66,26 +69,64 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		issuer,
 		docker.NewRunner(dockerClient, docker.Options{ClaudeConfigVolume: cfg.Claude.ConfigVolume}),
 	)
+	bots, err := slackBots(cfg, turns, log)
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           httpapi.NewHandler(turns, token, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	errc := make(chan error, 1)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errc := make(chan error, 1+len(bots))
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("listening", "addr", addr)
+	for _, b := range bots {
+		go func() { errc <- b.Run(ctx) }()
+	}
+
+	var runErr error
 	select {
-	case err := <-errc:
-		return err
+	case runErr = <-errc:
+		cancel()
 	case <-ctx.Done():
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
+	shutdownCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer stop()
 	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-	return nil
+	if errors.Is(runErr, http.ErrServerClosed) || errors.Is(runErr, context.Canceled) {
+		return nil
+	}
+	return runErr
+}
+
+func slackBots(cfg config.Config, turns usecase.TurnExecutor, log *slog.Logger) ([]*slackbot.Bot, error) {
+	var bots []*slackbot.Bot
+	for name, app := range cfg.SlackApps {
+		appToken, err := readSecret(app.AppTokenPath)
+		if err != nil {
+			return nil, fmt.Errorf("agent %q: %w", name, err)
+		}
+		botToken, err := readSecret(app.BotTokenPath)
+		if err != nil {
+			return nil, fmt.Errorf("agent %q: %w", name, err)
+		}
+		bots = append(bots, slackbot.New(name, appToken, botToken, turns, cfg.Access, log))
+	}
+	return bots, nil
+}
+
+func readSecret(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
 }
 
 func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer, error) {

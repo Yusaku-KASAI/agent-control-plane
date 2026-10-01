@@ -15,3 +15,7 @@ agents:
       app_id: 123456
       installation_id: 12345678
       private_key_path: /absolute/path/on/host/to/control-plane-dev.private-key.pem
+    slack:
+      app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-app-token
+      bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-bot-token
+      allowed_users: [U0123456789]
