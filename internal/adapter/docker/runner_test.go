@@ -22,8 +22,14 @@ var testAgent = domain.Agent{
 	Target: domain.Target{Path: "/src/repo", Image: "repo-dev:latest"},
 }
 
+var testSession = domain.Session{
+	ID:        "0f8fad5b-d9cb-469f-a165-70867728950e",
+	AgentName: "repo-dev",
+	Workspace: domain.Workspace{Path: "/sessions/0f8fad5b/workspace/repo"},
+}
+
 func TestContainerSpec(t *testing.T) {
-	spec := containerSpec(testAgent, "fix it", Options{ClaudeConfigVolume: "claude-config"})
+	spec := containerSpec(testAgent, testSession, "fix it", Options{ClaudeConfigVolume: "claude-config"})
 
 	if spec.Config.Image != "repo-dev:latest" {
 		t.Errorf("Image = %q", spec.Config.Image)
@@ -33,17 +39,30 @@ func TestContainerSpec(t *testing.T) {
 	}
 	wantCmd := []string{
 		"runuser", "-u", "node", "--",
-		"claude", "-p", "fix it", "--agent", "developer", "--dangerously-skip-permissions",
+		"claude", "-p", "fix it",
+		"--agent", "developer",
+		"--session-id", "0f8fad5b-d9cb-469f-a165-70867728950e",
+		"--dangerously-skip-permissions",
 	}
 	if !slices.Equal(spec.Config.Cmd, wantCmd) {
 		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
 	}
 	wantMounts := []mount.Mount{
-		{Type: mount.TypeBind, Source: "/src/repo", Target: "/workspace/repo"},
+		{Type: mount.TypeBind, Source: "/sessions/0f8fad5b/workspace/repo", Target: "/workspace/repo"},
 		{Type: mount.TypeVolume, Source: "claude-config", Target: "/home/node/.claude"},
 	}
 	if !slices.Equal(spec.HostConfig.Mounts, wantMounts) {
 		t.Errorf("Mounts = %+v, want %+v", spec.HostConfig.Mounts, wantMounts)
+	}
+}
+
+func TestContainerSpec_ResumesStartedSession(t *testing.T) {
+	started := testSession
+	started.Turns = 1
+	cmd := containerSpec(testAgent, started, "next", Options{}).Config.Cmd
+	i := slices.Index(cmd, "--resume")
+	if i < 0 || cmd[i+1] != string(started.ID) || slices.Contains(cmd, "--session-id") {
+		t.Errorf("Cmd = %q, want --resume %s", cmd, started.ID)
 	}
 }
 
@@ -62,7 +81,7 @@ func TestRunner_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			api := &fakeAPI{status: tt.status, logs: multiplex(tt.stdout, tt.stderr)}
-			got, err := NewRunner(api, Options{ClaudeConfigVolume: "v"}).Run(context.Background(), testAgent, "hi")
+			got, err := NewRunner(api, Options{ClaudeConfigVolume: "v"}).Run(context.Background(), testAgent, testSession, "hi")
 
 			if tt.wantErrSub != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {

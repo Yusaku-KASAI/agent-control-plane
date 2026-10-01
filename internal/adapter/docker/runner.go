@@ -38,8 +38,8 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 	return &Runner{api: api, opts: opts}
 }
 
-func (r *Runner) Run(ctx context.Context, agent domain.Agent, prompt string) (string, error) {
-	created, err := r.api.ContainerCreate(ctx, containerSpec(agent, prompt, r.opts))
+func (r *Runner) Run(ctx context.Context, agent domain.Agent, s domain.Session, prompt string) (string, error) {
+	created, err := r.api.ContainerCreate(ctx, containerSpec(agent, s, prompt, r.opts))
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
@@ -78,15 +78,23 @@ func (r *Runner) Run(ctx context.Context, agent domain.Agent, prompt string) (st
 
 const claudeConfigDir = "/home/node/.claude"
 
-func containerSpec(agent domain.Agent, prompt string, opts Options) client.ContainerCreateOptions {
+func containerSpec(agent domain.Agent, s domain.Session, prompt string, opts Options) client.ContainerCreateOptions {
+	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := path.Join("/workspace", filepath.Base(agent.Target.Path))
+	sessionFlag := "--resume"
+	if s.IsNew() {
+		sessionFlag = "--session-id"
+	}
 	return client.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in docs/target/README.md.
 			Cmd: []string{
 				"runuser", "-u", "node", "--",
-				"claude", "-p", prompt, "--agent", string(agent.Role), "--dangerously-skip-permissions",
+				"claude", "-p", prompt,
+				"--agent", string(agent.Role),
+				sessionFlag, string(s.ID),
+				"--dangerously-skip-permissions",
 			},
 			Env: []string{
 				"WORKSPACE_DIR=" + workdir,
@@ -97,7 +105,7 @@ func containerSpec(agent domain.Agent, prompt string, opts Options) client.Conta
 		},
 		HostConfig: &container.HostConfig{
 			Mounts: []mount.Mount{
-				{Type: mount.TypeBind, Source: agent.Target.Path, Target: workdir},
+				{Type: mount.TypeBind, Source: s.Workspace.Path, Target: workdir},
 				{Type: mount.TypeVolume, Source: opts.ClaudeConfigVolume, Target: claudeConfigDir},
 			},
 		},

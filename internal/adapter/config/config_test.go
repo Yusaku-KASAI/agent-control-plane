@@ -10,6 +10,8 @@ import (
 )
 
 const validYAML = `
+sessions:
+  root: /var/acp/sessions
 claude:
   config_volume: claude-config
 agents:
@@ -25,8 +27,8 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if cfg.Claude.ConfigVolume != "claude-config" {
-		t.Errorf("ConfigVolume = %q", cfg.Claude.ConfigVolume)
+	if cfg.Claude.ConfigVolume != "claude-config" || cfg.SessionsRoot != "/var/acp/sessions" {
+		t.Errorf("Parse() = %+v", cfg)
 	}
 
 	got, err := cfg.Agents.FindByName(context.Background(), "repo-dev")
@@ -47,14 +49,33 @@ func TestParse_Invalid(t *testing.T) {
 	tests := map[string]string{
 		"unknown field": validYAML + "extra: 1\n",
 		"missing volume": `
+sessions: {root: /w}
 agents: []
 `,
+		"relative sessions root": `
+sessions: {root: w}
+claude: {config_volume: v}
+`,
 		"invalid agent": `
+sessions: {root: /w}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: relative, image: i}}
 `,
+		"sessions root inside a target": `
+sessions: {root: /src/repo/sessions}
+claude: {config_volume: v}
+agents:
+  - {name: a, role: developer, target: {path: /src/repo, image: i}}
+`,
+		"sessions root is a target": `
+sessions: {root: /src/repo}
+claude: {config_volume: v}
+agents:
+  - {name: a, role: developer, target: {path: /src/repo, image: i}}
+`,
 		"duplicate agent": `
+sessions: {root: /w}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}}
@@ -67,5 +88,17 @@ agents:
 				t.Fatal("Parse() error = nil, want error")
 			}
 		})
+	}
+}
+
+func TestParse_SessionsRootBesideTarget(t *testing.T) {
+	in := `
+sessions: {root: /src/repo-sessions}
+claude: {config_volume: v}
+agents:
+  - {name: a, role: developer, target: {path: /src/repo, image: i}}
+`
+	if _, err := config.Parse([]byte(in)); err != nil {
+		t.Fatalf("Parse() error = %v", err)
 	}
 }

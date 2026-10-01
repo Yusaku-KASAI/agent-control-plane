@@ -12,6 +12,7 @@ func TestRun_UsageErrors(t *testing.T) {
 		"unknown subcommand": {"serve"},
 		"missing agent":      {"run", "hello"},
 		"unknown flag":       {"run", "--nope"},
+		"invalid session":    {"run", "--agent", "a", "--session", "../x", "hi"},
 	}
 	for name, args := range tests {
 		t.Run(name, func(t *testing.T) {

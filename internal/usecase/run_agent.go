@@ -13,20 +13,26 @@ var ErrEmptyPrompt = errors.New("prompt is empty")
 
 type RunAgentInput struct {
 	AgentName domain.AgentName
+	// SessionID continues an existing session; empty starts a new one.
+	SessionID domain.SessionID
 	Prompt    string
 }
 
 type RunAgentOutput struct {
 	Output string
+	// Session is set whenever it exists, even if the turn then failed.
+	Session domain.Session
 }
 
 type RunAgent struct {
-	agents AgentRegistry
-	runner Runner
+	agents     AgentRegistry
+	sessions   SessionRepository
+	workspaces WorkspaceProvider
+	runner     Runner
 }
 
-func NewRunAgent(agents AgentRegistry, runner Runner) *RunAgent {
-	return &RunAgent{agents: agents, runner: runner}
+func NewRunAgent(agents AgentRegistry, sessions SessionRepository, workspaces WorkspaceProvider, runner Runner) *RunAgent {
+	return &RunAgent{agents: agents, sessions: sessions, workspaces: workspaces, runner: runner}
 }
 
 func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutput, error) {
@@ -37,9 +43,48 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	if err != nil {
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
-	out, err := u.runner.Run(ctx, agent, in.Prompt)
+
+	session, err := u.openSession(ctx, agent, in.SessionID)
 	if err != nil {
-		return RunAgentOutput{}, fmt.Errorf("run agent %q: %w", agent.Name, err)
+		return RunAgentOutput{}, err
 	}
-	return RunAgentOutput{Output: out}, nil
+	unlock, err := u.sessions.Lock(ctx, session.ID)
+	if err != nil {
+		return RunAgentOutput{Session: session}, fmt.Errorf("lock session %s: %w", session.ID, err)
+	}
+	defer unlock()
+
+	out, err := u.runner.Run(ctx, agent, session, in.Prompt)
+	if err != nil {
+		return RunAgentOutput{Session: session}, fmt.Errorf("run agent %q: %w", agent.Name, err)
+	}
+	session.Turns++
+	if err := u.sessions.Save(ctx, session); err != nil {
+		return RunAgentOutput{Output: out, Session: session}, fmt.Errorf("save session %s: %w", session.ID, err)
+	}
+	return RunAgentOutput{Output: out, Session: session}, nil
+}
+
+func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, id domain.SessionID) (domain.Session, error) {
+	if id != "" {
+		s, err := u.sessions.Find(ctx, id)
+		if err != nil {
+			return domain.Session{}, fmt.Errorf("find session %s: %w", id, err)
+		}
+		if err := s.CheckAgent(agent.Name); err != nil {
+			return domain.Session{}, err
+		}
+		return s, nil
+	}
+
+	id = domain.NewRandomSessionID()
+	ws, err := u.workspaces.Prepare(ctx, agent, id)
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("prepare workspace for agent %q: %w", agent.Name, err)
+	}
+	s := domain.Session{ID: id, AgentName: agent.Name, Workspace: ws}
+	if err := u.sessions.Save(ctx, s); err != nil {
+		return domain.Session{}, fmt.Errorf("save session %s: %w", id, err)
+	}
+	return s, nil
 }

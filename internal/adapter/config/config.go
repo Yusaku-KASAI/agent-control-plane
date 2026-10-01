@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -15,6 +17,8 @@ import (
 type Config struct {
 	Agents *Registry
 	Claude Claude
+	// SessionsRoot is the host directory holding each session's record and workspace.
+	SessionsRoot string
 }
 
 type Claude struct {
@@ -23,6 +27,9 @@ type Claude struct {
 }
 
 type fileFormat struct {
+	Sessions struct {
+		Root string `yaml:"root"`
+	} `yaml:"sessions"`
 	Claude struct {
 		ConfigVolume string `yaml:"config_volume"`
 	} `yaml:"claude"`
@@ -58,6 +65,9 @@ func Parse(data []byte) (Config, error) {
 	if f.Claude.ConfigVolume == "" {
 		return Config{}, errors.New("claude.config_volume is empty")
 	}
+	if !filepath.IsAbs(f.Sessions.Root) {
+		return Config{}, fmt.Errorf("sessions.root %q is not absolute", f.Sessions.Root)
+	}
 
 	agents := make(map[domain.AgentName]domain.Agent, len(f.Agents))
 	for _, e := range f.Agents {
@@ -69,12 +79,21 @@ func Parse(data []byte) (Config, error) {
 		if _, dup := agents[a.Name]; dup {
 			return Config{}, fmt.Errorf("agent %q is defined more than once", a.Name)
 		}
+		if within(f.Sessions.Root, a.Target.Path) {
+			return Config{}, fmt.Errorf("sessions.root %q is inside the target of agent %q", f.Sessions.Root, a.Name)
+		}
 		agents[a.Name] = a
 	}
 	return Config{
-		Agents: &Registry{agents: agents},
-		Claude: Claude{ConfigVolume: f.Claude.ConfigVolume},
+		Agents:       &Registry{agents: agents},
+		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
+		SessionsRoot: f.Sessions.Root,
 	}, nil
+}
+
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 type Registry struct {

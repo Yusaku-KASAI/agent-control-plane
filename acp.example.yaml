@@ -1,3 +1,5 @@
+sessions:
+  root: /absolute/path/on/host/to/acp-sessions
 claude:
   config_volume: agent-control-plane_claude-code-config
 agents:

@@ -1,0 +1,53 @@
+package domain
+
+import (
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"regexp"
+)
+
+var (
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrSessionBusy          = errors.New("session is running another turn")
+	ErrSessionAgentMismatch = errors.New("session belongs to another agent")
+)
+
+// SessionID is a UUID so that it can double as the Claude Code session ID.
+type SessionID string
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+func ParseSessionID(s string) (SessionID, error) {
+	if !uuidPattern.MatchString(s) {
+		return "", fmt.Errorf("session id %q is not a lowercase UUID", s)
+	}
+	return SessionID(s), nil
+}
+
+func NewRandomSessionID() SessionID {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = b[6]&0x0f | 0x40 // version 4
+	b[8] = b[8]&0x3f | 0x80 // RFC 4122 variant
+	return SessionID(fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]))
+}
+
+type Session struct {
+	ID        SessionID
+	AgentName AgentName
+	Workspace Workspace
+	// Turns counts completed turns. The first turn starts the Claude Code session; later turns resume it.
+	Turns int
+}
+
+func (s Session) IsNew() bool {
+	return s.Turns == 0
+}
+
+func (s Session) CheckAgent(name AgentName) error {
+	if s.AgentName != name {
+		return fmt.Errorf("%w: session %s is for %q, not %q", ErrSessionAgentMismatch, s.ID, s.AgentName, name)
+	}
+	return nil
+}

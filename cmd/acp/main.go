@@ -15,11 +15,13 @@ import (
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/config"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/docker"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/filesession"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
-const usage = `usage: acp run --agent <name> [--config <path>] <prompt>`
+const usage = `usage: acp run --agent <name> [--session <id>] [--config <path>] <prompt>`
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -36,6 +38,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	agentName := fs.String("agent", "", "agent name defined in the config")
+	sessionArg := fs.String("session", "", "session ID to continue; omit to start a new session")
 	configPath := fs.String("config", "acp.yaml", "config file path")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
@@ -44,31 +47,66 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
+	var sessionID domain.SessionID
+	if *sessionArg != "" {
+		id, err := domain.ParseSessionID(*sessionArg)
+		if err != nil {
+			fmt.Fprintln(stderr, "acp:", err)
+			return 2
+		}
+		sessionID = id
+	}
 
-	out, err := runAgent(ctx, *configPath, domain.AgentName(*agentName), strings.Join(fs.Args(), " "))
+	out, err := runAgent(ctx, *configPath, usecase.RunAgentInput{
+		AgentName: domain.AgentName(*agentName),
+		SessionID: sessionID,
+		Prompt:    strings.Join(fs.Args(), " "),
+	})
+	if out.Session.ID != "" {
+		fmt.Fprintln(stderr, "acp: session:", out.Session.ID)
+		fmt.Fprintln(stderr, "acp: workspace:", out.Session.Workspace.Path)
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, "acp:", err)
-		if errors.Is(err, usecase.ErrEmptyPrompt) || errors.Is(err, domain.ErrAgentNotFound) {
+		if isUsageError(err) {
 			return 2
 		}
 		return 1
 	}
-	fmt.Fprint(stdout, out)
+	fmt.Fprint(stdout, out.Output)
 	return 0
 }
 
-func runAgent(ctx context.Context, configPath string, name domain.AgentName, prompt string) (string, error) {
+func isUsageError(err error) bool {
+	for _, target := range []error{
+		usecase.ErrEmptyPrompt,
+		domain.ErrAgentNotFound,
+		domain.ErrSessionNotFound,
+		domain.ErrSessionAgentMismatch,
+	} {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func runAgent(ctx context.Context, configPath string, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		return "", err
+		return usecase.RunAgentOutput{}, err
 	}
 	dockerClient, err := client.New(client.FromEnv)
 	if err != nil {
-		return "", err
+		return usecase.RunAgentOutput{}, err
 	}
 	defer func() { _ = dockerClient.Close() }()
 
-	runner := docker.NewRunner(dockerClient, docker.Options{ClaudeConfigVolume: cfg.Claude.ConfigVolume})
-	out, err := usecase.NewRunAgent(cfg.Agents, runner).Execute(ctx, usecase.RunAgentInput{AgentName: name, Prompt: prompt})
-	return out.Output, err
+	uc := usecase.NewRunAgent(
+		cfg.Agents,
+		filesession.NewStore(cfg.SessionsRoot),
+		gitworkspace.NewProvider(cfg.SessionsRoot),
+		docker.NewRunner(dockerClient, docker.Options{ClaudeConfigVolume: cfg.Claude.ConfigVolume}),
+	)
+	return uc.Execute(ctx, in)
 }
