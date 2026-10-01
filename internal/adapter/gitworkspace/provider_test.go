@@ -12,49 +12,104 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
 
-func TestProvider_Prepare(t *testing.T) {
-	source := filepath.Join(t.TempDir(), "repo")
-	git(t, "", "init", "--quiet", source)
-	if err := os.WriteFile(filepath.Join(source, "README.md"), []byte("committed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	git(t, source, "add", "README.md")
-	git(t, source, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "init")
-	git(t, source, "remote", "add", "origin", "git@github.com:example/repo.git")
+const sessionID domain.SessionID = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+// fixture builds a remote whose main is ahead of the source checkout, and a source that has a
+// feature branch checked out plus an uncommitted file.
+type fixture struct {
+	remote, source         string
+	remoteMain, sourceHEAD string
+}
+
+func newFixture(t *testing.T) fixture {
+	t.Helper()
+	base := t.TempDir()
+	remote := filepath.Join(base, "remote.git")
+	seed := filepath.Join(base, "seed")
+	source := filepath.Join(base, "repo")
+
+	git(t, "", "init", "--quiet", "--bare", "-b", "main", remote)
+	git(t, "", "clone", "--quiet", remote, seed)
+	commit(t, seed, "README.md", "v1")
+	git(t, seed, "push", "--quiet", "origin", "HEAD:main")
+
+	git(t, "", "clone", "--quiet", remote, source)
+	git(t, source, "switch", "--quiet", "-c", "feature")
+	commit(t, source, "feature.txt", "local work")
 	if err := os.WriteFile(filepath.Join(source, "dirty.txt"), []byte("uncommitted"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	root := t.TempDir()
-	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: source, Image: "img"}}
-	p := gitworkspace.NewProvider(root)
+	commit(t, seed, "README.md", "v2")
+	git(t, seed, "push", "--quiet", "origin", "HEAD:main")
 
-	first, err := p.Prepare(context.Background(), agent, "0f8fad5b-d9cb-469f-a165-70867728950e")
-	if err != nil {
-		t.Fatalf("Prepare() error = %v", err)
+	return fixture{
+		remote:     remote,
+		source:     source,
+		remoteMain: gitOutput(t, seed, "rev-parse", "HEAD"),
+		sourceHEAD: gitOutput(t, source, "rev-parse", "HEAD"),
 	}
-	if want := filepath.Join(root, "0f8fad5b-d9cb-469f-a165-70867728950e", "workspace", "repo"); first.Path != want {
-		t.Errorf("Path = %q, want %q", first.Path, want)
+}
+
+func TestProvider_Prepare(t *testing.T) {
+	tests := []struct {
+		name      string
+		creds     domain.Credentials
+		wantStart func(fixture) string
+	}{
+		{
+			name:      "with credentials, starts from the remote default branch",
+			creds:     domain.Credentials{GitHubToken: "token"},
+			wantStart: func(f fixture) string { return f.remoteMain },
+		},
+		{
+			name:      "without credentials, starts from the target's HEAD",
+			wantStart: func(f fixture) string { return f.sourceHEAD },
+		},
 	}
-	if b, err := os.ReadFile(filepath.Join(first.Path, "README.md")); err != nil || string(b) != "committed" {
-		t.Errorf("README.md = %q, %v", b, err)
-	}
-	if _, err := os.Stat(filepath.Join(first.Path, "dirty.txt")); !os.IsNotExist(err) {
-		t.Errorf("uncommitted file was copied (stat err = %v)", err)
-	}
-	if got := gitOutput(t, first.Path, "remote", "get-url", "origin"); got != "git@github.com:example/repo.git" {
-		t.Errorf("origin = %q, want the target's origin", got)
-	}
-	if got := gitOutput(t, first.Path, "branch", "--show-current"); got != "acp/0f8fad5b" {
-		t.Errorf("branch = %q, want acp/0f8fad5b", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			root := t.TempDir()
+			agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+
+			ws, err := gitworkspace.NewProvider(root).Prepare(context.Background(), agent, sessionID, tt.creds)
+			if err != nil {
+				t.Fatalf("Prepare() error = %v", err)
+			}
+			if want := filepath.Join(root, string(sessionID), "workspace", "repo"); ws.Path != want {
+				t.Errorf("Path = %q, want %q", ws.Path, want)
+			}
+			if got := gitOutput(t, ws.Path, "branch", "--show-current"); got != "acp/0f8fad5b" {
+				t.Errorf("branch = %q, want acp/0f8fad5b", got)
+			}
+			if got, want := gitOutput(t, ws.Path, "rev-parse", "HEAD"), tt.wantStart(f); got != want {
+				t.Errorf("HEAD = %s, want %s", got, want)
+			}
+			if got := gitOutput(t, ws.Path, "remote", "get-url", "origin"); got != f.remote {
+				t.Errorf("origin = %q, want the target's origin %q", got, f.remote)
+			}
+			if _, err := os.Stat(filepath.Join(ws.Path, "dirty.txt")); !os.IsNotExist(err) {
+				t.Errorf("uncommitted file was copied (stat err = %v)", err)
+			}
+		})
 	}
 }
 
 func TestProvider_Prepare_NotARepository(t *testing.T) {
 	agent := domain.Agent{Name: "a", Role: "developer", Target: domain.Target{Path: t.TempDir(), Image: "img"}}
-	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, "0f8fad5b-d9cb-469f-a165-70867728950e"); err == nil {
+	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{}); err == nil {
 		t.Fatal("Prepare() error = nil, want error")
 	}
+}
+
+func commit(t *testing.T, dir, file, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", file)
+	git(t, dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", content)
 }
 
 func git(t *testing.T, dir string, args ...string) {

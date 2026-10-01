@@ -50,10 +50,11 @@ type fakeWorkspaces struct {
 	ws       domain.Workspace
 	err      error
 	prepared bool
+	gotCreds domain.Credentials
 }
 
-func (f *fakeWorkspaces) Prepare(context.Context, domain.Agent, domain.SessionID) (domain.Workspace, error) {
-	f.prepared = true
+func (f *fakeWorkspaces) Prepare(_ context.Context, _ domain.Agent, _ domain.SessionID, creds domain.Credentials) (domain.Workspace, error) {
+	f.prepared, f.gotCreds = true, creds
 	return f.ws, f.err
 }
 
@@ -128,6 +129,9 @@ func TestRunAgent_NewSession(t *testing.T) {
 	if e.runner.gotTurn != wantTurn || !e.runner.heldLock {
 		t.Errorf("runner got %+v (lock held: %v), want %+v under lock", e.runner.gotTurn, e.runner.heldLock, wantTurn)
 	}
+	if e.workspaces.gotCreds != e.issuer.creds {
+		t.Errorf("workspace got credentials %+v, want %+v", e.workspaces.gotCreds, e.issuer.creds)
+	}
 	if e.sessions.saved[got.Session.ID] != got.Session {
 		t.Errorf("saved session = %+v, want %+v", e.sessions.saved[got.Session.ID], got.Session)
 	}
@@ -191,11 +195,10 @@ func TestRunAgent_Errors(t *testing.T) {
 			wantTurns: 1,
 		},
 		{
-			name:      "credential failure",
-			in:        usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"},
-			setup:     func(e env) { e.issuer.err = errIssue },
-			wantErr:   errIssue,
-			wantTurns: 1,
+			name:    "credential failure",
+			in:      usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"},
+			setup:   func(e env) { e.issuer.err = errIssue },
+			wantErr: errIssue,
 		},
 		{
 			name:      "runner failure does not count the turn",

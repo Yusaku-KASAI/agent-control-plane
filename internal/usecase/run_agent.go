@@ -51,7 +51,11 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
 
-	session, err := u.openSession(ctx, agent, in.SessionID)
+	creds, err := u.credentials.Issue(ctx, agent)
+	if err != nil {
+		return RunAgentOutput{}, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
+	}
+	session, err := u.openSession(ctx, agent, in.SessionID, creds)
 	if err != nil {
 		return RunAgentOutput{}, err
 	}
@@ -61,10 +65,6 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	}
 	defer unlock()
 
-	creds, err := u.credentials.Issue(ctx, agent)
-	if err != nil {
-		return RunAgentOutput{Session: session}, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
-	}
 	out, err := u.runner.Run(ctx, Turn{Agent: agent, Session: session, Prompt: in.Prompt, Credentials: creds})
 	if err != nil {
 		return RunAgentOutput{Session: session}, fmt.Errorf("run agent %q: %w", agent.Name, err)
@@ -76,7 +76,7 @@ func (u *RunAgent) Execute(ctx context.Context, in RunAgentInput) (RunAgentOutpu
 	return RunAgentOutput{Output: out, Session: session}, nil
 }
 
-func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, id domain.SessionID) (domain.Session, error) {
+func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (domain.Session, error) {
 	if id != "" {
 		s, err := u.sessions.Find(ctx, id)
 		if err != nil {
@@ -89,7 +89,7 @@ func (u *RunAgent) openSession(ctx context.Context, agent domain.Agent, id domai
 	}
 
 	id = domain.NewRandomSessionID()
-	ws, err := u.workspaces.Prepare(ctx, agent, id)
+	ws, err := u.workspaces.Prepare(ctx, agent, id, creds)
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("prepare workspace for agent %q: %w", agent.Name, err)
 	}

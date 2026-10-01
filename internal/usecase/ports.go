@@ -20,8 +20,8 @@ type SessionRepository interface {
 }
 
 type WorkspaceProvider interface {
-	// Prepare creates the session's workspace from the agent's target.
-	Prepare(ctx context.Context, agent domain.Agent, id domain.SessionID) (domain.Workspace, error)
+	// Prepare creates the session's workspace from the agent's target, using creds to reach its remote.
+	Prepare(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (domain.Workspace, error)
 }
 
 type CredentialIssuer interface {
