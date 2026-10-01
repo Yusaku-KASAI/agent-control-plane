@@ -60,7 +60,8 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 }
 
 // gitRunner ignores the host user's git configuration, credential helpers and SSH keys, so the
-// result does not depend on whose machine or container runs the control plane.
+// result does not depend on whose machine or container runs the control plane. Bind-mounted
+// repositories may show a foreign owner inside a container, hence safe.directory.
 type gitRunner struct {
 	token string
 }
@@ -75,10 +76,11 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_TERMINAL_PROMPT=0",
 		"ACP_GIT_TOKEN="+g.token,
-		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_COUNT=4",
 		"GIT_CONFIG_KEY_0=credential.helper", "GIT_CONFIG_VALUE_0="+tokenHelper,
 		"GIT_CONFIG_KEY_1=url.https://github.com/.insteadOf", "GIT_CONFIG_VALUE_1=git@github.com:",
 		"GIT_CONFIG_KEY_2=url.https://github.com/.insteadOf", "GIT_CONFIG_VALUE_2=ssh://git@github.com/",
+		"GIT_CONFIG_KEY_3=safe.directory", "GIT_CONFIG_VALUE_3=*",
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

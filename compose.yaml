@@ -1,0 +1,52 @@
+name: agent-control-plane
+
+services:
+  control-plane:
+    build: .
+    restart: unless-stopped
+    user: "${ACP_UID:-1000}:${ACP_GID:-1000}"
+    environment:
+      ACP_API_TOKEN: ${ACP_API_TOKEN:?set ACP_API_TOKEN in .env}
+      DOCKER_HOST: tcp://docker-proxy:2375
+      HOME: /tmp
+    volumes:
+      - ${ACP_CONFIG:?set ACP_CONFIG in .env}:/etc/acp/acp.yaml:ro
+      # Same paths as on the host: the config and the agent containers' bind mounts use host paths.
+      - ${ACP_HOST_ROOT:?set ACP_HOST_ROOT in .env}:${ACP_HOST_ROOT}
+      - ${ACP_SECRETS_DIR:?set ACP_SECRETS_DIR in .env}:${ACP_SECRETS_DIR}:ro
+    ports:
+      - "127.0.0.1:8787:8787"
+    networks:
+      - default
+      - docker-proxy
+    depends_on:
+      - docker-proxy
+
+  # The only holder of the Docker socket. It passes just the container calls the runner makes
+  # (docs/app/adr/0015).
+  docker-proxy:
+    image: wollomatic/socket-proxy:1.13.1
+    restart: unless-stopped
+    user: "65534:${DOCKER_SOCKET_GID:-0}"
+    read_only: true
+    cap_drop: [ALL]
+    mem_limit: 64M
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=control-plane
+      - -allowHEAD=^/(v[0-9.]+/)?_ping$
+      - -allowGET=^/(v[0-9.]+/)?(_ping|version|containers/[a-zA-Z0-9_.-]+/logs)$
+      - -allowPOST=^/(v[0-9.]+/)?containers/(create|[a-zA-Z0-9_.-]+/(start|wait))$
+      - -allowDELETE=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+$
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-proxy
+
+networks:
+  # Shared with the dev container so `acp run` reaches http://control-plane:8787 from there.
+  default:
+    name: agent-control-plane-net
+    external: true
+  docker-proxy:
+    internal: true

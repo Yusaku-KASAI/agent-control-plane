@@ -29,6 +29,9 @@ services:
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history
+      # The API token is deliberately not passed: it would let this container start agents that
+      # hold GitHub credentials.
+      - ACP_SERVER=http://control-plane:8787
     cap_add:
       - NET_ADMIN
       - NET_RAW
