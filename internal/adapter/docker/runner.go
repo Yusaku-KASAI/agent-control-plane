@@ -41,7 +41,11 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, t usecase.Turn) (string, error) {
-	created, err := r.api.ContainerCreate(ctx, containerSpec(t, r.opts))
+	plugins, err := declaredPluginDirs(t.Session.Workspace.Path)
+	if err != nil {
+		return "", fmt.Errorf("read declared plugins: %w", err)
+	}
+	created, err := r.api.ContainerCreate(ctx, containerSpec(t, plugins, r.opts))
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
@@ -80,7 +84,7 @@ func (r *Runner) Run(ctx context.Context, t usecase.Turn) (string, error) {
 
 const claudeConfigDir = "/home/node/.claude"
 
-func containerSpec(t usecase.Turn, opts Options) client.ContainerCreateOptions {
+func containerSpec(t usecase.Turn, plugins []string, opts Options) client.ContainerCreateOptions {
 	agent, s := t.Agent, t.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := path.Join("/workspace", filepath.Base(agent.Target.Path))
@@ -92,13 +96,7 @@ func containerSpec(t usecase.Turn, opts Options) client.ContainerCreateOptions {
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in docs/target/README.md.
-			Cmd: []string{
-				"runuser", "-u", "node", "--",
-				"claude", "-p", t.Prompt,
-				"--agent", string(agent.Role),
-				sessionFlag, string(s.ID),
-				"--dangerously-skip-permissions",
-			},
+			Cmd: claudeCommand(t, workdir, plugins, sessionFlag),
 			Env: append([]string{
 				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
@@ -114,6 +112,20 @@ func containerSpec(t usecase.Turn, opts Options) client.ContainerCreateOptions {
 			},
 		},
 	}
+}
+
+func claudeCommand(t usecase.Turn, workdir string, plugins []string, sessionFlag string) []string {
+	cmd := []string{
+		"runuser", "-u", "node", "--",
+		"claude", "-p", t.Prompt,
+		"--agent", string(t.Agent.Role),
+		sessionFlag, string(t.Session.ID),
+		"--dangerously-skip-permissions",
+	}
+	for _, p := range plugins {
+		cmd = append(cmd, "--plugin-dir", path.Join(workdir, filepath.ToSlash(p)))
+	}
+	return cmd
 }
 
 func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {

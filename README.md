@@ -56,6 +56,11 @@ docker compose up -d --build
     Bot User OAuth Token を得る。それぞれをファイルに保存し、`slack` の `app_token_path` と `bot_token_path` に設定する。
   - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
 
+## プラグイン
+
+エージェントの共通の能力は `platform/` のプラグインにある。構成と、対話で使うときの準備は
+[docs/platform/README.md](docs/platform/README.md) を参照。
+
 ## クライアントをビルドする
 
 ```bash

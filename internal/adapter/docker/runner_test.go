@@ -30,7 +30,7 @@ var testSession = domain.Session{
 }
 
 func TestContainerSpec(t *testing.T) {
-	spec := containerSpec(usecase.Turn{Agent: testAgent, Session: testSession, Prompt: "fix it"}, Options{ClaudeConfigVolume: "claude-config"})
+	spec := containerSpec(usecase.Turn{Agent: testAgent, Session: testSession, Prompt: "fix it"}, []string{"platform/plugins/roles"}, Options{ClaudeConfigVolume: "claude-config"})
 
 	if spec.Config.Image != "repo-dev:latest" {
 		t.Errorf("Image = %q", spec.Config.Image)
@@ -44,6 +44,7 @@ func TestContainerSpec(t *testing.T) {
 		"--agent", "developer",
 		"--session-id", "0f8fad5b-d9cb-469f-a165-70867728950e",
 		"--dangerously-skip-permissions",
+		"--plugin-dir", "/workspace/repo/platform/plugins/roles",
 	}
 	if !slices.Equal(spec.Config.Cmd, wantCmd) {
 		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
@@ -63,7 +64,7 @@ func TestContainerSpec(t *testing.T) {
 func TestContainerSpec_ResumesStartedSession(t *testing.T) {
 	started := testSession
 	started.Turns = 1
-	cmd := containerSpec(usecase.Turn{Agent: testAgent, Session: started, Prompt: "next"}, Options{}).Config.Cmd
+	cmd := containerSpec(usecase.Turn{Agent: testAgent, Session: started, Prompt: "next"}, nil, Options{}).Config.Cmd
 	i := slices.Index(cmd, "--resume")
 	if i < 0 || cmd[i+1] != string(started.ID) || slices.Contains(cmd, "--session-id") {
 		t.Errorf("Cmd = %q, want --resume %s", cmd, started.ID)
@@ -75,7 +76,7 @@ func TestContainerSpec_Credentials(t *testing.T) {
 	agent.Git = domain.GitIdentity{Name: "repo-dev (agent)", Email: "1+u@users.noreply.github.com"}
 	turn := usecase.Turn{Agent: agent, Session: testSession, Prompt: "p", Credentials: domain.Credentials{GitHubToken: "ghs_x"}}
 
-	env := containerSpec(turn, Options{}).Config.Env
+	env := containerSpec(turn, nil, Options{}).Config.Env
 	for _, want := range []string{
 		"GIT_AUTHOR_NAME=repo-dev (agent)",
 		"GIT_COMMITTER_EMAIL=1+u@users.noreply.github.com",
@@ -88,7 +89,7 @@ func TestContainerSpec_Credentials(t *testing.T) {
 		}
 	}
 
-	bare := containerSpec(usecase.Turn{Agent: testAgent, Session: testSession, Prompt: "p"}, Options{}).Config.Env
+	bare := containerSpec(usecase.Turn{Agent: testAgent, Session: testSession, Prompt: "p"}, nil, Options{}).Config.Env
 	for _, e := range bare {
 		if strings.HasPrefix(e, "GH_TOKEN=") || strings.HasPrefix(e, "GIT_") {
 			t.Errorf("Env without credentials has %q", e)

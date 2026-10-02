@@ -55,5 +55,16 @@
   "hooks": {
     "PreToolUse": [],
     "PostToolUse": []
+  },
+  "extraKnownMarketplaces": {
+    "acp-platform": {
+      "source": {
+        "source": "directory",
+        "path": "./platform"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "roles@acp-platform": true
   }
 }

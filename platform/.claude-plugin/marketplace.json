@@ -1,0 +1,14 @@
+{
+  "name": "acp-platform",
+  "description": "Shared plugins for agents run by agent-control-plane",
+  "owner": {
+    "name": "Yusaku KASAI"
+  },
+  "plugins": [
+    {
+      "name": "roles",
+      "source": "./plugins/roles",
+      "description": "Base roles for agents"
+    }
+  ]
+}
