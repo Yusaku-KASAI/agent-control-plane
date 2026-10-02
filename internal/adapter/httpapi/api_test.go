@@ -24,11 +24,19 @@ type fakeTurns struct {
 	out usecase.RunAgentOutput
 	err error
 	got usecase.RunAgentInput
+
+	interrupted  domain.SessionID
+	interruptErr error
 }
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
 	f.got = in
 	return f.out, f.err
+}
+
+func (f *fakeTurns) Interrupt(_ context.Context, _ domain.AgentName, id domain.SessionID) error {
+	f.interrupted = id
+	return f.interruptErr
 }
 
 func newServer(t *testing.T, turns *fakeTurns) *httptest.Server {
@@ -45,7 +53,7 @@ func TestRunTurn(t *testing.T) {
 	srv := newServer(t, turns)
 
 	got, err := httpapi.NewClient(srv.URL, token, srv.Client()).RunTurn(context.Background(),
-		httpapi.TurnRequest{Agent: "repo-dev", SessionID: sessionID, Prompt: "fix it"})
+		httpapi.TurnRequest{Agent: "repo-dev", SessionID: sessionID, Prompt: "fix it", Inject: true})
 	if err != nil {
 		t.Fatalf("RunTurn() error = %v", err)
 	}
@@ -53,7 +61,7 @@ func TestRunTurn(t *testing.T) {
 	if got != want {
 		t.Errorf("RunTurn() = %+v, want %+v", got, want)
 	}
-	wantIn := usecase.RunAgentInput{AgentName: "repo-dev", SessionID: sessionID, Prompt: "fix it"}
+	wantIn := usecase.RunAgentInput{AgentName: "repo-dev", SessionID: sessionID, Prompt: "fix it", Inject: true}
 	if turns.got != wantIn {
 		t.Errorf("usecase got %+v, want %+v", turns.got, wantIn)
 	}
@@ -76,6 +84,7 @@ func TestRunTurn_Errors(t *testing.T) {
 		{name: "unknown session", token: token, err: domain.ErrSessionNotFound, wantStatus: 404, wantCode: httpapi.CodeSessionNotFound},
 		{name: "other agent's session", token: token, err: domain.ErrSessionAgentMismatch, wantStatus: 409, wantCode: httpapi.CodeSessionAgentMismatch},
 		{name: "busy session", token: token, err: domain.ErrSessionBusy, wantStatus: 409, wantCode: httpapi.CodeSessionBusy},
+		{name: "inbox full", token: token, err: usecase.ErrInboxFull, wantStatus: 429, wantCode: httpapi.CodeInboxFull},
 		{
 			name: "failed turn keeps the session", token: token, err: fmt.Errorf("run agent: %w", errors.New("exit 1")),
 			wantStatus: 500, wantCode: httpapi.CodeInternal, wantSess: sessionID,
@@ -97,6 +106,28 @@ func TestRunTurn_Errors(t *testing.T) {
 				t.Errorf("SessionID = %q, want %q", apiErr.SessionID, tt.wantSess)
 			}
 		})
+	}
+}
+
+func TestInterrupt(t *testing.T) {
+	turns := &fakeTurns{}
+	srv := newServer(t, turns)
+	c := httpapi.NewClient(srv.URL, token, srv.Client())
+
+	if err := c.Interrupt(context.Background(), sessionID, httpapi.InterruptRequest{Agent: "repo-dev"}); err != nil {
+		t.Fatalf("Interrupt() error = %v", err)
+	}
+	if turns.interrupted != sessionID {
+		t.Errorf("interrupted %q, want %q", turns.interrupted, sessionID)
+	}
+
+	turns.interruptErr = domain.ErrSessionAgentMismatch
+	var apiErr *httpapi.APIError
+	if err := c.Interrupt(context.Background(), sessionID, httpapi.InterruptRequest{Agent: "repo-pm"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeSessionAgentMismatch {
+		t.Errorf("Interrupt(other agent) error = %v", err)
+	}
+	if err := c.Interrupt(context.Background(), "bad", httpapi.InterruptRequest{Agent: "repo-dev"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeInvalidRequest {
+		t.Errorf("Interrupt(bad id) error = %v", err)
 	}
 }
 

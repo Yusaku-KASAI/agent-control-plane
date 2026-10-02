@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/moby/moby/client"
@@ -62,17 +63,32 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		return err
 	}
 
-	turns := usecase.NewRunAgent(
+	notifier := &agentTurnNotifier{log: log}
+	turns := usecase.NewDispatcher(
 		cfg.Agents,
 		filesession.NewStore(cfg.SessionsRoot),
 		gitworkspace.NewProvider(cfg.SessionsRoot),
 		issuer,
-		docker.NewRunner(dockerClient, docker.Options{ClaudeConfigVolume: cfg.Claude.ConfigVolume}),
+		docker.NewRunner(dockerClient, docker.Options{
+			ClaudeConfigVolume: cfg.Claude.ConfigVolume,
+			CredentialsDir:     cfg.Credentials.Dir,
+			CredentialsVolume:  cfg.Credentials.Volume,
+		}),
+		notifier,
+		usecase.DispatcherOptions{
+			IdleTimeout: cfg.IdleTimeout,
+			// Installation tokens live for an hour.
+			CredentialRefresh: 40 * time.Minute,
+			StopTimeout:       30 * time.Second,
+		},
 	)
+	// Runs after the HTTP server and the bots stop, so no new prompt arrives while processes close.
+	defer turns.Close()
 	bots, err := slackBots(cfg, turns, log)
 	if err != nil {
 		return err
 	}
+	notifier.setBots(bots)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           httpapi.NewHandler(turns, token, log),
@@ -105,8 +121,8 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	return runErr
 }
 
-func slackBots(cfg config.Config, turns usecase.TurnExecutor, log *slog.Logger) ([]*slackbot.Bot, error) {
-	var bots []*slackbot.Bot
+func slackBots(cfg config.Config, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
+	bots := make(map[domain.AgentName]*slackbot.Bot, len(cfg.SlackApps))
 	for name, app := range cfg.SlackApps {
 		appToken, err := readSecret(app.AppTokenPath)
 		if err != nil {
@@ -116,7 +132,7 @@ func slackBots(cfg config.Config, turns usecase.TurnExecutor, log *slog.Logger) 
 		if err != nil {
 			return nil, fmt.Errorf("agent %q: %w", name, err)
 		}
-		bots = append(bots, slackbot.New(name, appToken, botToken, turns, cfg.Access, log))
+		bots[name] = slackbot.New(name, appToken, botToken, turns, cfg.Access, log)
 	}
 	return bots, nil
 }
@@ -139,4 +155,31 @@ func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer
 		loaded[name] = githubapp.App{ID: app.AppID, InstallationID: app.InstallationID, PrivateKey: key}
 	}
 	return githubapp.NewIssuer(loaded, githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}), nil
+}
+
+// agentTurnNotifier posts turns the agent started by itself to the Slack thread the session
+// came from. Sessions started elsewhere have no thread to post to, so the result is logged.
+type agentTurnNotifier struct {
+	log  *slog.Logger
+	mu   sync.Mutex
+	bots map[domain.AgentName]*slackbot.Bot
+}
+
+func (n *agentTurnNotifier) setBots(bots map[domain.AgentName]*slackbot.Bot) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.bots = bots
+}
+
+func (n *agentTurnNotifier) AgentTurn(ctx context.Context, s domain.Session, r usecase.TurnResult) {
+	n.mu.Lock()
+	bot, ok := n.bots[s.AgentName]
+	n.mu.Unlock()
+	if !ok || s.Conversation.Platform != "slack" {
+		n.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", r.Output)
+		return
+	}
+	if err := bot.Post(ctx, s.Conversation, r.Output); err != nil {
+		n.log.Warn("posting agent turn failed", "agent", s.AgentName, "session", s.ID, "err", err)
+	}
 }

@@ -1,6 +1,6 @@
 # 0009. 会話の単位をセッション、1 回の依頼をターンとして扱う
 
-- Status: Accepted
+- Status: Accepted, Amended by 0017
 - Date: 2026-10-01
 
 ## Context

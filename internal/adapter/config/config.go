@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -19,6 +20,9 @@ type Config struct {
 	Claude Claude
 	// SessionsRoot is the host directory holding each session's record and workspace.
 	SessionsRoot string
+	// IdleTimeout is how long a session's agent process waits for the next prompt.
+	IdleTimeout time.Duration
+	Credentials Credentials
 	// GitHubApps holds the GitHub App of each agent that has one.
 	GitHubApps map[domain.AgentName]GitHubApp
 	// SlackApps holds the Slack app of each agent that has one.
@@ -38,6 +42,12 @@ func (l AccessList) Allows(agent domain.AgentName, r domain.Requester) bool {
 	return l[agent][r]
 }
 
+// Credentials is where per-session credentials are written for agent containers.
+type Credentials struct {
+	Dir    string
+	Volume string
+}
+
 type GitHubApp struct {
 	AppID          int64
 	InstallationID int64
@@ -51,8 +61,13 @@ type Claude struct {
 
 type fileFormat struct {
 	Sessions struct {
-		Root string `yaml:"root"`
+		Root        string `yaml:"root"`
+		IdleTimeout string `yaml:"idle_timeout"`
 	} `yaml:"sessions"`
+	Credentials struct {
+		Dir    string `yaml:"dir"`
+		Volume string `yaml:"volume"`
+	} `yaml:"credentials"`
 	Claude struct {
 		ConfigVolume string `yaml:"config_volume"`
 	} `yaml:"claude"`
@@ -80,6 +95,8 @@ type fileFormat struct {
 	} `yaml:"agents"`
 }
 
+const defaultIdleTimeout = 15 * time.Minute
+
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -104,6 +121,17 @@ func Parse(data []byte) (Config, error) {
 	}
 	if !filepath.IsAbs(f.Sessions.Root) {
 		return Config{}, fmt.Errorf("sessions.root %q is not absolute", f.Sessions.Root)
+	}
+	idle := defaultIdleTimeout
+	if f.Sessions.IdleTimeout != "" {
+		d, err := time.ParseDuration(f.Sessions.IdleTimeout)
+		if err != nil || d <= 0 {
+			return Config{}, fmt.Errorf("sessions.idle_timeout %q is not a positive duration", f.Sessions.IdleTimeout)
+		}
+		idle = d
+	}
+	if !filepath.IsAbs(f.Credentials.Dir) {
+		return Config{}, fmt.Errorf("credentials.dir %q is not absolute", f.Credentials.Dir)
 	}
 
 	agents := make(map[domain.AgentName]domain.Agent, len(f.Agents))
@@ -145,6 +173,8 @@ func Parse(data []byte) (Config, error) {
 		Agents:       &Registry{agents: agents},
 		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
+		IdleTimeout:  idle,
+		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
 		GitHubApps:   apps,
 		SlackApps:    slackApps,
 		Access:       access,

@@ -110,9 +110,14 @@ func (b *Bot) Acknowledge(ctx context.Context, msg usecase.IncomingMessage) erro
 }
 
 func (b *Bot) Reply(ctx context.Context, msg usecase.IncomingMessage, text string) error {
+	return b.Post(ctx, msg.Conversation, text)
+}
+
+// Post writes text to the conversation's thread.
+func (b *Bot) Post(ctx context.Context, c domain.Conversation, text string) error {
 	// A turn cancelled by shutdown should still be able to say so.
-	_, _, err := b.api.PostMessageContext(context.WithoutCancel(ctx), msg.Conversation.Channel,
-		slack.MsgOptionTS(msg.Conversation.Thread),
+	_, _, err := b.api.PostMessageContext(context.WithoutCancel(ctx), c.Channel,
+		slack.MsgOptionTS(c.Thread),
 		slack.MsgOptionText(fallbackText(text), false),
 		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", markdownText(text))),
 	)

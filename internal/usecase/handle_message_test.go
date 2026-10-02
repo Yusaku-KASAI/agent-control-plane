@@ -54,7 +54,9 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	want := usecase.RunAgentInput{AgentName: "repo-dev", SessionID: thread.SessionID("repo-dev"), CreateIfMissing: true, Prompt: "fix it"}
+	want := usecase.RunAgentInput{
+		AgentName: "repo-dev", SessionID: thread.SessionID("repo-dev"), CreateIfMissing: true, Prompt: "fix it", Conversation: thread,
+	}
 	if turns.got != want {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)
 	}
@@ -83,7 +85,7 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 		err  error
 		want string
 	}{
-		{name: "busy", err: domain.ErrSessionBusy, want: "前の依頼を処理中"},
+		{name: "inbox full", err: usecase.ErrInboxFull, want: "処理待ちの依頼が多すぎます"},
 		{
 			name: "failed turn",
 			out:  usecase.RunAgentOutput{Session: domain.Session{ID: "0f8fad5b-d9cb-469f-a165-70867728950e"}},

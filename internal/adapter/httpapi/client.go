@@ -31,36 +31,45 @@ func (e *APIError) Error() string {
 }
 
 func (c *Client) RunTurn(ctx context.Context, req TurnRequest) (TurnResponse, error) {
+	var out TurnResponse
+	err := c.post(ctx, turnsPath, req, &out)
+	return out, err
+}
+
+func (c *Client) Interrupt(ctx context.Context, sessionID string, req InterruptRequest) error {
+	return c.post(ctx, interruptPath(sessionID), req, nil)
+}
+
+func (c *Client) post(ctx context.Context, path string, req, out any) error {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return TurnResponse{}, err
+		return err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+turnsPath, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
 	if err != nil {
-		return TurnResponse{}, err
+		return err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		return TurnResponse{}, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return TurnResponse{}, err
+		return err
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode >= 300 {
 		apiErr := &APIError{Status: resp.StatusCode}
 		if json.Unmarshal(data, &apiErr.ErrorResponse) != nil || apiErr.Code == "" {
 			apiErr.Code, apiErr.Message = CodeInternal, strings.TrimSpace(string(data))
 		}
-		return TurnResponse{}, apiErr
+		return apiErr
 	}
-	var out TurnResponse
-	if err := json.Unmarshal(data, &out); err != nil {
-		return TurnResponse{}, err
+	if out == nil {
+		return nil
 	}
-	return out, nil
+	return json.Unmarshal(data, out)
 }

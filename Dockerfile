@@ -14,5 +14,7 @@ FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/acp /usr/local/bin/acp
+# A fresh named volume takes this mode, so the control plane can write to it under any ACP_UID.
+RUN mkdir -p /var/lib/acp/credentials && chmod 1777 /var/lib/acp/credentials
 ENTRYPOINT ["acp"]
 CMD ["serve", "--config", "/etc/acp/acp.yaml", "--listen", "0.0.0.0:8787"]

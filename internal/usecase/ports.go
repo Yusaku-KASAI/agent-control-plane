@@ -29,14 +29,56 @@ type CredentialIssuer interface {
 	Issue(ctx context.Context, agent domain.Agent) (domain.Credentials, error)
 }
 
-type Turn struct {
+type StartRequest struct {
 	Agent       domain.Agent
 	Session     domain.Session
-	Prompt      string
 	Credentials domain.Credentials
 }
 
+type TurnResult struct {
+	Output string
+	// Interrupted is set when the turn ended because of Process.Interrupt.
+	Interrupted bool
+}
+
+type EventKind int
+
+const (
+	EventTurnStarted EventKind = iota + 1
+	EventTurnFinished
+	EventBackgroundTasks
+)
+
+// ProcessEvent reports a change in the agent process. A turn may start without a prompt,
+// when the agent resumes by itself after background work.
+type ProcessEvent struct {
+	Kind EventKind
+	// Result is set for EventTurnFinished.
+	Result TurnResult
+	// BackgroundTasks is the number of background tasks still running, for EventBackgroundTasks.
+	BackgroundTasks int
+}
+
+// TurnListener receives the results of turns the agent started by itself, which no request waits for.
+type TurnListener interface {
+	AgentTurn(ctx context.Context, s domain.Session, r TurnResult)
+}
+
 type Runner interface {
-	// Run executes one non-interactive turn and returns its final output.
-	Run(ctx context.Context, t Turn) (string, error)
+	// Start launches the session's agent process, which then waits for prompts.
+	Start(ctx context.Context, r StartRequest) (Process, error)
+}
+
+// Process is one running agent process of a session. Its methods are not called concurrently.
+type Process interface {
+	// Send delivers a prompt. During a turn, the agent takes it into that turn.
+	Send(ctx context.Context, prompt string) error
+	Interrupt(ctx context.Context) error
+	// Events is closed when the process exits.
+	Events() <-chan ProcessEvent
+	// Err reports why the process exited, once Events is closed.
+	Err() error
+	UpdateCredentials(ctx context.Context, creds domain.Credentials) error
+	// Close asks the process to exit, stops it when ctx expires first, and releases it.
+	Close(ctx context.Context) error
 }

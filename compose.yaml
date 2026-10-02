@@ -14,6 +14,9 @@ services:
       # Same paths as on the host: the config and the agent containers' bind mounts use host paths.
       - ${ACP_HOST_ROOT:?set ACP_HOST_ROOT in .env}:${ACP_HOST_ROOT}
       - ${ACP_SECRETS_DIR:?set ACP_SECRETS_DIR in .env}:${ACP_SECRETS_DIR}:ro
+      # Short-lived per-session credentials (docs/app/adr/0018). Agent containers mount their
+      # session's subpath of this volume by name, so the name is fixed.
+      - acp-credentials:/var/lib/acp/credentials
     ports:
       - "127.0.0.1:8787:8787"
     networks:
@@ -35,13 +38,17 @@ services:
       - -listenip=0.0.0.0
       - -allowfrom=control-plane
       - -allowHEAD=^/(v[0-9.]+/)?_ping$
-      - -allowGET=^/(v[0-9.]+/)?(_ping|version|containers/[a-zA-Z0-9_.-]+/logs)$
-      - -allowPOST=^/(v[0-9.]+/)?containers/(create|[a-zA-Z0-9_.-]+/(start|wait))$
+      - -allowGET=^/(v[0-9.]+/)?(_ping|version)$
+      - -allowPOST=^/(v[0-9.]+/)?containers/(create|[a-zA-Z0-9_.-]+/(attach|start|wait))$
       - -allowDELETE=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+$
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - docker-proxy
+
+volumes:
+  acp-credentials:
+    name: acp-credentials
 
 networks:
   # Shared with the dev container so `acp run` reaches http://control-plane:8787 from there.

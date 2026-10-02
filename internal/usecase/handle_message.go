@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
@@ -57,17 +58,24 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		SessionID:       msg.Conversation.SessionID(msg.Agent),
 		CreateIfMissing: true,
 		Prompt:          msg.Text,
+		Conversation:    msg.Conversation,
 	})
 	if err != nil {
 		return errors.Join(err, ackErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)))
 	}
-	return errors.Join(ackErr, u.responder.Reply(ctx, msg, out.Output))
+	text := out.Output
+	if out.Interrupted && strings.TrimSpace(text) == "" {
+		text = "依頼を中断しました。"
+	}
+	return errors.Join(ackErr, u.responder.Reply(ctx, msg, text))
 }
 
 func failureText(s domain.Session, err error) string {
 	switch {
 	case errors.Is(err, domain.ErrSessionBusy):
-		return "このスレッドでは前の依頼を処理中です。終わってからもう一度依頼してください。"
+		return "このスレッドのセッションは別の control-plane が使っています。"
+	case errors.Is(err, ErrInboxFull):
+		return "このスレッドには処理待ちの依頼が多すぎます。少し待ってからもう一度依頼してください。"
 	case errors.Is(err, ErrEmptyPrompt):
 		return "依頼の内容が空です。"
 	case s.ID != "":

@@ -8,11 +8,12 @@ import (
 
 func TestDispatch_UsageErrors(t *testing.T) {
 	tests := map[string][]string{
-		"no subcommand":       nil,
-		"unknown subcommand":  {"deploy"},
-		"run without agent":   {"run", "hello"},
-		"run unknown flag":    {"run", "--nope"},
-		"serve without token": {"serve"},
+		"no subcommand":        nil,
+		"unknown subcommand":   {"deploy"},
+		"run without agent":    {"run", "hello"},
+		"run unknown flag":     {"run", "--nope"},
+		"serve without token":  {"serve"},
+		"interrupt without id": {"interrupt", "--agent", "a"},
 	}
 	noEnv := func(string) string { return "" }
 	for name, args := range tests {

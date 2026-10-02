@@ -18,19 +18,25 @@ Claude Code エージェントをコンテナで隔離して実行する制御�
 ### CLI から
 
 ```bash
-acp run --agent <name> [--session <id>] [--server <url>] "<指示>"
+acp run --agent <name> [--session <id>] [--inject] [--server <url>] "<指示>"
+acp interrupt --agent <name> --session <id> [--server <url>]
 ```
 
 - サーバーの URL は `--server`、`ACP_SERVER`、`http://127.0.0.1:8787` の順で決まる。API トークンは
   `ACP_API_TOKEN` から読む。
-- `--session` を省くと新しいセッションを始める。ターゲットのリポジトリを
-  `<sessions.root>/<セッションID>/workspace/<リポジトリ名>` に `git clone` する。
-- `--session <id>` を付けると、そのセッションの作業領域と会話を引き継いで続きを依頼する。
-- 作業領域では `acp/<セッションIDの先頭8文字>` ブランチで作業し、`origin` は元のリポジトリと同じリモートを指す。
-  GitHub App があればリモートのデフォルトブランチから、なければ元のリポジトリの HEAD からブランチを切る。
-- ターンごとに GitHub App のトークンを発行し、ターゲットのイメージからコンテナを作り、作業領域をマウントして、
-  エージェントのロールで `claude -p` を実行する。コンテナは終了後に削除する。
-- 結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。
+- `--session` を省くと新しいセッションを始め、`--session <id>` を付けるとそのセッションの続きを依頼する。
+  結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。
+- `--inject` は実行中のターンに指示を流し込む。`acp interrupt` は実行中のターンを中断する。
+
+### セッションの動き
+
+- 新しいセッションでは、ターゲットのリポジトリを `<sessions.root>/<セッションID>/workspace/<リポジトリ名>` に
+  `git clone` する。`acp/<セッションIDの先頭8文字>` ブランチで作業し、`origin` は元のリポジトリと同じリモートを
+  指す。GitHub App があればリモートのデフォルトブランチから、なければ元のリポジトリの HEAD からブランチを切る。
+- セッションごとにターゲットのイメージからコンテナを作り、エージェントのロールで Claude Code を動かし続ける。
+  依頼はそのプロセスに送り、実行中に届いた依頼は前のターンが終わるまで待たせる。
+- 依頼が `sessions.idle_timeout`（既定 15 分）来なければコンテナを片付け、次の依頼で会話を引き継いで起動し直す。
+- GitHub App のトークンは、コンテナが動いている間 control-plane が失効前に更新する。
 
 ## サーバーを動かす
 

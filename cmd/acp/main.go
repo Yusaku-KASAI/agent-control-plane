@@ -11,10 +11,11 @@ import (
 
 const usage = `usage:
   acp serve [--config <path>] [--listen <addr>]
-  acp run --agent <name> [--session <id>] [--server <url>] <prompt>
+  acp run --agent <name> [--session <id>] [--inject] [--server <url>] <prompt>
+  acp interrupt --agent <name> --session <id> [--server <url>]
 
-Both read the API token from ACP_API_TOKEN. run reads the server URL from ACP_SERVER
-when --server is not given.`
+All read the API token from ACP_API_TOKEN. run and interrupt read the server URL from
+ACP_SERVER when --server is not given.`
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -29,6 +30,8 @@ func dispatch(ctx context.Context, args []string, getenv func(string) string, st
 			return serve(ctx, args[1:], getenv, stderr)
 		case "run":
 			return runTurn(ctx, args[1:], getenv, stdout, stderr)
+		case "interrupt":
+			return interrupt(ctx, args[1:], getenv, stderr)
 		}
 	}
 	fmt.Fprintln(stderr, usage)

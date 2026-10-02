@@ -19,7 +19,10 @@ func TestStore_SaveFind(t *testing.T) {
 		t.Fatalf("Find(missing) error = %v, want ErrSessionNotFound", err)
 	}
 
-	want := domain.Session{ID: id, AgentName: "repo-dev", Workspace: domain.Workspace{Path: "/w/repo"}, Turns: 2}
+	want := domain.Session{
+		ID: id, AgentName: "repo-dev", Workspace: domain.Workspace{Path: "/w/repo"}, Turns: 2,
+		Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
+	}
 	if err := store.Save(ctx, want); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}

@@ -1,15 +1,12 @@
 package docker
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 
-	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/client"
@@ -21,14 +18,19 @@ import (
 // dockerAPI is the subset of *client.Client the runner uses.
 type dockerAPI interface {
 	ContainerCreate(ctx context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error)
+	ContainerAttach(ctx context.Context, containerID string, options client.ContainerAttachOptions) (client.ContainerAttachResult, error)
 	ContainerStart(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error)
 	ContainerWait(ctx context.Context, containerID string, options client.ContainerWaitOptions) client.ContainerWaitResult
-	ContainerLogs(ctx context.Context, containerID string, options client.ContainerLogsOptions) (client.ContainerLogsResult, error)
 	ContainerRemove(ctx context.Context, containerID string, options client.ContainerRemoveOptions) (client.ContainerRemoveResult, error)
 }
 
 type Options struct {
 	ClaudeConfigVolume string
+	// CredentialsDir is where the runner writes each session's credentials.
+	CredentialsDir string
+	// CredentialsVolume is the Docker volume mounted at CredentialsDir; agent containers get
+	// their session's subpath of it. When empty, CredentialsDir is a host path and is bind-mounted.
+	CredentialsVolume string
 }
 
 type Runner struct {
@@ -40,86 +42,87 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 	return &Runner{api: api, opts: opts}
 }
 
-func (r *Runner) Run(ctx context.Context, t usecase.Turn) (string, error) {
-	plugins, err := declaredPluginDirs(t.Session.Workspace.Path)
+func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.Process, error) {
+	plugins, err := declaredPluginDirs(req.Session.Workspace.Path)
 	if err != nil {
-		return "", fmt.Errorf("read declared plugins: %w", err)
+		return nil, fmt.Errorf("read declared plugins: %w", err)
 	}
-	created, err := r.api.ContainerCreate(ctx, containerSpec(t, plugins, r.opts))
+	creds := sessionCredentials{root: r.opts.CredentialsDir, id: req.Session.ID}
+	if err := creds.write(req.Credentials); err != nil {
+		return nil, fmt.Errorf("write credentials: %w", err)
+	}
+
+	created, err := r.api.ContainerCreate(ctx, containerSpec(req, plugins, r.opts))
 	if err != nil {
-		return "", fmt.Errorf("create container: %w", err)
+		return nil, fmt.Errorf("create container: %w", err)
 	}
-	defer func() {
+	remove := func() {
 		_, _ = r.api.ContainerRemove(context.WithoutCancel(ctx), created.ID, client.ContainerRemoveOptions{Force: true})
-	}()
-
-	if _, err := r.api.ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
-		return "", fmt.Errorf("start container: %w", err)
 	}
-
-	wait := r.api.ContainerWait(ctx, created.ID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
-	var status int64
-	select {
-	case res := <-wait.Result:
-		status = res.StatusCode
-	case err := <-wait.Error:
-		return "", fmt.Errorf("wait for container: %w", err)
-	}
-
-	logs, err := r.api.ContainerLogs(ctx, created.ID, client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	attach, err := r.api.ContainerAttach(ctx, created.ID, client.ContainerAttachOptions{Stream: true, Stdin: true, Stdout: true, Stderr: true})
 	if err != nil {
-		return "", fmt.Errorf("read container logs: %w", err)
+		remove()
+		return nil, fmt.Errorf("attach container: %w", err)
 	}
-	defer func() { _ = logs.Close() }()
-	var stdout, stderr bytes.Buffer
-	if _, err := stdcopy.StdCopy(&stdout, &stderr, logs); err != nil {
-		return "", fmt.Errorf("read container logs: %w", err)
+	if _, err := r.api.ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
+		attach.Close()
+		remove()
+		return nil, fmt.Errorf("start container: %w", err)
 	}
-
-	if status != 0 {
-		return "", fmt.Errorf("agent exited with status %d: %s", status, strings.TrimSpace(stderr.String()))
-	}
-	return stdout.String(), nil
+	return newProcess(r.api, created.ID, attach.HijackedResponse, creds), nil
 }
 
-const claudeConfigDir = "/home/node/.claude"
+const (
+	claudeConfigDir = "/home/node/.claude"
+	credentialsDir  = "/run/acp/credentials"
+)
 
-func containerSpec(t usecase.Turn, plugins []string, opts Options) client.ContainerCreateOptions {
-	agent, s := t.Agent, t.Session
+func containerSpec(req usecase.StartRequest, plugins []string, opts Options) client.ContainerCreateOptions {
+	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := path.Join("/workspace", filepath.Base(agent.Target.Path))
-	sessionFlag := "--resume"
-	if s.IsNew() {
-		sessionFlag = "--session-id"
-	}
 	return client.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in docs/target/README.md.
-			Cmd: claudeCommand(t, workdir, plugins, sessionFlag),
+			Cmd: claudeCommand(agent, s, workdir, plugins),
 			Env: append([]string{
 				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"FIREWALL_ENABLED=false",
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
-			}, credentialEnv(agent.Git, t.Credentials)...),
+			}, credentialEnv(agent.Git, req.Credentials)...),
 			WorkingDir: workdir,
+			// Prompts are written to stdin; closing it ends the process.
+			OpenStdin:    true,
+			StdinOnce:    true,
+			AttachStdin:  true,
+			AttachStdout: true,
+			AttachStderr: true,
 		},
 		HostConfig: &container.HostConfig{
 			Mounts: []mount.Mount{
 				{Type: mount.TypeBind, Source: s.Workspace.Path, Target: workdir},
 				{Type: mount.TypeVolume, Source: opts.ClaudeConfigVolume, Target: claudeConfigDir},
+				credentialsMount(s.ID, opts),
 			},
 		},
 	}
 }
 
-func claudeCommand(t usecase.Turn, workdir string, plugins []string, sessionFlag string) []string {
+func claudeCommand(agent domain.Agent, s domain.Session, workdir string, plugins []string) []string {
+	sessionFlag := "--resume"
+	if s.IsNew() {
+		sessionFlag = "--session-id"
+	}
 	cmd := []string{
 		"runuser", "-u", "node", "--",
-		"claude", "-p", t.Prompt,
-		"--agent", string(t.Agent.Role),
-		sessionFlag, string(t.Session.ID),
+		"claude", "-p",
+		"--input-format", "stream-json",
+		"--output-format", "stream-json",
+		"--verbose",
+		"--agent", string(agent.Role),
+		sessionFlag, string(s.ID),
 		"--dangerously-skip-permissions",
 	}
 	for _, p := range plugins {
@@ -137,8 +140,9 @@ func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
 		)
 	}
 	if creds.GitHubToken != "" {
-		// gh reads GH_TOKEN; git authenticates through gh, over HTTPS even for SSH-style remotes.
-		env = append(env, "GH_TOKEN="+creds.GitHubToken)
+		// gh reads the token from GH_CONFIG_DIR on every call, so refreshed tokens take effect;
+		// git authenticates through gh, over HTTPS even for SSH-style remotes.
+		env = append(env, "GH_CONFIG_DIR="+path.Join(credentialsDir, "gh"), "GH_NO_UPDATE_NOTIFIER=1")
 		env = append(env, gitConfigEnv(
 			[2]string{"credential.https://github.com.helper", "!gh auth git-credential"},
 			[2]string{"url.https://github.com/.insteadOf", "git@github.com:"},

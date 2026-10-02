@@ -42,6 +42,8 @@ type Session struct {
 	ID        SessionID
 	AgentName AgentName
 	Workspace Workspace
+	// Conversation is where the session started; zero when it did not start in a chat.
+	Conversation Conversation
 	// Turns counts completed turns. The first turn starts the Claude Code session; later turns resume it.
 	Turns int
 }

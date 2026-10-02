@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/config"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -13,6 +14,10 @@ import (
 const validYAML = `
 sessions:
   root: /var/acp/sessions
+  idle_timeout: 5m
+credentials:
+  dir: /var/lib/acp/credentials
+  volume: acp-credentials
 claude:
   config_volume: claude-config
 agents:
@@ -44,7 +49,8 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if cfg.Claude.ConfigVolume != "claude-config" || cfg.SessionsRoot != "/var/acp/sessions" {
+	if cfg.Claude.ConfigVolume != "claude-config" || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute ||
+		cfg.Credentials != (config.Credentials{Dir: "/var/lib/acp/credentials", Volume: "acp-credentials"}) {
 		t.Errorf("Parse() = %+v", cfg)
 	}
 
@@ -91,7 +97,17 @@ func TestParse_Invalid(t *testing.T) {
 		"unknown field": validYAML + "extra: 1\n",
 		"missing volume": `
 sessions: {root: /w}
+credentials: {dir: /c}
 agents: []
+`,
+		"bad idle timeout": `
+sessions: {root: /w, idle_timeout: soon}
+credentials: {dir: /c}
+claude: {config_volume: v}
+`,
+		"missing credentials dir": `
+sessions: {root: /w}
+claude: {config_volume: v}
 `,
 		"relative sessions root": `
 sessions: {root: w}
@@ -99,36 +115,42 @@ claude: {config_volume: v}
 `,
 		"invalid agent": `
 sessions: {root: /w}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: relative, image: i}}
 `,
 		"sessions root inside a target": `
 sessions: {root: /src/repo/sessions}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
 `,
 		"sessions root is a target": `
 sessions: {root: /src/repo}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
 `,
 		"incomplete github app": `
 sessions: {root: /w}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, github: {app_id: 1}}
 `,
 		"slack without allowed users": `
 sessions: {root: /w}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
 `,
 		"duplicate agent": `
 sessions: {root: /w}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}}
@@ -147,6 +169,7 @@ agents:
 func TestParse_SessionsRootBesideTarget(t *testing.T) {
 	in := `
 sessions: {root: /src/repo-sessions}
+credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}

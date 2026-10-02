@@ -23,10 +23,18 @@ func NewStore(root string) *Store {
 }
 
 type record struct {
-	ID            string `json:"id"`
-	Agent         string `json:"agent"`
-	WorkspacePath string `json:"workspace_path"`
-	Turns         int    `json:"turns"`
+	ID            string        `json:"id"`
+	Agent         string        `json:"agent"`
+	WorkspacePath string        `json:"workspace_path"`
+	Conversation  *conversation `json:"conversation,omitempty"`
+	Turns         int           `json:"turns"`
+}
+
+type conversation struct {
+	Platform  string `json:"platform"`
+	Workspace string `json:"workspace"`
+	Channel   string `json:"channel"`
+	Thread    string `json:"thread"`
 }
 
 func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, error) {
@@ -41,21 +49,29 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 	if err := json.Unmarshal(data, &r); err != nil {
 		return domain.Session{}, fmt.Errorf("session %s: %w", id, err)
 	}
-	return domain.Session{
+	sess := domain.Session{
 		ID:        domain.SessionID(r.ID),
 		AgentName: domain.AgentName(r.Agent),
 		Workspace: domain.Workspace{Path: r.WorkspacePath},
 		Turns:     r.Turns,
-	}, nil
+	}
+	if c := r.Conversation; c != nil {
+		sess.Conversation = domain.Conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
+	}
+	return sess, nil
 }
 
 func (s *Store) Save(_ context.Context, sess domain.Session) error {
-	data, err := json.MarshalIndent(record{
+	r := record{
 		ID:            string(sess.ID),
 		Agent:         string(sess.AgentName),
 		WorkspacePath: sess.Workspace.Path,
 		Turns:         sess.Turns,
-	}, "", "  ")
+	}
+	if c := sess.Conversation; c != (domain.Conversation{}) {
+		r.Conversation = &conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
+	}
+	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return err
 	}

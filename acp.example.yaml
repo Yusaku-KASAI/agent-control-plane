@@ -1,5 +1,10 @@
 sessions:
   root: /absolute/path/on/host/to/acp-sessions
+  idle_timeout: 15m
+# Matches compose.yaml. When running `acp serve` on the host, use a host directory and omit volume.
+credentials:
+  dir: /var/lib/acp/credentials
+  volume: acp-credentials
 claude:
   config_volume: agent-control-plane_claude-code-config
 agents:

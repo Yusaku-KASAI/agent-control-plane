@@ -15,6 +15,7 @@ import (
 
 type TurnRunner interface {
 	Execute(ctx context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error)
+	Interrupt(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
 }
 
 func NewHandler(turns TurnRunner, token string, log *slog.Logger) http.Handler {
@@ -22,6 +23,7 @@ func NewHandler(turns TurnRunner, token string, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.Handle("POST "+turnsPath, s.authenticated(http.HandlerFunc(s.postTurn)))
+	mux.Handle("POST "+interruptPath("{id}"), s.authenticated(http.HandlerFunc(s.postInterrupt)))
 	return mux
 }
 
@@ -44,13 +46,10 @@ func (s *server) authenticated(next http.Handler) http.Handler {
 
 func (s *server) postTurn(w http.ResponseWriter, r *http.Request) {
 	var req TurnRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Code: CodeInvalidRequest, Message: err.Error()})
+	if !decode(w, r, &req) {
 		return
 	}
-	in := usecase.RunAgentInput{AgentName: domain.AgentName(req.Agent), Prompt: req.Prompt}
+	in := usecase.RunAgentInput{AgentName: domain.AgentName(req.Agent), Prompt: req.Prompt, Inject: req.Inject}
 	if req.SessionID != "" {
 		id, err := domain.ParseSessionID(req.SessionID)
 		if err != nil {
@@ -78,7 +77,36 @@ func (s *server) postTurn(w http.ResponseWriter, r *http.Request) {
 		SessionID:     string(out.Session.ID),
 		WorkspacePath: out.Session.Workspace.Path,
 		Output:        out.Output,
+		Interrupted:   out.Interrupted,
 	})
+}
+
+func (s *server) postInterrupt(w http.ResponseWriter, r *http.Request) {
+	id, err := domain.ParseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Code: CodeInvalidRequest, Message: err.Error()})
+		return
+	}
+	var req InterruptRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if err := s.turns.Interrupt(r.Context(), domain.AgentName(req.Agent), id); err != nil {
+		status, code := classify(err)
+		writeJSON(w, status, ErrorResponse{Code: code, Message: err.Error(), SessionID: string(id)})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Code: CodeInvalidRequest, Message: err.Error()})
+		return false
+	}
+	return true
 }
 
 func classify(err error) (int, string) {
@@ -93,6 +121,10 @@ func classify(err error) (int, string) {
 		return http.StatusConflict, CodeSessionAgentMismatch
 	case errors.Is(err, domain.ErrSessionBusy):
 		return http.StatusConflict, CodeSessionBusy
+	case errors.Is(err, usecase.ErrInboxFull):
+		return http.StatusTooManyRequests, CodeInboxFull
+	case errors.Is(err, usecase.ErrShuttingDown):
+		return http.StatusServiceUnavailable, CodeUnavailable
 	default:
 		return http.StatusInternalServerError, CodeInternal
 	}
