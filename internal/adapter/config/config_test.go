@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -213,5 +214,15 @@ agents:
 `
 	if _, err := config.Parse([]byte(in)); err != nil {
 		t.Fatalf("Parse() error = %v", err)
+	}
+}
+
+func TestLoad_Example(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "..", "acp.example.yaml"))
+	if err != nil {
+		t.Fatalf("acp.example.yaml does not load: %v", err)
+	}
+	if len(cfg.SlackApps) != 2 || len(cfg.GitHubApps) != 2 {
+		t.Errorf("example has %d Slack apps and %d GitHub apps, want 2 each", len(cfg.SlackApps), len(cfg.GitHubApps))
 	}
 }

@@ -20,6 +20,7 @@ Claude Code エージェントをコンテナで隔離して実行する制御�
 - ターンが始まるとスレッドに状態メッセージが出て、経過時間や今の作業を書き換えながら示す。
 - 状態メッセージに `:no_entry_sign:` を付けると、実行中のターン、バックグラウンドの処理、待っている依頼を
   すべて止める。
+- `acp.yaml` の `people` に載っている人の依頼でできたコミットには、その人が `Co-authored-by` として付く。
 
 ### CLI から
 
@@ -47,44 +48,55 @@ acp stop --agent <name> --session <id> [--server <url>]
 
 ## サーバーを動かす
 
+設定は [acp.example.yaml](acp.example.yaml)（各項目の意味）と [.env.example](.env.example) をもとに、`acp.yaml` と
+`.env` を作る。どちらも gitignore の対象。以下は値の用意の仕方。
+
+### 1. 全体
+
+- `.env` の `ACP_HOST_ROOT` の下にターゲットと `sessions.root` を、`ACP_SECRETS_DIR` の下にトークンや鍵のファイルを
+  置く。コンテナにはホストと同じパスでマウントされる。
+- ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
+- Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
+  `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
+
+### 2. エージェントごとの GitHub App（任意）
+
+- エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。権限は
+  ロールに合わせる：変更する developer は Contents と Pull requests を Read and write、読むだけの guide は
+  Contents・Pull requests・Issues を Read-only。
+- App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
+- コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は
+  `gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べる。
+
+### 3. エージェントごとの Slack アプリ（任意）
+
+- [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml) からアプリを作り、名前をエージェントに合わせる。
+- Basic Information で `connections:write` の App-Level Token を作り、ファイルに保存して `app_token_path` で指す。
+- Bot トークン：
+  - ローテーションなし：ワークスペースにインストールして得た Bot User OAuth Token を `bot_token_path` に置く。
+  - ローテーションあり（Bot トークンが 12 時間で失効し、control-plane が更新する。元に戻せない）：
+    OAuth & Permissions で Redirect URL を登録し（control-plane は開かないので、`https://localhost/slack/oauth/callback`
+    など任意の https の URL でよい）、token rotation を有効にする。Basic Information の Client ID と Client Secret
+    （ファイル）を `slack.rotation` に書く。有効にする前の Bot トークンを `bot_token_path` に置けば初回に交換される。
+    置いていない場合は、下の「Slack のトークンを取り直す」で最初のトークンを取る。
+- 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書き、Bot を使うチャンネルに招待する。
+- Bot トークンはエージェントにも渡り、エージェントは Bot が招待されたチャンネルを読み書きできる。
+
+### 4. 起動
+
 ```bash
-cp .env.example .env    # 値を埋める
 docker compose up -d --build
+docker compose logs control-plane   # 起動できなかった Bot は "slack bot stopped" として理由が出る
 ```
 
-- `acp.yaml` は [acp.example.yaml](acp.example.yaml) をもとに作り、`.env` の `ACP_CONFIG` で指す。
-  `sessions.root` はターゲットのリポジトリの外に置く（中に置くと設定エラーになる）。
-- `acp.yaml` に書くホストのパスは、ターゲットと `sessions.root` を `ACP_HOST_ROOT` の下に、秘密鍵を
-  `ACP_SECRETS_DIR` の下に置く。コンテナには同じパスでマウントされる。
-- ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
-- Claude Code の認証として、`claude setup-token` で発行した OAuth トークン（または API キー）をファイルで
-  `ACP_SECRETS_DIR` の下に置き、`claude.oauth_token_path`（または `api_key_path`）で指す。エージェントごとの
-  Claude Code の設定ディレクトリ（会話の履歴と自動メモリ）は `acp-claude` ボリュームに作られる。
-- エージェントに push と PR の作成をさせる場合は、エージェントごとに GitHub App を作る。
-  - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
-  - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。
-  - 読み取りだけのロール（guide など）には、Contents・Pull requests・Issues を Read-only にした App を作る。
-    リモートの最新から作業領域を作り、GitHub の情報を読めるが、push はできない。
-  - コミットの作者 `git` には App の Bot ユーザーを設定する。メールアドレスの ID は App ID ではなく Bot ユーザーの
-    アカウント ID で、`gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べられる。
-  - `github` を省くとトークンは渡さず、エージェントはコミットまでにとどめる。
-- Slack から依頼する場合は、エージェントごとに Slack アプリを作る。
-  - [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml) から作り、名前をエージェントに合わせる。
-  - Basic Information で `connections:write` の App-Level Token を作り、ワークスペースにインストールして
-    Bot User OAuth Token を得る。それぞれをファイルに保存し、`slack` の `app_token_path` と `bot_token_path` に設定する。
-  - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
-  - `people` に Slack のメンバー ID と git の名前・メールアドレスを書いた人は、その人の依頼で作られたコミットに
-    `Co-authored-by` として記録される。
-  - Bot トークンを短命にするには、Slack アプリで token rotation を有効にし（元に戻せない。Slack は有効にする条件として
-    Redirect URL の登録を求めるが、control-plane は OAuth のインストールを使わないので、開かれない任意の https の
-    URL でよい）、Basic Information の
-    Client ID と Client Secret（ファイル）を `slack.rotation` に設定する。control-plane は `bot_token_path` の
-    トークンを一度だけ交換し、以降は `state_dir` に保存した更新用のトークンで期限前に更新する。保存した状態
-    （`acp-state` ボリューム）を失ったとき、更新できなくなったとき、長期のトークンを控えずにローテーションを
-    有効にしたときは、`docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>`
-    の手順で OAuth の認可からトークンを取る。取ったあとは control-plane を再起動する。
-  - Bot トークンはエージェントにも渡り、エージェントは Slack のメッセージを読み書きできる。Bot が読めるのは
-    招待されたチャンネルだけ。
+### Slack のトークンを取り直す
+
+ローテーションの状態（`acp-state` ボリューム）を失ったとき、更新できなくなったとき、最初のトークンがないときは、
+OAuth の認可からトークンを取る。手順は次のコマンドが表示する。取ったあとは control-plane を再起動する。
+
+```bash
+docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>
+```
 
 ## プラグイン
 

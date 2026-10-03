@@ -1,56 +1,83 @@
+# Control plane config. Copy to acp.yaml (gitignored) and point ACP_CONFIG in .env at it.
+#
+# Paths are host paths: the control plane container mounts them at the same place.
+#   /home/you/projects/...     under ACP_HOST_ROOT  (targets, sessions)
+#   /home/you/acp-secrets/...  under ACP_SECRETS_DIR (tokens and keys; keep it outside ACP_HOST_ROOT)
+# Paths under /var/lib/acp/ are inside the control plane container and match compose.yaml.
+
 sessions:
-  root: /absolute/path/on/host/to/acp-sessions
+  # Where each session's workspace and record live. Must be outside every target repository.
+  root: /home/you/projects/acp-sessions
+  # Close an agent's container after this long with no turn, queued prompt or background task.
   idle_timeout: 15m
-# Matches compose.yaml. When running `acp serve` on the host, use a host directory and omit volume.
+
+# Short-lived credentials handed to agent containers, per session.
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
+
+# State only the control plane reads and writes, such as rotating Slack refresh tokens.
 state_dir: /var/lib/acp/state
+
 claude:
-  # From `claude setup-token`; use api_key_path instead for an API key.
-  oauth_token_path: /absolute/path/on/host/to/acp-secrets/claude-oauth-token
+  # How agents authenticate Claude Code: a token from `claude setup-token` (oauth_token_path)
+  # or an API key (api_key_path). Exactly one.
+  oauth_token_path: /home/you/acp-secrets/claude-oauth-token
+  # Each agent's Claude Code config directory (conversation history, auto memory).
   config_dir: /var/lib/acp/claude
   config_volume: acp-claude
-# Requesters credited as Co-authored-by in the agents' commits.
+
+# People credited as Co-authored-by in the commits made for their requests. Optional.
 people:
-  - slack: U0123456789
+  - slack: U0123456789 # Slack member ID
     git_name: Your Name
-    git_email: <id>+<user>@users.noreply.github.com
+    git_email: 1234567+you@users.noreply.github.com # your GitHub noreply address
+
 agents:
+  # Makes changes and delivers them as pull requests.
   - name: control-plane-dev
-    role: developer
+    role: developer # a Claude Code agent from platform/plugins/roles, or the target's .claude/agents/
     target:
-      path: /absolute/path/on/host/to/agent-control-plane
-      image: agent-control-plane-dev-dev-container
-    # The GitHub App's bot user, so that its commits show as the app. The id is the bot user's
-    # account id (gh api '/users/<app-slug>[bot]' --jq .id), not the App ID.
+      path: /home/you/projects/agent-control-plane # the repository the agent works on
+      image: agent-control-plane-dev-dev-container # built from the target's devcontainer
+    # Author of the agent's commits: the GitHub App's bot user. The number is the bot user's account
+    # id (gh api '/users/<app-slug>[bot]' --jq .id), not the App ID.
     git:
-      author_name: <app-slug>[bot]
-      author_email: <bot-user-id>+<app-slug>[bot]@users.noreply.github.com
+      author_name: control-plane-dev-agent[bot]
+      author_email: 7654321+control-plane-dev-agent[bot]@users.noreply.github.com
+    # The agent's own GitHub App (Contents and Pull requests: read and write). Optional; without it
+    # the agent cannot push and its branches start from the target's local HEAD.
     github:
       app_id: 123456
       installation_id: 12345678
-      private_key_path: /absolute/path/on/host/to/control-plane-dev.private-key.pem
+      private_key_path: /home/you/acp-secrets/control-plane-dev.private-key.pem
+    # The agent's own Slack app. Optional; without it the agent is reached only through `acp run`.
     slack:
-      app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-app-token
-      bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-bot-token
-      allowed_users: [U0123456789]
-      # With token rotation enabled on the Slack app; bot_token_path is then exchanged once.
+      app_token_path: /home/you/acp-secrets/control-plane-dev.slack-app-token # xapp-, for Socket Mode
+      # Without rotation: the bot token in use. With rotation: a long-lived token exchanged once at
+      # first start; when there is none, get the first tokens with `acp slack-auth` instead.
+      bot_token_path: /home/you/acp-secrets/control-plane-dev.slack-bot-token
+      allowed_users: [U0123456789] # Slack member IDs who may make requests and stop sessions
+      # Only when token rotation is enabled on the Slack app.
       rotation:
         client_id: "1234567890.1234567890"
-        client_secret_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-client-secret
-  # A read-only role on the same target. Its GitHub App has read-only permissions, so it starts
-  # from the remote default branch and reads GitHub but cannot push.
+        client_secret_path: /home/you/acp-secrets/control-plane-dev.slack-client-secret
+
+  # Answers questions about the target without changing it. Its GitHub App is read-only
+  # (Contents, Pull requests and Issues: read), so it reads the remote but cannot push.
   - name: control-plane-guide
     role: guide
     target:
-      path: /absolute/path/on/host/to/agent-control-plane
+      path: /home/you/projects/agent-control-plane
       image: agent-control-plane-dev-dev-container
     github:
       app_id: 234567
       installation_id: 23456789
-      private_key_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.private-key.pem
+      private_key_path: /home/you/acp-secrets/control-plane-guide.private-key.pem
     slack:
-      app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-app-token
-      bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-bot-token
+      app_token_path: /home/you/acp-secrets/control-plane-guide.slack-app-token
+      bot_token_path: /home/you/acp-secrets/control-plane-guide.slack-bot-token
       allowed_users: [U0123456789]
+      rotation:
+        client_id: "2345678901.2345678901"
+        client_secret_path: /home/you/acp-secrets/control-plane-guide.slack-client-secret
