@@ -111,11 +111,17 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	errc := make(chan error, 1+len(bots))
+	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("listening", "addr", addr)
-	for _, b := range bots {
-		go func() { errc <- b.Run(ctx) }()
+	// A bot that cannot run, such as one whose tokens are missing, stops alone; the other agents
+	// and the API keep serving.
+	for name, b := range bots {
+		go func() {
+			if err := b.Run(ctx); err != nil && ctx.Err() == nil {
+				log.Error("slack bot stopped", "agent", name, "err", err)
+			}
+		}()
 	}
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {

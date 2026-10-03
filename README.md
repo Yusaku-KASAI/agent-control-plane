@@ -63,6 +63,8 @@ docker compose up -d --build
 - エージェントに push と PR の作成をさせる場合は、エージェントごとに GitHub App を作る。
   - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
   - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。
+  - 読み取りだけのロール（guide など）には、Contents・Pull requests・Issues を Read-only にした App を作る。
+    リモートの最新から作業領域を作り、GitHub の情報を読めるが、push はできない。
   - コミットの作者 `git` には App の Bot ユーザーを設定する。メールアドレスの ID は App ID ではなく Bot ユーザーの
     アカウント ID で、`gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べられる。
   - `github` を省くとトークンは渡さず、エージェントはコミットまでにとどめる。
@@ -78,8 +80,9 @@ docker compose up -d --build
     URL でよい）、Basic Information の
     Client ID と Client Secret（ファイル）を `slack.rotation` に設定する。control-plane は `bot_token_path` の
     トークンを一度だけ交換し、以降は `state_dir` に保存した更新用のトークンで期限前に更新する。保存した状態
-    （`acp-state` ボリューム）を失ったときや更新できなくなったときは、`docker compose exec control-plane acp slack-auth
-    --config /etc/acp/acp.yaml --agent <名前>` の手順で OAuth の認可からトークンを取り直す。
+    （`acp-state` ボリューム）を失ったとき、更新できなくなったとき、長期のトークンを控えずにローテーションを
+    有効にしたときは、`docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>`
+    の手順で OAuth の認可からトークンを取る。取ったあとは control-plane を再起動する。
   - Bot トークンはエージェントにも渡り、エージェントは Slack のメッセージを読み書きできる。Bot が読めるのは
     招待されたチャンネルだけ。
 

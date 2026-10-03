@@ -39,12 +39,17 @@ agents:
       rotation:
         client_id: "1234567890.1234567890"
         client_secret_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-client-secret
-  # A read-only role on the same target: no GitHub App, so it cannot push.
+  # A read-only role on the same target. Its GitHub App has read-only permissions, so it starts
+  # from the remote default branch and reads GitHub but cannot push.
   - name: control-plane-guide
     role: guide
     target:
       path: /absolute/path/on/host/to/agent-control-plane
       image: agent-control-plane-dev-dev-container
+    github:
+      app_id: 234567
+      installation_id: 23456789
+      private_key_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.private-key.pem
     slack:
       app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-app-token
       bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-bot-token

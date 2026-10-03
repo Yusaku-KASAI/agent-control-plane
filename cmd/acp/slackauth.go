@@ -16,7 +16,8 @@ const slackAuthSteps = `To recover the Slack tokens of agent %q:
   1. In the Slack app settings, open Manage Distribution and open the Sharable URL in a browser.
   2. Approve. The browser is sent to your Redirect URL, which need not load; copy the code
      parameter from the address bar.
-  3. Run, within ten minutes:
+  3. Run, within ten minutes, in a container with the control plane's state volume
+     (docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml ...):
        acp slack-auth --agent %s --code <code> --redirect-uri <the redirect_uri in the Sharable URL, if any>
   4. Restart the control plane so that it loads the new tokens.
 `
