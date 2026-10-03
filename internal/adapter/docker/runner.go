@@ -140,6 +140,10 @@ func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
 			"GIT_COMMITTER_NAME="+git.Name, "GIT_COMMITTER_EMAIL="+git.Email,
 		)
 	}
+	if creds.SlackBotToken != "" {
+		// Read on every call by the slack plugin, so a refreshed token takes effect.
+		env = append(env, "SLACK_BOT_TOKEN_FILE="+path.Join(credentialsDir, slackTokenFile))
+	}
 	if creds.GitHubToken != "" {
 		// gh reads the token from GH_CONFIG_DIR on every call, so refreshed tokens take effect;
 		// git authenticates through gh, over HTTPS even for SSH-style remotes.

@@ -21,6 +21,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/githubapp"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/secretfile"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackbot"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -58,10 +59,15 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		return err
 	}
 	defer func() { _ = dockerClient.Close() }()
-	issuer, err := githubIssuer(cfg.GitHubApps)
+	github, err := githubIssuer(cfg.GitHubApps)
 	if err != nil {
 		return err
 	}
+	slackTokens := make(map[domain.AgentName]string, len(cfg.SlackApps))
+	for name, app := range cfg.SlackApps {
+		slackTokens[name] = app.BotTokenPath
+	}
+	issuer := credentialIssuers{github, secretfile.NewSlackIssuer(slackTokens)}
 
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
@@ -182,4 +188,24 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
 		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", e.Result.Output)
 	}
+}
+
+// credentialIssuers merges what each issuer grants the agent.
+type credentialIssuers []usecase.CredentialIssuer
+
+func (c credentialIssuers) Issue(ctx context.Context, agent domain.Agent) (domain.Credentials, error) {
+	var merged domain.Credentials
+	for _, issuer := range c {
+		creds, err := issuer.Issue(ctx, agent)
+		if err != nil {
+			return domain.Credentials{}, err
+		}
+		if creds.GitHubToken != "" {
+			merged.GitHubToken = creds.GitHubToken
+		}
+		if creds.SlackBotToken != "" {
+			merged.SlackBotToken = creds.SlackBotToken
+		}
+	}
+	return merged, nil
 }

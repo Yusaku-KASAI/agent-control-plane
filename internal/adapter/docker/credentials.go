@@ -22,16 +22,26 @@ func (c sessionCredentials) dir() string {
 
 // write replaces the files atomically, so a reader in the container never sees a partial token.
 func (c sessionCredentials) write(creds domain.Credentials) error {
-	gh := filepath.Join(c.dir(), "gh")
-	if err := os.MkdirAll(gh, 0o755); err != nil {
-		return err
+	for _, dir := range []string{"gh", "slack"} {
+		if err := os.MkdirAll(filepath.Join(c.dir(), dir), 0o755); err != nil {
+			return err
+		}
 	}
-	if creds.GitHubToken == "" {
-		return nil
+	if creds.GitHubToken != "" {
+		hosts := fmt.Sprintf("github.com:\n    oauth_token: %s\n    user: x-access-token\n    git_protocol: https\n", creds.GitHubToken)
+		if err := writeAtomic(filepath.Join(c.dir(), "gh", "hosts.yml"), []byte(hosts)); err != nil {
+			return err
+		}
 	}
-	hosts := fmt.Sprintf("github.com:\n    oauth_token: %s\n    user: x-access-token\n    git_protocol: https\n", creds.GitHubToken)
-	return writeAtomic(filepath.Join(gh, "hosts.yml"), []byte(hosts))
+	if creds.SlackBotToken != "" {
+		if err := writeAtomic(filepath.Join(c.dir(), slackTokenFile), []byte(creds.SlackBotToken)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+const slackTokenFile = "slack/bot-token"
 
 func writeAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")

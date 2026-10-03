@@ -10,6 +10,7 @@ platform/
   .claude-plugin/marketplace.json   マーケットプレイス acp-platform
   plugins/
     roles/                          共通のロール（agents/<ロール名>.md）
+    slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
 ```
 
 ## 使われ方
@@ -23,5 +24,7 @@ platform/
   claude plugin install roles@acp-platform
   ```
 
-- プラグインを変えたら `claude plugin validate ./platform` で検査する。
+- プラグインが使う認証情報は、実行する環境が環境変数で渡す。slack プラグインは `SLACK_BOT_TOKEN_FILE`
+  （呼ばれるたびに読む）か `SLACK_BOT_TOKEN`、なければ投稿だけを `SLACK_WEBHOOK_URL` で行う。
+- プラグインを変えたら `claude plugin validate ./platform` で検査し、`bin/` のスクリプトは `shellcheck` を通す。
 - プラグインには、どのターゲットでも通用する内容だけを書く。

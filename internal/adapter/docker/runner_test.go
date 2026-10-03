@@ -105,13 +105,14 @@ func TestContainerSpec_BindMountsCredentialsWithoutVolume(t *testing.T) {
 func TestContainerSpec_Credentials(t *testing.T) {
 	agent := testAgent
 	agent.Git = domain.GitIdentity{Name: "repo-dev (agent)", Email: "1+u@users.noreply.github.com"}
-	req := usecase.StartRequest{Agent: agent, Session: testSession, Credentials: domain.Credentials{GitHubToken: "ghs_x"}}
+	req := usecase.StartRequest{Agent: agent, Session: testSession, Credentials: domain.Credentials{GitHubToken: "ghs_x", SlackBotToken: "xoxb-x"}}
 
 	env := containerSpec(req, nil, Options{}).Config.Env
 	for _, want := range []string{
 		"GIT_AUTHOR_NAME=repo-dev (agent)",
 		"GIT_COMMITTER_EMAIL=1+u@users.noreply.github.com",
 		"GH_CONFIG_DIR=/run/acp/credentials/gh",
+		"SLACK_BOT_TOKEN_FILE=/run/acp/credentials/slack/bot-token",
 		"GIT_CONFIG_COUNT=3",
 		"GIT_CONFIG_VALUE_0=!gh auth git-credential",
 	} {
@@ -120,14 +121,14 @@ func TestContainerSpec_Credentials(t *testing.T) {
 		}
 	}
 	for _, e := range env {
-		if strings.Contains(e, "ghs_x") {
+		if strings.Contains(e, "ghs_x") || strings.Contains(e, "xoxb-x") {
 			t.Errorf("the token is in the environment: %q", e)
 		}
 	}
 
 	bare := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil, Options{}).Config.Env
 	for _, e := range bare {
-		if strings.HasPrefix(e, "GH_") || strings.HasPrefix(e, "GIT_") {
+		if strings.HasPrefix(e, "GH_") || strings.HasPrefix(e, "GIT_") || strings.HasPrefix(e, "SLACK_") {
 			t.Errorf("Env without credentials has %q", e)
 		}
 	}
@@ -135,13 +136,17 @@ func TestContainerSpec_Credentials(t *testing.T) {
 
 func TestSessionCredentials_Write(t *testing.T) {
 	c := sessionCredentials{root: t.TempDir(), id: testSession.ID}
-	for _, token := range []string{"ghs_first", "ghs_second"} {
-		if err := c.write(domain.Credentials{GitHubToken: token}); err != nil {
+	for _, n := range []string{"first", "second"} {
+		if err := c.write(domain.Credentials{GitHubToken: "ghs_" + n, SlackBotToken: "xoxb-" + n}); err != nil {
 			t.Fatalf("write() error = %v", err)
 		}
 		b, err := os.ReadFile(filepath.Join(c.dir(), "gh", "hosts.yml"))
-		if err != nil || !strings.Contains(string(b), "oauth_token: "+token) {
-			t.Errorf("hosts.yml = %q, %v; want token %s", b, err, token)
+		if err != nil || !strings.Contains(string(b), "oauth_token: ghs_"+n) {
+			t.Errorf("hosts.yml = %q, %v; want token ghs_%s", b, err, n)
+		}
+		b, err = os.ReadFile(filepath.Join(c.dir(), "slack", "bot-token"))
+		if err != nil || string(b) != "xoxb-"+n {
+			t.Errorf("slack bot-token = %q, %v; want xoxb-%s", b, err, n)
 		}
 	}
 }

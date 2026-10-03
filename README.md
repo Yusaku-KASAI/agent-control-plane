@@ -68,6 +68,8 @@ docker compose up -d --build
   - Basic Information で `connections:write` の App-Level Token を作り、ワークスペースにインストールして
     Bot User OAuth Token を得る。それぞれをファイルに保存し、`slack` の `app_token_path` と `bot_token_path` に設定する。
   - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
+  - Bot トークンはエージェントにも渡り、エージェントは Slack のメッセージを読み書きできる。Bot が読めるのは
+    招待されたチャンネルだけ。
 
 ## プラグイン
 

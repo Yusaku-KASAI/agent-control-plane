@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Slack Web API / incoming webhook client for agents. Needs curl and jq.
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'USAGE'
+usage:
+  slackctl status                        what this environment can read and post
+  slackctl message <channel> <ts>        print one message
+  slackctl thread <channel> <thread_ts>  print every message of a thread
+  slackctl link <permalink>              print the message a permalink points at, with its thread
+  slackctl post [<channel> [<thread_ts>]] < text
+                                         post standard markdown from stdin; without a bot token,
+                                         post to SLACK_WEBHOOK_URL (no channel or thread)
+  slackctl check < text                  check text before posting
+USAGE
+  exit 2
+}
+
+# Slack caps a markdown block at 12,000 characters.
+readonly max_markdown=12000
+
+token() {
+  if [[ -n "${SLACK_BOT_TOKEN_FILE:-}" && -r "$SLACK_BOT_TOKEN_FILE" ]]; then
+    tr -d '[:space:]' <"$SLACK_BOT_TOKEN_FILE"
+  else
+    printf '%s' "${SLACK_BOT_TOKEN:-}"
+  fi
+}
+
+die() { echo "slackctl: $*" >&2; exit 1; }
+
+# api <method> [curl args...]: calls the Web API and prints the response, failing unless ok.
+api() {
+  local method=$1 t resp
+  shift
+  t=$(token)
+  [[ -n "$t" ]] || die "no bot token (SLACK_BOT_TOKEN_FILE or SLACK_BOT_TOKEN)"
+  resp=$(curl -sS -H "Authorization: Bearer $t" "$@" "https://slack.com/api/$method")
+  if [[ $(jq -r '.ok' <<<"$resp") != true ]]; then
+    die "$method: $(jq -r '.error // "unknown error"' <<<"$resp")"
+  fi
+  printf '%s' "$resp"
+}
+
+print_messages() {
+  jq -r '.messages[] | "[\(.ts)] <@\(.user // .bot_id // "unknown")>\(if .thread_ts and .thread_ts != .ts then " (thread \(.thread_ts))" else "" end)\n\(.text)\n"'
+}
+
+cmd_status() {
+  local read=none post=none
+  if [[ -n "$(token)" ]]; then
+    read="api (bot token)"
+    post="api (bot token): channels and threads"
+  elif [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+    post="incoming webhook: its fixed channel only, no threads"
+  fi
+  printf 'read: %s\npost: %s\n' "$read" "$post"
+}
+
+cmd_message() {
+  local channel=$1 ts=$2 resp
+  resp=$(api conversations.history -G --data-urlencode "channel=$channel" --data-urlencode "latest=$ts" \
+    --data-urlencode inclusive=true --data-urlencode limit=1)
+  if [[ $(jq -r '.messages[0].ts // empty' <<<"$resp") != "$ts" ]]; then
+    # Replies in a thread are not in the channel history.
+    resp=$(api conversations.replies -G --data-urlencode "channel=$channel" --data-urlencode "ts=$ts")
+  fi
+  jq --arg ts "$ts" '{messages: [.messages[] | select(.ts == $ts)]}' <<<"$resp" | print_messages
+}
+
+cmd_thread() {
+  local channel=$1 ts=$2 cursor="" resp
+  while :; do
+    resp=$(api conversations.replies -G --data-urlencode "channel=$channel" --data-urlencode "ts=$ts" \
+      --data-urlencode limit=200 --data-urlencode "cursor=$cursor")
+    print_messages <<<"$resp"
+    cursor=$(jq -r '.response_metadata.next_cursor // empty' <<<"$resp")
+    [[ -n "$cursor" ]] || break
+  done
+}
+
+cmd_link() {
+  local url=$1 channel digits ts thread
+  [[ $url =~ /archives/([A-Z0-9]+)/p([0-9]{16}) ]] || die "not a Slack message link: $url"
+  channel=${BASH_REMATCH[1]}
+  digits=${BASH_REMATCH[2]}
+  ts="${digits:0:10}.${digits:10}"
+  thread=$ts
+  [[ $url =~ thread_ts=([0-9]+\.[0-9]+) ]] && thread=${BASH_REMATCH[1]}
+  cmd_message "$channel" "$ts"
+  echo "--- thread $channel/$thread ---"
+  cmd_thread "$channel" "$thread"
+}
+
+check_text() {
+  local text=$1 n
+  [[ -n "${text//[[:space:]]/}" ]] || die "nothing to post"
+  n=$(printf '%s' "$text" | wc -m)
+  ((n <= max_markdown)) || die "text is $n characters; Slack allows $max_markdown in one message. Shorten it or split it"
+}
+
+cmd_check() {
+  check_text "$(cat)"
+  echo ok
+}
+
+cmd_post() {
+  local text payload
+  text=$(cat)
+  check_text "$text"
+  payload=$(jq -n --arg text "$text" --arg channel "${1:-}" --arg thread "${2:-}" '
+    {text: ($text | .[0:3000]), blocks: [{type: "markdown", text: $text}]}
+    + (if $channel != "" then {channel: $channel} else {} end)
+    + (if $thread != "" then {thread_ts: $thread} else {} end)')
+  if [[ -n "$(token)" ]]; then
+    [[ -n "${1:-}" ]] || die "post needs a channel"
+    api chat.postMessage -H 'Content-Type: application/json; charset=utf-8' --data "$payload" | jq -r '"posted \(.channel)/\(.ts)"'
+  elif [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+    [[ -z "${2:-}" ]] || die "an incoming webhook cannot post into a thread"
+    curl -sSf -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
+    echo "posted to the webhook"
+  else
+    die "no bot token or webhook to post with"
+  fi
+}
+
+case "${1:-}" in
+  status) cmd_status ;;
+  message) [[ $# -eq 3 ]] || usage; cmd_message "$2" "$3" ;;
+  thread) [[ $# -eq 3 ]] || usage; cmd_thread "$2" "$3" ;;
+  link) [[ $# -eq 2 ]] || usage; cmd_link "$2" ;;
+  post) shift; cmd_post "$@" ;;
+  check) cmd_check ;;
+  *) usage ;;
+esac

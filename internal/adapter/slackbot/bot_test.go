@@ -26,7 +26,7 @@ func TestMessageFromMention(t *testing.T) {
 				Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "10.0"},
 				Requester:    domain.Requester{Platform: "slack", ID: "U1"},
 				MessageID:    "10.0",
-				Text:         "fix the bug",
+				Text:         requestPrompt("U1", "C1", "10.0", "10.0"),
 			},
 			wantOK: true,
 		},
@@ -38,7 +38,7 @@ func TestMessageFromMention(t *testing.T) {
 				Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "10.0"},
 				Requester:    domain.Requester{Platform: "slack", ID: "U1"},
 				MessageID:    "12.0",
-				Text:         "and  again",
+				Text:         requestPrompt("U1", "C1", "12.0", "10.0"),
 			},
 			wantOK: true,
 		},
@@ -50,7 +50,7 @@ func TestMessageFromMention(t *testing.T) {
 				Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "10.0"},
 				Requester:    domain.Requester{Platform: "slack", ID: "U1"},
 				MessageID:    "13.0",
-				Text:         "do this first",
+				Text:         requestPrompt("U1", "C1", "13.0", "10.0"),
 				Inject:       true,
 			},
 			wantOK: true,
@@ -64,6 +64,15 @@ func TestMessageFromMention(t *testing.T) {
 				t.Errorf("messageFromMention() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+func TestRequestPrompt(t *testing.T) {
+	got := requestPrompt("U1", "C1", "12.0", "10.0")
+	for _, want := range []string{"<@U1>", "channel C1 / ts 12.0", "channel C1 / thread_ts 10.0", "slack スキル"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("prompt lacks %q:\n%s", want, got)
+		}
 	}
 }
 

@@ -9,6 +9,11 @@
       "name": "roles",
       "source": "./plugins/roles",
       "description": "Base roles for agents"
+    },
+    {
+      "name": "slack",
+      "source": "./plugins/slack",
+      "description": "Read and post Slack messages"
     }
   ]
 }

@@ -138,19 +138,32 @@ func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppM
 		thread = e.TimeStamp
 	}
 	text := strings.TrimSpace(strings.ReplaceAll(e.Text, "<@"+botUserID+">", ""))
-	text, inject := strings.CutPrefix(text, injectPrefix)
+	_, inject := strings.CutPrefix(text, injectPrefix)
 	return usecase.IncomingMessage{
 		Agent:        agent,
 		Conversation: domain.Conversation{Platform: platform, Workspace: team, Channel: e.Channel, Thread: thread},
 		Requester:    domain.Requester{Platform: platform, ID: e.User},
 		MessageID:    e.TimeStamp,
-		Text:         strings.TrimSpace(text),
+		Text:         requestPrompt(e.User, e.Channel, e.TimeStamp, thread),
 		Inject:       inject,
 	}, true
 }
 
 // injectPrefix marks a message to be sent into the running turn.
 const injectPrefix = ":zap:"
+
+// requestPrompt points the agent at the message instead of quoting it: the agent reads the
+// request, and the thread around it, from Slack (docs/app/adr/0020).
+func requestPrompt(user, channel, ts, thread string) string {
+	return fmt.Sprintf(`Slack のスレッドで依頼を受けました。依頼の本文はこのメッセージには含めていません。
+slack スキルの手順で次のメッセージを読み、その依頼に応えてください。スレッドのほかの発言やリンク先は、必要に応じて読んでください。
+
+- 依頼したユーザー: <@%s>
+- 依頼のメッセージ: channel %s / ts %s
+- スレッド: channel %s / thread_ts %s
+
+最後の回答は control-plane がこのスレッドに投稿します。回答を自分で投稿しないでください。`, user, channel, ts, channel, thread)
+}
 
 func (b *Bot) Acknowledge(ctx context.Context, msg usecase.IncomingMessage) error {
 	return b.react(ctx, msg, "eyes")

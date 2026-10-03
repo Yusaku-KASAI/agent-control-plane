@@ -65,6 +65,7 @@
     }
   },
   "enabledPlugins": {
-    "roles@acp-platform": true
+    "roles@acp-platform": true,
+    "slack@acp-platform": true
   }
 }
