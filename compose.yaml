@@ -17,6 +17,8 @@ services:
       # Short-lived per-session credentials (docs/app/adr/0018). Agent containers mount their
       # session's subpath of this volume by name, so the name is fixed.
       - acp-credentials:/var/lib/acp/credentials
+      # State only the control plane reads, such as rotating Slack refresh tokens.
+      - acp-state:/var/lib/acp/state
     ports:
       - "127.0.0.1:8787:8787"
     networks:
@@ -49,6 +51,8 @@ services:
 volumes:
   acp-credentials:
     name: acp-credentials
+  acp-state:
+    name: acp-state
 
 networks:
   # Shared with the dev container so `acp run` reaches http://control-plane:8787 from there.

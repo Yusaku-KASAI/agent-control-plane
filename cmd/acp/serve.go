@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/githubapp"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
-	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/secretfile"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackauth"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackbot"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -63,11 +64,11 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	if err != nil {
 		return err
 	}
-	slackTokens := make(map[domain.AgentName]string, len(cfg.SlackApps))
-	for name, app := range cfg.SlackApps {
-		slackTokens[name] = app.BotTokenPath
+	slackTokens, rotating, err := slackTokenSources(cfg)
+	if err != nil {
+		return err
 	}
-	issuer := credentialIssuers{github, secretfile.NewSlackIssuer(slackTokens)}
+	issuer := credentialIssuers{github, slackauth.NewIssuer(slackTokens)}
 
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
@@ -91,7 +92,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	)
 	// Runs after the HTTP server and the bots stop, so no new prompt arrives while processes close.
 	defer turns.Close()
-	bots, err := slackBots(cfg, turns, log)
+	bots, err := slackBots(cfg, slackTokens, turns, log)
 	if err != nil {
 		return err
 	}
@@ -109,6 +110,11 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	log.Info("listening", "addr", addr)
 	for _, b := range bots {
 		go func() { errc <- b.Run(ctx) }()
+	}
+	for name, src := range rotating {
+		go src.Run(ctx, 10*time.Minute, func(err error) {
+			log.Error("slack token refresh failed", "agent", name, "err", err)
+		})
 	}
 
 	var runErr error
@@ -128,20 +134,42 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	return runErr
 }
 
-func slackBots(cfg config.Config, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
+func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
 	bots := make(map[domain.AgentName]*slackbot.Bot, len(cfg.SlackApps))
 	for name, app := range cfg.SlackApps {
 		appToken, err := readSecret(app.AppTokenPath)
 		if err != nil {
 			return nil, fmt.Errorf("agent %q: %w", name, err)
 		}
-		botToken, err := readSecret(app.BotTokenPath)
-		if err != nil {
-			return nil, fmt.Errorf("agent %q: %w", name, err)
-		}
-		bots[name] = slackbot.New(name, appToken, botToken, turns, cfg.Access, log)
+		bots[name] = slackbot.New(name, appToken, tokens[name], turns, cfg.Access, log)
 	}
 	return bots, nil
+}
+
+// slackTokenSources gives each agent with a Slack app its bot token source; the rotating ones
+// are also returned so that they can be refreshed in the background.
+func slackTokenSources(cfg config.Config) (map[domain.AgentName]slackauth.Source, map[domain.AgentName]*slackauth.RotatingSource, error) {
+	sources := make(map[domain.AgentName]slackauth.Source, len(cfg.SlackApps))
+	rotating := make(map[domain.AgentName]*slackauth.RotatingSource)
+	for name, app := range cfg.SlackApps {
+		if app.Rotation == nil {
+			sources[name] = slackauth.FileSource(app.BotTokenPath)
+			continue
+		}
+		secret, err := readSecret(app.Rotation.ClientSecretPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("agent %q: %w", name, err)
+		}
+		src := slackauth.NewRotatingSource(slackauth.RotatingConfig{
+			ClientID:         app.Rotation.ClientID,
+			ClientSecret:     secret,
+			InitialTokenPath: app.BotTokenPath,
+			StatePath:        filepath.Join(cfg.StateDir, "slack", string(name)+".json"),
+			BaseURL:          slackauth.DefaultBaseURL,
+		}, &http.Client{Timeout: 30 * time.Second})
+		sources[name], rotating[name] = src, src
+	}
+	return sources, rotating, nil
 }
 
 func readSecret(path string) (string, error) {

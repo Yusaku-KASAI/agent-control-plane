@@ -22,6 +22,8 @@ type Config struct {
 	SessionsRoot string
 	// IdleTimeout is how long a session's agent process waits for the next prompt.
 	IdleTimeout time.Duration
+	// StateDir is where the control plane keeps state it alone reads and writes, such as rotating tokens.
+	StateDir    string
 	Credentials Credentials
 	// GitHubApps holds the GitHub App of each agent that has one.
 	GitHubApps map[domain.AgentName]GitHubApp
@@ -41,7 +43,14 @@ func (p People) GitIdentity(r domain.Requester) (domain.GitIdentity, bool) {
 
 type SlackApp struct {
 	AppTokenPath string
+	// BotTokenPath is the bot token, or with Rotation the long-lived one exchanged when rotation starts.
 	BotTokenPath string
+	Rotation     *SlackRotation
+}
+
+type SlackRotation struct {
+	ClientID         string
+	ClientSecretPath string
 }
 
 // AccessList allows the requesters listed for each agent.
@@ -77,7 +86,8 @@ type fileFormat struct {
 		Dir    string `yaml:"dir"`
 		Volume string `yaml:"volume"`
 	} `yaml:"credentials"`
-	People []struct {
+	StateDir string `yaml:"state_dir"`
+	People   []struct {
 		Slack    string `yaml:"slack"`
 		GitName  string `yaml:"git_name"`
 		GitEmail string `yaml:"git_email"`
@@ -105,6 +115,10 @@ type fileFormat struct {
 			AppTokenPath string   `yaml:"app_token_path"`
 			BotTokenPath string   `yaml:"bot_token_path"`
 			AllowedUsers []string `yaml:"allowed_users"`
+			Rotation     *struct {
+				ClientID         string `yaml:"client_id"`
+				ClientSecretPath string `yaml:"client_secret_path"`
+			} `yaml:"rotation"`
 		} `yaml:"slack"`
 	} `yaml:"agents"`
 }
@@ -183,7 +197,17 @@ func Parse(data []byte) (Config, error) {
 			if !filepath.IsAbs(sl.AppTokenPath) || !filepath.IsAbs(sl.BotTokenPath) || len(sl.AllowedUsers) == 0 {
 				return Config{}, fmt.Errorf("agent %q: slack needs absolute app_token_path and bot_token_path, and allowed_users", a.Name)
 			}
-			slackApps[a.Name] = SlackApp{AppTokenPath: sl.AppTokenPath, BotTokenPath: sl.BotTokenPath}
+			app := SlackApp{AppTokenPath: sl.AppTokenPath, BotTokenPath: sl.BotTokenPath}
+			if r := sl.Rotation; r != nil {
+				if r.ClientID == "" || !filepath.IsAbs(r.ClientSecretPath) {
+					return Config{}, fmt.Errorf("agent %q: slack.rotation needs client_id and an absolute client_secret_path", a.Name)
+				}
+				if !filepath.IsAbs(f.StateDir) {
+					return Config{}, fmt.Errorf("agent %q: slack.rotation needs an absolute state_dir", a.Name)
+				}
+				app.Rotation = &SlackRotation{ClientID: r.ClientID, ClientSecretPath: r.ClientSecretPath}
+			}
+			slackApps[a.Name] = app
 			access[a.Name] = make(map[domain.Requester]bool, len(sl.AllowedUsers))
 			for _, u := range sl.AllowedUsers {
 				access[a.Name][domain.Requester{Platform: "slack", ID: u}] = true
@@ -196,6 +220,7 @@ func Parse(data []byte) (Config, error) {
 		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
 		IdleTimeout:  idle,
+		StateDir:     f.StateDir,
 		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
 		GitHubApps:   apps,
 		SlackApps:    slackApps,

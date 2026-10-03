@@ -20,11 +20,16 @@ const platform = "slack"
 
 // Bot receives app mentions for one agent over Socket Mode and answers in the thread.
 type Bot struct {
-	agent   domain.AgentName
-	api     *slack.Client
-	sm      *socketmode.Client
-	handler *usecase.HandleMessage
-	log     *slog.Logger
+	agent     domain.AgentName
+	appToken  string
+	botTokens TokenSource
+	sm        *socketmode.Client
+	handler   *usecase.HandleMessage
+	log       *slog.Logger
+
+	webMu    sync.Mutex
+	webToken string
+	webAPI   *slack.Client
 
 	statusMu   sync.Mutex
 	status     map[domain.SessionID]*statusMessage
@@ -32,13 +37,17 @@ type Bot struct {
 	mentions   *seenMessages
 }
 
-func New(agent domain.AgentName, appToken, botToken string, turns usecase.TurnExecutor, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
-	api := slack.New(botToken, slack.OptionAppLevelToken(appToken))
+// TokenSource supplies the current bot token, which may rotate.
+type TokenSource interface {
+	Token(ctx context.Context) (string, error)
+}
+
+func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
 	b := &Bot{
-		agent: agent,
-		api:   api,
-		sm:    socketmode.New(api),
-		log:   log.With("agent", agent),
+		agent:     agent,
+		appToken:  appToken,
+		botTokens: botTokens,
+		log:       log.With("agent", agent),
 
 		status:     make(map[domain.SessionID]*statusMessage),
 		byStatusTS: make(map[string]domain.SessionID),
@@ -50,10 +59,16 @@ func New(agent domain.AgentName, appToken, botToken string, turns usecase.TurnEx
 
 // Run blocks until ctx is done, then waits for the turns it started.
 func (b *Bot) Run(ctx context.Context) error {
-	auth, err := b.api.AuthTestContext(ctx)
+	api, err := b.web(ctx)
+	if err != nil {
+		return err
+	}
+	auth, err := api.AuthTestContext(ctx)
 	if err != nil {
 		return fmt.Errorf("slack auth for agent %q: %w", b.agent, err)
 	}
+	// Socket Mode connects with the app-level token, so it keeps working when the bot token rotates.
+	b.sm = socketmode.New(api)
 
 	var turns sync.WaitGroup
 	defer turns.Wait()
@@ -178,7 +193,26 @@ func (b *Bot) MarkAnsweredTogether(ctx context.Context, msg usecase.IncomingMess
 }
 
 func (b *Bot) react(ctx context.Context, msg usecase.IncomingMessage, name string) error {
-	return b.api.AddReactionContext(context.WithoutCancel(ctx), name, slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID})
+	ctx = context.WithoutCancel(ctx)
+	api, err := b.web(ctx)
+	if err != nil {
+		return err
+	}
+	return api.AddReactionContext(ctx, name, slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID})
+}
+
+// web returns a Web API client for the current bot token.
+func (b *Bot) web(ctx context.Context) (*slack.Client, error) {
+	token, err := b.botTokens.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.webMu.Lock()
+	defer b.webMu.Unlock()
+	if token != b.webToken {
+		b.webToken, b.webAPI = token, slack.New(token, slack.OptionAppLevelToken(b.appToken))
+	}
+	return b.webAPI, nil
 }
 
 func (b *Bot) Reply(ctx context.Context, msg usecase.IncomingMessage, text string) error {
@@ -188,7 +222,12 @@ func (b *Bot) Reply(ctx context.Context, msg usecase.IncomingMessage, text strin
 // Post writes text to the conversation's thread.
 func (b *Bot) Post(ctx context.Context, c domain.Conversation, text string) error {
 	// A turn cancelled by shutdown should still be able to say so.
-	_, _, err := b.api.PostMessageContext(context.WithoutCancel(ctx), c.Channel,
+	ctx = context.WithoutCancel(ctx)
+	api, err := b.web(ctx)
+	if err != nil {
+		return err
+	}
+	_, _, err = api.PostMessageContext(ctx, c.Channel,
 		slack.MsgOptionTS(c.Thread),
 		slack.MsgOptionText(fallbackText(text), false),
 		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", markdownText(text))),

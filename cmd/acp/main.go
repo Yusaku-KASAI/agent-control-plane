@@ -13,6 +13,7 @@ const usage = `usage:
   acp serve [--config <path>] [--listen <addr>]
   acp run --agent <name> [--session <id>] [--inject] [--server <url>] <prompt>
   acp stop --agent <name> --session <id> [--server <url>]
+  acp slack-auth --agent <name> [--config <path>] [--code <code> [--redirect-uri <url>]]
 
 All read the API token from ACP_API_TOKEN. run and stop read the server URL from
 ACP_SERVER when --server is not given.`
@@ -32,6 +33,8 @@ func dispatch(ctx context.Context, args []string, getenv func(string) string, st
 			return runTurn(ctx, args[1:], getenv, stdout, stderr)
 		case "stop":
 			return stop(ctx, args[1:], getenv, stderr)
+		case "slack-auth":
+			return slackAuth(ctx, args[1:], stdout, stderr)
 		}
 	}
 	fmt.Fprintln(stderr, usage)

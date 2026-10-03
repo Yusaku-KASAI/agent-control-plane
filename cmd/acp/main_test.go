@@ -14,6 +14,7 @@ func TestDispatch_UsageErrors(t *testing.T) {
 		"run unknown flag":    {"run", "--nope"},
 		"serve without token": {"serve"},
 		"stop without id":     {"stop", "--agent", "a"},
+		"slack-auth no agent": {"slack-auth"},
 	}
 	noEnv := func(string) string { return "" }
 	for name, args := range tests {

@@ -18,6 +18,7 @@ sessions:
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
+state_dir: /var/lib/acp/state
 claude:
   config_volume: claude-config
 people:
@@ -41,6 +42,9 @@ agents:
       app_token_path: /keys/repo-dev.slack-app-token
       bot_token_path: /keys/repo-dev.slack-bot-token
       allowed_users: [U_ALICE]
+      rotation:
+        client_id: "123.456"
+        client_secret_path: /keys/repo-dev.slack-client-secret
   - name: repo-pm
     role: pm
     target:
@@ -79,11 +83,13 @@ func TestParse(t *testing.T) {
 		t.Errorf("GitHubApps = %+v, want %+v", cfg.GitHubApps, wantApps)
 	}
 
-	wantSlack := map[domain.AgentName]config.SlackApp{
-		"repo-dev": {AppTokenPath: "/keys/repo-dev.slack-app-token", BotTokenPath: "/keys/repo-dev.slack-bot-token"},
+	app := cfg.SlackApps["repo-dev"]
+	if len(cfg.SlackApps) != 1 || app.AppTokenPath != "/keys/repo-dev.slack-app-token" || app.BotTokenPath != "/keys/repo-dev.slack-bot-token" ||
+		app.Rotation == nil || *app.Rotation != (config.SlackRotation{ClientID: "123.456", ClientSecretPath: "/keys/repo-dev.slack-client-secret"}) {
+		t.Errorf("SlackApps = %+v", cfg.SlackApps)
 	}
-	if !maps.Equal(cfg.SlackApps, wantSlack) {
-		t.Errorf("SlackApps = %+v, want %+v", cfg.SlackApps, wantSlack)
+	if cfg.StateDir != "/var/lib/acp/state" {
+		t.Errorf("StateDir = %q", cfg.StateDir)
 	}
 	alice := domain.Requester{Platform: "slack", ID: "U_ALICE"}
 	if id, ok := cfg.People.GitIdentity(alice); !ok || id != (domain.GitIdentity{Name: "Alice", Email: "1+alice@users.noreply.github.com"}) {
@@ -154,6 +160,16 @@ credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
+`,
+		"rotation without state_dir": `
+sessions: {root: /w}
+credentials: {dir: /c}
+claude: {config_volume: v}
+agents:
+  - name: a
+    role: developer
+    target: {path: /x, image: i}
+    slack: {app_token_path: /a, bot_token_path: /b, allowed_users: [U1], rotation: {client_id: c, client_secret_path: /s}}
 `,
 		"incomplete person": `
 sessions: {root: /w}

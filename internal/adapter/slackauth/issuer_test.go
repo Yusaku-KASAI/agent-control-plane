@@ -1,4 +1,4 @@
-package secretfile_test
+package slackauth_test
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/secretfile"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackauth"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
 
-func TestSlackIssuer(t *testing.T) {
+func TestIssuer(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bot-token")
-	issuer := secretfile.NewSlackIssuer(map[domain.AgentName]string{"repo-dev": path})
+	issuer := slackauth.NewIssuer(map[domain.AgentName]slackauth.Source{"repo-dev": slackauth.FileSource(path)})
 	dev := domain.Agent{Name: "repo-dev"}
 
 	if _, err := issuer.Issue(context.Background(), dev); err == nil {

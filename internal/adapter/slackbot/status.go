@@ -198,11 +198,15 @@ func (b *Bot) writeStatus(ctx context.Context, m *statusMessage, ts, text string
 		slack.MsgOptionText(fallbackText(text), false),
 		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", text)),
 	}
-	if ts != "" {
-		_, _, _, err := b.api.UpdateMessageContext(ctx, m.conv.Channel, ts, opts...)
+	api, err := b.web(ctx)
+	if err != nil {
 		return err
 	}
-	_, ts, err := b.api.PostMessageContext(ctx, m.conv.Channel, append(opts, slack.MsgOptionTS(m.conv.Thread))...)
+	if ts != "" {
+		_, _, _, err := api.UpdateMessageContext(ctx, m.conv.Channel, ts, opts...)
+		return err
+	}
+	_, ts, err = api.PostMessageContext(ctx, m.conv.Channel, append(opts, slack.MsgOptionTS(m.conv.Thread))...)
 	if err != nil {
 		return err
 	}

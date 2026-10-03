@@ -5,6 +5,7 @@ sessions:
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
+state_dir: /var/lib/acp/state
 claude:
   config_volume: agent-control-plane_claude-code-config
 # Requesters credited as Co-authored-by in the agents' commits.
@@ -31,3 +32,7 @@ agents:
       app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-app-token
       bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-bot-token
       allowed_users: [U0123456789]
+      # With token rotation enabled on the Slack app; bot_token_path is then exchanged once.
+      rotation:
+        client_id: "1234567890.1234567890"
+        client_secret_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-client-secret

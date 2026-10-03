@@ -72,6 +72,13 @@ docker compose up -d --build
   - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
   - `people` に Slack のメンバー ID と git の名前・メールアドレスを書いた人は、その人の依頼で作られたコミットに
     `Co-authored-by` として記録される。
+  - Bot トークンを短命にするには、Slack アプリで token rotation を有効にし（元に戻せない。Slack は有効にする条件として
+    Redirect URL の登録を求めるが、control-plane は OAuth のインストールを使わないので、開かれない任意の https の
+    URL でよい）、Basic Information の
+    Client ID と Client Secret（ファイル）を `slack.rotation` に設定する。control-plane は `bot_token_path` の
+    トークンを一度だけ交換し、以降は `state_dir` に保存した更新用のトークンで期限前に更新する。保存した状態
+    （`acp-state` ボリューム）を失ったときや更新できなくなったときは、`docker compose exec control-plane acp slack-auth
+    --config /etc/acp/acp.yaml --agent <名前>` の手順で OAuth の認可からトークンを取り直す。
   - Bot トークンはエージェントにも渡り、エージェントは Slack のメッセージを読み書きできる。Bot が読めるのは
     招待されたチャンネルだけ。
 
