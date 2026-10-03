@@ -84,6 +84,7 @@ type fakeProcess struct {
 	interrupted bool
 	stoppedTask []string
 	updated     int
+	coAuthors   []domain.GitIdentity
 	closed      bool
 	events      chan usecase.ProcessEvent
 	err         error
@@ -141,6 +142,19 @@ func (p *fakeProcess) UpdateCredentials(context.Context, domain.Credentials) err
 	defer p.mu.Unlock()
 	p.updated++
 	return nil
+}
+
+func (p *fakeProcess) SetCoAuthors(_ context.Context, people []domain.GitIdentity) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.coAuthors = people
+	return nil
+}
+
+func (p *fakeProcess) credited() []domain.GitIdentity {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.coAuthors
 }
 
 func (p *fakeProcess) Close(context.Context) error {
@@ -240,6 +254,23 @@ func (f *fakeRunner) next(t *testing.T) *fakeProcess {
 	}
 }
 
+type fakePeople map[domain.Requester]domain.GitIdentity
+
+func (f fakePeople) GitIdentity(r domain.Requester) (domain.GitIdentity, bool) {
+	id, ok := f[r]
+	return id, ok
+}
+
+var (
+	// alice is declared in handle_message_test.go.
+	bob      = domain.Requester{Platform: "slack", ID: "U_BOB"}
+	stranger = domain.Requester{Platform: "slack", ID: "U_STRANGER"}
+	people   = fakePeople{
+		alice: {Name: "Alice", Email: "alice@example.com"},
+		bob:   {Name: "Bob", Email: "bob@example.com"},
+	}
+)
+
 var (
 	dev = domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: "/src/repo", Image: "img"}}
 	pm  = domain.Agent{Name: "repo-pm", Role: "pm", Target: domain.Target{Path: "/src/repo", Image: "img"}}
@@ -274,7 +305,7 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		runner:     newFakeRunner(),
 		observer:   &fakeObserver{},
 	}
-	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, e.runner, e.observer, opts)
+	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, opts)
 	t.Cleanup(e.d.Close)
 	return e
 }
@@ -612,4 +643,25 @@ func TestDispatcher_KeepsProcessWhileBackgroundTasksRun(t *testing.T) {
 	}
 	p.background()
 	eventually(t, p.isClosed)
+}
+
+func TestDispatcher_CreditsRequestersOfTheTurn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "fix", Requester: alice})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.credited()) == 1 })
+
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, Requester: bob})
+	eventually(t, func() bool { return len(p.credited()) == 2 })
+	p.finish("done")
+	wait(t, first)
+	wait(t, steer)
+
+	next := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "more", Requester: stranger})
+	eventually(t, func() bool { return len(p.sent()) == 3 })
+	p.finish("ok")
+	wait(t, next)
+	if got := p.credited(); len(got) != 0 {
+		t.Errorf("credited %+v for a requester without a git identity, want nobody", got)
+	}
 }

@@ -67,6 +67,7 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		Prompt:          msg.Text,
 		Inject:          msg.Inject,
 		Conversation:    msg.Conversation,
+		Requester:       msg.Requester,
 	})
 	switch {
 	case errors.Is(err, ErrStopped):

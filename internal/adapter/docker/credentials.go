@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/moby/moby/api/types/mount"
 
@@ -22,7 +23,7 @@ func (c sessionCredentials) dir() string {
 
 // write replaces the files atomically, so a reader in the container never sees a partial token.
 func (c sessionCredentials) write(creds domain.Credentials) error {
-	for _, dir := range []string{"gh", "slack"} {
+	for _, dir := range []string{"gh", "slack", "git"} {
 		if err := os.MkdirAll(filepath.Join(c.dir(), dir), 0o755); err != nil {
 			return err
 		}
@@ -41,7 +42,19 @@ func (c sessionCredentials) write(creds domain.Credentials) error {
 	return nil
 }
 
-const slackTokenFile = "slack/bot-token"
+const (
+	slackTokenFile = "slack/bot-token"
+	coAuthorsFile  = "git/co-authors"
+)
+
+// writeCoAuthors lists one "Name <email>" per line for the workspace's commit-msg hook.
+func (c sessionCredentials) writeCoAuthors(people []domain.GitIdentity) error {
+	var b strings.Builder
+	for _, p := range people {
+		fmt.Fprintf(&b, "%s <%s>\n", p.Name, p.Email)
+	}
+	return writeAtomic(filepath.Join(c.dir(), coAuthorsFile), []byte(b.String()))
+}
 
 func writeAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")

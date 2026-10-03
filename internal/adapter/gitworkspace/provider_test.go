@@ -96,6 +96,27 @@ func TestProvider_Prepare(t *testing.T) {
 	}
 }
 
+func TestProvider_Prepare_CreditsCoAuthors(t *testing.T) {
+	f := newFixture(t)
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+
+	coAuthors := filepath.Join(t.TempDir(), "co-authors")
+	if err := os.WriteFile(coAuthors, []byte("Alice <alice@example.com>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ACP_CO_AUTHORS_FILE", coAuthors)
+	commit(t, ws.Path, "change.txt", "agent work")
+
+	msg := gitOutput(t, ws.Path, "log", "-1", "--format=%B")
+	if !strings.Contains(msg, "Co-authored-by: Alice <alice@example.com>") {
+		t.Errorf("commit message = %q, want the co-author trailer", msg)
+	}
+}
+
 func TestProvider_Prepare_NotARepository(t *testing.T) {
 	agent := domain.Agent{Name: "a", Role: "developer", Target: domain.Target{Path: t.TempDir(), Image: "img"}}
 	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{}); err == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ type RunAgentInput struct {
 	Inject bool
 	// Conversation is recorded on a session this request creates.
 	Conversation domain.Conversation
+	// Requester is credited in the commits of the turn that answers the prompt.
+	Requester domain.Requester
 }
 
 type RunAgentOutput struct {
@@ -56,6 +59,7 @@ type Dispatcher struct {
 	sessions    SessionRepository
 	workspaces  WorkspaceProvider
 	credentials CredentialIssuer
+	people      People
 	runner      Runner
 	observer    SessionObserver
 	opts        DispatcherOptions
@@ -72,13 +76,14 @@ func NewDispatcher(
 	sessions SessionRepository,
 	workspaces WorkspaceProvider,
 	credentials CredentialIssuer,
+	people People,
 	runner Runner,
 	observer SessionObserver,
 	opts DispatcherOptions,
 ) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Dispatcher{
-		agents: agents, sessions: sessions, workspaces: workspaces, credentials: credentials, runner: runner,
+		agents: agents, sessions: sessions, workspaces: workspaces, credentials: credentials, people: people, runner: runner,
 		observer: observer, opts: opts,
 		ctx: ctx, cancel: cancel, workers: make(map[domain.SessionID]*worker),
 	}
@@ -99,7 +104,7 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	}
 
 	reply := make(chan turnReply, 1)
-	if err := d.submit(ctx, agent, session, request{prompt: in.Prompt, inject: in.Inject, reply: reply}); err != nil {
+	if err := d.submit(ctx, agent, session, request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply}); err != nil {
 		return RunAgentOutput{Session: session}, err
 	}
 	select {
@@ -213,9 +218,10 @@ func (d *Dispatcher) retire(w *worker) bool {
 }
 
 type request struct {
-	prompt string
-	inject bool
-	reply  chan<- turnReply
+	prompt    string
+	inject    bool
+	requester domain.Requester
+	reply     chan<- turnReply
 }
 
 type turnReply struct {
@@ -324,6 +330,7 @@ func (w *worker) handle(e ProcessEvent) {
 			if !w.running {
 				w.startTurn()
 			}
+			w.creditRequesters()
 		}
 	}
 }
@@ -393,6 +400,21 @@ func (w *worker) observe(e SessionEvent) {
 		BackgroundTasks: len(w.background),
 	}
 	w.d.observer.Observe(w.session, e)
+}
+
+// creditRequesters makes the people who asked for the running turn co-authors of its commits.
+// A turn the agent starts by itself keeps crediting the previous requesters, whose work it continues.
+func (w *worker) creditRequesters() {
+	var people []domain.GitIdentity
+	for _, r := range w.current {
+		id, ok := w.d.people.GitIdentity(r.requester)
+		if ok && !slices.Contains(people, id) {
+			people = append(people, id)
+		}
+	}
+	if err := w.proc.SetCoAuthors(w.d.ctx, people); err != nil {
+		w.stopProcess(fmt.Errorf("set co-authors: %w", err))
+	}
 }
 
 func (w *worker) ensureProcess() error {

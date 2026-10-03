@@ -74,6 +74,7 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	}
 	want := usecase.RunAgentInput{
 		AgentName: "repo-dev", SessionID: thread.SessionID("repo-dev"), CreateIfMissing: true, Prompt: "fix it", Conversation: thread,
+		Requester: alice,
 	}
 	if turns.got != want {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)

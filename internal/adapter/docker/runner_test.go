@@ -62,8 +62,10 @@ func TestContainerSpec(t *testing.T) {
 	if !slices.Equal(spec.Config.Cmd, wantCmd) {
 		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
 	}
-	if !slices.Contains(spec.Config.Env, "ACP_SESSION_BRANCH=acp/0f8fad5b") {
-		t.Errorf("Env = %q, want ACP_SESSION_BRANCH", spec.Config.Env)
+	for _, want := range []string{"ACP_SESSION_BRANCH=acp/0f8fad5b", "ACP_CO_AUTHORS_FILE=/run/acp/credentials/git/co-authors"} {
+		if !slices.Contains(spec.Config.Env, want) {
+			t.Errorf("Env = %q, want %s", spec.Config.Env, want)
+		}
 	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: "/sessions/0f8fad5b/workspace/repo", Target: "/workspace/repo"},
@@ -148,6 +150,21 @@ func TestSessionCredentials_Write(t *testing.T) {
 		if err != nil || string(b) != "xoxb-"+n {
 			t.Errorf("slack bot-token = %q, %v; want xoxb-%s", b, err, n)
 		}
+	}
+}
+
+func TestSessionCredentials_WriteCoAuthors(t *testing.T) {
+	c := sessionCredentials{root: t.TempDir(), id: testSession.ID}
+	if err := c.write(domain.Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	people := []domain.GitIdentity{{Name: "Alice", Email: "alice@example.com"}, {Name: "Bob", Email: "bob@example.com"}}
+	if err := c.writeCoAuthors(people); err != nil {
+		t.Fatalf("writeCoAuthors() error = %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(c.dir(), "git", "co-authors"))
+	if want := "Alice <alice@example.com>\nBob <bob@example.com>\n"; err != nil || string(b) != want {
+		t.Errorf("co-authors = %q, %v; want %q", b, err, want)
 	}
 }
 

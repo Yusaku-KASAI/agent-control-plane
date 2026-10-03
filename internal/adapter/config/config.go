@@ -28,6 +28,15 @@ type Config struct {
 	// SlackApps holds the Slack app of each agent that has one.
 	SlackApps map[domain.AgentName]SlackApp
 	Access    AccessList
+	People    People
+}
+
+// People maps requesters to how they are credited in commits.
+type People map[domain.Requester]domain.GitIdentity
+
+func (p People) GitIdentity(r domain.Requester) (domain.GitIdentity, bool) {
+	id, ok := p[r]
+	return id, ok
 }
 
 type SlackApp struct {
@@ -68,6 +77,11 @@ type fileFormat struct {
 		Dir    string `yaml:"dir"`
 		Volume string `yaml:"volume"`
 	} `yaml:"credentials"`
+	People []struct {
+		Slack    string `yaml:"slack"`
+		GitName  string `yaml:"git_name"`
+		GitEmail string `yaml:"git_email"`
+	} `yaml:"people"`
 	Claude struct {
 		ConfigVolume string `yaml:"config_volume"`
 	} `yaml:"claude"`
@@ -134,6 +148,14 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, fmt.Errorf("credentials.dir %q is not absolute", f.Credentials.Dir)
 	}
 
+	people := make(People, len(f.People))
+	for _, p := range f.People {
+		if p.Slack == "" || p.GitName == "" || p.GitEmail == "" {
+			return Config{}, errors.New("people need slack, git_name and git_email")
+		}
+		people[domain.Requester{Platform: "slack", ID: p.Slack}] = domain.GitIdentity{Name: p.GitName, Email: p.GitEmail}
+	}
+
 	agents := make(map[domain.AgentName]domain.Agent, len(f.Agents))
 	apps := make(map[domain.AgentName]GitHubApp)
 	slackApps := make(map[domain.AgentName]SlackApp)
@@ -178,6 +200,7 @@ func Parse(data []byte) (Config, error) {
 		GitHubApps:   apps,
 		SlackApps:    slackApps,
 		Access:       access,
+		People:       people,
 	}, nil
 }
 

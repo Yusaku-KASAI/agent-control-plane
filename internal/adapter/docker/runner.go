@@ -91,6 +91,7 @@ func containerSpec(req usecase.StartRequest, plugins []string, opts Options) cli
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"FIREWALL_ENABLED=false",
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
+				"ACP_CO_AUTHORS_FILE=" + path.Join(credentialsDir, coAuthorsFile),
 			}, credentialEnv(agent.Git, req.Credentials)...),
 			WorkingDir: workdir,
 			// Prompts are written to stdin; closing it ends the process.

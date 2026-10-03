@@ -7,15 +7,22 @@ credentials:
   volume: acp-credentials
 claude:
   config_volume: agent-control-plane_claude-code-config
+# Requesters credited as Co-authored-by in the agents' commits.
+people:
+  - slack: U0123456789
+    git_name: Your Name
+    git_email: <id>+<user>@users.noreply.github.com
 agents:
   - name: control-plane-dev
     role: developer
     target:
       path: /absolute/path/on/host/to/agent-control-plane
       image: agent-control-plane-dev-dev-container
+    # The GitHub App's bot user, so that its commits show as the app. The id is the bot user's
+    # account id (gh api '/users/<app-slug>[bot]' --jq .id), not the App ID.
     git:
-      author_name: control-plane-dev (agent)
-      author_email: <id>+<user>@users.noreply.github.com
+      author_name: <app-slug>[bot]
+      author_email: <bot-user-id>+<app-slug>[bot]@users.noreply.github.com
     github:
       app_id: 123456
       installation_id: 12345678

@@ -62,12 +62,16 @@ docker compose up -d --build
 - エージェントに push と PR の作成をさせる場合は、エージェントごとに GitHub App を作る。
   - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
   - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。
+  - コミットの作者 `git` には App の Bot ユーザーを設定する。メールアドレスの ID は App ID ではなく Bot ユーザーの
+    アカウント ID で、`gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べられる。
   - `github` を省くとトークンは渡さず、エージェントはコミットまでにとどめる。
 - Slack から依頼する場合は、エージェントごとに Slack アプリを作る。
   - [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml) から作り、名前をエージェントに合わせる。
   - Basic Information で `connections:write` の App-Level Token を作り、ワークスペースにインストールして
     Bot User OAuth Token を得る。それぞれをファイルに保存し、`slack` の `app_token_path` と `bot_token_path` に設定する。
   - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書く。
+  - `people` に Slack のメンバー ID と git の名前・メールアドレスを書いた人は、その人の依頼で作られたコミットに
+    `Co-authored-by` として記録される。
   - Bot トークンはエージェントにも渡り、エージェントは Slack のメッセージを読み書きできる。Bot が読めるのは
     招待されたチャンネルだけ。
 

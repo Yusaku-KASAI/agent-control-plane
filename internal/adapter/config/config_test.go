@@ -20,6 +20,10 @@ credentials:
   volume: acp-credentials
 claude:
   config_volume: claude-config
+people:
+  - slack: U_ALICE
+    git_name: Alice
+    git_email: 1+alice@users.noreply.github.com
 agents:
   - name: repo-dev
     role: developer
@@ -82,6 +86,9 @@ func TestParse(t *testing.T) {
 		t.Errorf("SlackApps = %+v, want %+v", cfg.SlackApps, wantSlack)
 	}
 	alice := domain.Requester{Platform: "slack", ID: "U_ALICE"}
+	if id, ok := cfg.People.GitIdentity(alice); !ok || id != (domain.GitIdentity{Name: "Alice", Email: "1+alice@users.noreply.github.com"}) {
+		t.Errorf("People.GitIdentity(alice) = %+v, %v", id, ok)
+	}
 	if !cfg.Access.Allows("repo-dev", alice) || cfg.Access.Allows("repo-pm", alice) ||
 		cfg.Access.Allows("repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}) {
 		t.Error("Access does not match allowed_users")
@@ -147,6 +154,13 @@ credentials: {dir: /c}
 claude: {config_volume: v}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
+`,
+		"incomplete person": `
+sessions: {root: /w}
+credentials: {dir: /c}
+claude: {config_volume: v}
+people:
+  - {slack: U1, git_name: A}
 `,
 		"duplicate agent": `
 sessions: {root: /w}

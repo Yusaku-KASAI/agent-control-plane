@@ -78,6 +78,10 @@ func (p *process) UpdateCredentials(_ context.Context, creds domain.Credentials)
 	return p.creds.write(creds)
 }
 
+func (p *process) SetCoAuthors(_ context.Context, people []domain.GitIdentity) error {
+	return p.creds.writeCoAuthors(people)
+}
+
 func (p *process) Close(ctx context.Context) error {
 	_ = p.attach.CloseWrite()
 	select {

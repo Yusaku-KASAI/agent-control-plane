@@ -25,6 +25,11 @@ type WorkspaceProvider interface {
 	Prepare(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (domain.Workspace, error)
 }
 
+type People interface {
+	// GitIdentity returns how the requester is credited in commits, if known.
+	GitIdentity(r domain.Requester) (domain.GitIdentity, bool)
+}
+
 type CredentialIssuer interface {
 	// Issue returns credentials valid for at least one turn.
 	Issue(ctx context.Context, agent domain.Agent) (domain.Credentials, error)
@@ -120,6 +125,8 @@ type Process interface {
 	// Err reports why the process exited, once Events is closed.
 	Err() error
 	UpdateCredentials(ctx context.Context, creds domain.Credentials) error
+	// SetCoAuthors sets who is credited in commits the agent makes from now on.
+	SetCoAuthors(ctx context.Context, people []domain.GitIdentity) error
 	// Close asks the process to exit, stops it when ctx expires first, and releases it.
 	Close(ctx context.Context) error
 }

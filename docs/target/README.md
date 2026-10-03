@@ -15,11 +15,15 @@ control-plane はさらに次の環境変数を渡す。
 | 変数 | 内容 |
 | --- | --- |
 | `ACP_SESSION_BRANCH` | セッションの既定の作業ブランチ |
+| `ACP_CO_AUTHORS_FILE` | 今のターンの依頼者を 1 行に 1 人（`名前 <メール>`）で書いたファイル |
 | `SLACK_BOT_TOKEN_FILE` | エージェントの Slack アプリの Bot トークンを置いたファイル（Slack アプリがある場合） |
 | `GIT_AUTHOR_*` / `GIT_COMMITTER_*` | エージェントのコミットの作者（設定されている場合） |
 | `GH_CONFIG_DIR` と `GIT_CONFIG_*` | GitHub のトークンを置いた `gh` の設定ディレクトリと、git がそれを `gh` 経由で使う設定（GitHub App がある場合） |
 
 認証情報は `/run/acp/credentials` に読み取り専用でマウントされ、control-plane が失効前に書き換える。
+
+作業領域の `.git/hooks/commit-msg` には control-plane がフックを置き、`ACP_CO_AUTHORS_FILE` の人を
+`Co-authored-by` としてコミットに加える。ターゲットが `core.hooksPath` を設定していると、このフックは使われない。
 - entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 
 ## プラグインとロール

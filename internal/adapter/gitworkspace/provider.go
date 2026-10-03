@@ -56,7 +56,30 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
 	}
+	if err := installCommitMsgHook(dest); err != nil {
+		return domain.Workspace{}, err
+	}
 	return domain.Workspace{Path: dest}, nil
+}
+
+// commitMsgHook adds a Co-authored-by trailer for each person in $ACP_CO_AUTHORS_FILE. It lives
+// only in the workspace's .git, so it is never committed; a target that sets core.hooksPath
+// bypasses it.
+const commitMsgHook = `#!/bin/sh
+f="${ACP_CO_AUTHORS_FILE:-}"
+[ -n "$f" ] && [ -r "$f" ] || exit 0
+while IFS= read -r who; do
+	[ -n "$who" ] || continue
+	git interpret-trailers --in-place --if-exists addIfDifferent --trailer "Co-authored-by: $who" "$1" || exit 1
+done <"$f"
+`
+
+func installCommitMsgHook(repo string) error {
+	dir := filepath.Join(repo, ".git", "hooks")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "commit-msg"), []byte(commitMsgHook), 0o755)
 }
 
 // gitRunner ignores the host user's git configuration, credential helpers and SSH keys, so the
