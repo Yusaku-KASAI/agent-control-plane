@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
@@ -39,6 +40,8 @@ type TurnResult struct {
 	Output string
 	// Interrupted is set when the turn ended because of Process.Interrupt.
 	Interrupted bool
+	// Failed is set when the process ended before the turn did.
+	Failed bool
 }
 
 type EventKind int
@@ -47,6 +50,9 @@ const (
 	EventTurnStarted EventKind = iota + 1
 	EventTurnFinished
 	EventBackgroundTasks
+	EventActivity
+	// EventPromptAccepted reports that the agent took the prompt into the running turn.
+	EventPromptAccepted
 )
 
 // ProcessEvent reports a change in the agent process. A turn may start without a prompt,
@@ -55,13 +61,45 @@ type ProcessEvent struct {
 	Kind EventKind
 	// Result is set for EventTurnFinished.
 	Result TurnResult
-	// BackgroundTasks is the number of background tasks still running, for EventBackgroundTasks.
+	// BackgroundTasks lists the IDs of background tasks still running, for EventBackgroundTasks.
+	BackgroundTasks []string
+	// Activity is what the agent is doing now, for EventActivity.
+	Activity string
+	// PromptID is set for EventPromptAccepted.
+	PromptID string
+}
+
+type SessionEventKind int
+
+const (
+	SessionTurnStarted SessionEventKind = iota + 1
+	SessionTurnUpdated
+	SessionTurnFinished
+	// SessionUpdated reports a change between turns, such as background tasks ending.
+	SessionUpdated
+)
+
+type SessionEvent struct {
+	Kind   SessionEventKind
+	Status SessionStatus
+	// Result and AgentStarted are set for SessionTurnFinished. No request waits for a turn the
+	// agent started by itself, so its result reaches people only through the observer.
+	Result       TurnResult
+	AgentStarted bool
+}
+
+type SessionStatus struct {
+	Running         bool
+	TurnStartedAt   time.Time
+	Activity        string
+	Queued          int
 	BackgroundTasks int
 }
 
-// TurnListener receives the results of turns the agent started by itself, which no request waits for.
-type TurnListener interface {
-	AgentTurn(ctx context.Context, s domain.Session, r TurnResult)
+// SessionObserver is told how a session's turns progress. Calls come from the session's worker
+// in order and must return quickly.
+type SessionObserver interface {
+	Observe(s domain.Session, e SessionEvent)
 }
 
 type Runner interface {
@@ -71,9 +109,12 @@ type Runner interface {
 
 // Process is one running agent process of a session. Its methods are not called concurrently.
 type Process interface {
-	// Send delivers a prompt. During a turn, the agent takes it into that turn.
-	Send(ctx context.Context, prompt string) error
+	// Send delivers a prompt. The agent takes it into the running turn or into a later one,
+	// and reports which by EventPromptAccepted with the same id.
+	Send(ctx context.Context, id, prompt string) error
+	// Interrupt ends the running turn and drops the prompts not yet taken in; background tasks keep running.
 	Interrupt(ctx context.Context) error
+	StopTask(ctx context.Context, taskID string) error
 	// Events is closed when the process exits.
 	Events() <-chan ProcessEvent
 	// Err reports why the process exited, once Events is closed.

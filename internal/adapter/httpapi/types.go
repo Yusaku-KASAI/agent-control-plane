@@ -2,7 +2,7 @@ package httpapi
 
 const turnsPath = "/v1/turns"
 
-func interruptPath(sessionID string) string { return "/v1/sessions/" + sessionID + "/interrupt" }
+func stopPath(sessionID string) string { return "/v1/sessions/" + sessionID + "/stop" }
 
 type TurnRequest struct {
 	Agent     string `json:"agent"`
@@ -19,7 +19,7 @@ type TurnResponse struct {
 	Interrupted   bool   `json:"interrupted,omitempty"`
 }
 
-type InterruptRequest struct {
+type StopRequest struct {
 	Agent string `json:"agent"`
 }
 

@@ -52,6 +52,7 @@ func TestContainerSpec(t *testing.T) {
 		"claude", "-p",
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
+		"--replay-user-messages",
 		"--verbose",
 		"--agent", "developer",
 		"--session-id", "0f8fad5b-d9cb-469f-a165-70867728950e",
@@ -156,27 +157,37 @@ func TestRunner_Start(t *testing.T) {
 		t.Fatal("container was not started")
 	}
 
-	if err := proc.Send(context.Background(), "fix it"); err != nil {
+	if err := proc.Send(context.Background(), "p1", "fix it"); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
 	var msg struct {
 		Type    string `json:"type"`
+		UUID    string `json:"uuid"`
 		Message struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	}
-	if err := json.Unmarshal(api.readStdin(t), &msg); err != nil || msg.Type != "user" || msg.Message.Content != "fix it" {
+	if err := json.Unmarshal(api.readStdin(t), &msg); err != nil || msg.Type != "user" || msg.UUID != "p1" || msg.Message.Content != "fix it" {
 		t.Errorf("stdin got %+v, %v", msg, err)
 	}
 
-	api.emit(1, `{"type":"system","subtype":"init"}`+"\n"+`{"type":"assistant"}`+"\n")
+	api.emit(1, `{"type":"system","subtype":"init"}`+"\n")
+	api.emit(1, `{"type":"user","isReplay":true,"uuid":"p1","message":{"role":"user","content":"fix it"}}`+"\n")
+	api.emit(1, `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}`+"\n")
+	api.emit(1, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check","description":"Run lint and tests"}}]}}`+"\n")
 	api.emit(2, "some noise\n")
 	api.emit(1, `{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"b1"}]}`+"\n")
 	api.emit(1, `{"type":"result","subtype":"success","result":"done"}`+"\n")
 	if e := receive(t, proc.Events()); e.Kind != usecase.EventTurnStarted {
 		t.Errorf("event = %+v, want the turn start", e)
 	}
-	if e := receive(t, proc.Events()); e.Kind != usecase.EventBackgroundTasks || e.BackgroundTasks != 1 {
+	if e := receive(t, proc.Events()); e.Kind != usecase.EventPromptAccepted || e.PromptID != "p1" {
+		t.Errorf("event = %+v, want prompt p1 accepted", e)
+	}
+	if e := receive(t, proc.Events()); e.Kind != usecase.EventActivity || e.Activity != "Bash: Run lint and tests" {
+		t.Errorf("event = %+v, want the tool activity", e)
+	}
+	if e := receive(t, proc.Events()); e.Kind != usecase.EventBackgroundTasks || !slices.Equal(e.BackgroundTasks, []string{"b1"}) {
 		t.Errorf("event = %+v, want one background task", e)
 	}
 	if e := receive(t, proc.Events()); e.Kind != usecase.EventTurnFinished || e.Result.Output != "done" || e.Result.Interrupted {
@@ -186,8 +197,14 @@ func TestRunner_Start(t *testing.T) {
 	if err := proc.Interrupt(context.Background()); err != nil {
 		t.Fatalf("Interrupt() error = %v", err)
 	}
-	if line := api.readStdin(t); !bytes.Contains(line, []byte(`"subtype":"interrupt"`)) {
+	if line := api.readStdin(t); !bytes.Contains(line, []byte(`"subtype":"interrupt"`)) || !bytes.Contains(line, []byte(`"cancel_queued":true`)) {
 		t.Errorf("stdin got %s, want an interrupt request", line)
+	}
+	if err := proc.StopTask(context.Background(), "b1"); err != nil {
+		t.Fatalf("StopTask() error = %v", err)
+	}
+	if line := api.readStdin(t); !bytes.Contains(line, []byte(`"subtype":"stop_task"`)) || !bytes.Contains(line, []byte(`"task_id":"b1"`)) {
+		t.Errorf("stdin got %s, want a stop_task request", line)
 	}
 	api.emit(1, `{"type":"result","subtype":"error_during_execution","result":""}`+"\n")
 	if e := receive(t, proc.Events()); !e.Result.Interrupted {
@@ -203,6 +220,24 @@ func TestRunner_Start(t *testing.T) {
 	}
 	if err := proc.Close(context.Background()); err != nil || !api.removed {
 		t.Errorf("Close() error = %v, removed = %v", err, api.removed)
+	}
+}
+
+func TestStreamEventActivity(t *testing.T) {
+	tests := map[string]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Looking at the tests\nmore"}]}}`:                                   "Looking at the tests",
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`:                     "Edit: /w/a.go",
+		`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`: "（サブエージェント）Grep: Foo",
+		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":""}]}}`:                                                     "",
+	}
+	for line, want := range tests {
+		var e streamEvent
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.activity(); got != want {
+			t.Errorf("activity(%s) = %q, want %q", line, got, want)
+		}
 	}
 }
 

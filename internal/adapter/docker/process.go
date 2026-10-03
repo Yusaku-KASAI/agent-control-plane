@@ -44,20 +44,29 @@ func newProcess(api dockerAPI, id string, attach client.HijackedResponse, creds 
 	return p
 }
 
-func (p *process) Send(_ context.Context, prompt string) error {
+func (p *process) Send(_ context.Context, id, prompt string) error {
 	return p.write(map[string]any{
 		"type":    "user",
+		"uuid":    id,
 		"message": map[string]any{"role": "user", "content": prompt},
 	})
 }
 
 func (p *process) Interrupt(context.Context) error {
+	return p.control(map[string]any{"subtype": "interrupt", "cancel_queued": true})
+}
+
+func (p *process) StopTask(_ context.Context, taskID string) error {
+	return p.control(map[string]any{"subtype": "stop_task", "task_id": taskID})
+}
+
+func (p *process) control(request map[string]any) error {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return p.write(map[string]any{
 		"type":       "control_request",
 		"request_id": hex.EncodeToString(b),
-		"request":    map[string]any{"subtype": "interrupt"},
+		"request":    request,
 	})
 }
 
@@ -93,10 +102,28 @@ func (p *process) write(msg any) error {
 
 // streamEvent is the part of a stream-json output line the runner needs.
 type streamEvent struct {
-	Type    string            `json:"type"`
-	Subtype string            `json:"subtype"`
-	Result  string            `json:"result"`
-	Tasks   []json.RawMessage `json:"tasks"`
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	Result  string `json:"result"`
+	Tasks   []struct {
+		TaskID string `json:"task_id"`
+	} `json:"tasks"`
+	// ParentToolUseID is set on messages from subagents.
+	ParentToolUseID string `json:"parent_tool_use_id"`
+	// IsReplay marks a prompt echoed back when the agent takes it in (--replay-user-messages).
+	IsReplay bool   `json:"isReplay"`
+	UUID     string `json:"uuid"`
+	Message  struct {
+		// Content is a string in prompts and a list of blocks in assistant messages.
+		Content json.RawMessage `json:"content"`
+	} `json:"message"`
+}
+
+type contentBlock struct {
+	Type  string          `json:"type"`
+	Text  string          `json:"text"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"input"`
 }
 
 func (e streamEvent) processEvent() (usecase.ProcessEvent, bool) {
@@ -104,7 +131,17 @@ func (e streamEvent) processEvent() (usecase.ProcessEvent, bool) {
 	case e.Type == "system" && e.Subtype == "init":
 		return usecase.ProcessEvent{Kind: usecase.EventTurnStarted}, true
 	case e.Type == "system" && e.Subtype == "background_tasks_changed":
-		return usecase.ProcessEvent{Kind: usecase.EventBackgroundTasks, BackgroundTasks: len(e.Tasks)}, true
+		ids := make([]string, 0, len(e.Tasks))
+		for _, t := range e.Tasks {
+			ids = append(ids, t.TaskID)
+		}
+		return usecase.ProcessEvent{Kind: usecase.EventBackgroundTasks, BackgroundTasks: ids}, true
+	case e.Type == "user" && e.IsReplay:
+		return usecase.ProcessEvent{Kind: usecase.EventPromptAccepted, PromptID: e.UUID}, true
+	case e.Type == "assistant":
+		if a := e.activity(); a != "" {
+			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a}, true
+		}
 	case e.Type == "result":
 		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{
 			Output:      e.Result,
@@ -112,6 +149,55 @@ func (e streamEvent) processEvent() (usecase.ProcessEvent, bool) {
 		}}, true
 	}
 	return usecase.ProcessEvent{}, false
+}
+
+// activity describes the last tool call or text in an assistant message.
+func (e streamEvent) activity() string {
+	var blocks []contentBlock
+	if json.Unmarshal(e.Message.Content, &blocks) != nil {
+		return ""
+	}
+	var a string
+	for _, c := range blocks {
+		switch c.Type {
+		case "tool_use":
+			a = toolActivity(c.Name, c.Input)
+		case "text":
+			if t := strings.TrimSpace(c.Text); t != "" {
+				a = firstLine(t)
+			}
+		}
+	}
+	if a != "" && e.ParentToolUseID != "" {
+		a = "（サブエージェント）" + a
+	}
+	return a
+}
+
+func toolActivity(name string, input json.RawMessage) string {
+	var in struct {
+		Description string `json:"description"`
+		Command     string `json:"command"`
+		FilePath    string `json:"file_path"`
+		Pattern     string `json:"pattern"`
+		URL         string `json:"url"`
+	}
+	_ = json.Unmarshal(input, &in)
+	for _, detail := range []string{in.Description, in.FilePath, in.Command, in.Pattern, in.URL} {
+		if detail != "" {
+			return name + ": " + firstLine(detail)
+		}
+	}
+	return name
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	const max = 120
+	if r := []rune(line); len(r) > max {
+		return string(r[:max]) + "…"
+	}
+	return line
 }
 
 func (p *process) read() {

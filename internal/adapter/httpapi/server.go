@@ -15,7 +15,7 @@ import (
 
 type TurnRunner interface {
 	Execute(ctx context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error)
-	Interrupt(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
+	Stop(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
 }
 
 func NewHandler(turns TurnRunner, token string, log *slog.Logger) http.Handler {
@@ -23,7 +23,7 @@ func NewHandler(turns TurnRunner, token string, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.Handle("POST "+turnsPath, s.authenticated(http.HandlerFunc(s.postTurn)))
-	mux.Handle("POST "+interruptPath("{id}"), s.authenticated(http.HandlerFunc(s.postInterrupt)))
+	mux.Handle("POST "+stopPath("{id}"), s.authenticated(http.HandlerFunc(s.postStop)))
 	return mux
 }
 
@@ -81,17 +81,17 @@ func (s *server) postTurn(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *server) postInterrupt(w http.ResponseWriter, r *http.Request) {
+func (s *server) postStop(w http.ResponseWriter, r *http.Request) {
 	id, err := domain.ParseSessionID(r.PathValue("id"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Code: CodeInvalidRequest, Message: err.Error()})
 		return
 	}
-	var req InterruptRequest
+	var req StopRequest
 	if !decode(w, r, &req) {
 		return
 	}
-	if err := s.turns.Interrupt(r.Context(), domain.AgentName(req.Agent), id); err != nil {
+	if err := s.turns.Stop(r.Context(), domain.AgentName(req.Agent), id); err != nil {
 		status, code := classify(err)
 		writeJSON(w, status, ErrorResponse{Code: code, Message: err.Error(), SessionID: string(id)})
 		return

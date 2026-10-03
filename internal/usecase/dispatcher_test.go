@@ -76,20 +76,46 @@ func (f *fakeIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, e
 
 // fakeProcess answers each prompt when the test calls finish, mimicking a turn that runs until done.
 type fakeProcess struct {
-	mu          sync.Mutex
-	prompts     []string
+	mu      sync.Mutex
+	prompts []string
+	ids     []string
+	// holdPrompts keeps prompts from being taken in until accept is called.
+	holdPrompts bool
 	interrupted bool
+	stoppedTask []string
 	updated     int
 	closed      bool
 	events      chan usecase.ProcessEvent
 	err         error
 }
 
-func (p *fakeProcess) Send(_ context.Context, prompt string) error {
+// Send records the prompt last, so a test that has seen it may close the events channel.
+func (p *fakeProcess) Send(_ context.Context, id, prompt string) error {
+	p.mu.Lock()
+	hold := p.holdPrompts
+	p.mu.Unlock()
+	if !hold {
+		p.events <- usecase.ProcessEvent{Kind: usecase.EventPromptAccepted, PromptID: id}
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.prompts = append(p.prompts, prompt)
+	p.ids = append(p.ids, id)
 	return nil
+}
+
+// accept reports that the agent took the i-th prompt into its turn.
+func (p *fakeProcess) accept(i int) {
+	p.mu.Lock()
+	id := p.ids[i]
+	p.mu.Unlock()
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventPromptAccepted, PromptID: id}
+}
+
+func (p *fakeProcess) hold() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.holdPrompts = true
 }
 
 func (p *fakeProcess) Interrupt(context.Context) error {
@@ -97,6 +123,13 @@ func (p *fakeProcess) Interrupt(context.Context) error {
 	p.interrupted = true
 	p.mu.Unlock()
 	p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{Interrupted: true}}
+	return nil
+}
+
+func (p *fakeProcess) StopTask(_ context.Context, id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stoppedTask = append(p.stoppedTask, id)
 	return nil
 }
 
@@ -129,8 +162,8 @@ func (p *fakeProcess) finish(output string) {
 
 func (p *fakeProcess) startTurn() { p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnStarted} }
 
-func (p *fakeProcess) background(n int) {
-	p.events <- usecase.ProcessEvent{Kind: usecase.EventBackgroundTasks, BackgroundTasks: n}
+func (p *fakeProcess) background(ids ...string) {
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventBackgroundTasks, BackgroundTasks: ids}
 }
 
 func (p *fakeProcess) isClosed() bool {
@@ -139,21 +172,38 @@ func (p *fakeProcess) isClosed() bool {
 	return p.closed
 }
 
-type fakeListener struct {
-	mu    sync.Mutex
-	turns []usecase.TurnResult
+type fakeObserver struct {
+	mu     sync.Mutex
+	events []usecase.SessionEvent
 }
 
-func (f *fakeListener) AgentTurn(_ context.Context, _ domain.Session, r usecase.TurnResult) {
+func (f *fakeObserver) Observe(_ domain.Session, e usecase.SessionEvent) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.turns = append(f.turns, r)
+	f.events = append(f.events, e)
 }
 
-func (f *fakeListener) received() []usecase.TurnResult {
+func (f *fakeObserver) of(kind usecase.SessionEventKind) []usecase.SessionEvent {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]usecase.TurnResult(nil), f.turns...)
+	var out []usecase.SessionEvent
+	for _, e := range f.events {
+		if e.Kind == kind {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// agentTurns are the finished turns no request waited for.
+func (f *fakeObserver) agentTurns() []usecase.TurnResult {
+	var out []usecase.TurnResult
+	for _, e := range f.of(usecase.SessionTurnFinished) {
+		if e.AgentStarted {
+			out = append(out, e.Result)
+		}
+	}
+	return out
 }
 
 type fakeRunner struct {
@@ -202,7 +252,7 @@ type env struct {
 	workspaces *fakeWorkspaces
 	issuer     *fakeIssuer
 	runner     *fakeRunner
-	listener   *fakeListener
+	observer   *fakeObserver
 	d          *usecase.Dispatcher
 }
 
@@ -222,9 +272,9 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		workspaces: &fakeWorkspaces{},
 		issuer:     &fakeIssuer{},
 		runner:     newFakeRunner(),
-		listener:   &fakeListener{},
+		observer:   &fakeObserver{},
 	}
-	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, e.runner, e.listener, opts)
+	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, e.runner, e.observer, opts)
 	t.Cleanup(e.d.Close)
 	return e
 }
@@ -284,6 +334,10 @@ func TestDispatcher_NewSession(t *testing.T) {
 	if e.workspaces.prepared != 1 {
 		t.Errorf("workspaces prepared = %d, want 1", e.workspaces.prepared)
 	}
+	started, finished := e.observer.of(usecase.SessionTurnStarted), e.observer.of(usecase.SessionTurnFinished)
+	if len(started) != 1 || !started[0].Status.Running || len(finished) != 1 || finished[0].AgentStarted {
+		t.Errorf("observed started %+v, finished %+v", started, finished)
+	}
 }
 
 func TestDispatcher_QueuesBehindRunningTurn(t *testing.T) {
@@ -325,27 +379,82 @@ func TestDispatcher_InjectsIntoRunningTurn(t *testing.T) {
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("both")
 
-	for name, ch := range map[string]<-chan outcome{"first": first, "injected": steer} {
-		if o := wait(t, ch); o.err != nil || o.out.Output != "both" {
-			t.Errorf("%s = %+v, %v; want the shared turn's output", name, o.out, o.err)
-		}
+	o1, o2 := wait(t, first), wait(t, steer)
+	if o1.err != nil || o1.out.Output != "both" || o1.out.Shared {
+		t.Errorf("first = %+v, %v; want the turn's output", o1.out, o1.err)
+	}
+	if o2.err != nil || o2.out.Output != "both" || !o2.out.Shared {
+		t.Errorf("injected = %+v, %v; want the same output marked as shared", o2.out, o2.err)
 	}
 }
 
-func TestDispatcher_Interrupt(t *testing.T) {
+func TestDispatcher_InjectedPromptTakenIntoNextTurn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "make check"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+
+	p.hold()
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finish("check passed")
+	if o := wait(t, first); o.err != nil || o.out.Output != "check passed" || o.out.Shared {
+		t.Fatalf("first = %+v, %v", o.out, o.err)
+	}
+
+	// The agent runs the held prompt as its own next turn.
+	p.startTurn()
+	p.accept(1)
+	p.finish("go1.27")
+	if o := wait(t, steer); o.err != nil || o.out.Output != "go1.27" || o.out.Shared {
+		t.Errorf("injected = %+v, %v; want the next turn's output", o.out, o.err)
+	}
+	if got := e.observer.agentTurns(); len(got) != 0 {
+		t.Errorf("observer got agent turns %+v, want none", got)
+	}
+}
+
+func TestDispatcher_StopRunningTurn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
+	queued := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next"})
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) > 0 })
 
-	if err := e.d.Interrupt(context.Background(), dev.Name, existingID); err != nil {
-		t.Fatalf("Interrupt() error = %v", err)
+	if err := e.d.Stop(context.Background(), dev.Name, existingID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
 	if o := wait(t, running); o.err != nil || !o.out.Interrupted {
-		t.Errorf("interrupted turn = %+v, %v", o.out, o.err)
+		t.Errorf("stopped turn = %+v, %v", o.out, o.err)
 	}
-	if err := e.d.Interrupt(context.Background(), pm.Name, existingID); !errors.Is(err, domain.ErrSessionAgentMismatch) {
-		t.Errorf("Interrupt(other agent) error = %v, want ErrSessionAgentMismatch", err)
+	if o := wait(t, queued); !errors.Is(o.err, usecase.ErrStopped) {
+		t.Errorf("queued request error = %v, want ErrStopped", o.err)
+	}
+	if err := e.d.Stop(context.Background(), pm.Name, existingID); !errors.Is(err, domain.ErrSessionAgentMismatch) {
+		t.Errorf("Stop(other agent) error = %v, want ErrSessionAgentMismatch", err)
+	}
+}
+
+func TestDispatcher_StopWaitingBackgroundTasks(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start builds"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("b1", "b2")
+	p.finish("building")
+	wait(t, first)
+	time.Sleep(20 * time.Millisecond)
+
+	if err := e.d.Stop(context.Background(), dev.Name, existingID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return len(p.stoppedTask) == 2 })
+	p.mu.Lock()
+	interrupted := p.interrupted
+	p.mu.Unlock()
+	if interrupted {
+		t.Error("an interrupt was sent although no turn was running")
 	}
 }
 
@@ -476,9 +585,9 @@ func TestDispatcher_AgentStartedTurn(t *testing.T) {
 		t.Fatalf("sent %q during the agent's own turn, want it queued", got)
 	}
 	p.finish("build passed")
-	eventually(t, func() bool { return len(e.listener.received()) == 1 })
-	if got := e.listener.received()[0].Output; got != "build passed" {
-		t.Errorf("listener got %q", got)
+	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
+	if got := e.observer.agentTurns()[0].Output; got != "build passed" {
+		t.Errorf("observer got %q", got)
 	}
 
 	eventually(t, func() bool { return len(p.sent()) == 2 })
@@ -493,7 +602,7 @@ func TestDispatcher_KeepsProcessWhileBackgroundTasksRun(t *testing.T) {
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
-	p.background(1)
+	p.background("b1")
 	p.finish("building")
 	wait(t, first)
 
@@ -501,6 +610,6 @@ func TestDispatcher_KeepsProcessWhileBackgroundTasksRun(t *testing.T) {
 	if p.isClosed() {
 		t.Fatal("the process was closed while a background task was running")
 	}
-	p.background(0)
+	p.background()
 	eventually(t, p.isClosed)
 }

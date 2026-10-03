@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -24,6 +25,11 @@ type Bot struct {
 	sm      *socketmode.Client
 	handler *usecase.HandleMessage
 	log     *slog.Logger
+
+	statusMu   sync.Mutex
+	status     map[domain.SessionID]*statusMessage
+	byStatusTS map[string]domain.SessionID
+	mentions   *seenMessages
 }
 
 func New(agent domain.AgentName, appToken, botToken string, turns usecase.TurnExecutor, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
@@ -33,6 +39,10 @@ func New(agent domain.AgentName, appToken, botToken string, turns usecase.TurnEx
 		api:   api,
 		sm:    socketmode.New(api),
 		log:   log.With("agent", agent),
+
+		status:     make(map[domain.SessionID]*statusMessage),
+		byStatusTS: make(map[string]domain.SessionID),
+		mentions:   newSeenMessages(time.Hour),
 	}
 	b.handler = usecase.NewHandleMessage(turns, policy, b)
 	return b
@@ -55,37 +65,68 @@ func (b *Bot) Run(ctx context.Context) error {
 		case err := <-errc:
 			return err
 		case evt := <-b.sm.Events:
-			msg, ok := b.accept(evt, auth.UserID)
-			if !ok {
-				continue
-			}
-			turns.Go(func() {
-				if err := b.handler.Execute(ctx, msg); err != nil {
-					b.log.Warn("message handling failed", "session", msg.Conversation.SessionID(b.agent), "err", err)
+			switch inner := b.accept(evt); e := inner.(type) {
+			case *slackevents.AppMentionEvent:
+				msg, ok := messageFromMention(b.agent, b.team(evt), e, auth.UserID)
+				if !ok || !b.mentions.first(e.Channel+"/"+e.TimeStamp, time.Now()) {
+					continue
 				}
-			})
+				turns.Go(func() {
+					if err := b.handler.Execute(ctx, msg); err != nil {
+						b.log.Warn("message handling failed", "session", msg.Conversation.SessionID(b.agent), "err", err)
+					}
+				})
+			case *slackevents.ReactionAddedEvent:
+				b.handleReaction(ctx, e)
+			}
 		}
 	}
 }
 
-func (b *Bot) accept(evt socketmode.Event, botUserID string) (usecase.IncomingMessage, bool) {
+// accept acknowledges an Events API envelope and returns its inner event.
+func (b *Bot) accept(evt socketmode.Event) any {
 	if evt.Type != socketmode.EventTypeEventsAPI {
-		return usecase.IncomingMessage{}, false
+		return nil
 	}
 	if evt.Request != nil {
 		if err := b.sm.Ack(*evt.Request); err != nil {
 			b.log.Warn("ack failed", "err", err)
 		}
+		if evt.Request.RetryAttempt > 0 {
+			b.log.Info("slack redelivered an event", "attempt", evt.Request.RetryAttempt, "reason", evt.Request.RetryReason)
+		}
 	}
 	api, ok := evt.Data.(slackevents.EventsAPIEvent)
 	if !ok {
-		return usecase.IncomingMessage{}, false
+		return nil
 	}
-	mention, ok := api.InnerEvent.Data.(*slackevents.AppMentionEvent)
+	return api.InnerEvent.Data
+}
+
+func (b *Bot) team(evt socketmode.Event) string {
+	api, _ := evt.Data.(slackevents.EventsAPIEvent)
+	return api.TeamID
+}
+
+func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent) {
+	if e.Reaction != stopReaction || e.Item.Type != "message" {
+		return
+	}
+	id, ok := b.sessionForStatus(e.Item.Channel, e.Item.Timestamp)
 	if !ok {
-		return usecase.IncomingMessage{}, false
+		return
 	}
-	return messageFromMention(b.agent, api.TeamID, mention, botUserID)
+	if err := b.handler.Stop(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, id); err != nil {
+		b.log.Warn("stop failed", "session", id, "user", e.User, "err", err)
+	}
+}
+
+// Observe follows the agent's sessions with a status message in their thread.
+func (b *Bot) Observe(s domain.Session, e usecase.SessionEvent) {
+	if s.Conversation.Platform != platform {
+		return
+	}
+	b.observe(s, e)
 }
 
 func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppMentionEvent, botUserID string) (usecase.IncomingMessage, bool) {
@@ -96,17 +137,35 @@ func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppM
 	if thread == "" {
 		thread = e.TimeStamp
 	}
+	text := strings.TrimSpace(strings.ReplaceAll(e.Text, "<@"+botUserID+">", ""))
+	text, inject := strings.CutPrefix(text, injectPrefix)
 	return usecase.IncomingMessage{
 		Agent:        agent,
 		Conversation: domain.Conversation{Platform: platform, Workspace: team, Channel: e.Channel, Thread: thread},
 		Requester:    domain.Requester{Platform: platform, ID: e.User},
 		MessageID:    e.TimeStamp,
-		Text:         strings.TrimSpace(strings.ReplaceAll(e.Text, "<@"+botUserID+">", "")),
+		Text:         strings.TrimSpace(text),
+		Inject:       inject,
 	}, true
 }
 
+// injectPrefix marks a message to be sent into the running turn.
+const injectPrefix = ":zap:"
+
 func (b *Bot) Acknowledge(ctx context.Context, msg usecase.IncomingMessage) error {
-	return b.api.AddReactionContext(ctx, "eyes", slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID})
+	return b.react(ctx, msg, "eyes")
+}
+
+func (b *Bot) MarkStopped(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, stopReaction)
+}
+
+func (b *Bot) MarkAnsweredTogether(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "white_check_mark")
+}
+
+func (b *Bot) react(ctx context.Context, msg usecase.IncomingMessage, name string) error {
+	return b.api.AddReactionContext(context.WithoutCancel(ctx), name, slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID})
 }
 
 func (b *Bot) Reply(ctx context.Context, msg usecase.IncomingMessage, text string) error {

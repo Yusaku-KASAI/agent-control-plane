@@ -11,10 +11,11 @@ import (
 )
 
 type fakeTurns struct {
-	out    usecase.RunAgentOutput
-	err    error
-	called bool
-	got    usecase.RunAgentInput
+	out     usecase.RunAgentOutput
+	err     error
+	called  bool
+	got     usecase.RunAgentInput
+	stopped domain.SessionID
 }
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
@@ -22,13 +23,30 @@ func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecas
 	return f.out, f.err
 }
 
+func (f *fakeTurns) Stop(_ context.Context, _ domain.AgentName, id domain.SessionID) error {
+	f.stopped = id
+	return nil
+}
+
 type allowList map[domain.Requester]bool
 
 func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return a[r] }
 
 type fakeResponder struct {
-	acked   bool
-	replies []string
+	acked    bool
+	stopped  bool
+	together bool
+	replies  []string
+}
+
+func (f *fakeResponder) MarkAnsweredTogether(context.Context, usecase.IncomingMessage) error {
+	f.together = true
+	return nil
+}
+
+func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) error {
+	f.stopped = true
+	return nil
 }
 
 func (f *fakeResponder) Acknowledge(context.Context, usecase.IncomingMessage) error {
@@ -105,5 +123,52 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 				t.Errorf("replies = %q, want one containing %q", responder.replies, tt.want)
 			}
 		})
+	}
+}
+
+func TestHandleMessage_Stopped(t *testing.T) {
+	tests := []struct {
+		name string
+		out  usecase.RunAgentOutput
+		err  error
+	}{
+		{name: "running turn interrupted", out: usecase.RunAgentOutput{Interrupted: true}},
+		{name: "queued request withdrawn", err: usecase.ErrStopped},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			responder := &fakeResponder{}
+			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out, err: tt.err}, allowList{alice: true}, responder).
+				Execute(context.Background(), message); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !responder.stopped || len(responder.replies) != 1 {
+				t.Errorf("stopped = %v, replies = %q", responder.stopped, responder.replies)
+			}
+		})
+	}
+}
+
+func TestHandleMessage_Stop(t *testing.T) {
+	turns := &fakeTurns{}
+	h := usecase.NewHandleMessage(turns, allowList{alice: true}, &fakeResponder{})
+	id := thread.SessionID("repo-dev")
+
+	if err := h.Stop(context.Background(), "repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, id); !errors.Is(err, domain.ErrRequesterNotAllowed) || turns.stopped != "" {
+		t.Errorf("Stop(unknown requester) error = %v, stopped %q", err, turns.stopped)
+	}
+	if err := h.Stop(context.Background(), "repo-dev", alice, id); err != nil || turns.stopped != id {
+		t.Errorf("Stop() error = %v, stopped %q", err, turns.stopped)
+	}
+}
+
+func TestHandleMessage_AnsweredTogether(t *testing.T) {
+	responder := &fakeResponder{}
+	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "both answers", Shared: true}}
+	if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !responder.together || len(responder.replies) != 0 {
+		t.Errorf("together = %v, replies = %q; want a mark and no repeated reply", responder.together, responder.replies)
 	}
 }

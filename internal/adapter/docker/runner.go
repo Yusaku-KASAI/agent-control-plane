@@ -120,6 +120,7 @@ func claudeCommand(agent domain.Agent, s domain.Session, workdir string, plugins
 		"claude", "-p",
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
+		"--replay-user-messages",
 		"--verbose",
 		"--agent", string(agent.Role),
 		sessionFlag, string(s.ID),

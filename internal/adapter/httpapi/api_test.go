@@ -25,8 +25,8 @@ type fakeTurns struct {
 	err error
 	got usecase.RunAgentInput
 
-	interrupted  domain.SessionID
-	interruptErr error
+	stopped domain.SessionID
+	stopErr error
 }
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
@@ -34,9 +34,9 @@ func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecas
 	return f.out, f.err
 }
 
-func (f *fakeTurns) Interrupt(_ context.Context, _ domain.AgentName, id domain.SessionID) error {
-	f.interrupted = id
-	return f.interruptErr
+func (f *fakeTurns) Stop(_ context.Context, _ domain.AgentName, id domain.SessionID) error {
+	f.stopped = id
+	return f.stopErr
 }
 
 func newServer(t *testing.T, turns *fakeTurns) *httptest.Server {
@@ -109,25 +109,25 @@ func TestRunTurn_Errors(t *testing.T) {
 	}
 }
 
-func TestInterrupt(t *testing.T) {
+func TestStop(t *testing.T) {
 	turns := &fakeTurns{}
 	srv := newServer(t, turns)
 	c := httpapi.NewClient(srv.URL, token, srv.Client())
 
-	if err := c.Interrupt(context.Background(), sessionID, httpapi.InterruptRequest{Agent: "repo-dev"}); err != nil {
-		t.Fatalf("Interrupt() error = %v", err)
+	if err := c.Stop(context.Background(), sessionID, httpapi.StopRequest{Agent: "repo-dev"}); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
-	if turns.interrupted != sessionID {
-		t.Errorf("interrupted %q, want %q", turns.interrupted, sessionID)
+	if turns.stopped != sessionID {
+		t.Errorf("stopped %q, want %q", turns.stopped, sessionID)
 	}
 
-	turns.interruptErr = domain.ErrSessionAgentMismatch
+	turns.stopErr = domain.ErrSessionAgentMismatch
 	var apiErr *httpapi.APIError
-	if err := c.Interrupt(context.Background(), sessionID, httpapi.InterruptRequest{Agent: "repo-pm"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeSessionAgentMismatch {
-		t.Errorf("Interrupt(other agent) error = %v", err)
+	if err := c.Stop(context.Background(), sessionID, httpapi.StopRequest{Agent: "repo-pm"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeSessionAgentMismatch {
+		t.Errorf("Stop(other agent) error = %v", err)
 	}
-	if err := c.Interrupt(context.Background(), "bad", httpapi.InterruptRequest{Agent: "repo-dev"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeInvalidRequest {
-		t.Errorf("Interrupt(bad id) error = %v", err)
+	if err := c.Stop(context.Background(), "bad", httpapi.StopRequest{Agent: "repo-dev"}); !errors.As(err, &apiErr) || apiErr.Code != httpapi.CodeInvalidRequest {
+		t.Errorf("Stop(bad id) error = %v", err)
 	}
 }
 

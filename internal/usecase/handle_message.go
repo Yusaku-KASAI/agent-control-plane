@@ -17,6 +17,8 @@ type IncomingMessage struct {
 	// MessageID identifies the message itself within the conversation, for acknowledging it.
 	MessageID string
 	Text      string
+	// Inject sends the text into the running turn instead of queueing it.
+	Inject bool
 }
 
 type AccessPolicy interface {
@@ -27,11 +29,16 @@ type AccessPolicy interface {
 type ChatResponder interface {
 	// Acknowledge signals that the message was received. Platforms that cannot may do nothing.
 	Acknowledge(ctx context.Context, msg IncomingMessage) error
+	// MarkStopped signals that the request was stopped or withdrawn. Platforms that cannot may do nothing.
+	MarkStopped(ctx context.Context, msg IncomingMessage) error
+	// MarkAnsweredTogether signals that the reply to an earlier request also answers this one.
+	MarkAnsweredTogether(ctx context.Context, msg IncomingMessage) error
 	Reply(ctx context.Context, msg IncomingMessage, text string) error
 }
 
 type TurnExecutor interface {
 	Execute(ctx context.Context, in RunAgentInput) (RunAgentOutput, error)
+	Stop(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
 }
 
 type HandleMessage struct {
@@ -58,16 +65,32 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		SessionID:       msg.Conversation.SessionID(msg.Agent),
 		CreateIfMissing: true,
 		Prompt:          msg.Text,
+		Inject:          msg.Inject,
 		Conversation:    msg.Conversation,
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrStopped):
+		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, "停止したため、この依頼は取り消しました。"))
+	case err != nil:
 		return errors.Join(err, ackErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)))
+	case out.Interrupted:
+		text := "依頼を中断しました。"
+		if strings.TrimSpace(out.Output) != "" {
+			text = out.Output
+		}
+		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, text))
+	case out.Shared:
+		return errors.Join(ackErr, u.responder.MarkAnsweredTogether(ctx, msg))
 	}
-	text := out.Output
-	if out.Interrupted && strings.TrimSpace(text) == "" {
-		text = "依頼を中断しました。"
+	return errors.Join(ackErr, u.responder.Reply(ctx, msg, out.Output))
+}
+
+// Stop stops the session if the requester may use the agent.
+func (u *HandleMessage) Stop(ctx context.Context, agent domain.AgentName, r domain.Requester, id domain.SessionID) error {
+	if !u.policy.Allows(agent, r) {
+		return domain.ErrRequesterNotAllowed
 	}
-	return errors.Join(ackErr, u.responder.Reply(ctx, msg, text))
+	return u.turns.Stop(ctx, agent, id)
 }
 
 func failureText(s domain.Session, err error) string {

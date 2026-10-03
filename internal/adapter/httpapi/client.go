@@ -36,8 +36,8 @@ func (c *Client) RunTurn(ctx context.Context, req TurnRequest) (TurnResponse, er
 	return out, err
 }
 
-func (c *Client) Interrupt(ctx context.Context, sessionID string, req InterruptRequest) error {
-	return c.post(ctx, interruptPath(sessionID), req, nil)
+func (c *Client) Stop(ctx context.Context, sessionID string, req StopRequest) error {
+	return c.post(ctx, stopPath(sessionID), req, nil)
 }
 
 func (c *Client) post(ctx context.Context, path string, req, out any) error {

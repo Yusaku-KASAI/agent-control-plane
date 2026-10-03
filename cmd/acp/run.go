@@ -43,11 +43,11 @@ func runTurn(ctx context.Context, args []string, getenv func(string) string, std
 	return 0
 }
 
-func interrupt(ctx context.Context, args []string, getenv func(string) string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("interrupt", flag.ContinueOnError)
+func stop(ctx context.Context, args []string, getenv func(string) string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	agent := fs.String("agent", "", "agent name defined in the server config")
-	session := fs.String("session", "", "session ID whose running turn to stop")
+	session := fs.String("session", "", "session ID to stop: its running turn, background tasks and queued prompts")
 	server := serverFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -56,7 +56,7 @@ func interrupt(ctx context.Context, args []string, getenv func(string) string, s
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
-	if err := apiClient(*server, getenv).Interrupt(ctx, *session, httpapi.InterruptRequest{Agent: *agent}); err != nil {
+	if err := apiClient(*server, getenv).Stop(ctx, *session, httpapi.StopRequest{Agent: *agent}); err != nil {
 		return reportError(stderr, err)
 	}
 	return 0

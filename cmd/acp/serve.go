@@ -63,7 +63,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		return err
 	}
 
-	notifier := &agentTurnNotifier{log: log}
+	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
 		filesession.NewStore(cfg.SessionsRoot),
@@ -74,7 +74,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			CredentialsDir:     cfg.Credentials.Dir,
 			CredentialsVolume:  cfg.Credentials.Volume,
 		}),
-		notifier,
+		observer,
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
 			// Installation tokens live for an hour.
@@ -88,7 +88,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	if err != nil {
 		return err
 	}
-	notifier.setBots(bots)
+	observer.setBots(bots)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           httpapi.NewHandler(turns, token, log),
@@ -157,29 +157,29 @@ func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer
 	return githubapp.NewIssuer(loaded, githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}), nil
 }
 
-// agentTurnNotifier posts turns the agent started by itself to the Slack thread the session
-// came from. Sessions started elsewhere have no thread to post to, so the result is logged.
-type agentTurnNotifier struct {
+// sessionObserver hands session events to the Slack bot of the session's agent. Sessions
+// started elsewhere have no thread to follow, so the agent's own turns are only logged.
+type sessionObserver struct {
 	log  *slog.Logger
 	mu   sync.Mutex
 	bots map[domain.AgentName]*slackbot.Bot
 }
 
-func (n *agentTurnNotifier) setBots(bots map[domain.AgentName]*slackbot.Bot) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.bots = bots
+func (o *sessionObserver) setBots(bots map[domain.AgentName]*slackbot.Bot) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.bots = bots
 }
 
-func (n *agentTurnNotifier) AgentTurn(ctx context.Context, s domain.Session, r usecase.TurnResult) {
-	n.mu.Lock()
-	bot, ok := n.bots[s.AgentName]
-	n.mu.Unlock()
-	if !ok || s.Conversation.Platform != "slack" {
-		n.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", r.Output)
+func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
+	o.mu.Lock()
+	bot, ok := o.bots[s.AgentName]
+	o.mu.Unlock()
+	if ok && s.Conversation.Platform == "slack" {
+		bot.Observe(s, e)
 		return
 	}
-	if err := bot.Post(ctx, s.Conversation, r.Output); err != nil {
-		n.log.Warn("posting agent turn failed", "agent", s.AgentName, "session", s.ID, "err", err)
+	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
+		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", e.Result.Output)
 	}
 }

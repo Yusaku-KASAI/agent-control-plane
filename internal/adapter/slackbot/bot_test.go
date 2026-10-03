@@ -3,6 +3,7 @@ package slackbot
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/slack-go/slack/slackevents"
 
@@ -41,6 +42,19 @@ func TestMessageFromMention(t *testing.T) {
 			},
 			wantOK: true,
 		},
+		{
+			name:  "zap sends into the running turn",
+			event: slackevents.AppMentionEvent{User: "U1", Channel: "C1", TimeStamp: "13.0", ThreadTimeStamp: "10.0", Text: "<@UBOT> :zap: do this first"},
+			want: usecase.IncomingMessage{
+				Agent:        "repo-dev",
+				Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "10.0"},
+				Requester:    domain.Requester{Platform: "slack", ID: "U1"},
+				MessageID:    "13.0",
+				Text:         "do this first",
+				Inject:       true,
+			},
+			wantOK: true,
+		},
 		{name: "bot messages are ignored", event: slackevents.AppMentionEvent{BotID: "B1", Channel: "C1", TimeStamp: "1.0"}},
 	}
 	for _, tt := range tests {
@@ -61,5 +75,22 @@ func TestMarkdownText(t *testing.T) {
 	got := markdownText(long)
 	if !strings.HasPrefix(got, strings.Repeat("あ", maxMarkdown)) || !strings.Contains(got, "省略") {
 		t.Errorf("markdownText(long) was not truncated with a notice")
+	}
+}
+
+func TestStatusViewRender(t *testing.T) {
+	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	running := statusView{session: "sess", startedAt: start, activity: "Bash: Run lint and tests", queued: 1, background: 2}
+	got := running.render(start.Add(83 * time.Second))
+	for _, want := range []string{"実行中", "1分23秒", "Bash: Run lint and tests", "待っている依頼：1 件", "バックグラウンドの処理：2 件", "`sess`", ":no_entry_sign:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("running render lacks %q:\n%s", want, got)
+		}
+	}
+
+	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done}
+	got = finished.render(start.Add(time.Hour))
+	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
+		t.Errorf("finished render:\n%s", got)
 	}
 }

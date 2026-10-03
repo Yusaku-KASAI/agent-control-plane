@@ -15,6 +15,7 @@ var (
 	ErrEmptyPrompt   = errors.New("prompt is empty")
 	ErrInboxFull     = errors.New("too many requests are waiting for this session")
 	ErrShuttingDown  = errors.New("control plane is shutting down")
+	ErrStopped       = errors.New("the session was stopped")
 	errProcessExited = errors.New("agent process exited")
 )
 
@@ -34,6 +35,8 @@ type RunAgentInput struct {
 type RunAgentOutput struct {
 	Output      string
 	Interrupted bool
+	// Shared is set when an earlier request got the same turn's output, so it need not be repeated.
+	Shared bool
 	// Session is set whenever it exists, even if the turn then failed.
 	Session domain.Session
 }
@@ -54,7 +57,7 @@ type Dispatcher struct {
 	workspaces  WorkspaceProvider
 	credentials CredentialIssuer
 	runner      Runner
-	listener    TurnListener
+	observer    SessionObserver
 	opts        DispatcherOptions
 
 	ctx     context.Context
@@ -70,13 +73,13 @@ func NewDispatcher(
 	workspaces WorkspaceProvider,
 	credentials CredentialIssuer,
 	runner Runner,
-	listener TurnListener,
+	observer SessionObserver,
 	opts DispatcherOptions,
 ) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Dispatcher{
 		agents: agents, sessions: sessions, workspaces: workspaces, credentials: credentials, runner: runner,
-		listener: listener, opts: opts,
+		observer: observer, opts: opts,
 		ctx: ctx, cancel: cancel, workers: make(map[domain.SessionID]*worker),
 	}
 }
@@ -104,14 +107,15 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 		if r.err != nil {
 			return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent.Name, r.err)
 		}
-		return RunAgentOutput{Output: r.result.Output, Interrupted: r.result.Interrupted, Session: r.session}, nil
+		return RunAgentOutput{Output: r.result.Output, Interrupted: r.result.Interrupted, Shared: r.shared, Session: r.session}, nil
 	case <-ctx.Done():
 		return RunAgentOutput{Session: session}, ctx.Err()
 	}
 }
 
-// Interrupt stops the session's running turn. It does nothing when no turn is running.
-func (d *Dispatcher) Interrupt(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
+// Stop ends everything the session is doing: the running turn, the background tasks the agent
+// would resume after, and the prompts waiting behind them. It does nothing to an idle session.
+func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
 	s, err := d.sessions.Find(ctx, id)
 	if err != nil {
 		return fmt.Errorf("find session %s: %w", id, err)
@@ -123,7 +127,7 @@ func (d *Dispatcher) Interrupt(ctx context.Context, agentName domain.AgentName, 
 	defer d.mu.Unlock()
 	if w, ok := d.workers[id]; ok {
 		select {
-		case w.interrupts <- struct{}{}:
+		case w.stops <- struct{}{}:
 		default:
 		}
 	}
@@ -184,7 +188,7 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		}
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,
-			inbox: make(chan request, inboxSize), interrupts: make(chan struct{}, 1),
+			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1),
 		}
 		d.workers[s.ID] = w
 		d.wg.Go(w.run)
@@ -216,26 +220,32 @@ type request struct {
 
 type turnReply struct {
 	result  TurnResult
+	shared  bool
 	session domain.Session
 	err     error
 }
 
 // worker owns one session: its process, its queue and the requests waiting on the running turn.
 type worker struct {
-	d          *Dispatcher
-	agent      domain.Agent
-	session    domain.Session
-	unlock     func()
-	inbox      chan request
-	interrupts chan struct{}
+	d       *Dispatcher
+	agent   domain.Agent
+	session domain.Session
+	unlock  func()
+	inbox   chan request
+	stops   chan struct{}
 
 	proc Process
 	// running is true from a prompt or a turn start until the turn's result; current may be
 	// empty when the agent started the turn by itself.
 	running    bool
-	background int
+	startedAt  time.Time
+	activity   string
+	background []string
 	queue      []request
-	current    []request
+	// sent holds prompts the agent has not taken in yet, by prompt ID; current holds those taken
+	// into the running turn.
+	sent    map[string]request
+	current []request
 }
 
 func (w *worker) run() {
@@ -258,20 +268,9 @@ func (w *worker) run() {
 				w.processExited()
 				break
 			}
-			switch e.Kind {
-			case EventTurnStarted:
-				w.running = true
-			case EventTurnFinished:
-				w.finishTurn(e.Result)
-			case EventBackgroundTasks:
-				w.background = e.BackgroundTasks
-			}
-		case <-w.interrupts:
-			if w.proc != nil && w.running {
-				if err := w.proc.Interrupt(w.d.ctx); err != nil {
-					w.stopProcess(fmt.Errorf("interrupt: %w", err))
-				}
-			}
+			w.handle(e)
+		case <-w.stops:
+			w.stop()
 		case <-refresh.C:
 			w.refreshCredentials()
 		case <-idle.C:
@@ -299,19 +298,47 @@ func (w *worker) run() {
 // idle is true when nothing would be lost by closing the process: no turn, no queued prompt,
 // and no background task whose completion would start a turn.
 func (w *worker) idle() bool {
-	return !w.running && len(w.queue) == 0 && w.background == 0
+	return !w.running && len(w.queue) == 0 && len(w.background) == 0
+}
+
+func (w *worker) handle(e ProcessEvent) {
+	switch e.Kind {
+	case EventTurnStarted:
+		if !w.running {
+			w.startTurn()
+		}
+	case EventTurnFinished:
+		w.finishTurn(e.Result)
+	case EventBackgroundTasks:
+		w.background = e.BackgroundTasks
+		w.notifyStatus()
+	case EventActivity:
+		if w.running {
+			w.activity = e.Activity
+			w.notifyStatus()
+		}
+	case EventPromptAccepted:
+		if r, ok := w.sent[e.PromptID]; ok {
+			delete(w.sent, e.PromptID)
+			w.current = append(w.current, r)
+			if !w.running {
+				w.startTurn()
+			}
+		}
+	}
 }
 
 func (w *worker) accept(r request) {
 	if w.running && r.inject {
-		if err := w.proc.Send(w.d.ctx, r.prompt); err != nil {
-			r.reply <- w.reply(TurnResult{}, fmt.Errorf("send prompt: %w", err))
-			return
+		if err := w.send(r); err != nil {
+			r.reply <- w.reply(TurnResult{}, err)
 		}
-		w.current = append(w.current, r)
 		return
 	}
 	w.queue = append(w.queue, r)
+	if w.running {
+		w.notifyStatus()
+	}
 }
 
 func (w *worker) sendNext() {
@@ -322,15 +349,50 @@ func (w *worker) sendNext() {
 			r.reply <- w.reply(TurnResult{}, err)
 			continue
 		}
-		if err := w.proc.Send(w.d.ctx, r.prompt); err != nil {
-			r.reply <- w.reply(TurnResult{}, fmt.Errorf("send prompt: %w", err))
+		if err := w.send(r); err != nil {
+			r.reply <- w.reply(TurnResult{}, err)
 			w.stopProcess(nil)
 			continue
 		}
-		w.current = []request{r}
-		w.running = true
+		w.startTurn()
 		return
 	}
+}
+
+func (w *worker) send(r request) error {
+	id := string(domain.NewRandomSessionID())
+	if err := w.proc.Send(w.d.ctx, id, r.prompt); err != nil {
+		return fmt.Errorf("send prompt: %w", err)
+	}
+	if w.sent == nil {
+		w.sent = make(map[string]request)
+	}
+	w.sent[id] = r
+	return nil
+}
+
+func (w *worker) startTurn() {
+	w.running, w.startedAt, w.activity = true, time.Now(), ""
+	w.observe(SessionEvent{Kind: SessionTurnStarted})
+}
+
+func (w *worker) notifyStatus() {
+	kind := SessionUpdated
+	if w.running {
+		kind = SessionTurnUpdated
+	}
+	w.observe(SessionEvent{Kind: kind})
+}
+
+func (w *worker) observe(e SessionEvent) {
+	e.Status = SessionStatus{
+		Running:         w.running,
+		TurnStartedAt:   w.startedAt,
+		Activity:        w.activity,
+		Queued:          len(w.queue),
+		BackgroundTasks: len(w.background),
+	}
+	w.d.observer.Observe(w.session, e)
 }
 
 func (w *worker) ensureProcess() error {
@@ -356,32 +418,52 @@ func (w *worker) finishTurn(res TurnResult) {
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
-	if len(w.current) == 0 {
-		s := w.session
-		w.d.wg.Go(func() { w.d.listener.AgentTurn(context.WithoutCancel(w.d.ctx), s, res) })
-		return
-	}
-	for _, r := range w.current {
+	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: len(w.current) == 0})
+	for i, r := range w.current {
 		if err != nil {
 			r.reply <- w.reply(TurnResult{}, err)
-		} else {
-			r.reply <- w.reply(res, nil)
+			continue
 		}
+		reply := w.reply(res, nil)
+		reply.shared = i > 0
+		r.reply <- reply
 	}
 	w.current = nil
+	if len(w.sent) > 0 {
+		// The agent holds prompts it will take into its next turn.
+		w.startTurn()
+	}
+}
+
+func (w *worker) stop() {
+	for _, r := range w.queue {
+		r.reply <- w.reply(TurnResult{}, ErrStopped)
+	}
+	for _, r := range w.sent {
+		r.reply <- w.reply(TurnResult{}, ErrStopped)
+	}
+	w.queue, w.sent = nil, nil
+	if w.proc == nil {
+		return
+	}
+	var err error
+	for _, id := range w.background {
+		err = errors.Join(err, w.proc.StopTask(w.d.ctx, id))
+	}
+	if w.running {
+		err = errors.Join(err, w.proc.Interrupt(w.d.ctx))
+	}
+	if err != nil {
+		w.stopProcess(fmt.Errorf("stop: %w", err))
+	}
 }
 
 func (w *worker) processExited() {
-	w.running, w.background = false, 0
 	err := w.proc.Err()
 	if err == nil {
 		err = errProcessExited
 	}
-	w.stopProcess(nil)
-	for _, r := range w.current {
-		r.reply <- w.reply(TurnResult{}, err)
-	}
-	w.current = nil
+	w.stopProcess(err)
 }
 
 func (w *worker) refreshCredentials() {
@@ -397,7 +479,7 @@ func (w *worker) refreshCredentials() {
 	}
 }
 
-// stopProcess closes the process; with cause, the running turn's requests fail with it.
+// stopProcess closes the process. With cause, the running turn fails with it.
 func (w *worker) stopProcess(cause error) {
 	if w.proc == nil {
 		return
@@ -406,13 +488,21 @@ func (w *worker) stopProcess(cause error) {
 	defer cancel()
 	_ = w.proc.Close(ctx)
 	w.proc = nil
-	w.running, w.background = false, 0
-	if cause != nil {
-		for _, r := range w.current {
-			r.reply <- w.reply(TurnResult{}, cause)
-		}
-		w.current = nil
+	wasRunning := w.running
+	w.running, w.background = false, nil
+	if cause == nil {
+		return
 	}
+	if wasRunning {
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: len(w.current) == 0})
+	}
+	for _, r := range w.current {
+		r.reply <- w.reply(TurnResult{}, cause)
+	}
+	for _, r := range w.sent {
+		r.reply <- w.reply(TurnResult{}, cause)
+	}
+	w.current, w.sent = nil, nil
 }
 
 func (w *worker) failAll(err error) {
