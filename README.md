@@ -70,15 +70,17 @@ acp stop --agent <name> --session <id> [--server <url>]
 
 ### 3. エージェントごとの Slack アプリ（任意）
 
-- [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml) からアプリを作り、名前をエージェントに合わせる。
+- [deploy/slack-app-manifest.yaml](deploy/slack-app-manifest.yaml)（各項目の意味）からアプリを作り、名前を
+  エージェントに合わせる。
 - Basic Information で `connections:write` の App-Level Token を作り、ファイルに保存して `app_token_path` で指す。
 - Bot トークン：
-  - ローテーションなし：ワークスペースにインストールして得た Bot User OAuth Token を `bot_token_path` に置く。
-  - ローテーションあり（Bot トークンが 12 時間で失効し、control-plane が更新する。元に戻せない）：
-    OAuth & Permissions で Redirect URL を登録し（control-plane は開かないので、`https://localhost/slack/oauth/callback`
-    など任意の https の URL でよい）、token rotation を有効にする。Basic Information の Client ID と Client Secret
-    （ファイル）を `slack.rotation` に書く。有効にする前の Bot トークンを `bot_token_path` に置けば初回に交換される。
-    置いていない場合は、下の「Slack のトークンを取り直す」で最初のトークンを取る。
+  - ローテーションあり（マニフェストの既定。Bot トークンが 12 時間で失効し、control-plane が更新する）：
+    Basic Information の Client ID と Client Secret（ファイル）を `slack.rotation` に書き、下の
+    「Slack のトークンを取り直す」で最初のトークンを取る。
+  - ローテーションなし（マニフェストで `token_rotation_enabled: false`）：ワークスペースにインストールして得た
+    Bot User OAuth Token を `bot_token_path` に置き、`slack.rotation` は書かない。
+  - ローテーションなしで使っていたアプリを後から切り替えるときは、それまでの Bot トークンを `bot_token_path` に
+    置いておけば初回に交換される。
 - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書き、Bot を使うチャンネルに招待する。
 - Bot トークンはエージェントにも渡り、エージェントは Bot が招待されたチャンネルを読み書きできる。
 
