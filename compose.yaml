@@ -17,6 +17,8 @@ services:
       # Short-lived per-session credentials (docs/app/adr/0018). Agent containers mount their
       # session's subpath of this volume by name, so the name is fixed.
       - acp-credentials:/var/lib/acp/credentials
+      # Each agent's Claude Code config directory (history, auto memory), apart from the dev container's.
+      - acp-claude:/var/lib/acp/claude
       # State only the control plane reads, such as rotating Slack refresh tokens.
       - acp-state:/var/lib/acp/state
     ports:
@@ -51,6 +53,8 @@ services:
 volumes:
   acp-credentials:
     name: acp-credentials
+  acp-claude:
+    name: acp-claude
   acp-state:
     name: acp-state
 

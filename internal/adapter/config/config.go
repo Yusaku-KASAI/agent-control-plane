@@ -72,9 +72,13 @@ type GitHubApp struct {
 	PrivateKeyPath string
 }
 
+// Claude is how agents run Claude Code: one of OAuthTokenPath and APIKeyPath, and where each
+// agent's config directory lives.
 type Claude struct {
-	// ConfigVolume is the Docker volume holding a logged-in Claude Code config directory.
-	ConfigVolume string
+	OAuthTokenPath string
+	APIKeyPath     string
+	ConfigDir      string
+	ConfigVolume   string
 }
 
 type fileFormat struct {
@@ -93,7 +97,10 @@ type fileFormat struct {
 		GitEmail string `yaml:"git_email"`
 	} `yaml:"people"`
 	Claude struct {
-		ConfigVolume string `yaml:"config_volume"`
+		OAuthTokenPath string `yaml:"oauth_token_path"`
+		APIKeyPath     string `yaml:"api_key_path"`
+		ConfigDir      string `yaml:"config_dir"`
+		ConfigVolume   string `yaml:"config_volume"`
 	} `yaml:"claude"`
 	Agents []struct {
 		Name   string `yaml:"name"`
@@ -144,8 +151,17 @@ func Parse(data []byte) (Config, error) {
 	if err := dec.Decode(&f); err != nil {
 		return Config{}, err
 	}
-	if f.Claude.ConfigVolume == "" {
-		return Config{}, errors.New("claude.config_volume is empty")
+	cl := f.Claude
+	if (cl.OAuthTokenPath == "") == (cl.APIKeyPath == "") {
+		return Config{}, errors.New("claude needs exactly one of oauth_token_path and api_key_path")
+	}
+	for _, p := range []string{cl.OAuthTokenPath, cl.APIKeyPath} {
+		if p != "" && !filepath.IsAbs(p) {
+			return Config{}, fmt.Errorf("claude credential path %q is not absolute", p)
+		}
+	}
+	if !filepath.IsAbs(cl.ConfigDir) {
+		return Config{}, fmt.Errorf("claude.config_dir %q is not absolute", cl.ConfigDir)
 	}
 	if !filepath.IsAbs(f.Sessions.Root) {
 		return Config{}, fmt.Errorf("sessions.root %q is not absolute", f.Sessions.Root)
@@ -217,7 +233,7 @@ func Parse(data []byte) (Config, error) {
 	}
 	return Config{
 		Agents:       &Registry{agents: agents},
-		Claude:       Claude{ConfigVolume: f.Claude.ConfigVolume},
+		Claude:       Claude{OAuthTokenPath: cl.OAuthTokenPath, APIKeyPath: cl.APIKeyPath, ConfigDir: cl.ConfigDir, ConfigVolume: cl.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
 		IdleTimeout:  idle,
 		StateDir:     f.StateDir,

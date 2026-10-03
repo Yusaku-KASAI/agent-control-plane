@@ -1,6 +1,6 @@
 # 0007. Claude Code の認証方式を差し替え可能にする
 
-- Status: Accepted
+- Status: Accepted, Amended by 0023
 - Date: 2026-09-30
 
 ## Context

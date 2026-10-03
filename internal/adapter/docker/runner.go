@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -25,6 +26,10 @@ type dockerAPI interface {
 }
 
 type Options struct {
+	// ClaudeConfigDir holds a Claude Code config directory per agent: its conversation history and
+	// auto memory. When ClaudeConfigVolume is set, that volume is mounted at ClaudeConfigDir and
+	// agents get their subpath of it; otherwise ClaudeConfigDir is a host path and is bind-mounted.
+	ClaudeConfigDir    string
 	ClaudeConfigVolume string
 	// CredentialsDir is where the runner writes each session's credentials.
 	CredentialsDir string
@@ -50,6 +55,10 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 	creds := sessionCredentials{root: r.opts.CredentialsDir, id: req.Session.ID}
 	if err := creds.write(req.Credentials); err != nil {
 		return nil, fmt.Errorf("write credentials: %w", err)
+	}
+	// A volume subpath must exist before it is mounted.
+	if err := os.MkdirAll(filepath.Join(r.opts.ClaudeConfigDir, string(req.Agent.Name)), 0o755); err != nil {
+		return nil, fmt.Errorf("create claude config dir: %w", err)
 	}
 
 	created, err := r.api.ContainerCreate(ctx, containerSpec(req, plugins, r.opts))
@@ -104,7 +113,7 @@ func containerSpec(req usecase.StartRequest, plugins []string, opts Options) cli
 		HostConfig: &container.HostConfig{
 			Mounts: []mount.Mount{
 				{Type: mount.TypeBind, Source: s.Workspace.Path, Target: workdir},
-				{Type: mount.TypeVolume, Source: opts.ClaudeConfigVolume, Target: claudeConfigDir},
+				claudeConfigMount(agent.Name, opts),
 				credentialsMount(s.ID, opts),
 			},
 		},
@@ -133,8 +142,24 @@ func claudeCommand(agent domain.Agent, s domain.Session, workdir string, plugins
 	return cmd
 }
 
+func claudeConfigMount(agent domain.AgentName, opts Options) mount.Mount {
+	if opts.ClaudeConfigVolume != "" {
+		return mount.Mount{
+			Type: mount.TypeVolume, Source: opts.ClaudeConfigVolume, Target: claudeConfigDir,
+			VolumeOptions: &mount.VolumeOptions{Subpath: string(agent)},
+		}
+	}
+	return mount.Mount{Type: mount.TypeBind, Source: filepath.Join(opts.ClaudeConfigDir, string(agent)), Target: claudeConfigDir}
+}
+
 func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
 	var env []string
+	switch {
+	case creds.ClaudeOAuthToken != "":
+		env = append(env, "CLAUDE_CODE_OAUTH_TOKEN="+creds.ClaudeOAuthToken)
+	case creds.ClaudeAPIKey != "":
+		env = append(env, "ANTHROPIC_API_KEY="+creds.ClaudeAPIKey)
+	}
 	if git.Name != "" {
 		env = append(env,
 			"GIT_AUTHOR_NAME="+git.Name, "GIT_AUTHOR_EMAIL="+git.Email,

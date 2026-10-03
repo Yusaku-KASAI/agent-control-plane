@@ -7,7 +7,10 @@ credentials:
   volume: acp-credentials
 state_dir: /var/lib/acp/state
 claude:
-  config_volume: agent-control-plane_claude-code-config
+  # From `claude setup-token`; use api_key_path instead for an API key.
+  oauth_token_path: /absolute/path/on/host/to/acp-secrets/claude-oauth-token
+  config_dir: /var/lib/acp/claude
+  config_volume: acp-claude
 # Requesters credited as Co-authored-by in the agents' commits.
 people:
   - slack: U0123456789
@@ -36,3 +39,13 @@ agents:
       rotation:
         client_id: "1234567890.1234567890"
         client_secret_path: /absolute/path/on/host/to/acp-secrets/control-plane-dev.slack-client-secret
+  # A read-only role on the same target: no GitHub App, so it cannot push.
+  - name: control-plane-guide
+    role: guide
+    target:
+      path: /absolute/path/on/host/to/agent-control-plane
+      image: agent-control-plane-dev-dev-container
+    slack:
+      app_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-app-token
+      bot_token_path: /absolute/path/on/host/to/acp-secrets/control-plane-guide.slack-bot-token
+      allowed_users: [U0123456789]

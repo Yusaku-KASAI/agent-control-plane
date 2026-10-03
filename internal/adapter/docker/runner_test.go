@@ -39,7 +39,10 @@ var (
 
 func TestContainerSpec(t *testing.T) {
 	spec := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession},
-		[]string{"platform/plugins/roles"}, Options{ClaudeConfigVolume: "claude-config", CredentialsDir: "/var/lib/acp/credentials", CredentialsVolume: "acp-credentials"})
+		[]string{"platform/plugins/roles"}, Options{
+			ClaudeConfigDir: "/var/lib/acp/claude", ClaudeConfigVolume: "acp-claude",
+			CredentialsDir: "/var/lib/acp/credentials", CredentialsVolume: "acp-credentials",
+		})
 
 	if spec.Config.Image != "repo-dev:latest" || spec.Config.WorkingDir != "/workspace/repo" {
 		t.Errorf("Image = %q, WorkingDir = %q", spec.Config.Image, spec.Config.WorkingDir)
@@ -69,7 +72,10 @@ func TestContainerSpec(t *testing.T) {
 	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: "/sessions/0f8fad5b/workspace/repo", Target: "/workspace/repo"},
-		{Type: mount.TypeVolume, Source: "claude-config", Target: "/home/node/.claude"},
+		{
+			Type: mount.TypeVolume, Source: "acp-claude", Target: "/home/node/.claude",
+			VolumeOptions: &mount.VolumeOptions{Subpath: "repo-dev"},
+		},
 		{
 			Type: mount.TypeVolume, Source: "acp-credentials", Target: "/run/acp/credentials", ReadOnly: true,
 			VolumeOptions: &mount.VolumeOptions{Subpath: "0f8fad5b-d9cb-469f-a165-70867728950e"},
@@ -97,22 +103,36 @@ func TestContainerSpec_ResumesStartedSession(t *testing.T) {
 	}
 }
 
-func TestContainerSpec_BindMountsCredentialsWithoutVolume(t *testing.T) {
-	m := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil, Options{CredentialsDir: "/host/creds"}).HostConfig.Mounts[2]
-	if m.Type != mount.TypeBind || m.Source != "/host/creds/0f8fad5b-d9cb-469f-a165-70867728950e" || !m.ReadOnly {
+func TestContainerSpec_BindMountsWithoutVolumes(t *testing.T) {
+	mounts := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil,
+		Options{CredentialsDir: "/host/creds", ClaudeConfigDir: "/host/claude"}).HostConfig.Mounts
+	if m := mounts[1]; m.Type != mount.TypeBind || m.Source != "/host/claude/repo-dev" || m.Target != "/home/node/.claude" {
+		t.Errorf("claude config mount = %+v", m)
+	}
+	if m := mounts[2]; m.Type != mount.TypeBind || m.Source != "/host/creds/0f8fad5b-d9cb-469f-a165-70867728950e" || !m.ReadOnly {
 		t.Errorf("credentials mount = %+v", m)
+	}
+}
+
+func TestContainerSpec_ClaudeAPIKey(t *testing.T) {
+	env := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession, Credentials: domain.Credentials{ClaudeAPIKey: "sk-ant-api-x"}}, nil, Options{}).Config.Env
+	if !slices.Contains(env, "ANTHROPIC_API_KEY=sk-ant-api-x") {
+		t.Errorf("Env = %q, want the API key", env)
 	}
 }
 
 func TestContainerSpec_Credentials(t *testing.T) {
 	agent := testAgent
 	agent.Git = domain.GitIdentity{Name: "repo-dev (agent)", Email: "1+u@users.noreply.github.com"}
-	req := usecase.StartRequest{Agent: agent, Session: testSession, Credentials: domain.Credentials{GitHubToken: "ghs_x", SlackBotToken: "xoxb-x"}}
+	req := usecase.StartRequest{Agent: agent, Session: testSession, Credentials: domain.Credentials{
+		GitHubToken: "ghs_x", SlackBotToken: "xoxb-x", ClaudeOAuthToken: "sk-ant-oat-x",
+	}}
 
 	env := containerSpec(req, nil, Options{}).Config.Env
 	for _, want := range []string{
 		"GIT_AUTHOR_NAME=repo-dev (agent)",
 		"GIT_COMMITTER_EMAIL=1+u@users.noreply.github.com",
+		"CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-x",
 		"GH_CONFIG_DIR=/run/acp/credentials/gh",
 		"SLACK_BOT_TOKEN_FILE=/run/acp/credentials/slack/bot-token",
 		"GIT_CONFIG_COUNT=3",
@@ -130,7 +150,7 @@ func TestContainerSpec_Credentials(t *testing.T) {
 
 	bare := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil, Options{}).Config.Env
 	for _, e := range bare {
-		if strings.HasPrefix(e, "GH_") || strings.HasPrefix(e, "GIT_") || strings.HasPrefix(e, "SLACK_") {
+		if strings.HasPrefix(e, "GH_") || strings.HasPrefix(e, "GIT_") || strings.HasPrefix(e, "SLACK_") || strings.HasPrefix(e, "CLAUDE_CODE_OAUTH") {
 			t.Errorf("Env without credentials has %q", e)
 		}
 	}
@@ -170,7 +190,7 @@ func TestSessionCredentials_WriteCoAuthors(t *testing.T) {
 
 func TestRunner_Start(t *testing.T) {
 	api := newFakeAPI()
-	runner := NewRunner(api, Options{CredentialsDir: t.TempDir()})
+	runner := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: t.TempDir()})
 	proc, err := runner.Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: testSession})
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)

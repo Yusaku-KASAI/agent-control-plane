@@ -5,4 +5,7 @@ package domain
 type Credentials struct {
 	GitHubToken   string
 	SlackBotToken string
+	// Claude Code needs one of these; an OAuth token comes from `claude setup-token`.
+	ClaudeOAuthToken string
+	ClaudeAPIKey     string
 }

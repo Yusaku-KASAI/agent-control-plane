@@ -9,7 +9,7 @@
 platform/
   .claude-plugin/marketplace.json   マーケットプレイス acp-platform
   plugins/
-    roles/                          共通のロール（agents/<ロール名>.md）
+    roles/                          共通のロール（agents/<ロール名>.md）：developer（変更を実装する）、guide（質問に答える、変更しない）
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
 ```
 

@@ -1,4 +1,4 @@
-# Slack app for one agent. Create one app per agent from this manifest and rename it.
+# Slack app for one agent. Create one app per agent from this manifest, renaming it after the agent.
 display_information:
   name: control-plane-dev
 features:

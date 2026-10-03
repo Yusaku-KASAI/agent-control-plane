@@ -16,6 +16,7 @@ import (
 
 	"github.com/moby/moby/client"
 
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/claudeauth"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/config"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/docker"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/filesession"
@@ -68,7 +69,11 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	if err != nil {
 		return err
 	}
-	issuer := credentialIssuers{github, slackauth.NewIssuer(slackTokens)}
+	issuer := credentialIssuers{
+		claudeauth.FileIssuer{OAuthTokenPath: cfg.Claude.OAuthTokenPath, APIKeyPath: cfg.Claude.APIKeyPath},
+		github,
+		slackauth.NewIssuer(slackTokens),
+	}
 
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
@@ -78,6 +83,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		issuer,
 		cfg.People,
 		docker.NewRunner(dockerClient, docker.Options{
+			ClaudeConfigDir:    cfg.Claude.ConfigDir,
 			ClaudeConfigVolume: cfg.Claude.ConfigVolume,
 			CredentialsDir:     cfg.Credentials.Dir,
 			CredentialsVolume:  cfg.Credentials.Volume,
@@ -234,6 +240,12 @@ func (c credentialIssuers) Issue(ctx context.Context, agent domain.Agent) (domai
 		}
 		if creds.SlackBotToken != "" {
 			merged.SlackBotToken = creds.SlackBotToken
+		}
+		if creds.ClaudeOAuthToken != "" {
+			merged.ClaudeOAuthToken = creds.ClaudeOAuthToken
+		}
+		if creds.ClaudeAPIKey != "" {
+			merged.ClaudeAPIKey = creds.ClaudeAPIKey
 		}
 	}
 	return merged, nil

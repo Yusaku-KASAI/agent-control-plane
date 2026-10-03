@@ -57,8 +57,9 @@ docker compose up -d --build
 - `acp.yaml` に書くホストのパスは、ターゲットと `sessions.root` を `ACP_HOST_ROOT` の下に、秘密鍵を
   `ACP_SECRETS_DIR` の下に置く。コンテナには同じパスでマウントされる。
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
-- `claude.config_volume` の Docker ボリュームに、Claude Code のログイン済み設定があること
-  （devcontainer の `agent-control-plane_claude-code-config` を使える）。
+- Claude Code の認証として、`claude setup-token` で発行した OAuth トークン（または API キー）をファイルで
+  `ACP_SECRETS_DIR` の下に置き、`claude.oauth_token_path`（または `api_key_path`）で指す。エージェントごとの
+  Claude Code の設定ディレクトリ（会話の履歴と自動メモリ）は `acp-claude` ボリュームに作られる。
 - エージェントに push と PR の作成をさせる場合は、エージェントごとに GitHub App を作る。
   - 権限は Contents と Pull requests を Read and write にし、ターゲットのリポジトリにインストールする。
   - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に設定する。

@@ -20,7 +20,9 @@ credentials:
   volume: acp-credentials
 state_dir: /var/lib/acp/state
 claude:
-  config_volume: claude-config
+  oauth_token_path: /keys/claude-oauth-token
+  config_dir: /var/lib/acp/claude
+  config_volume: acp-claude
 people:
   - slack: U_ALICE
     git_name: Alice
@@ -57,7 +59,7 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if cfg.Claude.ConfigVolume != "claude-config" || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute ||
+	if cfg.Claude != (config.Claude{OAuthTokenPath: "/keys/claude-oauth-token", ConfigDir: "/var/lib/acp/claude", ConfigVolume: "acp-claude"}) || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute ||
 		cfg.Credentials != (config.Credentials{Dir: "/var/lib/acp/credentials", Volume: "acp-credentials"}) {
 		t.Errorf("Parse() = %+v", cfg)
 	}
@@ -108,63 +110,68 @@ func TestParse(t *testing.T) {
 func TestParse_Invalid(t *testing.T) {
 	tests := map[string]string{
 		"unknown field": validYAML + "extra: 1\n",
-		"missing volume": `
+		"no claude credential": `
 sessions: {root: /w}
 credentials: {dir: /c}
-agents: []
+claude: {config_dir: /cc}
+`,
+		"two claude credentials": `
+sessions: {root: /w}
+credentials: {dir: /c}
+claude: {oauth_token_path: /t, api_key_path: /k, config_dir: /cc}
 `,
 		"bad idle timeout": `
 sessions: {root: /w, idle_timeout: soon}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"missing credentials dir": `
 sessions: {root: /w}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"relative sessions root": `
 sessions: {root: w}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"invalid agent": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: relative, image: i}}
 `,
 		"sessions root inside a target": `
 sessions: {root: /src/repo/sessions}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
 `,
 		"sessions root is a target": `
 sessions: {root: /src/repo}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
 `,
 		"incomplete github app": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, github: {app_id: 1}}
 `,
 		"slack without allowed users": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
 `,
 		"rotation without state_dir": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - name: a
     role: developer
@@ -174,14 +181,14 @@ agents:
 		"incomplete person": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 people:
   - {slack: U1, git_name: A}
 `,
 		"duplicate agent": `
 sessions: {root: /w}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}}
   - {name: a, role: pm, target: {path: /x, image: i}}
@@ -200,7 +207,7 @@ func TestParse_SessionsRootBesideTarget(t *testing.T) {
 	in := `
 sessions: {root: /src/repo-sessions}
 credentials: {dir: /c}
-claude: {config_volume: v}
+claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
 `
