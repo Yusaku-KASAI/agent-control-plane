@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          target: go
+          build-args: REPO_NAME=agent-control-plane
+          tags: dev-container
+          load: true
+          cache-from: type=gha,scope=dev-container
+          cache-to: type=gha,scope=dev-container,mode=max
+      # HOME is set because runuser keeps root's environment.
+      - name: make check
+        run: >-
+          docker run --rm -e FIREWALL_ENABLED=false
+          -v "$PWD:/workspace/agent-control-plane"
+          dev-container
+          runuser -u node -- env HOME=/home/node make check
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the control plane image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          cache-from: type=gha,scope=control-plane
+          cache-to: type=gha,scope=control-plane,mode=max

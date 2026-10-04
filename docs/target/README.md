@@ -9,6 +9,7 @@ control-plane はセッションごとにターゲットのイメージからコ
 - エージェントを動かすユーザー `node` と、`claude`、`runuser`、`git`、`gh` が入っている。control-plane は
   `runuser -u node -- claude ...` を実行する（Claude Code は root では権限確認を省略できないため）。
 - entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）と `FIREWALL_ENABLED` を解釈する。
+- entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 
 control-plane はさらに次の環境変数を渡す。
 
@@ -24,7 +25,6 @@ control-plane はさらに次の環境変数を渡す。
 
 作業領域の `.git/hooks/commit-msg` には control-plane がフックを置き、`ACP_CO_AUTHORS_FILE` の人を
 `Co-authored-by` としてコミットに加える。ターゲットが `core.hooksPath` を設定していると、このフックは使われない。
-- entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 
 ## プラグインとロール
 
@@ -36,3 +36,9 @@ control-plane はさらに次の環境変数を渡す。
   `roles` プラグインにあり、ターゲットの `.claude/agents/<ロール名>.md` に同名の定義を置くとそちらが優先される。
 - ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は `CLAUDE.md` に書く。
 - 定義が見つからないロールで起動すると、エージェントはエラーで終了する。
+
+## CI
+
+PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
+（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
+確かめる。main への変更は PR 経由で行う。
