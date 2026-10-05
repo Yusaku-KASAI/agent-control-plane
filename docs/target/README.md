@@ -47,8 +47,18 @@ PR と main への push ごとに、devcontainer のイメージの中で `make 
 
 - main への変更は PR 経由で行い、merge commit でマージする。PR のコミットがそのまま main に残る。
 - やることは GitHub の Issue で管理する。ドキュメントには現状だけを書くので、予定や残りの作業は置かない。
-  - ラベルは docs の関心（`app`、`codebase`、`target`、`platform`）に合わせる。
-  - マイルストーンで段階をまとめる。Issue の間の順番は、本文に前提の Issue を書いて示す。
+  分類は木にせず、性質ごとに分けて持つ（[ADR 0006](adr/0006-issues-in-layers.md)）。
+
+  | 表すもの | 置き場所 |
+  | --- | --- |
+  | やること1件 | Issue |
+  | どこを変えるか | ラベル `app`、`codebase`、`target`、`platform`（docs の関心）。複数付けてよい |
+  | 何のためか | ラベル `theme:<名前>`。複数付けてよい |
+  | テーマの狙い、終えたときの状態、進め方 | ラベル `theme` の Issue。メンバーは本文に並べず、ラベルで決まる |
+  | 何が先か | Issue の依存関係（blocked by） |
+  | 今の焦点と順番 | ピン留めした「ロードマップ」の Issue。順番を変えるときは本文を書き換える |
+
+  - sub-issues は、大きな作業を手順に分けるときだけ使う。
   - 検討中の設計は Issue に書き、決まったら ADR にする。
 - PR の作成と更新は platform の github スキル（`prctl`）に従う。PR が Issue を片付けるときは、本文に
   `Closes #<番号>` と書く。
