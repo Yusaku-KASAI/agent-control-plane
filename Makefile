@@ -7,6 +7,7 @@ SH_FILES := $(wildcard .devcontainer/*.sh) $(wildcard platform/plugins/*/bin/*)
 lint:
 	golangci-lint run ./...
 	shellcheck $(SH_FILES)
+	go mod tidy -diff
 
 fmt:
 	golangci-lint fmt ./...
