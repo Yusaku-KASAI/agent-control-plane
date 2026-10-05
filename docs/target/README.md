@@ -50,4 +50,5 @@ PR と main への push ごとに、devcontainer のイメージの中で `make 
   - ラベルは docs の関心（`app`、`codebase`、`target`、`platform`）に合わせる。
   - マイルストーンで段階をまとめる。Issue の間の順番は、本文に前提の Issue を書いて示す。
   - 検討中の設計は Issue に書き、決まったら ADR にする。
-- PR が Issue を片付けるときは、本文に `Closes #<番号>` と書く。
+- PR の作成と更新は platform の github スキル（`prctl`）に従う。PR が Issue を片付けるときは、本文に
+  `Closes #<番号>` と書く。

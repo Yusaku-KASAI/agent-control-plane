@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# Keeps the pull request of the current branch describing what the branch contains. Needs git, gh
+# and jq.
+#
+# The PR body carries a hidden marker with the head it describes, so whether the description is
+# current is read from GitHub and survives across sessions and containers.
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'USAGE'
+usage:
+  prctl status                        the open PR of this branch and whether its body is current
+  prctl since                         commits pushed since the body was last written
+  prctl create <title> <body-file|->  open a PR for the pushed branch
+  prctl update <body-file|-> [<comment-file>]
+                                      replace the body and comment on what changed since the last
+                                      update; the comment is required once the body has a marker
+  prctl hook post-tool-use            Claude Code hook: remind after a push makes the PR stale
+  prctl hook stop                     Claude Code hook: keep the turn going while the PR is stale
+USAGE
+  exit 2
+}
+
+readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
+
+die() { echo "prctl: $*" >&2; exit 1; }
+
+branch() { git symbolic-ref --quiet --short HEAD; }
+
+remote_head() { git rev-parse --verify --quiet "refs/remotes/origin/$1"; }
+
+# open_pr <branch>: the open PR whose head is <branch>, as JSON, or nothing. Looked up by head
+# name: `gh pr view` without arguments resolves through the upstream, which can be another branch.
+open_pr() {
+  gh pr list --head "$1" --state open --limit 1 --json number,url,headRefOid,baseRefName,body \
+    --jq '.[0] // empty'
+}
+
+described() {
+  if [[ $(jq -r .body <<<"$1") =~ $marker_re ]]; then echo "${BASH_REMATCH[1]}"; fi
+}
+
+read_input() { if [[ $1 == - ]]; then cat; else cat -- "$1"; fi; }
+
+with_marker() {
+  local text=$1 head=$2
+  text=$(sed -E 's/<!-- prctl: head=[0-9a-f]{40} -->//' <<<"$text")
+  printf '%s\n\n<!-- prctl: head=%s -->\n' "$text" "$head"
+}
+
+# pushed_head <branch>: HEAD, provided it is what origin has.
+pushed_head() {
+  local head remote
+  head=$(git rev-parse HEAD)
+  remote=$(remote_head "$1") || die "$1 is not pushed"
+  [[ $head == "$remote" ]] || die "HEAD differs from origin/$1; push first"
+  echo "$head"
+}
+
+cmd_status() {
+  local b pr head desc
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || { echo "no open PR for $b"; return; }
+  head=$(jq -r .headRefOid <<<"$pr")
+  desc=$(described "$pr")
+  jq -r '"PR #\(.number) \(.url) (into \(.baseRefName))"' <<<"$pr"
+  echo "head:      $head"
+  echo "described: ${desc:-nothing (no marker; prctl update writes one)}"
+  if [[ $desc == "$head" ]]; then echo "body is current"; else echo "body is stale"; fi
+  [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
+}
+
+cmd_since() {
+  local b pr head desc
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  head=$(jq -r .headRefOid <<<"$pr")
+  desc=$(described "$pr")
+  [[ -n $desc ]] || die "the body has no marker; describe the whole branch"
+  [[ $desc != "$head" ]] || { echo "nothing since the last update"; return; }
+  if git merge-base --is-ancestor "$desc" "$head" 2>/dev/null; then
+    git log --format='%h %s' "$desc..$head"
+    git diff --stat "$desc" "$head"
+  else
+    echo "history was rewritten since ${desc:0:12}; explain the rewrite in the comment"
+    git log --format='%h %s' "origin/$(jq -r .baseRefName <<<"$pr")..$head"
+  fi
+}
+
+cmd_create() {
+  local title=$1 body b head base
+  body=$(read_input "$2")
+  b=$(branch) || die "not on a branch"
+  head=$(pushed_head "$b")
+  [[ -z $(open_pr "$b") ]] || die "$b already has an open PR; use prctl update"
+  base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+  gh pr create --base "$base" --head "$b" --title "$title" --body "$(with_marker "$body" "$head")"
+}
+
+cmd_update() {
+  local body comment="" b pr num head desc
+  body=$(read_input "$1")
+  [[ -z ${2:-} ]] || comment=$(read_input "$2")
+  b=$(branch) || die "not on a branch"
+  head=$(pushed_head "$b")
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b; use prctl create"
+  num=$(jq -r .number <<<"$pr")
+  [[ $(jq -r .headRefOid <<<"$pr") == "$head" ]] || die "GitHub has not caught up with the push yet; retry"
+  desc=$(described "$pr")
+  if [[ -n $desc && $desc != "$head" ]]; then
+    [[ -n $comment ]] || die "say in a comment what changed since ${desc:0:12} and why"
+    comment=$(printf '%s\n\n%s...%s\n' "$comment" "${desc:0:12}" "${head:0:12}")
+  fi
+  if [[ -n $comment ]]; then
+    gh api "repos/{owner}/{repo}/issues/$num/comments" -f body="$comment" --jq .html_url
+  fi
+  # REST rather than `gh pr edit`, whose GraphQL query can fail on unrelated repository features.
+  gh api -X PATCH "repos/{owner}/{repo}/pulls/$num" -f body="$(with_marker "$body" "$head")" --jq .html_url
+}
+
+stale_message() {
+  local pr=$1 head=$2 desc
+  desc=$(described "$pr")
+  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" '"PR #\(.number) now has head \($head) but its body describes " + (if $desc == "" then "no particular head" else $desc end) + ". Rewrite the body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update <body> <comment> (see the github skill)."' <<<"$pr"
+}
+
+# Hooks never fail the tool call or the turn on their own errors: a missing PR, gh or network is
+# a normal state for them.
+hook_post_tool_use() {
+  local b remote state pr
+  b=$(branch) || return 0
+  remote=$(remote_head "$b") || return 0
+  [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
+  # One reminder per pushed head; the Stop hook catches what this misses. The pushed head is
+# compared rather than the PR's, which GitHub updates a moment after the push.
+  state=$(git rev-parse --git-path prctl-notified)
+  [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
+  echo "$remote" >"$state"
+  pr=$(open_pr "$b" 2>/dev/null) || return 0
+  [[ -n $pr && $(described "$pr") != "$remote" ]] || return 0
+  jq -n --arg ctx "$(stale_message "$pr" "$remote")" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
+}
+
+# Only a head pushed from this working tree counts, and a head once seen described is not asked
+# about again, so most turns end without calling GitHub.
+hook_stop() {
+  local input=$1 b remote state pr
+  [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
+  b=$(branch) || return 0
+  remote=$(remote_head "$b") || return 0
+  [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
+  state=$(git rev-parse --git-path prctl-described)
+  [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
+  pr=$(open_pr "$b" 2>/dev/null) || return 0
+  [[ -n $pr ]] || return 0
+  if [[ $(described "$pr") == "$remote" ]]; then
+    echo "$remote" >"$state"
+    return 0
+  fi
+  jq -n --arg reason "$(stale_message "$pr" "$remote")" '{decision: "block", reason: $reason}'
+}
+
+cmd_hook() {
+  local input dir
+  input=$(cat)
+  dir=$(jq -r '.cwd // empty' <<<"$input")
+  cd "${dir:-.}" 2>/dev/null || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  case $1 in
+    post-tool-use) hook_post_tool_use || true ;;
+    stop) hook_stop "$input" || true ;;
+    *) usage ;;
+  esac
+}
+
+case "${1:-}" in
+  status) [[ $# -eq 1 ]] || usage; cmd_status ;;
+  since) [[ $# -eq 1 ]] || usage; cmd_since ;;
+  create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
+  update) [[ $# -eq 2 || $# -eq 3 ]] || usage; cmd_update "$2" "${3:-}" ;;
+  hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
+  *) usage ;;
+esac
