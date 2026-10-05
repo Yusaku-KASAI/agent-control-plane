@@ -11,6 +11,7 @@ platform/
   plugins/
     roles/                          共通のロール（agents/<ロール名>.md）：developer（変更を実装する）、guide（質問に答える、変更しない）
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
+    github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
 ```
 
 ## 使われ方
@@ -26,5 +27,8 @@ platform/
 
 - プラグインが使う認証情報は、実行する環境が環境変数で渡す。slack プラグインは `SLACK_BOT_TOKEN_FILE`
   （呼ばれるたびに読む）か `SLACK_BOT_TOKEN`、なければ投稿だけを `SLACK_WEBHOOK_URL` で行う。
+- github プラグインは `gh` の認証を使う（エージェントには control-plane が `GH_CONFIG_DIR` で渡す）。push の直後と
+  ターンの終わりに hook が PR の本文が古くないかを確かめ、古ければ書き換えを促す
+  （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
 - プラグインを変えたら `claude plugin validate ./platform` で検査し、`bin/` のスクリプトは `shellcheck` を通す。
 - プラグインには、どのターゲットでも通用する内容だけを書く。

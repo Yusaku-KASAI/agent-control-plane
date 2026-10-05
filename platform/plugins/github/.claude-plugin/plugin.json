@@ -1,0 +1,8 @@
+{
+  "name": "github",
+  "version": "0.1.0",
+  "description": "Keep pull requests describing their branch, and work with reviews and CI on GitHub",
+  "author": {
+    "name": "Yusaku KASAI"
+  }
+}

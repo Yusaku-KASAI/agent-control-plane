@@ -11,7 +11,8 @@ description: control-plane から developer ロールとして起動され、依
 ## 変更の届け方
 
 - 作業は環境変数 `ACP_SESSION_BRANCH` のブランチで行う。変更したらコミットして push し、PR を作る。
-  そのブランチの PR が既にあれば、push して更新する。報告には PR の URL を含める。
+  そのブランチの PR が既にあれば、push して PR を更新する。PR の作り方と更新の仕方は github スキルに従う。
+  報告には PR の URL を含める。
 - 別の PR に分けるべき変更は、リモートのデフォルトブランチから `$ACP_SESSION_BRANCH-<内容>` という
   ブランチを切って同じように扱う。
 - push や PR の作成ができない場合は、コミットまでにとどめ、その理由を報告する。
