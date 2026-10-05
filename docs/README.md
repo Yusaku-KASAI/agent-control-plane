@@ -1,5 +1,7 @@
 # docs
 
+全体の狙い、考え方、構成、目指す姿は [overview.md](overview.md) にある。
+
 ドキュメントは関心ごとにディレクトリを分ける。書く前に、どの関心の話かを決める。
 
 | ディレクトリ | 関心 |
@@ -15,3 +17,9 @@
 - 見出しは Status / Date / Context / Decision / Alternatives / Consequences。
 - ADR はその時点の判断の記録なので、後から内容を書き換えない。判断を変えるときは新しい ADR を作り、
   古い方の Status に、全体を覆すなら `Superseded by NNNN`、一部を変えるなら `Amended by NNNN` を付ける。
+
+## ドキュメントと Issue の分担
+
+- ドキュメント：今の姿と、今の方針。目指す姿も、今の方針として [overview.md](overview.md) に書く。
+- ADR：その方針を選んだ理由と、選ばなかった案。
+- Issue：目指す姿への道筋。何をどの順でやるか、どこまで進んだか（[作業の進め方](target/README.md#作業の進め方)）。
