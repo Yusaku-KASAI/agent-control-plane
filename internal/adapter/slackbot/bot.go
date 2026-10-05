@@ -35,6 +35,8 @@ type Bot struct {
 	status     map[domain.SessionID]*statusMessage
 	byStatusTS map[string]domain.SessionID
 	mentions   *seenMessages
+	// writes tracks messages written outside a request, such as status updates.
+	writes sync.WaitGroup
 }
 
 // TokenSource supplies the current bot token, which may rotate.
@@ -57,7 +59,8 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 	return b
 }
 
-// Run blocks until ctx is done, then waits for the turns it started.
+// Run blocks until ctx is done, then waits for the turns it started. Those turns are not
+// cancelled with ctx: they end when the dispatcher closes, which tells their requesters why.
 func (b *Bot) Run(ctx context.Context) error {
 	api, err := b.web(ctx)
 	if err != nil {
@@ -87,7 +90,7 @@ func (b *Bot) Run(ctx context.Context) error {
 					continue
 				}
 				turns.Go(func() {
-					if err := b.handler.Execute(ctx, msg); err != nil {
+					if err := b.handler.Execute(context.WithoutCancel(ctx), msg); err != nil {
 						b.log.Warn("message handling failed", "session", msg.Conversation.SessionID(b.agent), "err", err)
 					}
 				})
@@ -96,6 +99,11 @@ func (b *Bot) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// Wait waits for the messages the bot is still writing outside requests.
+func (b *Bot) Wait() {
+	b.writes.Wait()
 }
 
 // accept acknowledges an Events API envelope and returns its inner event.

@@ -135,6 +135,7 @@ func TestHandleMessage_Stopped(t *testing.T) {
 	}{
 		{name: "running turn interrupted", out: usecase.RunAgentOutput{Interrupted: true}},
 		{name: "queued request withdrawn", err: usecase.ErrStopped},
+		{name: "cut short by a restart", err: usecase.ErrShuttingDown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

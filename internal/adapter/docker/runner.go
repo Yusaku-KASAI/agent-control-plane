@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/moby/moby/api/types/container"
@@ -23,6 +24,7 @@ type dockerAPI interface {
 	ContainerStart(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error)
 	ContainerWait(ctx context.Context, containerID string, options client.ContainerWaitOptions) client.ContainerWaitResult
 	ContainerRemove(ctx context.Context, containerID string, options client.ContainerRemoveOptions) (client.ContainerRemoveResult, error)
+	ContainerList(ctx context.Context, options client.ContainerListOptions) (client.ContainerListResult, error)
 }
 
 type Options struct {
@@ -81,6 +83,32 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 	return newProcess(r.api, created.ID, attach.HijackedResponse, creds), nil
 }
 
+// RemoveLeftovers removes every agent container, running or not, and returns their sessions.
+func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error) {
+	list, err := r.api.ContainerList(ctx, client.ContainerListOptions{
+		All:     true,
+		Filters: make(client.Filters).Add("label", sessionLabel),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list agent containers: %w", err)
+	}
+	var ids []domain.SessionID
+	for _, c := range list.Items {
+		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
+			return ids, fmt.Errorf("remove container %s: %w", c.ID, err)
+		}
+		if id := domain.SessionID(c.Labels[sessionLabel]); !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+const (
+	sessionLabel = "acp.session"
+	agentLabel   = "acp.agent"
+)
+
 const (
 	claudeConfigDir = "/home/node/.claude"
 	credentialsDir  = "/run/acp/credentials"
@@ -103,6 +131,7 @@ func containerSpec(req usecase.StartRequest, plugins []string, opts Options) cli
 				"ACP_CO_AUTHORS_FILE=" + path.Join(credentialsDir, coAuthorsFile),
 			}, credentialEnv(agent.Git, req.Credentials)...),
 			WorkingDir: workdir,
+			Labels:     map[string]string{sessionLabel: string(s.ID), agentLabel: string(agent.Name)},
 			// Prompts are written to stdin; closing it ends the process.
 			OpenStdin:    true,
 			StdinOnce:    true,

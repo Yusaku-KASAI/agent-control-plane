@@ -4,6 +4,8 @@ services:
   control-plane:
     build: .
     restart: unless-stopped
+    # Long enough for agents to wind down and threads to be told (StopTimeout in cmd/acp/serve.go).
+    stop_grace_period: 1m
     user: "${ACP_UID:-1000}:${ACP_GID:-1000}"
     environment:
       ACP_API_TOKEN: ${ACP_API_TOKEN:?set ACP_API_TOKEN in .env}
@@ -42,7 +44,7 @@ services:
       - -listenip=0.0.0.0
       - -allowfrom=control-plane
       - -allowHEAD=^/(v[0-9.]+/)?_ping$
-      - -allowGET=^/(v[0-9.]+/)?(_ping|version)$
+      - -allowGET=^/(v[0-9.]+/)?(_ping|version|containers/json)$
       - -allowPOST=^/(v[0-9.]+/)?containers/(create|[a-zA-Z0-9_.-]+/(attach|start|wait))$
       - -allowDELETE=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+$
     volumes:

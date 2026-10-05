@@ -82,6 +82,10 @@ const (
 	SessionTurnFinished
 	// SessionUpdated reports a change between turns, such as background tasks ending.
 	SessionUpdated
+	// SessionAbandoned reports that the control plane stopped the session's process while no
+	// request was waiting to be told: on shutdown, with Status showing the work that was cut
+	// short, or after a restart, with an empty Status since that work is unknown.
+	SessionAbandoned
 )
 
 type SessionEvent struct {
@@ -110,6 +114,9 @@ type SessionObserver interface {
 type Runner interface {
 	// Start launches the session's agent process, which then waits for prompts.
 	Start(ctx context.Context, r StartRequest) (Process, error)
+	// RemoveLeftovers removes the processes a previous control plane left behind and returns
+	// their sessions.
+	RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error)
 }
 
 // Process is one running agent process of a session. Its methods are not called concurrently.
