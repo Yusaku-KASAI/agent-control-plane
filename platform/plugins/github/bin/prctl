@@ -144,13 +144,22 @@ hook_post_tool_use() {
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
+# Only a head pushed from this working tree counts, and a head once seen described is not asked
+# about again, so most turns end without calling GitHub.
 hook_stop() {
-  local input=$1 b pr
+  local input=$1 b remote state pr
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
-  remote_head "$b" >/dev/null || return 0
+  remote=$(remote_head "$b") || return 0
+  [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
+  state=$(git rev-parse --git-path prctl-described)
+  [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   pr=$(open_pr "$b" 2>/dev/null) || return 0
-  [[ -n $pr && $(described "$pr") != "$(jq -r .headRefOid <<<"$pr")" ]] || return 0
+  [[ -n $pr ]] || return 0
+  if [[ $(described "$pr") == "$(jq -r .headRefOid <<<"$pr")" ]]; then
+    echo "$remote" >"$state"
+    return 0
+  fi
   jq -n --arg reason "$(stale_message "$pr")" '{decision: "block", reason: $reason}'
 }
 
