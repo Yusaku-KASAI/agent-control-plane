@@ -123,11 +123,13 @@ ENV PATH=/usr/local/go/bin:/home/node/go/bin:$PATH \
 ARG GOPLS_VERSION=v0.23.0
 ARG DELVE_VERSION=v1.27.2
 ARG GOLANGCI_LINT_VERSION=v2.14.0
+ARG GOVULNCHECK_VERSION=v1.8.0
 RUN set -eux; \
     export GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOBIN=/usr/local/bin; \
     go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
     go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
+    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
         | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}; \
     rm -rf /tmp/gopath /tmp/gocache; \
-    go version && gopls version && dlv version && golangci-lint version
+    go version && gopls version && dlv version && golangci-lint version && govulncheck -version
