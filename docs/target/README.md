@@ -41,4 +41,13 @@ control-plane はさらに次の環境変数を渡す。
 
 PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
 （[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
-確かめる。main への変更は PR 経由で行う。
+確かめる。
+
+## 作業の進め方
+
+- main への変更は PR 経由で行い、merge commit でマージする。PR のコミットがそのまま main に残る。
+- やることは GitHub の Issue で管理する。ドキュメントには現状だけを書くので、予定や残りの作業は置かない。
+  - ラベルは docs の関心（`app`、`codebase`、`target`、`platform`）に合わせる。
+  - マイルストーンで段階をまとめる。Issue の間の順番は、本文に前提の Issue を書いて示す。
+  - 検討中の設計は Issue に書き、決まったら ADR にする。
+- PR が Issue を片付けるときは、本文に `Closes #<番号>` と書く。
