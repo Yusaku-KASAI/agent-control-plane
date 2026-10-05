@@ -12,7 +12,8 @@
 ## Decision
 
 - 本文の末尾に、どの head まで説明したかを HTML コメントの印として入れる。本文が今の head を説明しているかは、
-  GitHub の PR の head と印を比べて判断する。
+  この作業ツリーから push した head（`origin/<ブランチ>`）と印を比べて判断する。push の直後は GitHub の PR の
+  head がまだ古いことがあるため、PR の head とは比べない。
 - 本文の作成と更新は `prctl` で行い、更新で head が進んでいれば、変更点のコメントを必須にする。
 - hook で検出する。
   - PostToolUse（Bash）：`origin/<ブランチ>` が HEAD と一致し、前回知らせた head と違えば PR を確かめ、本文が

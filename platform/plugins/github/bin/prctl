@@ -122,9 +122,9 @@ cmd_update() {
 }
 
 stale_message() {
-  local pr=$1 desc
+  local pr=$1 head=$2 desc
   desc=$(described "$pr")
-  jq -r --arg desc "${desc:0:12}" '"PR #\(.number) now has head \(.headRefOid[0:12]) but its body describes " + (if $desc == "" then "no particular head" else $desc end) + ". Rewrite the body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update <body> <comment> (see the github skill)."' <<<"$pr"
+  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" '"PR #\(.number) now has head \($head) but its body describes " + (if $desc == "" then "no particular head" else $desc end) + ". Rewrite the body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update <body> <comment> (see the github skill)."' <<<"$pr"
 }
 
 # Hooks never fail the tool call or the turn on their own errors: a missing PR, gh or network is
@@ -134,13 +134,14 @@ hook_post_tool_use() {
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
   [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
-  # One reminder per pushed head; the Stop hook catches what this misses.
+  # One reminder per pushed head; the Stop hook catches what this misses. The pushed head is
+# compared rather than the PR's, which GitHub updates a moment after the push.
   state=$(git rev-parse --git-path prctl-notified)
   [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   echo "$remote" >"$state"
   pr=$(open_pr "$b" 2>/dev/null) || return 0
-  [[ -n $pr && $(described "$pr") != "$(jq -r .headRefOid <<<"$pr")" ]] || return 0
-  jq -n --arg ctx "$(stale_message "$pr")" \
+  [[ -n $pr && $(described "$pr") != "$remote" ]] || return 0
+  jq -n --arg ctx "$(stale_message "$pr" "$remote")" \
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
@@ -156,11 +157,11 @@ hook_stop() {
   [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   pr=$(open_pr "$b" 2>/dev/null) || return 0
   [[ -n $pr ]] || return 0
-  if [[ $(described "$pr") == "$(jq -r .headRefOid <<<"$pr")" ]]; then
+  if [[ $(described "$pr") == "$remote" ]]; then
     echo "$remote" >"$state"
     return 0
   fi
-  jq -n --arg reason "$(stale_message "$pr")" '{decision: "block", reason: $reason}'
+  jq -n --arg reason "$(stale_message "$pr" "$remote")" '{decision: "block", reason: $reason}'
 }
 
 cmd_hook() {
