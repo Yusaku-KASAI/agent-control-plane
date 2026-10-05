@@ -2,8 +2,11 @@
 
 check: lint test
 
+SH_FILES := $(wildcard .devcontainer/*.sh) $(wildcard platform/plugins/*/bin/*)
+
 lint:
 	golangci-lint run ./...
+	shellcheck $(SH_FILES)
 
 fmt:
 	golangci-lint fmt ./...

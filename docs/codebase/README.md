@@ -20,6 +20,6 @@
 ## コマンド
 
 ```bash
-make check   # lint + test
+make check   # lint (golangci-lint, shellcheck) + test
 make fmt     # 整形
 ```
