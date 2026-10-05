@@ -70,6 +70,9 @@ func TestContainerSpec(t *testing.T) {
 			t.Errorf("Env = %q, want %s", spec.Config.Env, want)
 		}
 	}
+	if l := spec.Config.Labels; l["acp.session"] != string(testSession.ID) || l["acp.agent"] != "repo-dev" {
+		t.Errorf("Labels = %v", l)
+	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: "/sessions/0f8fad5b/workspace/repo", Target: "/workspace/repo"},
 		{
@@ -297,12 +300,37 @@ func receive(t *testing.T, ch <-chan usecase.ProcessEvent) usecase.ProcessEvent 
 	}
 }
 
+func TestRunner_RemoveLeftovers(t *testing.T) {
+	api := newFakeAPI()
+	api.containers = []container.Summary{
+		{ID: "a", Labels: map[string]string{"acp.session": "s1"}},
+		{ID: "b", Labels: map[string]string{"acp.session": "s2"}},
+		{ID: "c", Labels: map[string]string{"acp.session": "s1"}},
+	}
+
+	ids, err := NewRunner(api, Options{}).RemoveLeftovers(context.Background())
+
+	if err != nil || !slices.Equal(ids, []domain.SessionID{"s1", "s2"}) {
+		t.Errorf("RemoveLeftovers() = %v, %v", ids, err)
+	}
+	if !slices.Equal(api.removedIDs, []string{"a", "b", "c"}) {
+		t.Errorf("removed %v, want every agent container", api.removedIDs)
+	}
+	if !api.listed.All || !api.listed.Filters["label"]["acp.session"] {
+		t.Errorf("listed with %+v, want stopped ones too, by label", api.listed)
+	}
+}
+
 // fakeAPI is a container whose stdin and multiplexed output are pipes the test controls.
 type fakeAPI struct {
-	mu      sync.Mutex
-	started bool
-	removed bool
-	status  chan int64
+	mu         sync.Mutex
+	started    bool
+	removed    bool
+	removedIDs []string
+	status     chan int64
+	// containers is what ContainerList returns.
+	containers []container.Summary
+	listed     client.ContainerListOptions
 
 	stdin      chan []byte
 	output     *io.PipeWriter
@@ -346,11 +374,19 @@ func (f *fakeAPI) ContainerWait(context.Context, string, client.ContainerWaitOpt
 	return client.ContainerWaitResult{Result: res, Error: make(chan error)}
 }
 
-func (f *fakeAPI) ContainerRemove(context.Context, string, client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
+func (f *fakeAPI) ContainerRemove(_ context.Context, id string, _ client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removed = true
+	f.removedIDs = append(f.removedIDs, id)
 	return client.ContainerRemoveResult{}, nil
+}
+
+func (f *fakeAPI) ContainerList(_ context.Context, opts client.ContainerListOptions) (client.ContainerListResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listed = opts
+	return client.ContainerListResult{Items: f.containers}, nil
 }
 
 func (f *fakeAPI) readStdin(t *testing.T) []byte {

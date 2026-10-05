@@ -116,13 +116,28 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		m.apply(e.Status)
 		b.refresh(m)
 	}
-	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "" {
-		go func() {
-			if err := b.Post(context.Background(), s.Conversation, e.Result.Output); err != nil {
-				b.log.Warn("posting the agent's own turn failed", "session", s.ID, "err", err)
-			}
-		}()
+	switch {
+	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "":
+		b.postAsync(s, e.Result.Output)
+	case e.Kind == usecase.SessionAbandoned:
+		b.postAsync(s, abandonedText(e.Status))
 	}
+}
+
+func abandonedText(st usecase.SessionStatus) string {
+	if st == (usecase.SessionStatus{}) {
+		return "control-plane が再起動したため、このスレッドのエージェントを止めました。処理の途中だった場合は中断されています。" +
+			"続けるには、もう一度依頼してください。"
+	}
+	return usecase.ShutdownNotice
+}
+
+func (b *Bot) postAsync(s domain.Session, text string) {
+	b.writes.Go(func() {
+		if err := b.Post(context.Background(), s.Conversation, text); err != nil {
+			b.log.Warn("posting to the thread failed", "session", s.ID, "err", err)
+		}
+	})
 }
 
 func outcomeOf(r usecase.TurnResult) outcome {
@@ -156,7 +171,7 @@ func (b *Bot) refresh(m *statusMessage) {
 		return
 	}
 	m.updating = true
-	go b.updateStatus(m)
+	b.writes.Go(func() { b.updateStatus(m) })
 }
 
 func (b *Bot) updateStatus(m *statusMessage) {

@@ -221,9 +221,10 @@ func (f *fakeObserver) agentTurns() []usecase.TurnResult {
 }
 
 type fakeRunner struct {
-	mu      sync.Mutex
-	started []usecase.StartRequest
-	procs   chan *fakeProcess
+	mu        sync.Mutex
+	started   []usecase.StartRequest
+	procs     chan *fakeProcess
+	leftovers []domain.SessionID
 }
 
 func newFakeRunner() *fakeRunner { return &fakeRunner{procs: make(chan *fakeProcess, 8)} }
@@ -235,6 +236,10 @@ func (f *fakeRunner) Start(_ context.Context, r usecase.StartRequest) (usecase.P
 	f.mu.Unlock()
 	f.procs <- p
 	return p, nil
+}
+
+func (f *fakeRunner) RemoveLeftovers(context.Context) ([]domain.SessionID, error) {
+	return f.leftovers, nil
 }
 
 func (f *fakeRunner) starts() []usecase.StartRequest {
@@ -663,5 +668,61 @@ func TestDispatcher_CreditsRequestersOfTheTurn(t *testing.T) {
 	wait(t, next)
 	if got := p.credited(); len(got) != 0 {
 		t.Errorf("credited %+v for a requester without a git identity, want nobody", got)
+	}
+}
+
+func TestDispatcher_ShutdownInterruptsRunningTurn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "work"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+
+	e.d.Close()
+
+	if o := wait(t, done); !errors.Is(o.err, usecase.ErrShuttingDown) {
+		t.Fatalf("Execute() error = %v, want ErrShuttingDown", o.err)
+	}
+	if !p.interrupted || !p.isClosed() {
+		t.Errorf("interrupted = %v, closed = %v; want both", p.interrupted, p.isClosed())
+	}
+	finished := e.observer.of(usecase.SessionTurnFinished)
+	if len(finished) != 1 || !finished[0].Result.Interrupted {
+		t.Errorf("finished = %+v, want one interrupted turn", finished)
+	}
+	if got := e.observer.of(usecase.SessionAbandoned); len(got) != 0 {
+		t.Errorf("abandoned = %+v; the requester is told instead", got)
+	}
+}
+
+func TestDispatcher_ShutdownAbandonsUnattendedWork(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("build")
+	p.finish("started")
+	wait(t, done)
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnFinished)) == 1 })
+
+	e.d.Close()
+
+	abandoned := e.observer.of(usecase.SessionAbandoned)
+	if len(abandoned) != 1 || abandoned[0].Status.BackgroundTasks != 1 {
+		t.Errorf("abandoned = %+v, want one with the background task", abandoned)
+	}
+}
+
+func TestDispatcher_Recover(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.runner.leftovers = []domain.SessionID{existingID, "11111111-1111-1111-1111-111111111111"}
+
+	n, err := e.d.Recover(context.Background())
+
+	if n != 2 || !errors.Is(err, domain.ErrSessionNotFound) {
+		t.Errorf("Recover() = %d, %v; want 2 and the unknown session", n, err)
+	}
+	abandoned := e.observer.of(usecase.SessionAbandoned)
+	if len(abandoned) != 1 || abandoned[0].Status != (usecase.SessionStatus{}) {
+		t.Errorf("abandoned = %+v, want one with an empty status", abandoned)
 	}
 }

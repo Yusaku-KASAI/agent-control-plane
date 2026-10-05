@@ -96,13 +96,17 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			StopTimeout:       30 * time.Second,
 		},
 	)
-	// Runs after the HTTP server and the bots stop, so no new prompt arrives while processes close.
-	defer turns.Close()
 	bots, err := slackBots(cfg, slackTokens, turns, log)
 	if err != nil {
+		turns.Close()
 		return err
 	}
 	observer.setBots(bots)
+	if n, err := turns.Recover(ctx); err != nil {
+		log.Error("cleaning up after the previous run failed", "containers", n, "err", err)
+	} else if n > 0 {
+		log.Info("removed agent containers left by the previous run", "containers", n)
+	}
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           httpapi.NewHandler(turns, token, log),
@@ -116,12 +120,13 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	log.Info("listening", "addr", addr)
 	// A bot that cannot run, such as one whose tokens are missing, stops alone; the other agents
 	// and the API keep serving.
+	var running sync.WaitGroup
 	for name, b := range bots {
-		go func() {
+		running.Go(func() {
 			if err := b.Run(ctx); err != nil && ctx.Err() == nil {
 				log.Error("slack bot stopped", "agent", name, "err", err)
 			}
-		}()
+		})
 	}
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {
@@ -135,10 +140,18 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		cancel()
 	case <-ctx.Done():
 	}
+	// The bots stopped taking requests with ctx and the dispatcher refuses new ones once closed;
+	// closing it ends the waiting requests, which lets the HTTP server and the bots finish.
+	turns.Close()
 	shutdownCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer stop()
-	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	shutdownErr := srv.Shutdown(shutdownCtx)
+	running.Wait()
+	for _, b := range bots {
+		b.Wait()
+	}
+	if shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
+		return shutdownErr
 	}
 	if errors.Is(runErr, http.ErrServerClosed) || errors.Is(runErr, context.Canceled) {
 		return nil

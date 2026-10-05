@@ -139,6 +139,21 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 	return nil
 }
 
+// Recover removes the agent processes a previous control plane left behind, as when it was
+// killed, and tells their sessions. It must run before the first request.
+func (d *Dispatcher) Recover(ctx context.Context) (int, error) {
+	ids, err := d.runner.RemoveLeftovers(ctx)
+	for _, id := range ids {
+		s, findErr := d.sessions.Find(ctx, id)
+		if findErr != nil {
+			err = errors.Join(err, fmt.Errorf("find session %s: %w", id, findErr))
+			continue
+		}
+		d.observer.Observe(s, SessionEvent{Kind: SessionAbandoned})
+	}
+	return len(ids), err
+}
+
 // Close stops every session's process and waits for them.
 func (d *Dispatcher) Close() {
 	d.cancel()
@@ -286,8 +301,7 @@ func (w *worker) run() {
 			}
 		case <-w.d.ctx.Done():
 			w.d.retire(w)
-			w.stopProcess(ErrShuttingDown)
-			w.failAll(ErrShuttingDown)
+			w.shutdown()
 			return
 		}
 		if !w.running {
@@ -525,6 +539,25 @@ func (w *worker) stopProcess(cause error) {
 		r.reply <- w.reply(TurnResult{}, cause)
 	}
 	w.current, w.sent = nil, nil
+}
+
+// shutdown ends the session's process for good. The conversation stays resumable, so a later
+// request continues it in a new process.
+func (w *worker) shutdown() {
+	if w.proc != nil && w.running {
+		// Lets the agent record the turn as interrupted before its input closes.
+		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
+	}
+	waiting := len(w.current)+len(w.sent)+len(w.queue)+len(w.inbox) > 0
+	if !waiting && (w.running || len(w.background) > 0) {
+		w.observe(SessionEvent{Kind: SessionAbandoned})
+	}
+	if w.running {
+		w.running = false
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: len(w.current) == 0})
+	}
+	w.stopProcess(ErrShuttingDown)
+	w.failAll(ErrShuttingDown)
 }
 
 func (w *worker) failAll(err error) {

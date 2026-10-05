@@ -72,6 +72,8 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 	switch {
 	case errors.Is(err, ErrStopped):
 		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, "停止したため、この依頼は取り消しました。"))
+	case errors.Is(err, ErrShuttingDown):
+		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, ShutdownNotice))
 	case err != nil:
 		return errors.Join(err, ackErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)))
 	case out.Interrupted:
@@ -85,6 +87,9 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 	}
 	return errors.Join(ackErr, u.responder.Reply(ctx, msg, out.Output))
 }
+
+// ShutdownNotice tells the requester that a restart cut the work short and how to go on.
+const ShutdownNotice = "control-plane の再起動のため、処理を中断しました。続けるには、もう一度依頼してください。"
 
 // Stop stops the session if the requester may use the agent.
 func (u *HandleMessage) Stop(ctx context.Context, agent domain.AgentName, r domain.Requester, id domain.SessionID) error {
