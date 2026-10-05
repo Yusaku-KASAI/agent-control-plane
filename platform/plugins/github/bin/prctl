@@ -12,9 +12,10 @@ usage:
   prctl status                        the open PR of this branch and whether its body is current
   prctl since                         commits pushed since the body was last written
   prctl create <title> <body-file|->  open a PR for the pushed branch
-  prctl update <body-file|-> [<comment-file>]
-                                      replace the body and comment on what changed since the last
-                                      update; the comment is required once the body has a marker
+  prctl update [--title <title>] <body-file|-> [<comment-file>]
+                                      replace the body (and title) and comment on what was pushed
+                                      since the last update; the comment is required when there is
+                                      such a push, and not posted when there is none
   prctl hook post-tool-use            Claude Code hook: remind after a push makes the PR stale
   prctl hook stop                     Claude Code hook: keep the turn going while the PR is stale
 USAGE
@@ -100,9 +101,9 @@ cmd_create() {
 }
 
 cmd_update() {
-  local body comment="" b pr num head desc
-  body=$(read_input "$1")
-  [[ -z ${2:-} ]] || comment=$(read_input "$2")
+  local title=$1 body comment="" b pr num head desc
+  body=$(read_input "$2")
+  [[ -z ${3:-} ]] || comment=$(read_input "$3")
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
   pr=$(open_pr "$b")
@@ -112,19 +113,21 @@ cmd_update() {
   desc=$(described "$pr")
   if [[ -n $desc && $desc != "$head" ]]; then
     [[ -n $comment ]] || die "say in a comment what changed since ${desc:0:12} and why"
-    comment=$(printf '%s\n\n%s...%s\n' "$comment" "${desc:0:12}" "${head:0:12}")
-  fi
-  if [[ -n $comment ]]; then
-    gh api "repos/{owner}/{repo}/issues/$num/comments" -f body="$comment" --jq .html_url
+    gh api "repos/{owner}/{repo}/issues/$num/comments" \
+      -f body="$(printf '%s\n\n%s...%s\n' "$comment" "${desc:0:12}" "${head:0:12}")" --jq .html_url
+  elif [[ -n $comment ]]; then
+    echo "prctl: nothing was pushed since the body was last written; the comment is not posted" >&2
   fi
   # REST rather than `gh pr edit`, whose GraphQL query can fail on unrelated repository features.
-  gh api -X PATCH "repos/{owner}/{repo}/pulls/$num" -f body="$(with_marker "$body" "$head")" --jq .html_url
+  local fields=(-f body="$(with_marker "$body" "$head")")
+  [[ -z $title ]] || fields+=(-f title="$title")
+  gh api -X PATCH "repos/{owner}/{repo}/pulls/$num" "${fields[@]}" --jq .html_url
 }
 
 stale_message() {
   local pr=$1 head=$2 desc
   desc=$(described "$pr")
-  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" '"PR #\(.number) now has head \($head) but its body describes " + (if $desc == "" then "no particular head" else $desc end) + ". Rewrite the body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update <body> <comment> (see the github skill)."' <<<"$pr"
+  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" 'if $desc == "" then "The body of PR #\(.number) was not written by prctl. Rewrite it with prctl update <body>; no comment is needed (see the github skill)." else "PR #\(.number) now has head \($head) but its body describes \($desc). Rewrite the title and body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update [--title <title>] <body> <comment> (see the github skill)." end' <<<"$pr"
 }
 
 # Hooks never fail the tool call or the turn on their own errors: a missing PR, gh or network is
@@ -181,7 +184,17 @@ case "${1:-}" in
   status) [[ $# -eq 1 ]] || usage; cmd_status ;;
   since) [[ $# -eq 1 ]] || usage; cmd_since ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
-  update) [[ $# -eq 2 || $# -eq 3 ]] || usage; cmd_update "$2" "${3:-}" ;;
+  update)
+    shift
+    title=""
+    if [[ ${1:-} == --title ]]; then
+      [[ $# -ge 2 ]] || usage
+      title=$2
+      shift 2
+    fi
+    [[ $# -eq 1 || $# -eq 2 ]] || usage
+    cmd_update "$title" "$1" "${2:-}"
+    ;;
   hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
   *) usage ;;
 esac
