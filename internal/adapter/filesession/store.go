@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 // Store keeps each session as <root>/<id>/session.json.
@@ -106,4 +107,39 @@ func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
 
 func (s *Store) file(id domain.SessionID, name ...string) string {
 	return filepath.Join(append([]string{s.root, string(id)}, name...)...)
+}
+
+// List skips directories that are not sessions, such as one whose record was never saved.
+func (s *Store) List(_ context.Context) ([]usecase.SessionInfo, error) {
+	entries, err := os.ReadDir(s.root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var infos []usecase.SessionInfo
+	for _, e := range entries {
+		id, err := domain.ParseSessionID(e.Name())
+		if err != nil || !e.IsDir() {
+			continue
+		}
+		st, err := os.Stat(s.file(id, "session.json"))
+		if err != nil {
+			continue
+		}
+		infos = append(infos, usecase.SessionInfo{ID: id, LastActive: st.ModTime()})
+	}
+	return infos, nil
+}
+
+// Remove holds the session's lock while deleting, so a session that starts a turn meanwhile
+// finds it busy instead of losing its workspace.
+func (s *Store) Remove(ctx context.Context, id domain.SessionID) error {
+	unlock, err := s.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return os.RemoveAll(s.file(id))
 }

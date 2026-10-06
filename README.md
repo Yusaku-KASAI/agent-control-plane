@@ -50,6 +50,17 @@ acp stop --agent <name> --session <id> [--server <url>]
 - control-plane が再起動すると、動いていた処理は中断され、スレッドにそう知らせる。続けるには、もう一度依頼する
   （会話は引き継がれる）。
 
+### 古いセッションの片付け
+
+```bash
+docker compose run --rm control-plane prune --config /etc/acp/acp.yaml [--older-than-days 14] [--dry-run]
+```
+
+- 最後のターンから `--older-than-days`（既定 14 日）を過ぎたセッションの、作業領域、記録、認証情報のディレクトリを
+  消す。ターンを実行中のセッションは飛ばす。`--dry-run` は消す対象を表示するだけ。
+- 消したセッションの会話は引き継げなくなる。リモートの `acp/…` ブランチと PR は消さない。
+- 自動では動かない。定期的に回すなら、ホストの cron などから上のコマンドを呼ぶ。
+
 ## サーバーを動かす
 
 設定は [acp.example.yaml](acp.example.yaml)（各項目の意味）と [.env.example](.env.example) をもとに、`acp.yaml` と

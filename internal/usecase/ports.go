@@ -137,3 +137,21 @@ type Process interface {
 	// Close asks the process to exit, stops it when ctx expires first, and releases it.
 	Close(ctx context.Context) error
 }
+
+type SessionInfo struct {
+	ID domain.SessionID
+	// LastActive is when the session's record last changed, which happens after every turn.
+	LastActive time.Time
+}
+
+type SessionStore interface {
+	List(ctx context.Context) ([]SessionInfo, error)
+	// Remove deletes the session's record and workspace. It returns an error wrapping
+	// domain.ErrSessionBusy while a turn holds the session.
+	Remove(ctx context.Context, id domain.SessionID) error
+}
+
+type CredentialStore interface {
+	// Remove deletes the credentials written for the session; none is not an error.
+	Remove(ctx context.Context, id domain.SessionID) error
+}

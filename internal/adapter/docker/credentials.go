@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,4 +88,13 @@ func credentialsMount(id domain.SessionID, opts Options) mount.Mount {
 		Type: mount.TypeBind, Source: sessionCredentials{root: opts.CredentialsDir, id: id}.dir(),
 		Target: credentialsDir, ReadOnly: true,
 	}
+}
+
+// CredentialStore removes the per-session credentials the runner wrote under root.
+type CredentialStore struct {
+	Root string
+}
+
+func (s CredentialStore) Remove(_ context.Context, id domain.SessionID) error {
+	return os.RemoveAll(sessionCredentials{root: s.Root, id: id}.dir())
 }
