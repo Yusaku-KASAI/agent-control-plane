@@ -132,12 +132,41 @@ func TestDeclaredPlugins_BesideThroughSymlink(t *testing.T) {
 	}
 }
 
+func TestDeclaredPlugins_LinkBackIntoRepository(t *testing.T) {
+	hostRoot := t.TempDir()
+	writeFile(t, filepath.Join(hostRoot, "app", "kit", ".claude-plugin", "marketplace.json"), `{"plugins": []}`)
+	if err := os.Symlink(filepath.Join("app", "kit"), filepath.Join(hostRoot, "kit")); err != nil {
+		t.Fatal(err)
+	}
+	// The session's clone, which carries its own version of the marketplace.
+	repo := filepath.Join(t.TempDir(), "app")
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), `{
+  "extraKnownMarketplaces": {"shared": {"source": {"source": "directory", "path": "/workspace/kit"}}},
+  "enabledPlugins": {"roles@shared": true}
+}`)
+	writeFile(t, filepath.Join(repo, "kit", ".claude-plugin", "marketplace.json"),
+		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
+
+	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	if err != nil || !slices.Equal(got, []pluginDir{{Path: "kit/plugins/roles"}}) {
+		t.Errorf("declaredPlugins() = %+v, %v; want the plugin from the session's clone", got, err)
+	}
+}
+
 func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 	repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := declaredPlugins(repo, "/src", "/workspace")
+	// The host as docs/platform/README.md sets it up: agent-platform beside the repository links into it.
+	hostRoot := t.TempDir()
+	for name, target := range map[string]string{filepath.Base(repo): repo, "agent-platform": filepath.Join(repo, "platform")} {
+		if err := os.Symlink(target, filepath.Join(hostRoot, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := declaredPlugins(repo, hostRoot, "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}

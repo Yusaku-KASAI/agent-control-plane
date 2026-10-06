@@ -60,7 +60,7 @@
     "acp-platform": {
       "source": {
         "source": "directory",
-        "path": "/workspace/agent-control-plane/platform"
+        "path": "/workspace/agent-platform"
       }
     }
   },

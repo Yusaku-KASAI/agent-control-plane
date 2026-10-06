@@ -76,7 +76,8 @@ func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
 // marketplaceDir resolves where a directory marketplace is: relative to the repository, or at a
 // path as in the devcontainer, where the repository is workspaceDir/<its name> and the
 // repositories beside it on the host (under hostRoot) are workspaceDir/<their names>. It returns
-// the path within the repository, or the marketplace beside it, or neither for any other path.
+// the path within the repository, also for a path beside it that links back into it, or the
+// marketplace beside it, or neither for any other path.
 func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, beside *mountedDir) {
 	if local(p) {
 		return p, nil
@@ -92,7 +93,30 @@ func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, 
 	if own, ok := strings.CutPrefix(rel, repoName+"/"); ok {
 		return own, nil
 	}
-	return "", &mountedDir{Host: filepath.Join(hostRoot, filepath.FromSlash(rel)), Container: p}
+	host := filepath.Join(hostRoot, filepath.FromSlash(rel))
+	if own, ok := linkedIntoRepository(host, filepath.Join(hostRoot, repoName)); ok {
+		return own, nil
+	}
+	return "", &mountedDir{Host: host, Container: p}
+}
+
+// linkedIntoRepository reports where in the repository at repoRoot the host path leads, when a
+// symbolic link makes it stand for a part of that repository, such as a marketplace not yet
+// split out of it.
+func linkedIntoRepository(host, repoRoot string) (string, bool) {
+	resolved, err := filepath.EvalSymlinks(host)
+	if err != nil {
+		return "", false
+	}
+	root, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || !filepath.IsLocal(rel) {
+		return "", false
+	}
+	return rel, true
 }
 
 func pluginSource(repo, marketplace, plugin string) (string, error) {

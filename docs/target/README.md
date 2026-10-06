@@ -34,7 +34,8 @@ control-plane はさらに次の環境変数を渡す。
   - マーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。ターゲット自身の
     中を指すパスは、エージェントのコンテナではセッションの作業領域（作業中のブランチ）を指す。隣のリポジトリを
     指すパスは、control-plane がホストでターゲットの隣にあるそのディレクトリだけを、同じパスに読み取り専用で
-    マウントする（[ADR 0007](adr/0007-marketplaces-beside-the-target.md)）。
+    マウントする。ただし、ホストでシンボリックリンクをたどった先がターゲット自身の中なら、作業領域の中として扱う
+    （[ADR 0007](adr/0007-marketplaces-beside-the-target.md)）。
 - ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
   起動する（[ADR 0003](adr/0003-roles-as-claude-code-agents.md)）。共有のロールは [platform](../platform/README.md) の
   `roles` プラグインにあり、ターゲットの `.claude/agents/<ロール名>.md` に同名の定義を置くとそちらが優先される。

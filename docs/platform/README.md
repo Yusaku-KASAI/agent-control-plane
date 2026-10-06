@@ -18,16 +18,14 @@ platform/
 
 - ターゲットは `.claude/settings.json` で使うプラグインを宣言する（[target ADR 0004](../target/adr/0004-plugins-declared-in-settings.md)）。
 - control-plane から起動するエージェントには、control-plane が宣言を読んで `--plugin-dir` で読み込ませる。
-- 他のターゲットは `acp-platform` を、切り出した後の場所 `/workspace/agent-platform` で宣言する。切り出すまでは、
+- どのターゲットも `acp-platform` を、切り出した後の場所 `/workspace/agent-platform` で宣言する。切り出すまでは、
   ホストでリポジトリを並べたディレクトリに、相対パスのシンボリックリンクを置いてこの `platform/` を指す
   （`ln -s agent-control-plane/platform agent-platform`）。devcontainer でも、エージェントのコンテナでも、この
-  リンクを通して届く。
-- このリポジトリは、切り出すまで `/workspace/agent-control-plane/platform`（自身の中）で宣言し、エージェントは
-  作業中のブランチの版を使う。
+  リンクを通して届く。このリポジトリのエージェントは、リンクの先が自身の中なので、作業中のブランチの版を使う。
 - 人間が対話で使うときは、最初に一度マーケットプレイスを登録してプラグインを入れる。
 
   ```bash
-  claude plugin marketplace add /workspace/agent-control-plane/platform   # 他のターゲットでは /workspace/agent-platform
+  claude plugin marketplace add /workspace/agent-platform
   claude plugin install roles@acp-platform
   ```
 
