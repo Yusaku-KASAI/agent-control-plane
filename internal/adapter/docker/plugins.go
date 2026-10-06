@@ -6,16 +6,30 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 )
 
-// declaredPluginDirs returns, relative to the repository root, the plugins the repository
-// enables in .claude/settings.json from marketplaces it keeps in its own tree. Headless
-// Claude Code does not install a project's declared plugins, so they are passed with
-// --plugin-dir. Plugins from other marketplaces are left to Claude Code.
-func declaredPluginDirs(repo string) ([]string, error) {
+// pluginDir is a plugin the repository enables. Path is relative to the repository, or, for a
+// marketplace beside the repository, absolute in the container, with Beside set to where that
+// marketplace is on the host and in the container.
+type pluginDir struct {
+	Path   string
+	Beside *mountedDir
+}
+
+type mountedDir struct {
+	Host, Container string
+}
+
+// declaredPlugins returns the plugins the repository at repo enables in .claude/settings.json from
+// directory marketplaces: one in its own tree (a relative path), or one in a repository beside it
+// (an absolute path under workspaceDir, which stands for hostRoot as in the devcontainer). Headless
+// Claude Code does not install a project's declared plugins, so they are passed with --plugin-dir.
+// Plugins from other marketplaces are left to Claude Code.
+func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
 	var settings struct {
 		ExtraKnownMarketplaces map[string]struct {
 			Source struct {
@@ -32,21 +46,43 @@ func declaredPluginDirs(repo string) ([]string, error) {
 		return nil, err
 	}
 
-	var dirs []string
+	var dirs []pluginDir
 	for id, enabled := range settings.EnabledPlugins {
 		plugin, market, ok := strings.Cut(id, "@")
 		src := settings.ExtraKnownMarketplaces[market].Source
-		if !enabled || !ok || src.Source != "directory" || !local(src.Path) {
+		if !enabled || !ok || src.Source != "directory" {
 			continue
 		}
-		dir, err := pluginSource(repo, src.Path, plugin)
+		var dir pluginDir
+		var err error
+		switch beside, isBeside := besideRepository(src.Path, filepath.Base(repo), hostRoot, workspaceDir); {
+		case local(src.Path):
+			dir.Path, err = pluginSource(repo, src.Path, plugin)
+		case isBeside:
+			var rel string
+			rel, err = pluginSource(beside.Host, ".", plugin)
+			dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: &beside}
+		default:
+			continue
+		}
 		if err != nil {
 			return nil, fmt.Errorf("plugin %s: %w", id, err)
 		}
 		dirs = append(dirs, dir)
 	}
-	slices.Sort(dirs)
+	slices.SortFunc(dirs, func(a, b pluginDir) int { return strings.Compare(a.Path, b.Path) })
 	return dirs, nil
+}
+
+// besideRepository maps a container path under workspaceDir that is not in the repository itself
+// to the same place under hostRoot.
+func besideRepository(p, repoName, hostRoot, workspaceDir string) (mountedDir, bool) {
+	p = path.Clean(p)
+	rel, ok := strings.CutPrefix(p, workspaceDir+"/")
+	if !ok || !path.IsAbs(p) || rel == repoName || strings.HasPrefix(rel, repoName+"/") || !filepath.IsLocal(rel) {
+		return mountedDir{}, false
+	}
+	return mountedDir{Host: filepath.Join(hostRoot, filepath.FromSlash(rel)), Container: p}, true
 }
 
 func pluginSource(repo, marketplace, plugin string) (string, error) {

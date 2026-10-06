@@ -17,7 +17,7 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func TestDeclaredPluginDirs(t *testing.T) {
+func TestDeclaredPlugins(t *testing.T) {
 	repo := t.TempDir()
 	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), `{
   "extraKnownMarketplaces": {
@@ -41,17 +41,46 @@ func TestDeclaredPluginDirs(t *testing.T) {
   ]
 }`)
 
-	got, err := declaredPluginDirs(repo)
+	got, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace")
 	if err != nil {
-		t.Fatalf("declaredPluginDirs() error = %v", err)
+		t.Fatalf("declaredPlugins() error = %v", err)
 	}
-	want := []string{"platform/plugins/roles", "platform/plugins/slack"}
+	want := []pluginDir{{Path: "platform/plugins/roles"}, {Path: "platform/plugins/slack"}}
 	if !slices.Equal(got, want) {
-		t.Errorf("declaredPluginDirs() = %q, want %q", got, want)
+		t.Errorf("declaredPlugins() = %+v, want %+v", got, want)
 	}
 }
 
-func TestDeclaredPluginDirs_Errors(t *testing.T) {
+func TestDeclaredPlugins_BesideRepository(t *testing.T) {
+	hostRoot := t.TempDir()
+	// The session's clone may live elsewhere; only its name has to match the target's.
+	repo := filepath.Join(t.TempDir(), "app")
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), `{
+  "extraKnownMarketplaces": {
+    "shared": {"source": {"source": "directory", "path": "/workspace/kit/platform"}},
+    "self": {"source": {"source": "directory", "path": "/workspace/app/own"}},
+    "escape": {"source": {"source": "directory", "path": "/workspace/../etc"}},
+    "elsewhere": {"source": {"source": "directory", "path": "/opt/plugins"}}
+  },
+  "enabledPlugins": {"roles@shared": true, "a@self": true, "b@escape": true, "c@elsewhere": true}
+}`)
+	writeFile(t, filepath.Join(hostRoot, "kit", "platform", ".claude-plugin", "marketplace.json"),
+		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
+
+	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	if err != nil {
+		t.Fatalf("declaredPlugins() error = %v", err)
+	}
+	want := []pluginDir{{
+		Path:   "/workspace/kit/platform/plugins/roles",
+		Beside: &mountedDir{Host: filepath.Join(hostRoot, "kit", "platform"), Container: "/workspace/kit/platform"},
+	}}
+	if len(got) != 1 || got[0].Path != want[0].Path || *got[0].Beside != *want[0].Beside {
+		t.Errorf("declaredPlugins() = %+v, want %+v", got, want)
+	}
+}
+
+func TestDeclaredPlugins_Errors(t *testing.T) {
 	tests := map[string]struct {
 		settings, catalog string
 	}{
@@ -69,26 +98,26 @@ func TestDeclaredPluginDirs_Errors(t *testing.T) {
 			repo := t.TempDir()
 			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), tt.settings)
 			writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), tt.catalog)
-			if _, err := declaredPluginDirs(repo); err == nil {
-				t.Fatal("declaredPluginDirs() error = nil, want error")
+			if _, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace"); err == nil {
+				t.Fatal("declaredPlugins() error = nil, want error")
 			}
 		})
 	}
 }
 
-func TestDeclaredPluginDirs_NoSettings(t *testing.T) {
-	got, err := declaredPluginDirs(t.TempDir())
+func TestDeclaredPlugins_NoSettings(t *testing.T) {
+	got, err := declaredPlugins(t.TempDir(), "/src", "/workspace")
 	if err != nil || got != nil {
-		t.Errorf("declaredPluginDirs() = %q, %v; want nothing", got, err)
+		t.Errorf("declaredPlugins() = %+v, %v; want nothing", got, err)
 	}
 }
 
-func TestDeclaredPluginDirs_ThisRepository(t *testing.T) {
-	got, err := declaredPluginDirs(filepath.Join("..", "..", ".."))
+func TestDeclaredPlugins_ThisRepository(t *testing.T) {
+	got, err := declaredPlugins(filepath.Join("..", "..", ".."), "/src", "/workspace")
 	if err != nil {
-		t.Fatalf("declaredPluginDirs() error = %v", err)
+		t.Fatalf("declaredPlugins() error = %v", err)
 	}
-	if !slices.Contains(got, "platform/plugins/roles") {
-		t.Errorf("declaredPluginDirs() = %q, want the roles plugin", got)
+	if !slices.Contains(got, pluginDir{Path: "platform/plugins/roles"}) {
+		t.Errorf("declaredPlugins() = %+v, want the roles plugin", got)
 	}
 }

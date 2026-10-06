@@ -29,8 +29,12 @@ control-plane はさらに次の環境変数を渡す。
 ## プラグインとロール
 
 - ターゲットが使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
-  （[ADR 0004](adr/0004-plugins-declared-in-settings.md)）。control-plane は、ターゲットの中にあるマーケットプレイス
-  （`directory` で相対パスを指すもの）から有効なプラグインを `--plugin-dir` で読み込ませる。
+  （[ADR 0004](adr/0004-plugins-declared-in-settings.md)）。control-plane は、`directory` のマーケットプレイスから
+  有効なプラグインを `--plugin-dir` で読み込ませる。それ以外のマーケットプレイスのプラグインは Claude Code に任せる。
+  - ターゲットの中にあるマーケットプレイスは、相対パスで書く。
+  - 隣のリポジトリにあるマーケットプレイス（`acp-platform` など）は、devcontainer でのパス
+    `/workspace/<リポジトリ>/...` で書く。エージェントのコンテナには、control-plane がホストでターゲットの隣にある
+    そのディレクトリだけを、同じパスに読み取り専用でマウントする（[ADR 0007](adr/0007-marketplaces-beside-the-target.md)）。
 - ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
   起動する（[ADR 0003](adr/0003-roles-as-claude-code-agents.md)）。共有のロールは [platform](../platform/README.md) の
   `roles` プラグインにあり、ターゲットの `.claude/agents/<ロール名>.md` に同名の定義を置くとそちらが優先される。

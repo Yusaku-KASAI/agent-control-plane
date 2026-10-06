@@ -39,7 +39,11 @@ var (
 
 func TestContainerSpec(t *testing.T) {
 	spec := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession},
-		[]string{"platform/plugins/roles"}, Options{
+		[]pluginDir{
+			{Path: "platform/plugins/roles"},
+			{Path: "/workspace/kit/platform/plugins/slack", Beside: &mountedDir{Host: "/src/kit/platform", Container: "/workspace/kit/platform"}},
+			{Path: "/workspace/kit/platform/plugins/github", Beside: &mountedDir{Host: "/src/kit/platform", Container: "/workspace/kit/platform"}},
+		}, Options{
 			ClaudeConfigDir: "/var/lib/acp/claude", ClaudeConfigVolume: "acp-claude",
 			CredentialsDir: "/var/lib/acp/credentials", CredentialsVolume: "acp-credentials",
 		})
@@ -61,6 +65,8 @@ func TestContainerSpec(t *testing.T) {
 		"--session-id", "0f8fad5b-d9cb-469f-a165-70867728950e",
 		"--dangerously-skip-permissions",
 		"--plugin-dir", "/workspace/repo/platform/plugins/roles",
+		"--plugin-dir", "/workspace/kit/platform/plugins/slack",
+		"--plugin-dir", "/workspace/kit/platform/plugins/github",
 	}
 	if !slices.Equal(spec.Config.Cmd, wantCmd) {
 		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
@@ -83,6 +89,7 @@ func TestContainerSpec(t *testing.T) {
 			Type: mount.TypeVolume, Source: "acp-credentials", Target: "/run/acp/credentials", ReadOnly: true,
 			VolumeOptions: &mount.VolumeOptions{Subpath: "0f8fad5b-d9cb-469f-a165-70867728950e"},
 		},
+		{Type: mount.TypeBind, Source: "/src/kit/platform", Target: "/workspace/kit/platform", ReadOnly: true},
 	}
 	if len(spec.HostConfig.Mounts) != len(wantMounts) {
 		t.Fatalf("Mounts = %+v", spec.HostConfig.Mounts)
