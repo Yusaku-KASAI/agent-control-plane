@@ -66,17 +66,17 @@ func TestDeclaredPlugins_BesideRepository(t *testing.T) {
 }`)
 	writeFile(t, filepath.Join(hostRoot, "kit", "platform", ".claude-plugin", "marketplace.json"),
 		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
+	// A path into the repository itself means the session's clone, not the original beside the others.
+	writeFile(t, filepath.Join(repo, "own", ".claude-plugin", "marketplace.json"), `{"plugins": [{"name": "a", "source": "./a"}]}`)
 
 	got, err := declaredPlugins(repo, hostRoot, "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}
-	want := []pluginDir{{
-		Path:   "/workspace/kit/platform/plugins/roles",
-		Beside: &mountedDir{Host: filepath.Join(hostRoot, "kit", "platform"), Container: "/workspace/kit/platform"},
-	}}
-	if len(got) != 1 || got[0].Path != want[0].Path || *got[0].Beside != *want[0].Beside {
-		t.Errorf("declaredPlugins() = %+v, want %+v", got, want)
+	wantBeside := mountedDir{Host: filepath.Join(hostRoot, "kit", "platform"), Container: "/workspace/kit/platform"}
+	if len(got) != 2 || got[1] != (pluginDir{Path: "own/a"}) ||
+		got[0].Path != "/workspace/kit/platform/plugins/roles" || got[0].Beside == nil || *got[0].Beside != wantBeside {
+		t.Errorf("declaredPlugins() = %+v, want own/a and the roles plugin beside the repository", got)
 	}
 }
 
@@ -113,11 +113,15 @@ func TestDeclaredPlugins_NoSettings(t *testing.T) {
 }
 
 func TestDeclaredPlugins_ThisRepository(t *testing.T) {
-	got, err := declaredPlugins(filepath.Join("..", "..", ".."), "/src", "/workspace")
+	repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := declaredPlugins(repo, "/src", "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}
 	if !slices.Contains(got, pluginDir{Path: "platform/plugins/roles"}) {
-		t.Errorf("declaredPlugins() = %+v, want the roles plugin", got)
+		t.Errorf("declaredPlugins() = %+v, want the roles plugin from the session's own clone", got)
 	}
 }

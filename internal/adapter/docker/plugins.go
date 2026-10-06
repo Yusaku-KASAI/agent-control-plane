@@ -25,8 +25,7 @@ type mountedDir struct {
 }
 
 // declaredPlugins returns the plugins the repository at repo enables in .claude/settings.json from
-// directory marketplaces: one in its own tree (a relative path), or one in a repository beside it
-// (an absolute path under workspaceDir, which stands for hostRoot as in the devcontainer). Headless
+// directory marketplaces in its own tree or in a repository beside it (see marketplaceDir). Headless
 // Claude Code does not install a project's declared plugins, so they are passed with --plugin-dir.
 // Plugins from other marketplaces are left to Claude Code.
 func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
@@ -55,13 +54,13 @@ func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
 		}
 		var dir pluginDir
 		var err error
-		switch beside, isBeside := besideRepository(src.Path, filepath.Base(repo), hostRoot, workspaceDir); {
-		case local(src.Path):
-			dir.Path, err = pluginSource(repo, src.Path, plugin)
-		case isBeside:
+		switch inTree, beside := marketplaceDir(src.Path, filepath.Base(repo), hostRoot, workspaceDir); {
+		case beside != nil:
 			var rel string
 			rel, err = pluginSource(beside.Host, ".", plugin)
-			dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: &beside}
+			dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
+		case inTree != "":
+			dir.Path, err = pluginSource(repo, inTree, plugin)
 		default:
 			continue
 		}
@@ -74,15 +73,26 @@ func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
 	return dirs, nil
 }
 
-// besideRepository maps a container path under workspaceDir that is not in the repository itself
-// to the same place under hostRoot.
-func besideRepository(p, repoName, hostRoot, workspaceDir string) (mountedDir, bool) {
+// marketplaceDir resolves where a directory marketplace is: relative to the repository, or at a
+// path as in the devcontainer, where the repository is workspaceDir/<its name> and the
+// repositories beside it on the host (under hostRoot) are workspaceDir/<their names>. It returns
+// the path within the repository, or the marketplace beside it, or neither for any other path.
+func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, beside *mountedDir) {
+	if local(p) {
+		return p, nil
+	}
 	p = path.Clean(p)
 	rel, ok := strings.CutPrefix(p, workspaceDir+"/")
-	if !ok || !path.IsAbs(p) || rel == repoName || strings.HasPrefix(rel, repoName+"/") || !filepath.IsLocal(rel) {
-		return mountedDir{}, false
+	if !ok || !filepath.IsLocal(rel) {
+		return "", nil
 	}
-	return mountedDir{Host: filepath.Join(hostRoot, filepath.FromSlash(rel)), Container: p}, true
+	if rel == repoName {
+		return ".", nil
+	}
+	if own, ok := strings.CutPrefix(rel, repoName+"/"); ok {
+		return own, nil
+	}
+	return "", &mountedDir{Host: filepath.Join(hostRoot, filepath.FromSlash(rel)), Container: p}
 }
 
 func pluginSource(repo, marketplace, plugin string) (string, error) {

@@ -18,12 +18,12 @@ platform/
 
 - ターゲットは `.claude/settings.json` で使うプラグインを宣言する（[target ADR 0004](../target/adr/0004-plugins-declared-in-settings.md)）。
 - control-plane から起動するエージェントには、control-plane が宣言を読んで `--plugin-dir` で読み込ませる。
-  このリポジトリは `./platform` で宣言し、作業中のブランチの版を使う。他のターゲットは
-  `/workspace/agent-control-plane/platform` で宣言し、ホストに clone してあるこのリポジトリの版を使う。
+  どのターゲットも `acp-platform` を `/workspace/agent-control-plane/platform` で宣言する。このリポジトリの
+  エージェントは作業中のブランチの版を、他のターゲットのエージェントはホストに clone してあるこのリポジトリの版を使う。
 - 人間が対話で使うときは、最初に一度マーケットプレイスを登録してプラグインを入れる。
 
   ```bash
-  claude plugin marketplace add ./platform
+  claude plugin marketplace add /workspace/agent-control-plane/platform
   claude plugin install roles@acp-platform
   ```
 
