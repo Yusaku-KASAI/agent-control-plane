@@ -5,7 +5,8 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 ## 参照先
 
-- [docs/README.md](docs/README.md) — ドキュメントの構成と ADR
+- [docs/overview.md](docs/overview.md) — 狙い、考え方、全体の構成、目指す姿
+- [docs/README.md](docs/README.md) — ドキュメントの構成、ADR、ドキュメントと Issue の分担
 - [.devcontainer/README.md](.devcontainer/README.md) — 開発・エージェント実行環境
 - [docs/codebase/README.md](docs/codebase/README.md) — Go コードの層と書き方
 - [docs/target/README.md](docs/target/README.md#作業の進め方) — PR と Issue での作業の進め方

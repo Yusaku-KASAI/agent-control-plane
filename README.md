@@ -2,6 +2,8 @@
 
 Claude Code エージェントをコンテナで隔離して実行する制御基盤。
 
+狙い、考え方、全体の構成と目指す姿は [docs/overview.md](docs/overview.md) にある。
+
 ## 構成
 
 - `acp serve`：依頼を Slack と HTTP API で受け、エージェントのコンテナを動かすサーバー。`compose.yaml` でコンテナとして
