@@ -112,6 +112,26 @@ func TestDeclaredPlugins_NoSettings(t *testing.T) {
 	}
 }
 
+func TestDeclaredPlugins_BesideThroughSymlink(t *testing.T) {
+	hostRoot := t.TempDir()
+	writeFile(t, filepath.Join(hostRoot, "kit", "platform", ".claude-plugin", "marketplace.json"),
+		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
+	// Stands in for a marketplace not yet split out of the repository that holds it.
+	if err := os.Symlink(filepath.Join("kit", "platform"), filepath.Join(hostRoot, "platform")); err != nil {
+		t.Fatal(err)
+	}
+	repo := filepath.Join(hostRoot, "app")
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), `{
+  "extraKnownMarketplaces": {"shared": {"source": {"source": "directory", "path": "/workspace/platform"}}},
+  "enabledPlugins": {"roles@shared": true}
+}`)
+
+	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	if err != nil || len(got) != 1 || got[0].Path != "/workspace/platform/plugins/roles" {
+		t.Errorf("declaredPlugins() = %+v, %v", got, err)
+	}
+}
+
 func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 	repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
