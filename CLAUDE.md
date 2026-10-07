@@ -22,11 +22,11 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 ## 共通のルール
 
 コメントとドキュメントの書き方など、どのターゲットでも同じルールは platform の rules プラグイン
-（[platform/plugins/rules/rules/](platform/plugins/rules/rules/)）がセッションの始めに読み込ませる。
+（[platform/plugins/rules/rules/](platform/plugins/rules/rules/)）が、セッションとサブエージェントの始めに読み込ませる。
 
-## 変更の方針
+## アプリの仕様の変更
 
-このリポジトリは個人の手元だけで動き、互換を守る相手がいない。理想の形に向けてなら、記録や設定の形式、API、
+control-plane は個人の手元だけで動き、互換を守る相手がいない。理想の形に向けてなら、記録や設定の形式、API、
 コマンドを破壊的に変えてよい。今あるデータや設定の扱いは ADR に書く。
 
 ## 他のリポジトリ

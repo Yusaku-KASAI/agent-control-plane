@@ -9,6 +9,16 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md | jq -Rs '{hookSpecificOutput: {hookEventName: \"SubagentStart\", additionalContext: .}}'"
+          }
+        ]
+      }
     ]
   }
 }

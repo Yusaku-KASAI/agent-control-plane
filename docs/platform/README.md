@@ -13,7 +13,7 @@ platform/
                                     ロールが使うモデルも定義で決める（ADR 0003）
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
     github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
-    rules/                          どのターゲットでも同じルール（rules/*.md）。セッションの始めに hook で読み込ませる（ADR 0004）
+    rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
 ```
 
 ## 使われ方
