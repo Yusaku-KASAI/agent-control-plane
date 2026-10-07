@@ -8,11 +8,9 @@ services:
       target: go
       args:
         TZ: Asia/Tokyo
-        CLAUDE_CODE_VERSION: "latest"
-        GIT_DELTA_VERSION: "0.18.2"
-        ZSH_IN_DOCKER_VERSION: "1.2.0"
-        GO_VERSION: "1.27.1"
-        REPO_NAME: "agent-control-plane"
+    # Agents run this image too (image in acp.yaml).
+    image: agent-control-plane-devcontainer
+    working_dir: /workspace/agent-control-plane
     volumes:
       # Docker mounts parents first, so the repo mount below overlays this read-only one.
       - ../..:/workspace:ro
@@ -24,7 +22,6 @@ services:
       - claude-code-config:/home/node/.claude
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
-      - CLAUDE_CONFIG_DIR=/home/node/.claude
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history

@@ -17,7 +17,6 @@ jobs:
           context: .
           file: .devcontainer/Dockerfile
           target: go
-          build-args: REPO_NAME=agent-control-plane
           tags: dev-container
           load: true
           cache-from: type=gha,scope=dev-container
@@ -26,7 +25,7 @@ jobs:
       - name: make check
         run: >-
           docker run --rm
-          -v "$PWD:/workspace/agent-control-plane"
+          -v "$PWD:/workspace/agent-control-plane" -w /workspace/agent-control-plane
           dev-container
           runuser -u node -- env HOME=/home/node make check
 

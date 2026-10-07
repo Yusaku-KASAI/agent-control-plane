@@ -6,15 +6,14 @@ ARG GO_VERSION=1.27.1
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
 FROM golang:${GO_VERSION} AS go-source
 
+# Nothing here depends on the repository, so the stage can be shared by every target.
 FROM node:24 AS base
 
-ARG TZ
+ARG TZ=UTC
 ENV TZ="$TZ"
-ENV DEVCONTAINER=true
-ARG CLAUDE_CODE_VERSION=latest
 
 # Package lists are kept so a human can `docker exec -u root` and apt-get install ad hoc without a
-# rebuild. `node` gets no sudo for apt.
+# rebuild. `node` gets no sudo.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
@@ -42,13 +41,6 @@ RUN echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen \
     && locale-gen
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LESSCHARSET=utf-8
 
-ARG REPO_NAME
-# Read by docker-entrypoint.sh for UID/GID alignment.
-ENV WORKSPACE_DIR=/workspace/${REPO_NAME}
-
-RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share
-WORKDIR /workspace/${REPO_NAME}
-
 # Wired via the SYSTEM gitconfig so it survives the ~/.gitconfig VS Code copies in from the host.
 ARG GIT_DELTA_VERSION=0.18.2
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -61,31 +53,28 @@ RUN ARCH=$(dpkg --print-architecture) && \
     git config --system delta.line-numbers true
 
 COPY --from=uv-source /uv /uvx /usr/local/bin/
+COPY --chmod=755 ./.devcontainer/fix-permissions.sh ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
+RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share
 
 USER node
-
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
-
-ENV SHELL=/bin/zsh
+ENV SHELL=/bin/zsh EDITOR=nano VISUAL=nano
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
     -p fzf \
     -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
     -a "source /usr/share/doc/fzf/examples/completion.zsh" \
-    -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x
 COPY --chown=node:node ./.devcontainer/tmux.conf /home/node/.tmux.conf
 
-ENV EDITOR=nano
-ENV VISUAL=nano
-
-USER root
-COPY --chmod=755 ./.devcontainer/fix-permissions.sh ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
+# Last in the stage: it changes most often.
+ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
+ENV PATH=$PATH:/usr/local/share/npm-global/bin
+ARG CLAUDE_CODE_VERSION=2.1.292
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # Final user stays root: the entrypoint needs usermod and chown.
+USER root
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 
@@ -101,12 +90,12 @@ ARG GOPLS_VERSION=v0.23.0
 ARG DELVE_VERSION=v1.27.2
 ARG GOLANGCI_LINT_VERSION=v2.14.0
 ARG GOVULNCHECK_VERSION=v1.8.0
-RUN set -eux; \
+RUN --mount=type=cache,target=/tmp/gocache --mount=type=cache,target=/tmp/gopath/pkg/mod \
+    set -eux; \
     export GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOBIN=/usr/local/bin; \
     go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
     go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
     go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
         | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}; \
-    rm -rf /tmp/gopath /tmp/gocache; \
     go version && gopls version && dlv version && golangci-lint version && govulncheck -version
