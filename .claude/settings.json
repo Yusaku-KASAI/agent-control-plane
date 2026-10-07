@@ -52,10 +52,6 @@
     "ask": [],
     "deny": []
   },
-  "hooks": {
-    "PreToolUse": [],
-    "PostToolUse": []
-  },
   "extraKnownMarketplaces": {
     "acp-platform": {
       "source": {

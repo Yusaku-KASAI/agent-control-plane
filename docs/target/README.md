@@ -1,5 +1,63 @@
 # ターゲット
 
+このリポジトリを、エージェントが作業するターゲットとして成り立たせる環境（devcontainer、Claude Code の設定、CI、
+作業の進め方）。target-template の元になる。
+
+## devcontainer
+
+Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer) を元にした、
+人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）。
+
+### 初回セットアップ（ホストで一度だけ）
+
+```bash
+docker network create agent-control-plane-net
+docker volume create agent-control-plane_claude-code-bashhistory
+docker volume create agent-control-plane_claude-code-config
+# Build node with your UID/GID, so that the container needs no realignment at start.
+printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
+```
+
+### 方針
+
+- コンテナの振る舞いは Dockerfile、compose.yaml、entrypoint で決める。devcontainer.json は VS Code 側の
+  配線だけを持つ（[ADR 0001](adr/0001-devcontainer-independent-of-vscode.md)）。
+- `base` ステージには、リポジトリを問わずエージェントが使うもの（Node、Python と uv、シェルツール、Claude Code など）
+  だけを入れ、リポジトリ名も含めない。リポジトリ固有のツールチェーンは後段のステージに置き、リポジトリの場所は
+  compose.yaml の `working_dir` で決める。
+- Claude Code とツールの版は Dockerfile の `ARG` で固定する。上げるときは PR で変え、CI でイメージのビルドと
+  `make check` を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
+  `DISABLE_UPDATES=1` にする。
+- `node` には sudo を与えない。apt のパッケージ一覧はイメージに残し、人が `docker exec -u root` で入って一時的に
+  インストールできるようにする（[ADR 0002](adr/0002-no-sudo-for-agent-user.md)）。コンテナの中にファイアウォールは
+  置かない（[ADR 0008](adr/0008-no-in-container-firewall.md)）。
+
+### 構成
+
+- イメージは `base` → `go`（このリポジトリのツールチェーン）の 2 段で、`agent-control-plane-devcontainer` という
+  名前でビルドされる。control-plane はエージェントも同じイメージで動かす（`acp.yaml` の `target.image`）。
+- `..` を `/workspace/agent-control-plane` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
+  マウントする。隣に置いたリポジトリは参照できるが書き込めない。
+- `node` の UID と GID は、ビルドのときにホストの値（`.devcontainer/.env`）に合わせる。ずれていたとき
+  （CI など）だけ、起動時に entrypoint がリポジトリの所有者に合わせ直し、所有者の違うボリュームを直す。
+
+### Claude Code の設定
+
+`.claude/settings.json` は人が対話で使うときの設定。エージェントは `--dangerously-skip-permissions` で動くので、
+`permissions` は効かない。コンテナの隔離で守る方針なので、対話でも権限の確認を省いて（bypass）使ってよい。
+`permissions.allow` の一覧は、組織の制限などで bypass が使えない環境で確認を減らすためにある。
+
+### tmux とターミナルのベル
+
+hook のプロセスは制御端末を持たないため、hook からベルを届ける経路は `tmux list-clients` しかない。
+VS Code の既定のターミナルプロファイルが tmux なのはこのため。
+
+### VS Code の設定
+
+エディタ設定は `devcontainer.json` の `customizations.vscode.settings`（コンテナに attach したウィンドウ）と
+`.vscode/settings.json`（attach していないウィンドウ）に同じ内容で置く。ベル設定のように、片方だけだと
+効いたり効かなかったりするものがあるため。同じであることは `make lint` で確かめる。
+
 ## イメージに求めること
 
 control-plane はセッションごとにターゲットのイメージからコンテナを作り、`claude -p` を `stream-json` の

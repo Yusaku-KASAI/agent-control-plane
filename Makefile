@@ -10,6 +10,7 @@ lint:
 	go mod tidy -diff
 	govulncheck ./...
 	claude plugin validate ./platform
+	python3 .devcontainer/check-vscode-settings.py
 
 fmt:
 	golangci-lint fmt ./...
