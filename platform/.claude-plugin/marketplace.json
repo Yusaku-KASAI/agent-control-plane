@@ -19,6 +19,11 @@
       "name": "github",
       "source": "./plugins/github",
       "description": "Keep pull requests describing their branch"
+    },
+    {
+      "name": "rules",
+      "source": "./plugins/rules",
+      "description": "Rules every target's agents follow"
     }
   ]
 }
