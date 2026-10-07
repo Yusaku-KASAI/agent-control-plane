@@ -50,7 +50,7 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 }
 
 func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.Process, error) {
-	plugins, err := declaredPluginDirs(req.Session.Workspace.Path)
+	plugins, err := declaredPlugins(req.Session.Workspace.Path, filepath.Dir(req.Agent.Target.Path), workspaceDir)
 	if err != nil {
 		return nil, fmt.Errorf("read declared plugins: %w", err)
 	}
@@ -110,19 +110,23 @@ const (
 )
 
 const (
+	// workspaceDir holds the repository in the container, as in the devcontainer, where the
+	// repositories beside it are mounted too.
+	workspaceDir    = "/workspace"
 	claudeConfigDir = "/home/node/.claude"
 	credentialsDir  = "/run/acp/credentials"
 )
 
-func containerSpec(req usecase.StartRequest, plugins []string, opts Options) client.ContainerCreateOptions {
+func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
 	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
-	workdir := path.Join("/workspace", filepath.Base(agent.Target.Path))
+	workdir := path.Join(workspaceDir, filepath.Base(agent.Target.Path))
+	pluginPaths, besideMounts := pluginMounts(plugins, workdir)
 	return client.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in docs/target/README.md.
-			Cmd: claudeCommand(agent, s, workdir, plugins),
+			Cmd: claudeCommand(agent, s, pluginPaths),
 			Env: append([]string{
 				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
@@ -140,16 +144,34 @@ func containerSpec(req usecase.StartRequest, plugins []string, opts Options) cli
 			AttachStderr: true,
 		},
 		HostConfig: &container.HostConfig{
-			Mounts: []mount.Mount{
+			Mounts: append([]mount.Mount{
 				{Type: mount.TypeBind, Source: s.Workspace.Path, Target: workdir},
 				claudeConfigMount(agent.Name, opts),
 				credentialsMount(s.ID, opts),
-			},
+			}, besideMounts...),
 		},
 	}
 }
 
-func claudeCommand(agent domain.Agent, s domain.Session, workdir string, plugins []string) []string {
+// pluginMounts returns where each plugin is in the container, and read-only mounts of only the
+// marketplaces beside the repository that they come from.
+func pluginMounts(plugins []pluginDir, workdir string) ([]string, []mount.Mount) {
+	var paths []string
+	var mounts []mount.Mount
+	for _, p := range plugins {
+		if p.Beside == nil {
+			paths = append(paths, path.Join(workdir, filepath.ToSlash(p.Path)))
+			continue
+		}
+		paths = append(paths, p.Path)
+		if !slices.ContainsFunc(mounts, func(m mount.Mount) bool { return m.Target == p.Beside.Container }) {
+			mounts = append(mounts, mount.Mount{Type: mount.TypeBind, Source: p.Beside.Host, Target: p.Beside.Container, ReadOnly: true})
+		}
+	}
+	return paths, mounts
+}
+
+func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []string {
 	sessionFlag := "--resume"
 	if s.IsNew() {
 		sessionFlag = "--session-id"
@@ -166,7 +188,7 @@ func claudeCommand(agent domain.Agent, s domain.Session, workdir string, plugins
 		"--dangerously-skip-permissions",
 	}
 	for _, p := range plugins {
-		cmd = append(cmd, "--plugin-dir", path.Join(workdir, filepath.ToSlash(p)))
+		cmd = append(cmd, "--plugin-dir", p)
 	}
 	return cmd
 }
