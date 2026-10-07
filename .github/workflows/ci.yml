@@ -25,7 +25,7 @@ jobs:
       # HOME is set because runuser keeps root's environment.
       - name: make check
         run: >-
-          docker run --rm -e FIREWALL_ENABLED=false
+          docker run --rm
           -v "$PWD:/workspace/agent-control-plane"
           dev-container
           runuser -u node -- env HOME=/home/node make check

@@ -19,29 +19,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
     procps \
-    sudo \
     fzf \
     zsh \
     man-db \
     unzip \
     gnupg2 \
     gh \
-    iptables \
-    ipset \
-    iproute2 \
-    dnsutils \
-    aggregate \
     jq \
     nano \
     vim \
     tmux \
     lsof \
-    tcpdump \
     python3 \
     python3-venv \
     shellcheck \
     shfmt \
-    rsyslog \
     locales \
     && apt-get clean
 
@@ -91,24 +83,9 @@ ENV EDITOR=nano
 ENV VISUAL=nano
 
 USER root
-# Scripts stay root-owned: init-firewall.sh is a `sudo NOPASSWD` target, so node must not be
-# able to write it.
-COPY ./.devcontainer/init-firewall.sh \
-     ./.devcontainer/fix-permissions.sh \
-     ./.devcontainer/background-sync.sh \
-     ./.devcontainer/sni-capture.py \
-     ./.devcontainer/fw-show-blocked.sh \
-     ./.devcontainer/docker-entrypoint.sh \
-     /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/fix-permissions.sh \
-             /usr/local/bin/background-sync.sh /usr/local/bin/sni-capture.py \
-             /usr/local/bin/fw-show-blocked.sh /usr/local/bin/docker-entrypoint.sh && \
-    usermod -aG adm node && \
-    printf 'node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh\n' \
-        > /etc/sudoers.d/node-firewall && \
-    chmod 0440 /etc/sudoers.d/node-firewall
+COPY --chmod=755 ./.devcontainer/fix-permissions.sh ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
 
-# Final user stays root: the entrypoint needs usermod + iptables.
+# Final user stays root: the entrypoint needs usermod and chown.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 

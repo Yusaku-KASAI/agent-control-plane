@@ -117,6 +117,5 @@
   },
   "remoteUser": "node",
   // docker-entrypoint.sh owns UID/GID alignment (docs/target/adr/0001).
-  "updateRemoteUserUID": false,
-  "postAttachCommand": "/usr/local/bin/background-sync.sh"
+  "updateRemoteUserUID": false
 }

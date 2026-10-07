@@ -16,18 +16,4 @@ fi
 
 /usr/local/bin/fix-permissions.sh || true
 
-echo "[entrypoint] Starting rsyslog (for iptables LOG capture)..." >&2
-rsyslogd || echo "[entrypoint] WARNING: rsyslogd failed to start" >&2
-
-if [ "${FIREWALL_ENABLED:-true}" = "true" ]; then
-    echo "[entrypoint] Initializing firewall..." >&2
-    if /usr/local/bin/init-firewall.sh >&2; then
-        echo "[entrypoint] Firewall ready." >&2
-    else
-        echo "[entrypoint] WARNING: Firewall initialization failed. Starting without firewall." >&2
-    fi
-else
-    echo "[entrypoint] Firewall disabled (FIREWALL_ENABLED=false)." >&2
-fi
-
 exec "$@"

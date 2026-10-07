@@ -23,7 +23,6 @@ services:
       - claude-code-bashhistory:/commandhistory
       - claude-code-config:/home/node/.claude
     environment:
-      - FIREWALL_ENABLED=false
       - NODE_OPTIONS=--max-old-space-size=4096
       - CLAUDE_CONFIG_DIR=/home/node/.claude
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
@@ -32,12 +31,6 @@ services:
       # The API token is deliberately not passed: it would let this container start agents that
       # hold GitHub credentials.
       - ACP_SERVER=http://control-plane:8787
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYSLOG
-    devices:
-      - /dev/net/tun:/dev/net/tun
 
 volumes:
   dev-gh-config:

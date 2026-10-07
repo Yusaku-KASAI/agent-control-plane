@@ -130,7 +130,6 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 			Env: append([]string{
 				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
-				"FIREWALL_ENABLED=false",
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
 				"ACP_CO_AUTHORS_FILE=" + path.Join(credentialsDir, coAuthorsFile),
 			}, credentialEnv(agent.Git, req.Credentials)...),

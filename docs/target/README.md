@@ -8,7 +8,7 @@ control-plane はセッションごとにターゲットのイメージからコ
 - entrypoint が root で動き、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡す。
 - エージェントを動かすユーザー `node` と、`claude`、`runuser`、`git`、`gh` が入っている。control-plane は
   `runuser -u node -- claude ...` を実行する（Claude Code は root では権限確認を省略できないため）。
-- entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）と `FIREWALL_ENABLED` を解釈する。
+- entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）を解釈する。
 - entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 
 control-plane はさらに次の環境変数を渡す。
