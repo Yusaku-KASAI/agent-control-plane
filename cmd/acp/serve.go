@@ -130,15 +130,14 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			}
 		})
 	}
-	cleaner := usecase.NewSessionCleaner(
-		cfg.Agents,
-		sessions,
-		issuer,
-		githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
-		docker.NewSessionFiles(runnerOpts),
-		cfg.Retention,
-		time.Now,
-	)
+	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+		Agents:      cfg.Agents,
+		Sessions:    sessions,
+		Credentials: issuer,
+		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
+		Files:       docker.NewSessionFiles(runnerOpts),
+		Notifier:    observer,
+	}, cfg.Retention, time.Now)
 	running.Go(func() { cleanSessions(ctx, cleaner, time.Hour, log) })
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {
@@ -274,6 +273,17 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
 		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", e.Result.Output)
 	}
+}
+
+// Notify posts to the session's Slack thread. Sessions started elsewhere have no place to tell.
+func (o *sessionObserver) Notify(ctx context.Context, s domain.Session, text string) error {
+	o.mu.Lock()
+	bot, ok := o.bots[s.AgentName]
+	o.mu.Unlock()
+	if !ok || s.Conversation.Platform != "slack" {
+		return nil
+	}
+	return bot.Post(ctx, s.Conversation, text)
 }
 
 // credentialIssuers merges what each issuer grants the agent.

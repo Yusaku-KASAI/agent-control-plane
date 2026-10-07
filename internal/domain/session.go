@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 )
 
 var (
@@ -46,6 +47,10 @@ type Session struct {
 	Conversation Conversation
 	// Turns counts completed turns. The first turn starts the Claude Code session; later turns resume it.
 	Turns int
+	// LastUsedAt is when the session was created, last took a request or last finished a turn.
+	LastUsedAt time.Time
+	// ReviewNotifiedAt is when the thread was last told that the session is kept for an open pull request.
+	ReviewNotifiedAt time.Time
 }
 
 func (s Session) IsNew() bool {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
-	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 // Store keeps each session as <root>/<id>/session.json.
@@ -25,11 +24,13 @@ func NewStore(root string) *Store {
 }
 
 type record struct {
-	ID            string        `json:"id"`
-	Agent         string        `json:"agent"`
-	WorkspacePath string        `json:"workspace_path"`
-	Conversation  *conversation `json:"conversation,omitempty"`
-	Turns         int           `json:"turns"`
+	ID               string        `json:"id"`
+	Agent            string        `json:"agent"`
+	WorkspacePath    string        `json:"workspace_path"`
+	Conversation     *conversation `json:"conversation,omitempty"`
+	Turns            int           `json:"turns"`
+	LastUsedAt       *time.Time    `json:"last_used_at,omitempty"`
+	ReviewNotifiedAt *time.Time    `json:"review_notified_at,omitempty"`
 }
 
 type conversation struct {
@@ -57,6 +58,12 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 		Workspace: domain.Workspace{Path: r.WorkspacePath},
 		Turns:     r.Turns,
 	}
+	if r.LastUsedAt != nil {
+		sess.LastUsedAt = *r.LastUsedAt
+	}
+	if r.ReviewNotifiedAt != nil {
+		sess.ReviewNotifiedAt = *r.ReviewNotifiedAt
+	}
 	if c := r.Conversation; c != nil {
 		sess.Conversation = domain.Conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
 	}
@@ -65,10 +72,12 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 
 func (s *Store) Save(_ context.Context, sess domain.Session) error {
 	r := record{
-		ID:            string(sess.ID),
-		Agent:         string(sess.AgentName),
-		WorkspacePath: sess.Workspace.Path,
-		Turns:         sess.Turns,
+		ID:               string(sess.ID),
+		Agent:            string(sess.AgentName),
+		WorkspacePath:    sess.Workspace.Path,
+		Turns:            sess.Turns,
+		LastUsedAt:       optionalTime(sess.LastUsedAt),
+		ReviewNotifiedAt: optionalTime(sess.ReviewNotifiedAt),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
 		r.Conversation = &conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
@@ -87,12 +96,20 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 	return os.Rename(tmp, s.file(sess.ID, "session.json"))
 }
 
-// Lock uses flock, so a crashed process never leaves the session locked.
-func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
-	f, err := os.OpenFile(s.file(id, ".lock"), os.O_CREATE|os.O_RDWR, 0o644)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("%w: %s", domain.ErrSessionNotFound, id)
+func optionalTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
 	}
+	return &t
+}
+
+// Lock uses flock, so a crashed process never leaves the session locked. It creates the session's
+// directory, so that the session can be locked before it is created.
+func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
+	if err := os.MkdirAll(s.file(id), 0o755); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(s.file(id, ".lock"), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +126,7 @@ func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
 	}, nil
 }
 
-// List takes when the session was last used from the record's modification time. A directory
-// without a record is one whose creation stopped before saving it.
-func (s *Store) List(_ context.Context) ([]usecase.StoredSession, error) {
+func (s *Store) List(_ context.Context) ([]domain.SessionID, error) {
 	entries, err := os.ReadDir(s.root)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -119,25 +134,13 @@ func (s *Store) List(_ context.Context) ([]usecase.StoredSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	var list []usecase.StoredSession
+	var ids []domain.SessionID
 	for _, e := range entries {
-		id, err := domain.ParseSessionID(e.Name())
-		if err != nil || !e.IsDir() {
-			continue
+		if id, err := domain.ParseSessionID(e.Name()); err == nil && e.IsDir() {
+			ids = append(ids, id)
 		}
-		info, err := os.Stat(s.file(id, "session.json"))
-		if errors.Is(err, fs.ErrNotExist) {
-			info, err = e.Info()
-		}
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		list = append(list, usecase.StoredSession{ID: id, LastUsed: info.ModTime()})
 	}
-	return list, nil
+	return ids, nil
 }
 
 // Remove first moves the directory out of the session's path in one step, so that the session

@@ -6,13 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/filesession"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
-	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 const id domain.SessionID = "0f8fad5b-d9cb-469f-a165-70867728950e"
@@ -27,7 +25,9 @@ func TestStore_SaveFind(t *testing.T) {
 
 	want := domain.Session{
 		ID: id, AgentName: "repo-dev", Workspace: domain.Workspace{Path: "/w/repo"}, Turns: 2,
-		Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
+		Conversation:     domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
+		LastUsedAt:       time.Date(2026, 10, 7, 1, 2, 3, 4, time.UTC),
+		ReviewNotifiedAt: time.Date(2026, 10, 8, 1, 2, 3, 4, time.UTC),
 	}
 	if err := store.Save(ctx, want); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -72,10 +72,6 @@ func TestStore_ListRemove(t *testing.T) {
 	if err := store.Save(ctx, domain.Session{ID: id}); err != nil {
 		t.Fatal(err)
 	}
-	used := time.Now().Add(-48 * time.Hour).Truncate(time.Second)
-	if err := os.Chtimes(filepath.Join(root, string(id), "session.json"), used, used); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.MkdirAll(filepath.Join(root, string(orphan), "workspace"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -87,9 +83,9 @@ func TestStore_ListRemove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	slices.SortFunc(list, func(a, b usecase.StoredSession) int { return strings.Compare(string(a.ID), string(b.ID)) })
-	if len(list) != 2 || list[0].ID != id || !list[0].LastUsed.Equal(used) || list[1].ID != orphan || time.Since(list[1].LastUsed) > time.Minute {
-		t.Fatalf("List() = %+v", list)
+	slices.Sort(list)
+	if want := []domain.SessionID{id, orphan}; !slices.Equal(list, want) {
+		t.Fatalf("List() = %v, want %v", list, want)
 	}
 
 	unlock, err := store.Lock(ctx, id)
@@ -103,9 +99,6 @@ func TestStore_ListRemove(t *testing.T) {
 	if _, err := store.Find(ctx, id); !errors.Is(err, domain.ErrSessionNotFound) {
 		t.Errorf("Find() after Remove error = %v, want ErrSessionNotFound", err)
 	}
-	if _, err := store.Lock(ctx, id); !errors.Is(err, domain.ErrSessionNotFound) {
-		t.Errorf("Lock() after Remove error = %v, want ErrSessionNotFound", err)
-	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
@@ -113,4 +106,13 @@ func TestStore_ListRemove(t *testing.T) {
 	if len(entries) != 2 {
 		t.Errorf("entries after Remove = %v, want the orphan and not-a-session", entries)
 	}
+}
+
+func TestStore_LockBeforeCreation(t *testing.T) {
+	store := filesession.NewStore(filepath.Join(t.TempDir(), "sessions"))
+	unlock, err := store.Lock(context.Background(), id)
+	if err != nil {
+		t.Fatalf("Lock() of a session not yet created error = %v", err)
+	}
+	unlock()
 }

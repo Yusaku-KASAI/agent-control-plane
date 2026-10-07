@@ -26,8 +26,7 @@ type fakeSessions struct {
 	saved map[domain.SessionID]domain.Session
 	busy  bool
 	// orphans are stored sessions without a record.
-	orphans  map[domain.SessionID]bool
-	lastUsed map[domain.SessionID]time.Time
+	orphans map[domain.SessionID]bool
 	// held are sessions locked by someone outside the test; locks counts the locks the test holds.
 	held    map[domain.SessionID]bool
 	locks   map[domain.SessionID]int
@@ -75,17 +74,23 @@ func (f *fakeSessions) Lock(_ context.Context, id domain.SessionID) (func(), err
 	}, nil
 }
 
-func (f *fakeSessions) List(context.Context) ([]usecase.StoredSession, error) {
+func (f *fakeSessions) List(context.Context) ([]domain.SessionID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var list []usecase.StoredSession
+	var ids []domain.SessionID
 	for id := range f.saved {
-		list = append(list, usecase.StoredSession{ID: id, LastUsed: f.lastUsed[id]})
+		ids = append(ids, id)
 	}
 	for id := range f.orphans {
-		list = append(list, usecase.StoredSession{ID: id, LastUsed: f.lastUsed[id]})
+		ids = append(ids, id)
 	}
-	return list, nil
+	return ids, nil
+}
+
+func (f *fakeSessions) isLocked(id domain.SessionID) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.locks[id] > 0
 }
 
 func (f *fakeSessions) Remove(_ context.Context, id domain.SessionID) error {
@@ -103,9 +108,13 @@ func (f *fakeSessions) Remove(_ context.Context, id domain.SessionID) error {
 type fakeWorkspaces struct {
 	err      error
 	prepared int
+	sessions *fakeSessions
 }
 
 func (f *fakeWorkspaces) Prepare(_ context.Context, _ domain.Agent, id domain.SessionID, _ domain.Credentials) (domain.Workspace, error) {
+	if !f.sessions.isLocked(id) {
+		return domain.Workspace{}, errors.New("prepared without the lock")
+	}
 	f.prepared++
 	return domain.Workspace{Path: "/sessions/" + string(id)}, f.err
 }
@@ -359,6 +368,7 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		runner:     newFakeRunner(),
 		observer:   &fakeObserver{},
 	}
+	e.workspaces.sessions = e.sessions
 	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, opts)
 	t.Cleanup(e.d.Close)
 	return e
@@ -410,7 +420,7 @@ func TestDispatcher_NewSession(t *testing.T) {
 	p.finish("done")
 
 	o := wait(t, done)
-	if o.err != nil || o.out.Output != "done" || o.out.Session.Turns != 1 || o.out.Session.Conversation != thread {
+	if o.err != nil || o.out.Output != "done" || o.out.Session.Turns != 1 || o.out.Session.Conversation != thread || o.out.Session.LastUsedAt.IsZero() {
 		t.Fatalf("Execute() = %+v, %v", o.out, o.err)
 	}
 	if start := e.runner.starts()[0]; !start.Session.IsNew() || start.Credentials.GitHubToken != "token" {
@@ -826,10 +836,10 @@ func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
 	e.sessions.mu.Lock()
-	saves := e.sessions.saves
+	saves, used := e.sessions.saves, e.sessions.saved[existingID].LastUsedAt
 	e.sessions.mu.Unlock()
-	if saves != 1 {
-		t.Errorf("saves before the turn finished = %d, want 1", saves)
+	if saves != 1 || time.Since(used) > time.Minute {
+		t.Errorf("before the turn finished: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
 	}
 	p.finish("done")
 	wait(t, done)

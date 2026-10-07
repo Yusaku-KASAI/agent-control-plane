@@ -50,7 +50,7 @@ func TestBranches_Remove(t *testing.T) {
 						t.Errorf("pulls query = %v", r.URL.Query())
 					}
 					if r.URL.Query().Get("head") == tt.openPRFor {
-						_, _ = w.Write([]byte(`[{"number":1}]`))
+						_, _ = w.Write([]byte(`[{"number":1,"title":"Docs","html_url":"https://github.com/o/repo/pull/1"}]`))
 						return
 					}
 					_, _ = w.Write([]byte(`[]`))
@@ -73,16 +73,20 @@ func TestBranches_Remove(t *testing.T) {
 			b := NewBranches(srv.URL, srv.Client(), origin)
 
 			creds := domain.Credentials{GitHubToken: tt.token}
-			inReview, err := b.InReview(context.Background(), dev, sessionID, creds)
-			if err != nil || inReview != errors.Is(tt.wantErr, usecase.ErrBranchInReview) {
-				t.Fatalf("InReview() = %v, %v", inReview, err)
+			pulls, err := b.OpenPullRequests(context.Background(), dev, sessionID, creds)
+			wantPulls := []usecase.PullRequest(nil)
+			if tt.openPRFor != "" {
+				wantPulls = []usecase.PullRequest{{Number: 1, Title: "Docs", URL: "https://github.com/o/repo/pull/1"}}
 			}
-			err = b.Remove(context.Background(), dev, sessionID, creds)
+			if err != nil || !slices.Equal(pulls, wantPulls) {
+				t.Fatalf("OpenPullRequests() = %v, %v; want %v", pulls, err, wantPulls)
+			}
+			removed, err := b.Remove(context.Background(), dev, sessionID, creds)
 			if (tt.wantErr == nil && err != nil) || (tt.wantErr != nil && !errors.Is(err, tt.wantErr)) {
 				t.Fatalf("Remove() error = %v, want %v", err, tt.wantErr)
 			}
-			if !slices.Equal(deleted, tt.wantDeleted) {
-				t.Errorf("deleted = %v, want %v", deleted, tt.wantDeleted)
+			if !slices.Equal(deleted, tt.wantDeleted) || !slices.Equal(removed, tt.wantDeleted) {
+				t.Errorf("deleted = %v, Remove() = %v, want %v", deleted, removed, tt.wantDeleted)
 			}
 		})
 	}

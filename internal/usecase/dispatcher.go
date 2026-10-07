@@ -184,6 +184,22 @@ func (d *Dispatcher) openSession(ctx context.Context, agent domain.Agent, in Run
 	} else {
 		id = domain.NewRandomSessionID()
 	}
+	return d.createSession(ctx, agent, id, in.Conversation)
+}
+
+// createSession holds the lock while it creates the session, so that SessionCleaner can tell a
+// directory being created from one left by a failed creation.
+func (d *Dispatcher) createSession(ctx context.Context, agent domain.Agent, id domain.SessionID, conv domain.Conversation) (domain.Session, error) {
+	unlock, err := d.sessions.Lock(ctx, id)
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("lock session %s: %w", id, err)
+	}
+	defer unlock()
+	if s, err := d.sessions.Find(ctx, id); err == nil {
+		return s, s.CheckAgent(agent.Name)
+	} else if !errors.Is(err, domain.ErrSessionNotFound) {
+		return domain.Session{}, fmt.Errorf("find session %s: %w", id, err)
+	}
 
 	creds, err := d.credentials.Issue(ctx, agent)
 	if err != nil {
@@ -193,7 +209,7 @@ func (d *Dispatcher) openSession(ctx context.Context, agent domain.Agent, in Run
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("prepare workspace for agent %q: %w", agent.Name, err)
 	}
-	s := domain.Session{ID: id, AgentName: agent.Name, Workspace: ws, Conversation: in.Conversation}
+	s := domain.Session{ID: id, AgentName: agent.Name, Workspace: ws, Conversation: conv, LastUsedAt: time.Now()}
 	if err := d.sessions.Save(ctx, s); err != nil {
 		return domain.Session{}, fmt.Errorf("save session %s: %w", id, err)
 	}
@@ -220,7 +236,8 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 			unlock()
 			return fmt.Errorf("find session %s: %w", s.ID, err)
 		}
-		// Saving marks the session as used, so SessionCleaner keeps it even if no turn finishes.
+		// Marks the session as used even if no turn finishes.
+		current.LastUsedAt = time.Now()
 		if err := d.sessions.Save(ctx, current); err != nil {
 			unlock()
 			return fmt.Errorf("save session %s: %w", s.ID, err)
@@ -470,6 +487,7 @@ func (w *worker) ensureProcess() error {
 func (w *worker) finishTurn(res TurnResult) {
 	w.running = false
 	w.session.Turns++
+	w.session.LastUsedAt = time.Now()
 	err := w.d.sessions.Save(w.d.ctx, w.session)
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)

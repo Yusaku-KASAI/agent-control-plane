@@ -18,28 +18,35 @@ type SessionRepository interface {
 	Find(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Save(ctx context.Context, s domain.Session) error
 	// Lock returns an error wrapping domain.ErrSessionBusy while another turn holds the session.
+	// A session can be locked before it exists.
 	Lock(ctx context.Context, id domain.SessionID) (unlock func(), err error)
-	// List returns every stored session, including those whose creation stopped before the record was saved.
-	List(ctx context.Context) ([]StoredSession, error)
+	// List returns the IDs of every stored session, including those without a record.
+	List(ctx context.Context) ([]domain.SessionID, error)
 	// Remove deletes the session's record and workspace. The caller holds the lock.
 	Remove(ctx context.Context, id domain.SessionID) error
-}
-
-type StoredSession struct {
-	ID domain.SessionID
-	// LastUsed is when the session was last saved.
-	LastUsed time.Time
 }
 
 // ErrBranchInReview reports that a session branch has an open pull request.
 var ErrBranchInReview = errors.New("a session branch has an open pull request")
 
+type PullRequest struct {
+	Number int
+	Title  string
+	URL    string
+}
+
 type SessionBranches interface {
-	// InReview reports whether a pull request from one of the session's branches is open.
-	InReview(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (bool, error)
-	// Remove deletes the session's branches on the target's remote, or returns an error wrapping
-	// ErrBranchInReview and deletes none of them.
-	Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error
+	// OpenPullRequests returns the open pull requests from the session's branches.
+	OpenPullRequests(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]PullRequest, error)
+	// Remove deletes the session's branches on the target's remote and returns their names, or
+	// returns an error wrapping ErrBranchInReview and deletes none of them.
+	Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]string, error)
+}
+
+type SessionNotifier interface {
+	// Notify posts text where the session started. It does nothing for a session that did not
+	// start in a chat.
+	Notify(ctx context.Context, s domain.Session, text string) error
 }
 
 type SessionFiles interface {

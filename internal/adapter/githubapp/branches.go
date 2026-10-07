@@ -29,28 +29,29 @@ func NewBranches(baseURL string, httpClient *http.Client, origin func(ctx contex
 	return &Branches{baseURL: baseURL, http: httpClient, origin: origin}
 }
 
-// InReview and Remove do nothing without a GitHub token or a GitHub origin: the agent could not
-// have pushed.
-func (b *Branches) InReview(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (bool, error) {
+// OpenPullRequests and Remove do nothing without a GitHub token or a GitHub origin: the agent
+// could not have pushed.
+func (b *Branches) OpenPullRequests(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]usecase.PullRequest, error) {
 	c, branches, err := b.list(ctx, agent, id, creds)
 	if err != nil || len(branches) == 0 {
-		return false, err
+		return nil, err
 	}
-	return c.inReview(ctx, branches)
+	return c.openPullRequests(ctx, branches)
 }
 
-func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error {
+func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]string, error) {
 	c, branches, err := b.list(ctx, agent, id, creds)
 	if err != nil || len(branches) == 0 {
-		return err
+		return nil, err
 	}
-	inReview, err := c.inReview(ctx, branches)
+	pulls, err := c.openPullRequests(ctx, branches)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if inReview {
-		return usecase.ErrBranchInReview
+	if len(pulls) > 0 {
+		return nil, usecase.ErrBranchInReview
 	}
+	var removed []string
 	for _, name := range branches {
 		err := c.do(ctx, http.MethodDelete, "/git/refs/heads/"+escapeRef(name), nil)
 		// GitHub answers 422 for a branch already deleted, as when a merge deleted it meanwhile.
@@ -59,10 +60,11 @@ func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.Ses
 			continue
 		}
 		if err != nil {
-			return err
+			return removed, err
 		}
+		removed = append(removed, name)
 	}
-	return nil
+	return removed, nil
 }
 
 func (b *Branches) list(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (apiClient, []string, error) {
@@ -94,18 +96,25 @@ func (b *Branches) list(ctx context.Context, agent domain.Agent, id domain.Sessi
 	return c, branches, nil
 }
 
-func (c apiClient) inReview(ctx context.Context, branches []string) (bool, error) {
+// openPullRequests reads one page per branch: a branch is the head of at most one open pull
+// request per base, and sessions do not open many.
+func (c apiClient) openPullRequests(ctx context.Context, branches []string) ([]usecase.PullRequest, error) {
 	owner, _, _ := strings.Cut(c.repo, "/")
+	var open []usecase.PullRequest
 	for _, name := range branches {
-		var pulls []json.RawMessage
-		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=1&head="+url.QueryEscape(owner+":"+name), &pulls); err != nil {
-			return false, err
+		var pulls []struct {
+			Number  int    `json:"number"`
+			Title   string `json:"title"`
+			HTMLURL string `json:"html_url"`
 		}
-		if len(pulls) > 0 {
-			return true, nil
+		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&head="+url.QueryEscape(owner+":"+name), &pulls); err != nil {
+			return nil, err
+		}
+		for _, p := range pulls {
+			open = append(open, usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL})
 		}
 	}
-	return false, nil
+	return open, nil
 }
 
 func escapeRef(name string) string {
