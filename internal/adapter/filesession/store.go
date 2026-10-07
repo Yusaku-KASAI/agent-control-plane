@@ -104,26 +104,52 @@ func optionalTime(t time.Time) *time.Time {
 }
 
 // Lock uses flock, so a crashed process never leaves the session locked. It creates the session's
-// directory, so that the session can be locked before it is created.
+// directory, so that the session can be locked before it is created. Remove moves the directory
+// away under the lock, so a lock taken on the moved file is dropped and taken again.
 func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
-	if err := os.MkdirAll(s.file(id), 0o755); err != nil {
-		return nil, err
+	for {
+		unlock, current, err := s.lockOnce(id)
+		if err != nil || current {
+			return unlock, err
+		}
+		unlock()
 	}
-	f, err := os.OpenFile(s.file(id, ".lock"), os.O_CREATE|os.O_RDWR, 0o644)
+}
+
+func (s *Store) lockOnce(id domain.SessionID) (unlock func(), current bool, err error) {
+	if err := os.MkdirAll(s.file(id), 0o755); err != nil {
+		return nil, false, err
+	}
+	path := s.file(id, ".lock")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("%w: %s", domain.ErrSessionBusy, id)
+			return nil, false, fmt.Errorf("%w: %s", domain.ErrSessionBusy, id)
 		}
-		return nil, err
+		return nil, false, err
 	}
-	return func() {
+	unlock = func() {
 		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 		_ = f.Close()
-	}, nil
+	}
+	locked, err := f.Stat()
+	if err != nil {
+		unlock()
+		return nil, false, err
+	}
+	now, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return unlock, false, nil
+	}
+	if err != nil {
+		unlock()
+		return nil, false, err
+	}
+	return unlock, os.SameFile(locked, now), nil
 }
 
 func (s *Store) List(_ context.Context) ([]domain.SessionID, error) {

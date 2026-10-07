@@ -86,11 +86,12 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		return false, err
 	}
 	if s.LastUsedAt.IsZero() {
-		// A record from before LastUsedAt existed counts as used now.
-		return false, c.update(ctx, id, func(s *domain.Session) error {
-			s.LastUsedAt = c.now()
-			return nil
-		})
+		// A record without LastUsedAt counts as used when first seen.
+		err := c.update(ctx, id, func(s *domain.Session) { s.LastUsedAt = c.now() })
+		if errors.Is(err, domain.ErrSessionNotFound) {
+			return false, nil
+		}
+		return false, err
 	}
 	cutoff := c.now().Add(-c.retention)
 	if !s.LastUsedAt.Before(cutoff) {
@@ -110,7 +111,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	}
 	if len(pulls) > 0 {
 		if s.ReviewNotifiedAt.Before(cutoff) {
-			if err := c.notifyInReview(ctx, id, pulls); err != nil {
+			if err := c.notifyInReview(ctx, s, pulls); err != nil {
 				return false, err
 			}
 		}
@@ -169,19 +170,16 @@ func (c *SessionCleaner) removeUnsaved(ctx context.Context, id domain.SessionID)
 	return true, c.sessions.Remove(ctx, id)
 }
 
-// notifyInReview records the notice only once it is posted, so that a failed one is retried.
-func (c *SessionCleaner) notifyInReview(ctx context.Context, id domain.SessionID, pulls []PullRequest) error {
-	return c.update(ctx, id, func(s *domain.Session) error {
-		if err := c.notifier.Notify(ctx, *s, c.inReviewText(*s, pulls)); err != nil {
-			return fmt.Errorf("notify pull requests: %w", err)
-		}
-		s.ReviewNotifiedAt = c.now()
-		return nil
-	})
+// notifyInReview posts without the lock, so that requests need not wait for Slack, and records the
+// notice only once it is posted, so that a failed one is retried.
+func (c *SessionCleaner) notifyInReview(ctx context.Context, s domain.Session, pulls []PullRequest) error {
+	if err := c.notifier.Notify(ctx, s, c.inReviewText(s, pulls)); err != nil {
+		return fmt.Errorf("notify pull requests: %w", err)
+	}
+	return c.update(ctx, s.ID, func(s *domain.Session) { s.ReviewNotifiedAt = c.now() })
 }
 
-// update changes the record under the lock and saves it unless change fails.
-func (c *SessionCleaner) update(ctx context.Context, id domain.SessionID, change func(s *domain.Session) error) error {
+func (c *SessionCleaner) update(ctx context.Context, id domain.SessionID, change func(s *domain.Session)) error {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
 		return err
@@ -191,9 +189,7 @@ func (c *SessionCleaner) update(ctx context.Context, id domain.SessionID, change
 	if err != nil {
 		return err
 	}
-	if err := change(&s); err != nil {
-		return err
-	}
+	change(&s)
 	return c.sessions.Save(ctx, s)
 }
 
@@ -202,26 +198,27 @@ func (c *SessionCleaner) removedText(s domain.Session, branches []string) string
 	for _, b := range branches {
 		removed += fmt.Sprintf("、ブランチ `%s`", b)
 	}
-	return fmt.Sprintf("このスレッドのセッションは%sのあいだ使われなかったため片付けました（最後に使ったのは %s）。\n\n"+
+	return fmt.Sprintf("このスレッドのセッションは、最後に使ってから%sたったため片付けました。\n\n"+
 		"消したもの：%s\n\nこのスレッドで続けて依頼すると、前の会話を引き継がない新しいセッションとして始まります。",
-		c.period(), s.LastUsedAt.Format("2006-01-02 15:04 MST"), removed)
+		c.since(s), removed)
 }
 
 func (c *SessionCleaner) inReviewText(s domain.Session, pulls []PullRequest) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "このスレッドのセッションは%sのあいだ使われていませんが、次の PR が開いているため残しています（最後に使ったのは %s）。\n\n",
-		c.period(), s.LastUsedAt.Format("2006-01-02 15:04 MST"))
+	fmt.Fprintf(&b, "このスレッドのセッションは、最後に使ってから%sたちましたが、次の PR が開いているため残しています。\n\n", c.since(s))
 	for _, p := range pulls {
-		fmt.Fprintf(&b, "- [#%d %s](%s)\n", p.Number, p.Title, p.URL)
+		fmt.Fprintf(&b, "- #%d %s %s\n", p.Number, p.Title, p.URL)
 	}
 	b.WriteString("\nマージするか閉じると、次の片付けでセッションを消します。続ける場合は、このスレッドで依頼してください。")
 	return b.String()
 }
 
-func (c *SessionCleaner) period() string {
+// since tells how long ago the session was last used, in days when at least one.
+func (c *SessionCleaner) since(s domain.Session) string {
 	const day = 24 * time.Hour
-	if c.retention%day == 0 {
-		return fmt.Sprintf(" %d 日", c.retention/day)
+	d := c.now().Sub(s.LastUsedAt)
+	if d >= day {
+		return fmt.Sprintf(" %d 日", d/day)
 	}
-	return " " + c.retention.String()
+	return " " + d.Round(time.Minute).String()
 }

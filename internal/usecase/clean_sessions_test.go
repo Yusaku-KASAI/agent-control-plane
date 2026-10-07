@@ -211,3 +211,28 @@ func sortedCopy(ids []domain.SessionID) []domain.SessionID {
 	slices.Sort(ids)
 	return ids
 }
+
+func TestSessionCleaner_KeepsSessionUsedMeanwhile(t *testing.T) {
+	e := newCleanEnv()
+	e.sessions.saved[existingID] = domain.Session{ID: existingID, AgentName: dev.Name, LastUsedAt: e.now.Add(-2 * retention)}
+	e.sessions.onLock = func(id domain.SessionID) {
+		e.sessions.onLock = nil
+		s := e.sessions.saved[id]
+		s.LastUsedAt = e.now
+		e.sessions.saved[id] = s
+	}
+	report, err := e.cleaner.Clean(context.Background())
+	if err != nil || len(report.Removed) != 0 || len(e.branches.removed) != 0 {
+		t.Fatalf("Clean() = %+v, %v, branches removed %v; want the session kept", report, err, e.branches.removed)
+	}
+}
+
+func TestSessionCleaner_RemovesEvenIfNoticeFails(t *testing.T) {
+	e := newCleanEnv()
+	e.sessions.saved[existingID] = domain.Session{ID: existingID, AgentName: dev.Name, LastUsedAt: e.now.Add(-2 * retention)}
+	e.notifier.err = errors.New("slack is down")
+	report, err := e.cleaner.Clean(context.Background())
+	if err == nil || !slices.Equal(report.Removed, []domain.SessionID{existingID}) {
+		t.Fatalf("Clean() = %+v, %v; want the session removed and the failed notice reported", report, err)
+	}
+}

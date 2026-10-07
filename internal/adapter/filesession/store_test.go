@@ -116,3 +116,28 @@ func TestStore_LockBeforeCreation(t *testing.T) {
 	}
 	unlock()
 }
+
+// A lock taken on the file Remove moved away must not count as a lock on the new session.
+func TestStore_LockAfterRemoveIsFresh(t *testing.T) {
+	ctx := context.Background()
+	store := filesession.NewStore(t.TempDir())
+	if err := store.Save(ctx, domain.Session{ID: id}); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Remove(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() after Remove while the old lock is held error = %v", err)
+	}
+	if _, err := store.Lock(ctx, id); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Errorf("third Lock() error = %v, want ErrSessionBusy", err)
+	}
+	second()
+	unlock()
+}

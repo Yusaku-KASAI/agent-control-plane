@@ -17,7 +17,7 @@ type SessionRepository interface {
 	// Find returns an error wrapping domain.ErrSessionNotFound when the session does not exist.
 	Find(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Save(ctx context.Context, s domain.Session) error
-	// Lock returns an error wrapping domain.ErrSessionBusy while another turn holds the session.
+	// Lock returns an error wrapping domain.ErrSessionBusy while someone else holds the session.
 	// A session can be locked before it exists.
 	Lock(ctx context.Context, id domain.SessionID) (unlock func(), err error)
 	// List returns the IDs of every stored session, including those without a record.

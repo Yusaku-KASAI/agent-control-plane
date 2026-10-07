@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrSessionNotFound      = errors.New("session not found")
-	ErrSessionBusy          = errors.New("session is running another turn")
+	ErrSessionBusy          = errors.New("session is in use")
 	ErrSessionAgentMismatch = errors.New("session belongs to another agent")
 )
 
