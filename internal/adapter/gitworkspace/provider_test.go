@@ -148,3 +148,17 @@ func gitOutput(t *testing.T, dir string, args ...string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+func TestOrigin(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	if got, err := gitworkspace.Origin(ctx, f.source); err != nil || got != f.remote {
+		t.Errorf("Origin(clone) = %q, %v; want %q", got, err, f.remote)
+	}
+	if got, err := gitworkspace.Origin(ctx, f.remote); err != nil || got != "" {
+		t.Errorf("Origin(no origin) = %q, %v; want empty", got, err)
+	}
+	if _, err := gitworkspace.Origin(ctx, t.TempDir()); err == nil {
+		t.Error("Origin(not a repository) succeeded")
+	}
+}

@@ -9,8 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 // Store keeps each session as <root>/<id>/session.json.
@@ -88,6 +90,9 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 // Lock uses flock, so a crashed process never leaves the session locked.
 func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
 	f, err := os.OpenFile(s.file(id, ".lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s", domain.ErrSessionNotFound, id)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +108,60 @@ func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
 		_ = f.Close()
 	}, nil
 }
+
+// List takes when the session was last used from the record's modification time, since the
+// record is saved when the session is created and after every turn. A directory without a record
+// is one whose creation stopped before saving it.
+func (s *Store) List(_ context.Context) ([]usecase.StoredSession, error) {
+	entries, err := os.ReadDir(s.root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var list []usecase.StoredSession
+	for _, e := range entries {
+		id, err := domain.ParseSessionID(e.Name())
+		if err != nil || !e.IsDir() {
+			continue
+		}
+		info, err := os.Stat(s.file(id, "session.json"))
+		if errors.Is(err, fs.ErrNotExist) {
+			info, err = e.Info()
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, usecase.StoredSession{ID: id, LastUsed: info.ModTime()})
+	}
+	return list, nil
+}
+
+// Remove first moves the directory out of the session's path in one step, so that the session
+// is gone at once and a new one with the same ID can be created while the old files are deleted.
+// It also deletes what earlier calls failed to.
+func (s *Store) Remove(_ context.Context, id domain.SessionID) error {
+	trash := filepath.Join(s.root, fmt.Sprintf("%s%s-%d", removedPrefix, id, time.Now().UnixNano()))
+	err := os.Rename(s.file(id), trash)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	removed, err := filepath.Glob(filepath.Join(s.root, removedPrefix+"*"))
+	if err != nil {
+		return err
+	}
+	var errs error
+	for _, dir := range removed {
+		errs = errors.Join(errs, os.RemoveAll(dir))
+	}
+	return errs
+}
+
+const removedPrefix = ".removed-"
 
 func (s *Store) file(id domain.SessionID, name ...string) string {
 	return filepath.Join(append([]string{s.root, string(id)}, name...)...)

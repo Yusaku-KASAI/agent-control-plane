@@ -98,13 +98,21 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	if err != nil {
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
+	reply := make(chan turnReply, 1)
+	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply}
 	session, err := d.openSession(ctx, agent, in)
 	if err != nil {
 		return RunAgentOutput{}, err
 	}
-
-	reply := make(chan turnReply, 1)
-	if err := d.submit(ctx, agent, session, request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply}); err != nil {
+	err = d.submit(ctx, agent, session, r)
+	if errors.Is(err, domain.ErrSessionNotFound) && in.CreateIfMissing {
+		// The session was cleaned up after openSession found it.
+		if session, err = d.openSession(ctx, agent, in); err != nil {
+			return RunAgentOutput{}, err
+		}
+		err = d.submit(ctx, agent, session, r)
+	}
+	if err != nil {
 		return RunAgentOutput{Session: session}, err
 	}
 	select {
@@ -205,6 +213,11 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		unlock, err := d.sessions.Lock(ctx, s.ID)
 		if err != nil {
 			return fmt.Errorf("lock session %s: %w", s.ID, err)
+		}
+		// The session may have been removed by SessionCleaner, which holds the lock while it does.
+		if _, err := d.sessions.Find(ctx, s.ID); err != nil {
+			unlock()
+			return fmt.Errorf("find session %s: %w", s.ID, err)
 		}
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,

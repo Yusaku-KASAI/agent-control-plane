@@ -25,6 +25,15 @@ type fakeSessions struct {
 	mu    sync.Mutex
 	saved map[domain.SessionID]domain.Session
 	busy  bool
+	// orphans are stored sessions without a record.
+	orphans  map[domain.SessionID]bool
+	lastUsed map[domain.SessionID]time.Time
+	// held are sessions locked by someone outside the test; locks counts the locks the test holds.
+	held    map[domain.SessionID]bool
+	locks   map[domain.SessionID]int
+	removed []domain.SessionID
+	// onLock runs before Lock takes the lock.
+	onLock func(id domain.SessionID)
 }
 
 func (f *fakeSessions) Find(_ context.Context, id domain.SessionID) (domain.Session, error) {
@@ -44,11 +53,49 @@ func (f *fakeSessions) Save(_ context.Context, s domain.Session) error {
 	return nil
 }
 
-func (f *fakeSessions) Lock(context.Context, domain.SessionID) (func(), error) {
-	if f.busy {
+func (f *fakeSessions) Lock(_ context.Context, id domain.SessionID) (func(), error) {
+	if f.onLock != nil {
+		f.onLock(id)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.busy || f.held[id] {
 		return nil, domain.ErrSessionBusy
 	}
-	return func() {}, nil
+	if f.locks == nil {
+		f.locks = make(map[domain.SessionID]int)
+	}
+	f.locks[id]++
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.locks[id]--
+	}, nil
+}
+
+func (f *fakeSessions) List(context.Context) ([]usecase.StoredSession, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var list []usecase.StoredSession
+	for id := range f.saved {
+		list = append(list, usecase.StoredSession{ID: id, LastUsed: f.lastUsed[id]})
+	}
+	for id := range f.orphans {
+		list = append(list, usecase.StoredSession{ID: id, LastUsed: f.lastUsed[id]})
+	}
+	return list, nil
+}
+
+func (f *fakeSessions) Remove(_ context.Context, id domain.SessionID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.locks[id] == 0 {
+		return errors.New("removed without the lock")
+	}
+	delete(f.saved, id)
+	delete(f.orphans, id)
+	f.removed = append(f.removed, id)
+	return nil
 }
 
 type fakeWorkspaces struct {

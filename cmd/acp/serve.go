@@ -75,19 +75,21 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		slackauth.NewIssuer(slackTokens),
 	}
 
+	sessions := filesession.NewStore(cfg.SessionsRoot)
+	runnerOpts := docker.Options{
+		ClaudeConfigDir:    cfg.Claude.ConfigDir,
+		ClaudeConfigVolume: cfg.Claude.ConfigVolume,
+		CredentialsDir:     cfg.Credentials.Dir,
+		CredentialsVolume:  cfg.Credentials.Volume,
+	}
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
-		filesession.NewStore(cfg.SessionsRoot),
+		sessions,
 		gitworkspace.NewProvider(cfg.SessionsRoot),
 		issuer,
 		cfg.People,
-		docker.NewRunner(dockerClient, docker.Options{
-			ClaudeConfigDir:    cfg.Claude.ConfigDir,
-			ClaudeConfigVolume: cfg.Claude.ConfigVolume,
-			CredentialsDir:     cfg.Credentials.Dir,
-			CredentialsVolume:  cfg.Credentials.Volume,
-		}),
+		docker.NewRunner(dockerClient, runnerOpts),
 		observer,
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
@@ -128,6 +130,16 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			}
 		})
 	}
+	cleaner := usecase.NewSessionCleaner(
+		cfg.Agents,
+		sessions,
+		issuer,
+		githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
+		docker.NewSessionFiles(runnerOpts),
+		cfg.Retention,
+		time.Now,
+	)
+	running.Go(func() { cleanSessions(ctx, cleaner, time.Hour, log) })
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {
 			log.Error("slack token refresh failed", "agent", name, "err", err)
@@ -157,6 +169,26 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		return nil
 	}
 	return runErr
+}
+
+// cleanSessions cleans at start and then every interval until ctx is done.
+func cleanSessions(ctx context.Context, cleaner *usecase.SessionCleaner, interval time.Duration, log *slog.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		report, err := cleaner.Clean(ctx)
+		if len(report.Removed) > 0 {
+			log.Info("removed unused sessions", "sessions", report.Removed)
+		}
+		if err != nil && ctx.Err() == nil {
+			log.Error("cleaning up unused sessions failed", "err", err)
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {

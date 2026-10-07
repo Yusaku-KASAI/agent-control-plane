@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -18,6 +19,31 @@ type SessionRepository interface {
 	Save(ctx context.Context, s domain.Session) error
 	// Lock returns an error wrapping domain.ErrSessionBusy while another turn holds the session.
 	Lock(ctx context.Context, id domain.SessionID) (unlock func(), err error)
+	// List returns every stored session, including those whose creation stopped before the record was saved.
+	List(ctx context.Context) ([]StoredSession, error)
+	// Remove deletes the session's record and workspace. The caller holds the lock.
+	Remove(ctx context.Context, id domain.SessionID) error
+}
+
+type StoredSession struct {
+	ID domain.SessionID
+	// LastUsed is when the session was created or last finished a turn.
+	LastUsed time.Time
+}
+
+// ErrBranchInReview reports that a session branch has an open pull request.
+var ErrBranchInReview = errors.New("a session branch has an open pull request")
+
+type SessionBranches interface {
+	// Remove deletes the session's branches on the target's remote, or returns an error wrapping
+	// ErrBranchInReview and deletes none of them.
+	Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error
+}
+
+type SessionFiles interface {
+	// Remove deletes what the runner keeps for the session outside its workspace, such as its
+	// credentials and the agent's conversation history.
+	Remove(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
 }
 
 type WorkspaceProvider interface {

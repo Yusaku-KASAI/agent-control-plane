@@ -111,3 +111,16 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
+// Origin returns the origin URL of the repository at path, or "" when it has none.
+func Origin(ctx context.Context, path string) (string, error) {
+	g := gitRunner{}
+	if _, err := g.run(ctx, path, "rev-parse", "--git-dir"); err != nil {
+		return "", err
+	}
+	url, err := g.run(ctx, path, "remote", "get-url", "origin")
+	if err != nil {
+		return "", nil
+	}
+	return url, nil
+}
