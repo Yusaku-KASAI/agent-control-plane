@@ -164,7 +164,9 @@ hook_stop() {
     echo "$remote" >"$state"
     return 0
   fi
-  jq -n --arg reason "$(stale_message "$pr" "$remote")" '{decision: "block", reason: $reason}'
+  # The turn's last message is the answer the requester reads, so it has to be the whole report again.
+  jq -n --arg reason "$(stale_message "$pr" "$remote") Then end with your full answer to the request again (what was asked, what you changed and why, what you checked, the PR), not only this update." \
+    '{decision: "block", reason: $reason}'
 }
 
 cmd_hook() {
