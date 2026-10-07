@@ -70,12 +70,13 @@ COPY --chown=node:node ./.devcontainer/tmux.conf /home/node/.tmux.conf
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=/home/node/.local/bin:$PATH:/usr/local/share/npm-global/bin
 
-# Last in the stage: it changes most often. Claude Code updates itself unless told not to, which
-# would replace the pinned version.
-ENV DISABLE_UPDATES=1
+# Last in the stage: it changes most often.
 ARG CLAUDE_CODE_VERSION=2.1.292
 RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}" \
     && claude --version | grep -q "^${CLAUDE_CODE_VERSION} "
+# Claude Code updates itself unless told not to, which would replace the pinned version. Set after
+# the install, which it would also block.
+ENV DISABLE_UPDATES=1
 
 # Final user stays root: the entrypoint needs usermod and chown.
 USER root
