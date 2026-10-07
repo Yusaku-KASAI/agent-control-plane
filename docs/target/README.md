@@ -65,5 +65,7 @@ PR と main への push ごとに、devcontainer のイメージの中で `make 
 
   - sub-issues は、大きな作業を手順に分けるときだけ使う。
   - 検討中の設計は Issue に書き、決まったら ADR にする。
+  - 気づいているリスクや、壊してはいけない前提は、会話や依頼文だけでなく Issue の本文に書く。作業するエージェントは
+    Issue とリポジトリから読み取れることしか知らない。
 - PR の作成と更新は platform の github スキル（`prctl`）に従う。PR が Issue を片付けるときは、本文に
   `Closes #<番号>` と書く。
