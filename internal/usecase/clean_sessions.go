@@ -72,19 +72,14 @@ func (c *SessionCleaner) Clean(ctx context.Context) (CleanReport, error) {
 	return report, errs
 }
 
-// remove deletes the record last: while it exists the session ID still maps to this session, so
-// a new session with the same ID cannot start beside remains of the old one.
+// remove checks for open pull requests before taking the lock, so that a session kept for review
+// is not locked against requests while GitHub answers. It deletes the record last: while the
+// record exists the session ID still maps to this session, so a new session with the same ID
+// cannot start beside remains of the old one.
 func (c *SessionCleaner) remove(ctx context.Context, id domain.SessionID) error {
-	unlock, err := c.sessions.Lock(ctx, id)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
-		// Creation stopped before the record was saved, so nothing else exists.
-		return c.sessions.Remove(ctx, id)
+		return c.removeUnsaved(ctx, id)
 	}
 	if err != nil {
 		return err
@@ -97,6 +92,19 @@ func (c *SessionCleaner) remove(ctx context.Context, id domain.SessionID) error 
 	if err != nil {
 		return fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
 	}
+	inReview, err := c.branches.InReview(ctx, agent, id, creds)
+	if err != nil {
+		return fmt.Errorf("check branches: %w", err)
+	}
+	if inReview {
+		return ErrBranchInReview
+	}
+
+	unlock, err := c.sessions.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if err := c.branches.Remove(ctx, agent, id, creds); err != nil {
 		return fmt.Errorf("remove branches: %w", err)
 	}
@@ -107,4 +115,18 @@ func (c *SessionCleaner) remove(ctx context.Context, id domain.SessionID) error 
 		return fmt.Errorf("remove session: %w", err)
 	}
 	return nil
+}
+
+// removeUnsaved removes a session whose creation stopped before the record was saved, so that
+// nothing else of it exists.
+func (c *SessionCleaner) removeUnsaved(ctx context.Context, id domain.SessionID) error {
+	unlock, err := c.sessions.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if _, err := c.sessions.Find(ctx, id); !errors.Is(err, domain.ErrSessionNotFound) {
+		return fmt.Errorf("%w: being created", domain.ErrSessionBusy)
+	}
+	return c.sessions.Remove(ctx, id)
 }

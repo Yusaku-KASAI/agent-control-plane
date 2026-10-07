@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,26 +29,60 @@ func NewBranches(baseURL string, httpClient *http.Client, origin func(ctx contex
 	return &Branches{baseURL: baseURL, http: httpClient, origin: origin}
 }
 
-// Remove does nothing without a GitHub token or a GitHub origin: the agent could not have pushed.
-func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error {
-	if creds.GitHubToken == "" {
-		return nil
+// InReview and Remove do nothing without a GitHub token or a GitHub origin: the agent could not
+// have pushed.
+func (b *Branches) InReview(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (bool, error) {
+	c, branches, err := b.list(ctx, agent, id, creds)
+	if err != nil || len(branches) == 0 {
+		return false, err
 	}
-	origin, err := b.origin(ctx, agent.Target.Path)
+	return c.inReview(ctx, branches)
+}
+
+func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error {
+	c, branches, err := b.list(ctx, agent, id, creds)
+	if err != nil || len(branches) == 0 {
+		return err
+	}
+	inReview, err := c.inReview(ctx, branches)
 	if err != nil {
 		return err
 	}
+	if inReview {
+		return usecase.ErrBranchInReview
+	}
+	for _, name := range branches {
+		err := c.do(ctx, http.MethodDelete, "/git/refs/heads/"+escapeRef(name), nil)
+		// GitHub answers 422 for a branch already deleted, as when a merge deleted it meanwhile.
+		var status statusError
+		if errors.As(err, &status) && (status.code == http.StatusNotFound || status.code == http.StatusUnprocessableEntity) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Branches) list(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (apiClient, []string, error) {
+	if creds.GitHubToken == "" {
+		return apiClient{}, nil, nil
+	}
+	origin, err := b.origin(ctx, agent.Target.Path)
+	if err != nil {
+		return apiClient{}, nil, err
+	}
 	repo, ok := parseRepo(origin)
 	if !ok {
-		return nil
+		return apiClient{}, nil, nil
 	}
 	c := apiClient{baseURL: b.baseURL, http: b.http, token: creds.GitHubToken, repo: repo}
-
 	var refs []struct {
 		Ref string `json:"ref"`
 	}
-	if err := c.do(ctx, http.MethodGet, "/git/matching-refs/heads/"+id.Branch(), &refs); err != nil {
-		return err
+	if err := c.do(ctx, http.MethodGet, "/git/matching-refs/heads/"+escapeRef(id.Branch()), &refs); err != nil {
+		return apiClient{}, nil, err
 	}
 	var branches []string
 	for _, r := range refs {
@@ -56,22 +91,29 @@ func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.Ses
 			branches = append(branches, name)
 		}
 	}
+	return c, branches, nil
+}
+
+func (c apiClient) inReview(ctx context.Context, branches []string) (bool, error) {
+	owner, _, _ := strings.Cut(c.repo, "/")
 	for _, name := range branches {
 		var pulls []json.RawMessage
-		head := url.QueryEscape(strings.SplitN(repo, "/", 2)[0] + ":" + name)
-		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=1&head="+head, &pulls); err != nil {
-			return err
+		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=1&head="+url.QueryEscape(owner+":"+name), &pulls); err != nil {
+			return false, err
 		}
 		if len(pulls) > 0 {
-			return fmt.Errorf("%w: %s", usecase.ErrBranchInReview, name)
+			return true, nil
 		}
 	}
-	for _, name := range branches {
-		if err := c.do(ctx, http.MethodDelete, "/git/refs/heads/"+name, nil); err != nil {
-			return err
-		}
+	return false, nil
+}
+
+func escapeRef(name string) string {
+	parts := strings.Split(name, "/")
+	for i, p := range parts {
+		parts[i] = url.PathEscape(p)
 	}
-	return nil
+	return strings.Join(parts, "/")
 }
 
 var repoPattern = regexp.MustCompile(`^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)([^/]+/[^/]+?)(?:\.git)?/?$`)
@@ -110,10 +152,17 @@ func (c apiClient) do(ctx context.Context, method, path string, out any) error {
 		return err
 	}
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("github %s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(body))
+		return statusError{code: resp.StatusCode, msg: fmt.Sprintf("github %s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(body))}
 	}
 	if out == nil {
 		return nil
 	}
 	return json.Unmarshal(body, out)
 }
+
+type statusError struct {
+	code int
+	msg  string
+}
+
+func (e statusError) Error() string { return e.msg }

@@ -16,17 +16,28 @@ type fakeBranches struct {
 	inReview map[domain.SessionID]bool
 	err      error
 	removed  []domain.SessionID
+	sessions *fakeSessions
+}
+
+func (f *fakeBranches) InReview(_ context.Context, _ domain.Agent, id domain.SessionID, creds domain.Credentials) (bool, error) {
+	if creds.GitHubToken == "" {
+		return false, errors.New("no token")
+	}
+	if f.sessions.locks[id] > 0 {
+		return false, errors.New("checked under the lock")
+	}
+	return f.inReview[id], f.err
 }
 
 func (f *fakeBranches) Remove(_ context.Context, _ domain.Agent, id domain.SessionID, creds domain.Credentials) error {
 	if creds.GitHubToken == "" {
 		return errors.New("no token")
 	}
+	if f.sessions.locks[id] == 0 {
+		return errors.New("removed without the lock")
+	}
 	if f.inReview[id] {
 		return fmt.Errorf("%w: %s", usecase.ErrBranchInReview, id.Branch())
-	}
-	if f.err != nil {
-		return f.err
 	}
 	f.removed = append(f.removed, id)
 	return nil
@@ -74,7 +85,7 @@ func TestSessionCleaner_Clean(t *testing.T) {
 		},
 		held: map[domain.SessionID]bool{inUse: true},
 	}
-	branches := &fakeBranches{inReview: map[domain.SessionID]bool{review: true}}
+	branches := &fakeBranches{inReview: map[domain.SessionID]bool{review: true}, sessions: sessions}
 	files := &fakeFiles{sessions: sessions}
 	cleaner := usecase.NewSessionCleaner(fakeRegistry{dev.Name: dev}, sessions, &fakeIssuer{}, branches, files, retention, func() time.Time { return now })
 
@@ -112,7 +123,7 @@ func TestSessionCleaner_KeepsSessionWhenBranchesFail(t *testing.T) {
 	}
 	files := &fakeFiles{sessions: sessions}
 	cleaner := usecase.NewSessionCleaner(fakeRegistry{dev.Name: dev}, sessions, &fakeIssuer{},
-		&fakeBranches{err: errors.New("github is down")}, files, time.Hour, func() time.Time { return now })
+		&fakeBranches{err: errors.New("github is down"), sessions: sessions}, files, time.Hour, func() time.Time { return now })
 
 	report, err := cleaner.Clean(context.Background())
 	if err == nil || len(report.Removed) != 0 {
@@ -120,24 +131,5 @@ func TestSessionCleaner_KeepsSessionWhenBranchesFail(t *testing.T) {
 	}
 	if _, err := sessions.Find(context.Background(), existingID); err != nil || len(files.removed) != 0 {
 		t.Errorf("session was partly removed: find error = %v, files removed = %v", err, files.removed)
-	}
-}
-
-func TestDispatcher_SessionRemovedBeforeLock(t *testing.T) {
-	e := newEnv(t, usecase.DispatcherOptions{})
-	e.sessions.onLock = func(id domain.SessionID) {
-		e.sessions.onLock = nil
-		e.sessions.mu.Lock()
-		defer e.sessions.mu.Unlock()
-		delete(e.sessions.saved, id)
-	}
-	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, CreateIfMissing: true, Prompt: "hi"})
-
-	p := e.runner.next(t)
-	eventually(t, func() bool { return len(p.sent()) == 1 })
-	p.finish("done")
-	o := wait(t, done)
-	if o.err != nil || o.out.Session.ID != existingID || o.out.Session.Turns != 1 || e.workspaces.prepared != 1 {
-		t.Fatalf("Execute() = %+v, %v, prepared %d; want a new session with the same ID", o.out, o.err, e.workspaces.prepared)
 	}
 }

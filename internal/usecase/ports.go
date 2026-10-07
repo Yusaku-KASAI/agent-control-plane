@@ -27,7 +27,7 @@ type SessionRepository interface {
 
 type StoredSession struct {
 	ID domain.SessionID
-	// LastUsed is when the session was created or last finished a turn.
+	// LastUsed is when the session was last saved.
 	LastUsed time.Time
 }
 
@@ -35,6 +35,8 @@ type StoredSession struct {
 var ErrBranchInReview = errors.New("a session branch has an open pull request")
 
 type SessionBranches interface {
+	// InReview reports whether a pull request from one of the session's branches is open.
+	InReview(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (bool, error)
 	// Remove deletes the session's branches on the target's remote, or returns an error wrapping
 	// ErrBranchInReview and deletes none of them.
 	Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) error

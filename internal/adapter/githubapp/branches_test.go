@@ -24,8 +24,8 @@ func TestBranches_Remove(t *testing.T) {
 		wantDeleted []string
 	}{
 		{
-			name: "deletes the session branch and those named after it", origin: "git@github.com:o/repo.git", token: "t",
-			wantDeleted: []string{"acp/0f8fad5b", "acp/0f8fad5b-docs"},
+			name: "deletes the session branch and those named after it, skipping one already gone", origin: "git@github.com:o/repo.git", token: "t",
+			wantDeleted: []string{"acp/0f8fad5b"},
 		},
 		{
 			name: "keeps all while one has an open pull request", origin: "https://github.com/o/repo", token: "t",
@@ -55,7 +55,13 @@ func TestBranches_Remove(t *testing.T) {
 					}
 					_, _ = w.Write([]byte(`[]`))
 				case r.Method == http.MethodDelete:
-					deleted = append(deleted, r.URL.Path[len("/repos/o/repo/git/refs/heads/"):])
+					name := r.URL.Path[len("/repos/o/repo/git/refs/heads/"):]
+					if name == "acp/0f8fad5b-docs" {
+						// Deleted meanwhile, as by a merge.
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						return
+					}
+					deleted = append(deleted, name)
 					w.WriteHeader(http.StatusNoContent)
 				default:
 					t.Errorf("unexpected %s %s", r.Method, r.URL)
@@ -66,7 +72,12 @@ func TestBranches_Remove(t *testing.T) {
 			origin := func(context.Context, string) (string, error) { return tt.origin, nil }
 			b := NewBranches(srv.URL, srv.Client(), origin)
 
-			err := b.Remove(context.Background(), dev, sessionID, domain.Credentials{GitHubToken: tt.token})
+			creds := domain.Credentials{GitHubToken: tt.token}
+			inReview, err := b.InReview(context.Background(), dev, sessionID, creds)
+			if err != nil || inReview != errors.Is(tt.wantErr, usecase.ErrBranchInReview) {
+				t.Fatalf("InReview() = %v, %v", inReview, err)
+			}
+			err = b.Remove(context.Background(), dev, sessionID, creds)
 			if (tt.wantErr == nil && err != nil) || (tt.wantErr != nil && !errors.Is(err, tt.wantErr)) {
 				t.Fatalf("Remove() error = %v, want %v", err, tt.wantErr)
 			}

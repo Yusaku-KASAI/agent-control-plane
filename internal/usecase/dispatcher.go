@@ -214,11 +214,18 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		if err != nil {
 			return fmt.Errorf("lock session %s: %w", s.ID, err)
 		}
-		// The session may have been removed by SessionCleaner, which holds the lock while it does.
-		if _, err := d.sessions.Find(ctx, s.ID); err != nil {
+		// SessionCleaner may have removed or replaced the session before the lock was taken.
+		current, err := d.sessions.Find(ctx, s.ID)
+		if err != nil {
 			unlock()
 			return fmt.Errorf("find session %s: %w", s.ID, err)
 		}
+		// Saving marks the session as used, so SessionCleaner keeps it even if no turn finishes.
+		if err := d.sessions.Save(ctx, current); err != nil {
+			unlock()
+			return fmt.Errorf("save session %s: %w", s.ID, err)
+		}
+		s = current
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,
 			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1),

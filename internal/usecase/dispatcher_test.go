@@ -32,6 +32,7 @@ type fakeSessions struct {
 	held    map[domain.SessionID]bool
 	locks   map[domain.SessionID]int
 	removed []domain.SessionID
+	saves   int
 	// onLock runs before Lock takes the lock.
 	onLock func(id domain.SessionID)
 }
@@ -50,6 +51,7 @@ func (f *fakeSessions) Save(_ context.Context, s domain.Session) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.saved[s.ID] = s
+	f.saves++
 	return nil
 }
 
@@ -772,4 +774,63 @@ func TestDispatcher_Recover(t *testing.T) {
 	if len(abandoned) != 1 || abandoned[0].Status != (usecase.SessionStatus{}) {
 		t.Errorf("abandoned = %+v, want one with an empty status", abandoned)
 	}
+}
+
+func TestDispatcher_SessionRemovedBeforeLock(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.sessions.onLock = func(id domain.SessionID) {
+		e.sessions.onLock = nil
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		delete(e.sessions.saved, id)
+	}
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, CreateIfMissing: true, Prompt: "hi"})
+
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("done")
+	o := wait(t, done)
+	if o.err != nil || o.out.Session.ID != existingID || o.out.Session.Turns != 1 || e.workspaces.prepared != 1 {
+		t.Fatalf("Execute() = %+v, %v, prepared %d; want a new session with the same ID", o.out, o.err, e.workspaces.prepared)
+	}
+}
+
+func TestDispatcher_SessionReplacedBeforeLock(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.sessions.onLock = func(id domain.SessionID) {
+		e.sessions.onLock = nil
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		s := e.sessions.saved[id]
+		s.Turns = 0
+		e.sessions.saved[id] = s
+	}
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+
+	p := e.runner.next(t)
+	if got := e.runner.starts()[0].Session.Turns; got != 0 {
+		t.Errorf("started with Turns = %d, want the record read under the lock", got)
+	}
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("done")
+	if o := wait(t, done); o.err != nil || o.out.Session.Turns != 1 {
+		t.Fatalf("Execute() = %+v, %v", o.out, o.err)
+	}
+}
+
+// A turn that never finishes still counts as using the session, so that it is not cleaned up.
+func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.sessions.saves = 0
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	e.sessions.mu.Lock()
+	saves := e.sessions.saves
+	e.sessions.mu.Unlock()
+	if saves != 1 {
+		t.Errorf("saves before the turn finished = %d, want 1", saves)
+	}
+	p.finish("done")
+	wait(t, done)
 }

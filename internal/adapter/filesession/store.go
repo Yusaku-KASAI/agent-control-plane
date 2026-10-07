@@ -109,9 +109,8 @@ func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
 	}, nil
 }
 
-// List takes when the session was last used from the record's modification time, since the
-// record is saved when the session is created and after every turn. A directory without a record
-// is one whose creation stopped before saving it.
+// List takes when the session was last used from the record's modification time. A directory
+// without a record is one whose creation stopped before saving it.
 func (s *Store) List(_ context.Context) ([]usecase.StoredSession, error) {
 	entries, err := os.ReadDir(s.root)
 	if errors.Is(err, fs.ErrNotExist) {

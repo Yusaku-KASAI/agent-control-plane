@@ -102,7 +102,7 @@ func (u *HandleMessage) Stop(ctx context.Context, agent domain.AgentName, r doma
 func failureText(s domain.Session, err error) string {
 	switch {
 	case errors.Is(err, domain.ErrSessionBusy):
-		return "このスレッドのセッションは別の control-plane が使っています。"
+		return "このスレッドのセッションは、別の control-plane か古いセッションの片付けが使っています。少し待ってからもう一度依頼してください。"
 	case errors.Is(err, ErrInboxFull):
 		return "このスレッドには処理待ちの依頼が多すぎます。少し待ってからもう一度依頼してください。"
 	case errors.Is(err, ErrEmptyPrompt):
