@@ -67,11 +67,15 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
     -x
 COPY --chown=node:node ./.devcontainer/tmux.conf /home/node/.tmux.conf
 
-# Last in the stage: it changes most often.
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
+ENV PATH=/home/node/.local/bin:$PATH:/usr/local/share/npm-global/bin
+
+# Last in the stage: it changes most often. Claude Code updates itself unless told not to, which
+# would replace the pinned version.
+ENV DISABLE_UPDATES=1
 ARG CLAUDE_CODE_VERSION=2.1.292
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}" \
+    && claude --version | grep -q "^${CLAUDE_CODE_VERSION} "
 
 # Final user stays root: the entrypoint needs usermod and chown.
 USER root
@@ -99,3 +103,13 @@ RUN --mount=type=cache,target=/tmp/gocache --mount=type=cache,target=/tmp/gopath
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
         | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}; \
     go version && gopls version && dlv version && golangci-lint version && govulncheck -version
+
+# Built for the host user, so that the entrypoint has nothing to realign at start. Kept out of the
+# shared stages, which are built once for every host.
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ]; then \
+        groupmod -o -g "$HOST_GID" node \
+        && usermod -o -u "$HOST_UID" -g "$HOST_GID" node \
+        && chown -R node:node /home/node /usr/local/share/npm-global; \
+    fi

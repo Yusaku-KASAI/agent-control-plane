@@ -9,6 +9,8 @@ Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-co
 docker network create agent-control-plane-net
 docker volume create agent-control-plane_claude-code-bashhistory
 docker volume create agent-control-plane_claude-code-config
+# Build node with your UID/GID, so that the container needs no realignment at start.
+printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
 ```
 
 ## 基本ポリシー
@@ -19,7 +21,10 @@ docker volume create agent-control-plane_claude-code-config
   claude-code 等）だけを入れ、リポジトリ名も含めない。リポジトリ固有のツールチェーンは後段のステージに置き、
   リポジトリの場所は compose.yaml の `working_dir` で決める。
 - Claude Code とツールの版は Dockerfile の `ARG` で固定する。上げるときは PR で変え、CI でイメージのビルドと
-  `make check` を確かめる。
+  `make check` を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
+  `DISABLE_UPDATES=1` にする。
+- `node` の UID と GID は、ビルドのときにホストの値（`.devcontainer/.env`）に合わせる。ずれていたとき
+  （CI など）だけ、起動時に entrypoint が合わせ直し、所有者の違うボリュームを直す。
 
 ## 構成
 
