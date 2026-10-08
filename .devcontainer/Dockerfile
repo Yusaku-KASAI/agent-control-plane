@@ -6,42 +6,33 @@ ARG GO_VERSION=1.27.1
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
 FROM golang:${GO_VERSION} AS go-source
 
+# Nothing here depends on the repository, so the stage can be shared by every target.
 FROM node:24 AS base
 
-ARG TZ
+ARG TZ=UTC
 ENV TZ="$TZ"
-ENV DEVCONTAINER=true
-ARG CLAUDE_CODE_VERSION=latest
 
 # Package lists are kept so a human can `docker exec -u root` and apt-get install ad hoc without a
-# rebuild. `node` gets no sudo for apt.
+# rebuild. `node` gets no sudo.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
     procps \
-    sudo \
     fzf \
     zsh \
     man-db \
     unzip \
     gnupg2 \
     gh \
-    iptables \
-    ipset \
-    iproute2 \
-    dnsutils \
-    aggregate \
     jq \
     nano \
     vim \
     tmux \
     lsof \
-    tcpdump \
     python3 \
     python3-venv \
     shellcheck \
     shfmt \
-    rsyslog \
     locales \
     && apt-get clean
 
@@ -49,13 +40,6 @@ RUN echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen \
     && echo 'ja_JP.UTF-8 UTF-8' >> /etc/locale.gen \
     && locale-gen
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LESSCHARSET=utf-8
-
-ARG REPO_NAME
-# Read by docker-entrypoint.sh for UID/GID alignment.
-ENV WORKSPACE_DIR=/workspace/${REPO_NAME}
-
-RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share
-WORKDIR /workspace/${REPO_NAME}
 
 # Wired via the SYSTEM gitconfig so it survives the ~/.gitconfig VS Code copies in from the host.
 ARG GIT_DELTA_VERSION=0.18.2
@@ -69,67 +53,101 @@ RUN ARCH=$(dpkg --print-architecture) && \
     git config --system delta.line-numbers true
 
 COPY --from=uv-source /uv /uvx /usr/local/bin/
+COPY --chmod=755 ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
+RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share \
+    && install -d -o node -g node /commandhistory
 
 USER node
-
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
-
-ENV SHELL=/bin/zsh
+ENV SHELL=/bin/zsh EDITOR=nano VISUAL=nano
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
     -p fzf \
     -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
     -a "source /usr/share/doc/fzf/examples/completion.zsh" \
-    -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x
 COPY --chown=node:node ./.devcontainer/tmux.conf /home/node/.tmux.conf
+# Mount points made here belong to node, and Docker gives a new named volume the owner of its mount
+# point, so volumes need no chown at start.
+RUN mkdir -p /home/node/.claude /home/node/.config/gh
 
-ENV EDITOR=nano
-ENV VISUAL=nano
+ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
+ENV PATH=/home/node/.local/bin:$PATH:/usr/local/share/npm-global/bin
 
-USER root
-# Scripts stay root-owned: init-firewall.sh is a `sudo NOPASSWD` target, so node must not be
-# able to write it.
-COPY ./.devcontainer/init-firewall.sh \
-     ./.devcontainer/fix-permissions.sh \
-     ./.devcontainer/background-sync.sh \
-     ./.devcontainer/sni-capture.py \
-     ./.devcontainer/fw-show-blocked.sh \
-     ./.devcontainer/docker-entrypoint.sh \
-     /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/fix-permissions.sh \
-             /usr/local/bin/background-sync.sh /usr/local/bin/sni-capture.py \
-             /usr/local/bin/fw-show-blocked.sh /usr/local/bin/docker-entrypoint.sh && \
-    usermod -aG adm node && \
-    printf 'node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh\n' \
-        > /etc/sudoers.d/node-firewall && \
-    chmod 0440 /etc/sudoers.d/node-firewall
+# Last in the stage: it changes most often.
+ARG CLAUDE_CODE_VERSION=2.1.292
+RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}" \
+    && claude --version | grep -q "^${CLAUDE_CODE_VERSION} "
+# Claude Code updates itself unless told not to, which would replace the pinned version. Set after
+# the install, which it would also block.
+ENV DISABLE_UPDATES=1
 
-# Final user stays root: the entrypoint needs usermod + iptables.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
+
+# Go tools build apart from base, so that changing base (such as bumping Claude Code) does not
+# rebuild them.
+FROM go-source AS go-tools
+ARG GOPLS_VERSION=v0.23.0
+ARG DELVE_VERSION=v1.27.2
+ARG GOLANGCI_LINT_VERSION=v2.14.0
+ARG GOVULNCHECK_VERSION=v1.8.0
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+    set -eux; \
+    export GOBIN=/out CGO_ENABLED=0; \
+    go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
+    go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
+    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+        | sh -s -- -b /out ${GOLANGCI_LINT_VERSION}
 
 FROM base AS go
 
 COPY --from=go-source /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/home/node/go/bin:$PATH \
     GOTOOLCHAIN=local
+# In /usr/local/bin, not GOPATH/bin: GOPATH is partly volume-backed, and tools there would drift
+# from the versions pinned here.
+COPY --from=go-tools /out/ /usr/local/bin/
+RUN go version && gopls version && dlv version && golangci-lint version && govulncheck -version \
+    && mkdir -p /home/node/go/pkg/mod /home/node/.cache/go-build
 
-# Installed to /usr/local/bin, not GOPATH/bin: GOPATH is partly volume-backed, and tools there
-# would drift from the versions pinned here.
-ARG GOPLS_VERSION=v0.23.0
-ARG DELVE_VERSION=v1.27.2
-ARG GOLANGCI_LINT_VERSION=v2.14.0
-ARG GOVULNCHECK_VERSION=v1.8.0
-RUN set -eux; \
-    export GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOBIN=/usr/local/bin; \
-    go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
-    go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
-    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
-        | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}; \
-    rm -rf /tmp/gopath /tmp/gocache; \
-    go version && gopls version && dlv version && golangci-lint version && govulncheck -version
+# The container runs as node, never as root, so node must own what is mounted for it: build with the
+# workspace owner's UID/GID. Kept out of the shared stages, which are built once for every host. The
+# user is numeric so that platforms can check it is not root (such as Kubernetes runAsNonRoot).
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+USER root
+RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ]; then \
+        groupmod -o -g "$HOST_GID" node \
+        && usermod -o -u "$HOST_UID" -g "$HOST_GID" node \
+        && chown -R node:node /home/node /usr/local/share/npm-global /commandhistory; \
+    fi
+USER ${HOST_UID}:${HOST_GID}
+
+# CI runs each check-<concern> stage as its own job, without exporting the image. Each copies only
+# the files its check reads, so its layer stays cached until one of them changes.
+FROM go AS check-base
+USER node
+WORKDIR /workspace/agent-control-plane
+COPY --chown=node:node Makefile ./
+
+FROM check-base AS check-go
+COPY --chown=node:node go.mod go.sum ./
+RUN go mod download
+# Tests also read the example config and this repository's plugin declarations.
+COPY --chown=node:node .golangci.yml acp.example.yaml ./
+COPY --chown=node:node .claude .claude
+COPY --chown=node:node platform platform
+COPY --chown=node:node cmd cmd
+COPY --chown=node:node internal internal
+RUN make check-go
+
+FROM check-base AS check-platform
+COPY --chown=node:node platform platform
+RUN make check-platform
+
+FROM check-base AS check-target
+COPY --chown=node:node .devcontainer .devcontainer
+COPY --chown=node:node .vscode .vscode
+RUN make check-target

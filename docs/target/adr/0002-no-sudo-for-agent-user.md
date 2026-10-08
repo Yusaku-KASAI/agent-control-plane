@@ -1,6 +1,6 @@
 # 0002. エージェントが動くユーザーに sudo を与えない
 
-- Status: Accepted
+- Status: Accepted, Amended by 0008
 - Date: 2026-09-30
 
 ## Context

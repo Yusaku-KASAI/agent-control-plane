@@ -1,15 +1,79 @@
 # ターゲット
 
+このリポジトリを、エージェントが作業するターゲットとして成り立たせる環境（devcontainer、Claude Code の設定、CI、
+作業の進め方）。target-template の元になる。
+
+## devcontainer
+
+Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer) を元にした、
+人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）。
+
+### 初回セットアップ（ホストで一度だけ）
+
+```bash
+docker network create agent-control-plane-net
+docker volume create agent-control-plane_claude-code-bashhistory
+docker volume create agent-control-plane_claude-code-config
+# The container runs as node with your UID/GID, so that it can write the repository.
+printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
+```
+
+### 方針
+
+- コンテナの振る舞いは Dockerfile、compose.yaml、entrypoint で決める。devcontainer.json は VS Code 側の
+  配線だけを持つ（[ADR 0001](adr/0001-devcontainer-independent-of-vscode.md)）。
+- `base` ステージには、リポジトリを問わずエージェントが使うもの（Node、Python と uv、シェルツール、Claude Code など）
+  だけを入れ、リポジトリ名も含めない。リポジトリ固有のツールチェーンは後段のステージに置き、リポジトリの場所は
+  compose.yaml の `working_dir` で決める。
+- Claude Code とツールの版は Dockerfile の `ARG` で固定する。上げるときは PR で変え、CI でイメージのビルドと
+  `make check` を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
+  `DISABLE_UPDATES=1` にする。
+- `node` には sudo を与えない。apt のパッケージ一覧はイメージに残し、人が `docker exec -u root` で入って一時的に
+  インストールできるようにする（[ADR 0002](adr/0002-no-sudo-for-agent-user.md)）。コンテナの中にファイアウォールは
+  置かない（[ADR 0008](adr/0008-no-in-container-firewall.md)）。
+
+### 構成
+
+- イメージは `base` → `go`（このリポジトリのツールチェーン）の 2 段で、`agent-control-plane-devcontainer` という
+  名前でビルドされる。control-plane はエージェントも同じイメージで動かす（`acp.yaml` の `target.image`）。
+  Go のツールは base と切り離した `go-tools` ステージでビルドし、バイナリだけを `go` にコピーする。base を変えても
+  ツールを作り直さない。
+- ビルドの文脈は `.devcontainer/Dockerfile.dockerignore` で決める（ルートの `.dockerignore` は control-plane の
+  イメージ用）。
+- `..` を `/workspace/agent-control-plane` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
+  マウントする。隣に置いたリポジトリは参照できるが書き込めない。
+- コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](adr/0009-containers-run-as-non-root.md)）。
+  UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。control-plane の
+  `.env` の `ACP_UID` / `ACP_GID` も同じ値にする。ボリュームのマウント先はイメージの中に `node` の持ち物として
+  作ってあり、新しい名前付きボリュームはその所有者を引き継ぐ。root で作業したいときは `docker exec -u root` で入る。
+
+### Claude Code の設定
+
+`.claude/settings.json` は人が対話で使うときの設定。エージェントは `--dangerously-skip-permissions` で動くので、
+`permissions` は効かない。コンテナの隔離で守る方針なので、対話でも権限の確認を省いて（bypass）使ってよい。
+`permissions.allow` の一覧は、組織の制限などで bypass が使えない環境で確認を減らすためにある。
+
+### tmux とターミナルのベル
+
+hook のプロセスは制御端末を持たないため、hook からベルを届ける経路は `tmux list-clients` しかない。
+VS Code の既定のターミナルプロファイルが tmux なのはこのため。
+
+### VS Code の設定
+
+エディタ設定は `devcontainer.json` の `customizations.vscode.settings`（コンテナに attach したウィンドウ）と
+`.vscode/settings.json`（attach していないウィンドウ）に同じ内容で置く。ベル設定のように、片方だけだと
+効いたり効かなかったりするものがあるため。同じであることは `make check-target` で確かめる。
+
 ## イメージに求めること
 
 control-plane はセッションごとにターゲットのイメージからコンテナを作り、`claude -p` を `stream-json` の
 入出力で動かし続けて、依頼を標準入力に送る。そのためにイメージは次を満たす必要がある。
 
-- entrypoint が root で動き、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡す。
-- エージェントを動かすユーザー `node` と、`claude`、`runuser`、`git`、`gh` が入っている。control-plane は
-  `runuser -u node -- claude ...` を実行する（Claude Code は root では権限確認を省略できないため）。
-- entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）と `FIREWALL_ENABLED` を解釈する。
-- entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
+- イメージのユーザーが root でなく、作業ディレクトリ（リポジトリのマウント先）に書き込める。control-plane は
+  `claude ...` をそのままコマンドとして渡す（Claude Code は root では権限確認を省略できない）。
+- `claude`、`git`、`gh` が入っている。
+- entrypoint があれば、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡し、自身の出力は
+  stderr に出す。stdout はエージェントの回答として扱われる。
 
 control-plane はさらに次の環境変数を渡す。
 
@@ -47,6 +111,13 @@ control-plane はさらに次の環境変数を渡す。
 PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
 （[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
 確かめる。
+
+- `make check` は関心ごとの検査（`check-go`、`check-platform`、`check-target`）をまとめたもの。
+- CI は関心ごとのジョブ（`check-go`、`check-platform`、`check-target`）で、Dockerfile の同じ名前のステージを、
+  イメージを書き出さずにビルドする。各ステージはその検査が読むファイルだけをコピーして実行するので、それらが
+  変わらなければ層のキャッシュが当たり、検査は実行されない。層は GitHub Actions のキャッシュにジョブごとに残す。
+- 必須のチェックは、3つのジョブの結果をまとめる `check` ジョブ。
+- キャッシュが当たると新しく公開された脆弱性を拾えないので、週に1回、`check-go` だけキャッシュを使わずに実行する。
 
 ## 作業の進め方
 

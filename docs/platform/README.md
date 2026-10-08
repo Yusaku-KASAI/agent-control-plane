@@ -36,5 +36,5 @@ platform/
 - github プラグインは `gh` の認証を使う（エージェントには control-plane が `GH_CONFIG_DIR` で渡す）。push の直後と
   ターンの終わりに hook が PR の本文が古くないかを確かめ、古ければ書き換えを促す
   （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
-- プラグインの検査（`claude plugin validate ./platform` と `bin/` の `shellcheck`）は `make check` に含まれる。
+- プラグインの検査（`claude plugin validate ./platform` と `bin/` の `shellcheck`）は `make check-platform` で行う。
 - プラグインには、どのターゲットでも通用する内容だけを書く。

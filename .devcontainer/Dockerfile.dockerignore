@@ -1,0 +1,8 @@
+# Used instead of the root .dockerignore for this Dockerfile. The check stage copies the whole
+# repository; local secrets and build output stay out.
+.git
+.env
+.env.*
+.devcontainer/.env
+acp.yaml
+bin

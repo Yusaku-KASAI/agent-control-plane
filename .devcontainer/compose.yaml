@@ -8,11 +8,12 @@ services:
       target: go
       args:
         TZ: Asia/Tokyo
-        CLAUDE_CODE_VERSION: "latest"
-        GIT_DELTA_VERSION: "0.18.2"
-        ZSH_IN_DOCKER_VERSION: "1.2.0"
-        GO_VERSION: "1.27.1"
-        REPO_NAME: "agent-control-plane"
+        # Set in .devcontainer/.env (docs/target/README.md).
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    # Agents run this image too (image in acp.yaml).
+    image: agent-control-plane-devcontainer
+    working_dir: /workspace/agent-control-plane
     volumes:
       # Docker mounts parents first, so the repo mount below overlays this read-only one.
       - ../..:/workspace:ro
@@ -23,21 +24,13 @@ services:
       - claude-code-bashhistory:/commandhistory
       - claude-code-config:/home/node/.claude
     environment:
-      - FIREWALL_ENABLED=false
       - NODE_OPTIONS=--max-old-space-size=4096
-      - CLAUDE_CONFIG_DIR=/home/node/.claude
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history
       # The API token is deliberately not passed: it would let this container start agents that
       # hold GitHub credentials.
       - ACP_SERVER=http://control-plane:8787
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYSLOG
-    devices:
-      - /dev/net/tun:/dev/net/tun
 
 volumes:
   dev-gh-config:
