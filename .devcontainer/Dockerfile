@@ -119,9 +119,8 @@ RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ];
         && chown -R node:node /home/node /usr/local/share/npm-global; \
     fi
 
-# CI runs make check as the check stage, without exporting the image. Each check copies only the
-# files it reads, so its layer stays cached until one of them changes, and the three build in
-# parallel.
+# CI runs each check-<concern> stage as its own job, without exporting the image. Each copies only
+# the files its check reads, so its layer stays cached until one of them changes.
 FROM go AS check-base
 USER node
 WORKDIR /workspace/agent-control-plane
@@ -146,8 +145,3 @@ FROM check-base AS check-target
 COPY --chown=node:node .devcontainer .devcontainer
 COPY --chown=node:node .vscode .vscode
 RUN make check-target
-
-FROM scratch AS check
-COPY --from=check-go /workspace/agent-control-plane/Makefile /check-go
-COPY --from=check-platform /workspace/agent-control-plane/Makefile /check-platform
-COPY --from=check-target /workspace/agent-control-plane/Makefile /check-target
