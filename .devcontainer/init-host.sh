@@ -1,6 +1,6 @@
 #!/bin/sh
-# Prepares the host for the devcontainer. VS Code runs it before every start (initializeCommand);
-# without VS Code, run it once by hand. Values already in .env are kept.
+# Prepares the host for the devcontainer: .env (see .env.example), the state directories and the
+# shared network. Run it before the first start; values already in .env are kept.
 set -eu
 cd "$(dirname "$0")"
 repo=$(basename "$(cd .. && pwd)")

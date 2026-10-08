@@ -8,19 +8,28 @@
 Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer) を元にした、
 人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）。
 
-### ホストの準備
+### 使い方
 
-VS Code は、コンテナを起動する前に毎回 `.devcontainer/init-host.sh` を実行する（`initializeCommand`）。
-VS Code を使わないときは一度だけ手で実行する。このスクリプトは次を行い、`.env` にすでにある値は変えない。
+devcontainer のビルド、起動、停止はコマンドで行う。VS Code は起動しているコンテナに入るだけで、ライフサイクルには
+関わらない（「Rebuild Container」は使わない）。
 
-- `.devcontainer/.env`（gitignore の対象）に、リポジトリ名（`REPO_NAME`）、ホストの UID と GID（`HOST_UID` /
-  `HOST_GID`）、タイムゾーン（`TZ`）、状態を置くディレクトリ（`DEV_STATE_DIR`、既定は
-  `~/.local/state/devcontainers/<リポジトリ名>`）を書く。
-- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。
+```bash
+.devcontainer/init-host.sh                                   # ホストの準備（最初に一度。何度実行してもよい）
+docker compose -f .devcontainer/compose.yaml up -d --build   # ビルドして起動する
+docker compose -f .devcontainer/compose.yaml down            # 止める
+```
 
-compose.yaml と devcontainer.json は、名前やパスをこれらの値から決めるので、ターゲットが変わっても書き換えない。
-compose を手で使うときも、先にこのスクリプトを実行する。状態のディレクトリがないと、Docker が root の持ち物として
-作り、root でないコンテナから書き込めない。
+起動したあと、VS Code の「Reopen in Container」で入る。
+
+`init-host.sh` は次を行い、`.devcontainer/.env` にすでにある値は変えない。
+
+- `.devcontainer/.env`（gitignore の対象。項目は `.devcontainer/.env.example`）に、ホストから決めた値を書く。
+  リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ（既定は `~/.local/state/devcontainers/<リポジトリ名>`）。
+- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。状態の
+  ディレクトリがないまま起動すると、Docker が root の持ち物として作り、root でないコンテナから書き込めない。
+
+compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフォルダ名から決めるので、ターゲットが変わっても
+書き換えない。
 
 ### 方針
 
