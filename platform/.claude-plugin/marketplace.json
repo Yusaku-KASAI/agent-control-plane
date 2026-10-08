@@ -24,6 +24,11 @@
       "name": "rules",
       "source": "./plugins/rules",
       "description": "Rules every target's agents follow"
+    },
+    {
+      "name": "bell",
+      "source": "./plugins/bell",
+      "description": "Ring the terminal when Claude Code stops or waits for you"
     }
   ]
 }

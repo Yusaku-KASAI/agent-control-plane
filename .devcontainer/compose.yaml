@@ -1,4 +1,6 @@
-name: agent-control-plane-dev
+# Names and paths come from .devcontainer/.env, written by init-host.sh, so that this file is the
+# same in every target.
+name: ${REPO_NAME:?run .devcontainer/init-host.sh}-dev
 
 services:
   dev-container:
@@ -8,21 +10,22 @@ services:
       target: go
       args:
         TZ: Asia/Tokyo
-        # Set in .devcontainer/.env (docs/target/README.md).
-        HOST_UID: ${HOST_UID:-1000}
-        HOST_GID: ${HOST_GID:-1000}
+        HOST_UID: ${HOST_UID:?run .devcontainer/init-host.sh}
+        HOST_GID: ${HOST_GID:?run .devcontainer/init-host.sh}
     # Agents run this image too (image in acp.yaml).
-    image: agent-control-plane-devcontainer
-    working_dir: /workspace/agent-control-plane
+    image: ${REPO_NAME}-devcontainer
+    working_dir: /workspace/${REPO_NAME}
     volumes:
       # Docker mounts parents first, so the repo mount below overlays this read-only one.
       - ../..:/workspace:ro
-      - ..:/workspace/agent-control-plane:cached
-      - dev-gh-config:/home/node/.config/gh
-      - dev-go-mod:/home/node/go/pkg/mod
-      - dev-go-build:/home/node/.cache/go-build
-      - claude-code-bashhistory:/commandhistory
-      - claude-code-config:/home/node/.claude
+      - ..:/workspace/${REPO_NAME}:cached
+      # On the host, outside Docker, so that no prune or `down -v` removes logins and history.
+      - ${DEV_STATE_DIR:?run .devcontainer/init-host.sh}/claude:/home/node/.claude
+      - ${DEV_STATE_DIR}/gh:/home/node/.config/gh
+      - ${DEV_STATE_DIR}/history:/commandhistory
+      # Caches only: losing them costs a download.
+      - go-mod:/home/node/go/pkg/mod
+      - go-build:/home/node/.cache/go-build
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
@@ -33,17 +36,8 @@ services:
       - ACP_SERVER=http://control-plane:8787
 
 volumes:
-  dev-gh-config:
-  dev-go-mod:
-  dev-go-build:
-
-  # External + fixed name: Claude Code login/history/memory survive `down -v` and project renames.
-  claude-code-bashhistory:
-    external: true
-    name: agent-control-plane_claude-code-bashhistory
-  claude-code-config:
-    external: true
-    name: agent-control-plane_claude-code-config
+  go-mod:
+  go-build:
 
 networks:
   default:

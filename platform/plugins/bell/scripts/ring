@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Rings the terminal of whoever is using Claude Code interactively.
+#
+#   ring wait   Claude Code waits for you (a permission, a question): two bells
+#   ring done   the turn ended: one bell
+#
+# A hook has no controlling terminal, so the bell is written to every tty attached to tmux, or else
+# to /dev/tty when one can be opened. A headless agent has neither and rings nothing. It never fails
+# the hook.
+set -uo pipefail
+
+ttys() {
+  local tty found=
+  while IFS= read -r tty; do
+    if [[ -n $tty ]] && { : >"$tty"; } 2>/dev/null; then
+      echo "$tty"
+      found=1
+    fi
+  done < <(tmux list-clients -F '#{client_tty}' 2>/dev/null | sort -u)
+  [[ -n $found ]] || { { : >/dev/tty; } 2>/dev/null && echo /dev/tty; }
+}
+
+ring() {
+  local i tty
+  for ((i = 0; i < $1; i++)); do
+    ((i == 0)) || sleep 0.6
+    while IFS= read -r tty; do
+      printf '\a' >"$tty" 2>/dev/null
+    done < <(ttys)
+  done
+}
+
+case "${1:-}" in
+  wait)
+    ring 2
+    tmux display-message 'Claude Code: waiting for you' 2>/dev/null
+    ;;
+  done)
+    ring 1
+    tmux display-message 'Claude Code: turn done' 2>/dev/null
+    ;;
+esac
+exit 0

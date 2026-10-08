@@ -8,23 +8,26 @@
 Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer) を元にした、
 人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）。
 
-### 初回セットアップ（ホストで一度だけ）
+### ホストの準備
 
-```bash
-docker network create agent-control-plane-net
-docker volume create agent-control-plane_claude-code-bashhistory
-docker volume create agent-control-plane_claude-code-config
-# The container runs as node with your UID/GID, so that it can write the repository.
-printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
-```
+VS Code は、コンテナを起動する前に毎回 `.devcontainer/init-host.sh` を実行する（`initializeCommand`）。
+VS Code を使わないときは一度だけ手で実行する。このスクリプトは次を行い、`.env` にすでにある値は変えない。
+
+- `.devcontainer/.env`（gitignore の対象）に、リポジトリ名（`REPO_NAME`）、ホストの UID と GID（`HOST_UID` /
+  `HOST_GID`）、状態を置くディレクトリ（`DEV_STATE_DIR`、既定は `~/.local/state/devcontainers/<リポジトリ名>`）を書く。
+- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。
+
+compose.yaml と devcontainer.json は、名前やパスをこれらの値から決めるので、ターゲットが変わっても書き換えない。
 
 ### 方針
 
 - コンテナの振る舞いは Dockerfile、compose.yaml、entrypoint で決める。devcontainer.json は VS Code 側の
   配線だけを持つ（[ADR 0001](adr/0001-devcontainer-independent-of-vscode.md)）。
 - `base` ステージには、リポジトリを問わずエージェントが使うもの（Node、Python と uv、シェルツール、Claude Code など）
-  だけを入れ、リポジトリ名も含めない。リポジトリ固有のツールチェーンは後段のステージに置き、リポジトリの場所は
-  compose.yaml の `working_dir` で決める。
+  だけを入れ、リポジトリやホストに依存する値（リポジトリ名、タイムゾーン、UID）を含めない。層は変わりにくいものから
+  順に並べる。リポジトリ固有のツールチェーンとホストに依存する値は後段のステージに置く。
+- RUN は `pipefail` 付きの bash で動かし、パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。外から
+  取得するものは版を固定する。
 - Claude Code とツールの版は Dockerfile の `ARG` で固定する。上げるときは PR で変え、CI でイメージのビルドと
   `make check` を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
   `DISABLE_UPDATES=1` にする。
@@ -40,8 +43,11 @@ printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
   ツールを作り直さない。
 - ビルドの文脈は `.devcontainer/Dockerfile.dockerignore` で決める（ルートの `.dockerignore` は control-plane の
   イメージ用）。
-- `..` を `/workspace/agent-control-plane` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
+- `..` を `/workspace/<リポジトリ名>` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
   マウントする。隣に置いたリポジトリは参照できるが書き込めない。
+- Claude Code の設定（ログイン、履歴、メモリ）、`gh` の設定、シェルの履歴は、ホストの `DEV_STATE_DIR` の下に置いて
+  マウントする。Docker の外にあるので、`docker compose down -v` や prune でも消えない
+  （[ADR 0010](adr/0010-devcontainer-state-on-the-host.md)）。Go のキャッシュは消えても困らないので、名前付きボリュームに置く。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](adr/0009-containers-run-as-non-root.md)）。
   UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。control-plane の
   `.env` の `ACP_UID` / `ACP_GID` も同じ値にする。ボリュームのマウント先はイメージの中に `node` の持ち物として
@@ -55,8 +61,12 @@ printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
 
 ### tmux とターミナルのベル
 
-hook のプロセスは制御端末を持たないため、hook からベルを届ける経路は `tmux list-clients` しかない。
-VS Code の既定のターミナルプロファイルが tmux なのはこのため。
+- マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は選択するだけで、クリップボードに自動ではコピーしない。
+  選択は残り、`y` か `Enter` でコピーする。`q` か `Escape` で選択をやめる。
+- Claude Code が対話で止まったとき（ターンの終わり、権限の確認、質問）は、platform の bell プラグインが端末の
+  ベルを鳴らす（応答を待つときは2回、ターンの終わりは1回）。hook のプロセスは制御端末を持たないため、ベルは tmux に
+  つながった端末に書く。VS Code の既定のターミナルプロファイルが tmux なのはこのため。tmux は、ベルを外の端末に
+  渡しつつ、自分でも表示する。
 
 ### VS Code の設定
 

@@ -14,6 +14,7 @@ platform/
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
     github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
     rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
+    bell/                           対話で使うとき、Claude Code が止まったり応答を待ったりしたら端末のベルを鳴らす hook
 ```
 
 ## 使われ方

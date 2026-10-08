@@ -1,8 +1,11 @@
 {
-  "name": "agent-control-plane",
+  "name": "${localWorkspaceFolderBasename}",
   "dockerComposeFile": ["compose.yaml"],
   "service": "dev-container",
-  "workspaceFolder": "/workspace/agent-control-plane",
+  "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
+  // Host-side preparation only (.env, state directories, network); the container itself is set up in
+  // the Dockerfile and compose.yaml.
+  "initializeCommand": ".devcontainer/init-host.sh",
   "shutdownAction": "none",
   "runServices": [],
   "customizations": {
