@@ -36,6 +36,10 @@ printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
 
 - イメージは `base` → `go`（このリポジトリのツールチェーン）の 2 段で、`agent-control-plane-devcontainer` という
   名前でビルドされる。control-plane はエージェントも同じイメージで動かす（`acp.yaml` の `target.image`）。
+  Go のツールは base と切り離した `go-tools` ステージでビルドし、バイナリだけを `go` にコピーする。base を変えても
+  ツールを作り直さない。
+- ビルドの文脈は `.devcontainer/Dockerfile.dockerignore` で決める（ルートの `.dockerignore` は control-plane の
+  イメージ用）。
 - `..` を `/workspace/agent-control-plane` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
   マウントする。隣に置いたリポジトリは参照できるが書き込めない。
 - `node` の UID と GID は、ビルドのときにホストの値（`.devcontainer/.env`）に合わせる。ずれていたとき
@@ -103,7 +107,9 @@ control-plane はさらに次の環境変数を渡す。
 ## CI
 
 PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
-（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
+（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。イメージを書き出さず、Dockerfile の `check` ステージ
+（`go` の上でリポジトリをコピーして `make check`）としてビルドする。層は GitHub Actions のキャッシュに残し、
+Go のモジュールは go.sum が変わらない限りキャッシュから使う。あわせて control-plane のイメージがビルドできることを
 確かめる。
 
 ## 作業の進め方

@@ -83,27 +83,31 @@ USER root
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 
+# Go tools build apart from base, so that changing base (such as bumping Claude Code) does not
+# rebuild them.
+FROM go-source AS go-tools
+ARG GOPLS_VERSION=v0.23.0
+ARG DELVE_VERSION=v1.27.2
+ARG GOLANGCI_LINT_VERSION=v2.14.0
+ARG GOVULNCHECK_VERSION=v1.8.0
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+    set -eux; \
+    export GOBIN=/out; \
+    go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
+    go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
+    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+        | sh -s -- -b /out ${GOLANGCI_LINT_VERSION}
+
 FROM base AS go
 
 COPY --from=go-source /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/home/node/go/bin:$PATH \
     GOTOOLCHAIN=local
-
-# Installed to /usr/local/bin, not GOPATH/bin: GOPATH is partly volume-backed, and tools there
-# would drift from the versions pinned here.
-ARG GOPLS_VERSION=v0.23.0
-ARG DELVE_VERSION=v1.27.2
-ARG GOLANGCI_LINT_VERSION=v2.14.0
-ARG GOVULNCHECK_VERSION=v1.8.0
-RUN --mount=type=cache,target=/tmp/gocache --mount=type=cache,target=/tmp/gopath/pkg/mod \
-    set -eux; \
-    export GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOBIN=/usr/local/bin; \
-    go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
-    go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
-    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
-        | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}; \
-    go version && gopls version && dlv version && golangci-lint version && govulncheck -version
+# In /usr/local/bin, not GOPATH/bin: GOPATH is partly volume-backed, and tools there would drift
+# from the versions pinned here.
+COPY --from=go-tools /out/ /usr/local/bin/
+RUN go version && gopls version && dlv version && golangci-lint version && govulncheck -version
 
 # Built for the host user, so that the entrypoint has nothing to realign at start. Kept out of the
 # shared stages, which are built once for every host.
@@ -114,3 +118,13 @@ RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ];
         && usermod -o -u "$HOST_UID" -g "$HOST_GID" node \
         && chown -R node:node /home/node /usr/local/share/npm-global; \
     fi
+
+# CI runs make check as this stage, so that it needs no image exported. Modules are their own layer,
+# cached while go.sum does not change.
+FROM go AS check
+USER node
+WORKDIR /workspace/agent-control-plane
+COPY --chown=node:node go.mod go.sum ./
+RUN go mod download
+COPY --chown=node:node . .
+RUN make check
