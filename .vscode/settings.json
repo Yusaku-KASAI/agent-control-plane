@@ -1,5 +1,5 @@
 {
-  // Keep identical to customizations.vscode.settings in .devcontainer/devcontainer.json (make lint checks).
+  // Keep identical to customizations.vscode.settings in .devcontainer/devcontainer.json (make check-target checks).
   "claudeCode.respectGitIgnore": true,
   "claudeCode.useCtrlEnterToSend": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",

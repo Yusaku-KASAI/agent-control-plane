@@ -21,5 +21,5 @@
 
 ```bash
 make check-go   # golangci-lint、go mod tidy の差分、govulncheck、go test -race
-make fmt     # 整形
+make fmt        # 整形
 ```

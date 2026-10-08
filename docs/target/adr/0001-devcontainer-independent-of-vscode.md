@@ -1,6 +1,6 @@
 # 0001. コンテナの振る舞いを VS Code から独立させる
 
-- Status: Accepted, Amended by 0009
+- Status: Accepted, Amended by 0009, 0010
 - Date: 2026-09-30
 
 ## Context

@@ -48,8 +48,9 @@ RUN curl -fsSLo /tmp/zsh-in-docker.sh \
         -a "source /usr/share/doc/fzf/examples/completion.zsh" \
         -x \
     && rm /tmp/zsh-in-docker.sh
-# Mount points made here belong to node, and Docker gives a new named volume the owner of its mount
-# point, so volumes need no chown at start.
+# Mount points and their parents are made here, owned by node: Docker would create missing ones as
+# root, and nothing could then write beside the mounts (such as elsewhere in ~/.config). A new named
+# volume also takes the owner of its mount point.
 RUN mkdir -p /home/node/.claude /home/node/.config/gh
 
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global

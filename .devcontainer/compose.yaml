@@ -9,7 +9,7 @@ services:
       dockerfile: ./.devcontainer/Dockerfile
       target: go
       args:
-        TZ: Asia/Tokyo
+        TZ: ${TZ:-UTC}
         HOST_UID: ${HOST_UID:?run .devcontainer/init-host.sh}
         HOST_GID: ${HOST_GID:?run .devcontainer/init-host.sh}
     # Agents run this image too (image in acp.yaml).

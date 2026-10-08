@@ -14,10 +14,13 @@ VS Code は、コンテナを起動する前に毎回 `.devcontainer/init-host.s
 VS Code を使わないときは一度だけ手で実行する。このスクリプトは次を行い、`.env` にすでにある値は変えない。
 
 - `.devcontainer/.env`（gitignore の対象）に、リポジトリ名（`REPO_NAME`）、ホストの UID と GID（`HOST_UID` /
-  `HOST_GID`）、状態を置くディレクトリ（`DEV_STATE_DIR`、既定は `~/.local/state/devcontainers/<リポジトリ名>`）を書く。
+  `HOST_GID`）、タイムゾーン（`TZ`）、状態を置くディレクトリ（`DEV_STATE_DIR`、既定は
+  `~/.local/state/devcontainers/<リポジトリ名>`）を書く。
 - 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。
 
 compose.yaml と devcontainer.json は、名前やパスをこれらの値から決めるので、ターゲットが変わっても書き換えない。
+compose を手で使うときも、先にこのスクリプトを実行する。状態のディレクトリがないと、Docker が root の持ち物として
+作り、root でないコンテナから書き込めない。
 
 ### 方針
 
@@ -26,10 +29,9 @@ compose.yaml と devcontainer.json は、名前やパスをこれらの値から
 - `base` ステージには、リポジトリを問わずエージェントが使うもの（Node、Python と uv、シェルツール、Claude Code など）
   だけを入れ、リポジトリやホストに依存する値（リポジトリ名、タイムゾーン、UID）を含めない。層は変わりにくいものから
   順に並べる。リポジトリ固有のツールチェーンとホストに依存する値は後段のステージに置く。
-- RUN は `pipefail` 付きの bash で動かし、パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。外から
-  取得するものは版を固定する。
-- Claude Code とツールの版は Dockerfile の `ARG` で固定する。上げるときは PR で変え、CI でイメージのビルドと
-  `make check` を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
+- RUN は `pipefail` 付きの bash で動かし、パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。
+- 外から取得するもの（ベースイメージ、Claude Code、ツール）の版は Dockerfile で固定する。上げるときは PR で変え、
+  CI でイメージのビルドと検査を確かめる。Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう
   `DISABLE_UPDATES=1` にする。
 - `node` には sudo を与えない。apt のパッケージ一覧はイメージに残し、人が `docker exec -u root` で入って一時的に
   インストールできるようにする（[ADR 0002](adr/0002-no-sudo-for-agent-user.md)）。コンテナの中にファイアウォールは
@@ -37,10 +39,10 @@ compose.yaml と devcontainer.json は、名前やパスをこれらの値から
 
 ### 構成
 
-- イメージは `base` → `go`（このリポジトリのツールチェーン）の 2 段で、`agent-control-plane-devcontainer` という
-  名前でビルドされる。control-plane はエージェントも同じイメージで動かす（`acp.yaml` の `target.image`）。
-  Go のツールは base と切り離した `go-tools` ステージでビルドし、バイナリだけを `go` にコピーする。base を変えても
-  ツールを作り直さない。
+- devcontainer のイメージは `base` → `go`（このリポジトリのツールチェーンとホストに依存する値）で、
+  `<リポジトリ名>-devcontainer` という名前でビルドされる。control-plane はエージェントも同じイメージで動かす
+  （`acp.yaml` の `target.image`）。Go のツールは base と切り離した `go-tools` ステージでビルドし、バイナリだけを
+  `go` にコピーする。base を変えてもツールを作り直さない。CI 用の `check-*` ステージは「CI」の節にある。
 - ビルドの文脈は `.devcontainer/Dockerfile.dockerignore` で決める（ルートの `.dockerignore` は control-plane の
   イメージ用）。
 - `..` を `/workspace/<リポジトリ名>` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
@@ -63,10 +65,9 @@ compose.yaml と devcontainer.json は、名前やパスをこれらの値から
 
 - マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は選択するだけで、クリップボードに自動ではコピーしない。
   選択は残り、`y` か `Enter` でコピーする。`q` か `Escape` で選択をやめる。
-- Claude Code が対話で止まったとき（ターンの終わり、権限の確認、質問）は、platform の bell プラグインが端末の
-  ベルを鳴らす（応答を待つときは2回、ターンの終わりは1回）。hook のプロセスは制御端末を持たないため、ベルは tmux に
-  つながった端末に書く。VS Code の既定のターミナルプロファイルが tmux なのはこのため。tmux は、ベルを外の端末に
-  渡しつつ、自分でも表示する。
+- Claude Code が対話で止まったときは、platform の bell プラグインが、tmux につながった端末にベルを書く（hook の
+  プロセスは制御端末を持たないため）。VS Code の既定のターミナルプロファイルが tmux なのはこのため。tmux は、
+  ベルを外の端末に渡しつつ、自分でも表示する。
 
 ### VS Code の設定
 
@@ -122,7 +123,9 @@ PR と main への push ごとに、devcontainer のイメージの中で `make 
 （[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
 確かめる（`check-image`）。
 
-- `make check` は関心ごとの検査（`check-go`、`check-platform`、`check-target`）をまとめたもの。
+- `make check` は関心ごとの検査（`check-go`、`check-platform`、`check-target`）をまとめたもの
+  （[ADR 0011](adr/0011-ci-checks-as-cached-build-stages.md)）。検査が読むファイルを増やしたら、Dockerfile の
+  そのステージのコピーにも足す。
 - CI は関心ごとのジョブ（`check-go`、`check-platform`、`check-target`）で、Dockerfile の同じ名前のステージを、
   イメージを書き出さずにビルドする（`check-image` も書き出さない）。各ステージはその検査が読むファイルだけを
   コピーして実行するので、それらが変わらなければ層のキャッシュが当たり、検査は実行されない。層は GitHub Actions の

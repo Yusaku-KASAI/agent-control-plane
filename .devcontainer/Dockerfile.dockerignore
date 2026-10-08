@@ -1,5 +1,5 @@
-# Used instead of the root .dockerignore for this Dockerfile. The check stage copies the whole
-# repository; local secrets and build output stay out.
+# Used instead of the root .dockerignore for this Dockerfile. The check stages copy parts of the
+# repository; local secrets and build output stay out of the context.
 .git
 .env
 .env.*

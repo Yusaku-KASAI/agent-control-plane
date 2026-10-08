@@ -28,7 +28,7 @@
         "bierner.markdown-mermaid"
       ],
       "settings": {
-        // Keep identical to .vscode/settings.json (make lint checks).
+        // Keep identical to .vscode/settings.json (make check-target checks).
         "claudeCode.respectGitIgnore": true,
         "claudeCode.useCtrlEnterToSend": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -119,6 +119,6 @@
     }
   },
   "remoteUser": "node",
-  // docker-entrypoint.sh owns UID/GID alignment (docs/target/adr/0001).
+  // The image is built with the host UID/GID (docs/target/adr/0009); VS Code must not change it.
   "updateRemoteUserUID": false
 }

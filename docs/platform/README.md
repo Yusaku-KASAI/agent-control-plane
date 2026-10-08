@@ -14,7 +14,7 @@ platform/
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
     github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
     rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
-    bell/                           対話で使うとき、Claude Code が止まったり応答を待ったりしたら端末のベルを鳴らす hook
+    bell/                           対話で使うとき、Claude Code が応答を待つと2回、ターンを終えると1回、端末のベルを鳴らす hook
 ```
 
 ## 使われ方
@@ -25,11 +25,11 @@ platform/
   ホストでリポジトリを並べたディレクトリに、相対パスのシンボリックリンクを置いてこの `platform/` を指す
   （`ln -s agent-control-plane/platform agent-platform`）。devcontainer でも、エージェントのコンテナでも、この
   リンクを通して届く。このリポジトリのエージェントは、リンクの先が自身の中なので、作業中のブランチの版を使う。
-- 人間が対話で使うときは、最初に一度マーケットプレイスを登録してプラグインを入れる。
+- 人間が対話で使うときは、最初に一度マーケットプレイスを登録し、ターゲットが有効にしたプラグインを入れる。
 
   ```bash
   claude plugin marketplace add /workspace/agent-platform
-  claude plugin install roles@acp-platform
+  claude plugin install roles@acp-platform   # .claude/settings.json の enabledPlugins のそれぞれ
   ```
 
 - プラグインが使う認証情報は、実行する環境が環境変数で渡す。slack プラグインは `SLACK_BOT_TOKEN_FILE`
@@ -37,5 +37,5 @@ platform/
 - github プラグインは `gh` の認証を使う（エージェントには control-plane が `GH_CONFIG_DIR` で渡す）。push の直後と
   ターンの終わりに hook が PR の本文が古くないかを確かめ、古ければ書き換えを促す
   （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
-- プラグインの検査（`claude plugin validate ./platform` と `bin/` の `shellcheck`）は `make check-platform` で行う。
+- プラグインの検査（`claude plugin validate ./platform` と、`bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。
 - プラグインには、どのターゲットでも通用する内容だけを書く。
