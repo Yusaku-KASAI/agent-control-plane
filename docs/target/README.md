@@ -60,7 +60,7 @@ VS Code の既定のターミナルプロファイルが tmux なのはこのた
 
 エディタ設定は `devcontainer.json` の `customizations.vscode.settings`（コンテナに attach したウィンドウ）と
 `.vscode/settings.json`（attach していないウィンドウ）に同じ内容で置く。ベル設定のように、片方だけだと
-効いたり効かなかったりするものがあるため。同じであることは `make lint` で確かめる。
+効いたり効かなかったりするものがあるため。同じであることは `make check-target` で確かめる。
 
 ## イメージに求めること
 
@@ -107,10 +107,14 @@ control-plane はさらに次の環境変数を渡す。
 ## CI
 
 PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
-（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。イメージを書き出さず、Dockerfile の `check` ステージ
-（`go` の上でリポジトリをコピーして `make check`）としてビルドする。層は GitHub Actions のキャッシュに残し、
-Go のモジュールは go.sum が変わらない限りキャッシュから使う。あわせて control-plane のイメージがビルドできることを
+（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
 確かめる。
+
+- `make check` は関心ごとの検査（`check-go`、`check-platform`、`check-target`）をまとめたもの。
+- CI はイメージを書き出さず、Dockerfile の `check` ステージとしてビルドする。関心ごとのステージは、その検査が読む
+  ファイルだけをコピーして実行するので、それらが変わらなければ層のキャッシュが当たり、検査は実行されない。
+  層は GitHub Actions のキャッシュに残す。
+- キャッシュが当たると新しく公開された脆弱性を拾えないので、週に1回、`check-go` だけキャッシュを使わずに実行する。
 
 ## 作業の進め方
 

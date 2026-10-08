@@ -1,15 +1,20 @@
-.PHONY: check lint fmt test build
+.PHONY: check check-go check-platform check-target fmt test build
 
-check: lint test
+# One target per concern, so that CI can run each from only the files it reads (docs/target/README.md).
+check: check-go check-platform check-target
 
-SH_FILES := $(wildcard .devcontainer/*.sh) $(wildcard platform/plugins/*/bin/*)
-
-lint:
+check-go:
 	golangci-lint run ./...
-	shellcheck $(SH_FILES)
 	go mod tidy -diff
 	govulncheck ./...
+	go test -race ./...
+
+check-platform:
 	claude plugin validate ./platform
+	shellcheck platform/plugins/*/bin/*
+
+check-target:
+	shellcheck .devcontainer/*.sh
 	python3 .devcontainer/check-vscode-settings.py
 
 fmt:

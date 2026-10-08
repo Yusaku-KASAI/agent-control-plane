@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly, so that new vulnerabilities are found even while the Go files stay unchanged.
+  schedule:
+    - cron: "0 0 * * 1"
 
 jobs:
   check:
@@ -18,6 +21,7 @@ jobs:
           file: .devcontainer/Dockerfile
           target: check
           outputs: type=cacheonly
+          no-cache-filters: ${{ github.event_name == 'schedule' && 'check-go' || '' }}
           cache-from: type=gha,scope=dev-container
           cache-to: type=gha,scope=dev-container,mode=max
 

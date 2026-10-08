@@ -92,7 +92,7 @@ ARG GOLANGCI_LINT_VERSION=v2.14.0
 ARG GOVULNCHECK_VERSION=v1.8.0
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
     set -eux; \
-    export GOBIN=/out; \
+    export GOBIN=/out CGO_ENABLED=0; \
     go install golang.org/x/tools/gopls@${GOPLS_VERSION}; \
     go install github.com/go-delve/delve/cmd/dlv@${DELVE_VERSION}; \
     go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}; \
@@ -119,12 +119,35 @@ RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ];
         && chown -R node:node /home/node /usr/local/share/npm-global; \
     fi
 
-# CI runs make check as this stage, so that it needs no image exported. Modules are their own layer,
-# cached while go.sum does not change.
-FROM go AS check
+# CI runs make check as the check stage, without exporting the image. Each check copies only the
+# files it reads, so its layer stays cached until one of them changes, and the three build in
+# parallel.
+FROM go AS check-base
 USER node
 WORKDIR /workspace/agent-control-plane
+COPY --chown=node:node Makefile ./
+
+FROM check-base AS check-go
 COPY --chown=node:node go.mod go.sum ./
 RUN go mod download
-COPY --chown=node:node . .
-RUN make check
+# Tests also read the example config and this repository's plugin declarations.
+COPY --chown=node:node .golangci.yml acp.example.yaml ./
+COPY --chown=node:node .claude .claude
+COPY --chown=node:node platform platform
+COPY --chown=node:node cmd cmd
+COPY --chown=node:node internal internal
+RUN make check-go
+
+FROM check-base AS check-platform
+COPY --chown=node:node platform platform
+RUN make check-platform
+
+FROM check-base AS check-target
+COPY --chown=node:node .devcontainer .devcontainer
+COPY --chown=node:node .vscode .vscode
+RUN make check-target
+
+FROM scratch AS check
+COPY --from=check-go /workspace/agent-control-plane/Makefile /check-go
+COPY --from=check-platform /workspace/agent-control-plane/Makefile /check-platform
+COPY --from=check-target /workspace/agent-control-plane/Makefile /check-target
