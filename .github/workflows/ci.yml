@@ -10,44 +10,37 @@ on:
 
 jobs:
   check-concern:
-    name: check-${{ matrix.concern }}
+    name: check-${{ matrix.check }}
     strategy:
       fail-fast: false
       matrix:
-        concern: [go, platform, target]
+        include:
+          - { check: go, file: .devcontainer/Dockerfile, target: check-go }
+          - { check: platform, file: .devcontainer/Dockerfile, target: check-platform }
+          - { check: target, file: .devcontainer/Dockerfile, target: check-target }
+          # The control plane's own image builds.
+          - { check: image, file: Dockerfile, target: "" }
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
-      - name: make check-${{ matrix.concern }}
+      - name: Build ${{ matrix.target || matrix.file }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: .devcontainer/Dockerfile
-          target: check-${{ matrix.concern }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
           outputs: type=cacheonly
-          no-cache-filters: ${{ github.event_name == 'schedule' && matrix.concern == 'go' && 'check-go' || '' }}
+          no-cache-filters: ${{ github.event_name == 'schedule' && matrix.check == 'go' && 'check-go' || '' }}
           # One scope per job: jobs writing the same scope would overwrite each other's cache.
-          cache-from: type=gha,scope=dev-container-${{ matrix.concern }}
-          cache-to: type=gha,scope=dev-container-${{ matrix.concern }},mode=max
+          cache-from: type=gha,scope=${{ matrix.check }}
+          cache-to: type=gha,scope=${{ matrix.check }},mode=max
 
-  # The required status check. A job skipped because a need failed would count as passed, so this
-  # one always runs and fails on its own.
+  # The one required status check. A job skipped because a need failed would count as passed, so
+  # this one always runs and fails on its own.
   check:
     needs: check-concern
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: test "${{ needs.check-concern.result }}" = success
-
-  image:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - name: Build the control plane image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          cache-from: type=gha,scope=control-plane
-          cache-to: type=gha,scope=control-plane,mode=max

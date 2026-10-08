@@ -110,13 +110,13 @@ control-plane はさらに次の環境変数を渡す。
 
 PR と main への push ごとに、devcontainer のイメージの中で `make check` を実行する
 （[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて control-plane のイメージがビルドできることを
-確かめる。
+確かめる（`check-image`）。
 
 - `make check` は関心ごとの検査（`check-go`、`check-platform`、`check-target`）をまとめたもの。
 - CI は関心ごとのジョブ（`check-go`、`check-platform`、`check-target`）で、Dockerfile の同じ名前のステージを、
-  イメージを書き出さずにビルドする。各ステージはその検査が読むファイルだけをコピーして実行するので、それらが
+  イメージを書き出さずにビルドする（`check-image` も同じく書き出さない）。各ステージはその検査が読むファイルだけをコピーして実行するので、それらが
   変わらなければ層のキャッシュが当たり、検査は実行されない。層は GitHub Actions のキャッシュにジョブごとに残す。
-- 必須のチェックは、3つのジョブの結果をまとめる `check` ジョブ。
+- 必須のチェックは、すべてのジョブの結果をまとめる `check` ジョブ1つ。ジョブを足しても ruleset は変えない。
 - キャッシュが当たると新しく公開された脆弱性を拾えないので、週に1回、`check-go` だけキャッシュを使わずに実行する。
 
 ## 作業の進め方
