@@ -14,7 +14,7 @@ Anthropic の [Claude Code devcontainer](https://github.com/anthropics/claude-co
 docker network create agent-control-plane-net
 docker volume create agent-control-plane_claude-code-bashhistory
 docker volume create agent-control-plane_claude-code-config
-# Build node with your UID/GID, so that the container needs no realignment at start.
+# The container runs as node with your UID/GID, so that it can write the repository.
 printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
 ```
 
@@ -42,8 +42,10 @@ printf 'HOST_UID=%s\nHOST_GID=%s\n' "$(id -u)" "$(id -g)" > .devcontainer/.env
   イメージ用）。
 - `..` を `/workspace/agent-control-plane` に読み書き可、`../..` を `/workspace` に**読み取り専用**で
   マウントする。隣に置いたリポジトリは参照できるが書き込めない。
-- `node` の UID と GID は、ビルドのときにホストの値（`.devcontainer/.env`）に合わせる。ずれていたとき
-  （CI など）だけ、起動時に entrypoint がリポジトリの所有者に合わせ直し、所有者の違うボリュームを直す。
+- コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](adr/0009-containers-run-as-non-root.md)）。
+  UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。control-plane の
+  `.env` の `ACP_UID` / `ACP_GID` も同じ値にする。ボリュームのマウント先はイメージの中に `node` の持ち物として
+  作ってあり、新しい名前付きボリュームはその所有者を引き継ぐ。root で作業したいときは `docker exec -u root` で入る。
 
 ### Claude Code の設定
 
@@ -67,11 +69,11 @@ VS Code の既定のターミナルプロファイルが tmux なのはこのた
 control-plane はセッションごとにターゲットのイメージからコンテナを作り、`claude -p` を `stream-json` の
 入出力で動かし続けて、依頼を標準入力に送る。そのためにイメージは次を満たす必要がある。
 
-- entrypoint が root で動き、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡す。
-- エージェントを動かすユーザー `node` と、`claude`、`runuser`、`git`、`gh` が入っている。control-plane は
-  `runuser -u node -- claude ...` を実行する（Claude Code は root では権限確認を省略できないため）。
-- entrypoint は環境変数 `WORKSPACE_DIR`（リポジトリのマウント先）を解釈する。
-- entrypoint 自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
+- イメージのユーザーが root でなく、作業ディレクトリ（リポジトリのマウント先）に書き込める。control-plane は
+  `claude ...` をそのままコマンドとして渡す（Claude Code は root では権限確認を省略できない）。
+- `claude`、`git`、`gh` が入っている。
+- entrypoint があれば、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡し、自身の出力は
+  stderr に出す。stdout はエージェントの回答として扱われる。
 
 control-plane はさらに次の環境変数を渡す。
 

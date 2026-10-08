@@ -53,8 +53,9 @@ RUN ARCH=$(dpkg --print-architecture) && \
     git config --system delta.line-numbers true
 
 COPY --from=uv-source /uv /uvx /usr/local/bin/
-COPY --chmod=755 ./.devcontainer/fix-permissions.sh ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
-RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share
+COPY --chmod=755 ./.devcontainer/docker-entrypoint.sh /usr/local/bin/
+RUN mkdir -p /usr/local/share/npm-global && chown -R node:node /usr/local/share \
+    && install -d -o node -g node /commandhistory
 
 USER node
 ENV SHELL=/bin/zsh EDITOR=nano VISUAL=nano
@@ -66,6 +67,9 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
     -a "source /usr/share/doc/fzf/examples/completion.zsh" \
     -x
 COPY --chown=node:node ./.devcontainer/tmux.conf /home/node/.tmux.conf
+# Mount points made here belong to node, and Docker gives a new named volume the owner of its mount
+# point, so volumes need no chown at start.
+RUN mkdir -p /home/node/.claude /home/node/.config/gh
 
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=/home/node/.local/bin:$PATH:/usr/local/share/npm-global/bin
@@ -78,8 +82,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}" \
 # the install, which it would also block.
 ENV DISABLE_UPDATES=1
 
-# Final user stays root: the entrypoint needs usermod and chown.
-USER root
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 
@@ -107,17 +109,21 @@ ENV PATH=/usr/local/go/bin:/home/node/go/bin:$PATH \
 # In /usr/local/bin, not GOPATH/bin: GOPATH is partly volume-backed, and tools there would drift
 # from the versions pinned here.
 COPY --from=go-tools /out/ /usr/local/bin/
-RUN go version && gopls version && dlv version && golangci-lint version && govulncheck -version
+RUN go version && gopls version && dlv version && golangci-lint version && govulncheck -version \
+    && mkdir -p /home/node/go/pkg/mod /home/node/.cache/go-build
 
-# Built for the host user, so that the entrypoint has nothing to realign at start. Kept out of the
-# shared stages, which are built once for every host.
+# The container runs as node, never as root, so node must own what is mounted for it: build with the
+# workspace owner's UID/GID. Kept out of the shared stages, which are built once for every host. The
+# user is numeric so that platforms can check it is not root (such as Kubernetes runAsNonRoot).
 ARG HOST_UID=1000
 ARG HOST_GID=1000
+USER root
 RUN if [ "$HOST_UID" != "$(id -u node)" ] || [ "$HOST_GID" != "$(id -g node)" ]; then \
         groupmod -o -g "$HOST_GID" node \
         && usermod -o -u "$HOST_UID" -g "$HOST_GID" node \
-        && chown -R node:node /home/node /usr/local/share/npm-global; \
+        && chown -R node:node /home/node /usr/local/share/npm-global /commandhistory; \
     fi
+USER ${HOST_UID}:${HOST_GID}
 
 # CI runs each check-<concern> stage as its own job, without exporting the image. Each copies only
 # the files its check reads, so its layer stays cached until one of them changes.

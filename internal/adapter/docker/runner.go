@@ -128,7 +128,6 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 			// Relies on the target image contract in docs/target/README.md.
 			Cmd: claudeCommand(agent, s, pluginPaths),
 			Env: append([]string{
-				"WORKSPACE_DIR=" + workdir,
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
 				"ACP_CO_AUTHORS_FILE=" + path.Join(credentialsDir, coAuthorsFile),
@@ -176,7 +175,6 @@ func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []str
 		sessionFlag = "--session-id"
 	}
 	cmd := []string{
-		"runuser", "-u", "node", "--",
 		"claude", "-p",
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",

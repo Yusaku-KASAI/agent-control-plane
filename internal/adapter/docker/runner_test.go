@@ -55,7 +55,6 @@ func TestContainerSpec(t *testing.T) {
 		t.Error("stdin is not open for prompts")
 	}
 	wantCmd := []string{
-		"runuser", "-u", "node", "--",
 		"claude", "-p",
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
