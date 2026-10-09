@@ -85,43 +85,62 @@ func (c apiClient) inspect(ctx context.Context, defaultBranch string, ref usecas
 	if err := c.do(ctx, http.MethodGet, "/pulls?state=all&per_page=100&head="+url.QueryEscape(owner+":"+ref.Name), &heads); err != nil {
 		return br, err
 	}
-	if br.Exists {
+	if br.Exists && ref.Owned {
 		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&base="+url.QueryEscape(ref.Name), &bases); err != nil {
 			return br, err
 		}
 	}
-	closedAtTip := false
+	var closed []string
 	for _, p := range append(heads, bases...) {
-		switch {
-		case p.State == "open":
+		if p.State == "open" {
 			br.Pulls = append(br.Pulls, usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL})
-		case p.Head.SHA == tip:
-			closedAtTip = true
+		} else {
+			closed = append(closed, p.Head.SHA)
 		}
 	}
-	switch {
-	case len(br.Pulls) > 0:
+	if len(br.Pulls) > 0 {
 		br.State = usecase.BranchInReview
 		return br, nil
-	case closedAtTip:
+	}
+	if !ref.Owned && br.Exists {
 		br.State = usecase.BranchDone
 		return br, nil
+	}
+	for _, head := range closed {
+		contained, err := c.contains(ctx, head, tip)
+		if err != nil {
+			return br, err
+		}
+		if contained {
+			br.State = usecase.BranchDone
+			return br, nil
+		}
+	}
+	contained, err := c.contains(ctx, escapeRef(defaultBranch), tip)
+	if err != nil {
+		return br, err
+	}
+	if contained {
+		br.State = usecase.BranchDone
+	}
+	return br, nil
+}
+
+// contains tells whether the history of base has commit, as when a pull request got more commits
+// after the session last pulled. GitHub answers 404 for a commit it does not have or one sharing no
+// history with base.
+func (c apiClient) contains(ctx context.Context, base, commit string) (bool, error) {
+	if base == commit {
+		return true, nil
 	}
 	var cmp struct {
 		AheadBy int `json:"ahead_by"`
 	}
-	err := c.do(ctx, http.MethodGet, "/compare/"+escapeRef(defaultBranch)+"..."+tip, &cmp)
-	// GitHub answers 404 for a commit it does not have or one sharing no history with the default branch.
+	err := c.do(ctx, http.MethodGet, "/compare/"+base+"..."+commit, &cmp)
 	if isStatus(err, http.StatusNotFound) {
-		return br, nil
+		return false, nil
 	}
-	if err != nil {
-		return br, err
-	}
-	if cmp.AheadBy == 0 {
-		br.State = usecase.BranchDone
-	}
-	return br, nil
+	return err == nil && cmp.AheadBy == 0, err
 }
 
 func (b *Branches) Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error) {

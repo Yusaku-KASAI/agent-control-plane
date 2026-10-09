@@ -166,7 +166,8 @@ func TestSessionCleaner_Clean(t *testing.T) {
 	e.work[neverPushed] = []usecase.LocalBranch{tracking("acp/40000000", "acp/40000000", true)}
 	e.branches.states = map[string]usecase.RemoteBranch{
 		"acp/d0000000": {State: usecase.BranchDone, Exists: true},
-		"acp/e0000000": {State: usecase.BranchDone, Exists: true},
+		// Not the session's to delete, so its pushed work stays on the remote and does not keep it.
+		"acp/e0000000": {State: usecase.BranchUnfinished, Exists: true},
 		"acp/a0000000": {State: usecase.BranchInReview, Exists: true,
 			Pulls: []usecase.PullRequest{{Number: 7, Title: "Fix", URL: "https://github.com/o/r/pull/7"}}},
 		"acp/20000000": {State: usecase.BranchUnfinished, Exists: true},

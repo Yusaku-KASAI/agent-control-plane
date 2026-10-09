@@ -82,16 +82,22 @@ func (w work) unpushed() []string {
 	return names
 }
 
+// pending tells whether the session holds work found nowhere else. A branch the session did not
+// create is not deleted, so its pushed work stays on the remote; only its pull requests count.
 func (w work) pending() bool {
-	return len(w.unpushed()) > 0 || slices.ContainsFunc(w.remote, func(b RemoteBranch) bool { return b.State != BranchDone })
+	return len(w.unpushed()) > 0 || slices.ContainsFunc(w.remote, unfinishedOrInReview)
+}
+
+func unfinishedOrInReview(b RemoteBranch) bool {
+	return b.State == BranchInReview || b.Owned && b.State == BranchUnfinished
 }
 
 // removable lists the branches to delete: only those the session created, since the others may
 // still be in use by whoever made them.
-func (w work) removable(id domain.SessionID) []string {
+func (w work) removable() []string {
 	var names []string
 	for _, b := range w.remote {
-		if b.Exists && id.OwnsBranch(b.Name) && !slices.Contains(names, b.Name) {
+		if b.Exists && b.Owned && !slices.Contains(names, b.Name) {
 			names = append(names, b.Name)
 		}
 	}
@@ -185,7 +191,7 @@ func (c *SessionCleaner) work(ctx context.Context, agent domain.Agent, s domain.
 	}
 	var refs []BranchRef
 	for _, b := range local {
-		if ref := (BranchRef{Name: b.Upstream, LocalTip: b.Tip}); b.Upstream != "" && !slices.Contains(refs, ref) {
+		if ref := (BranchRef{Name: b.Upstream, LocalTip: b.Tip, Owned: s.ID.OwnsBranch(b.Upstream)}); b.Upstream != "" && !slices.Contains(refs, ref) {
 			refs = append(refs, ref)
 		}
 	}
@@ -223,7 +229,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 		return nil, fmt.Errorf("%w: work found meanwhile", errKept)
 	}
 	var branches []string
-	if names := w.removable(id); len(names) > 0 {
+	if names := w.removable(); len(names) > 0 {
 		if branches, err = c.branches.Remove(ctx, agent, creds, names); err != nil {
 			return nil, fmt.Errorf("remove branches: %w", err)
 		}
@@ -297,9 +303,14 @@ func (c *SessionCleaner) keptText(s domain.Session, w work) string {
 			}
 		}
 	}
+	var listed []string
 	for _, r := range w.remote {
+		if slices.Contains(listed, r.Name) {
+			continue
+		}
+		listed = append(listed, r.Name)
 		switch {
-		case r.State != BranchUnfinished:
+		case !r.Owned || r.State != BranchUnfinished:
 		case r.Exists:
 			fmt.Fprintf(&b, "\n- 開いている PR がなく、既定のブランチにも入っていないブランチ：`%s`", r.Name)
 		case !slices.ContainsFunc(w.local, func(l LocalBranch) bool { return l.Unpushed && l.Upstream == r.Name && l.Tip == r.LocalTip }):

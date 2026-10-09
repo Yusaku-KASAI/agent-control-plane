@@ -34,10 +34,10 @@ type PullRequest struct {
 type BranchState int
 
 const (
-	// BranchDone is a branch whose work is kept elsewhere: contained in the default branch or the
+	// BranchDone is a branch whose work is kept elsewhere: contained in the default branch or in the
 	// head of a closed pull request.
 	BranchDone BranchState = iota + 1
-	// BranchInReview is the head or the base of an open pull request.
+	// BranchInReview is the head of an open pull request, or the base of one for an owned branch.
 	BranchInReview
 	// BranchUnfinished has commits that are in no pull request and not in the default branch.
 	BranchUnfinished
@@ -64,6 +64,9 @@ type SessionWorkspace interface {
 type BranchRef struct {
 	Name     string
 	LocalTip string
+	// Owned is set for a branch the session created. Only such a branch is deleted, so only its
+	// state beyond the pull requests from it matters.
+	Owned bool
 }
 
 type RemoteBranch struct {
@@ -76,8 +79,9 @@ type RemoteBranch struct {
 
 type SessionBranches interface {
 	// Inspect tells the state of the branches on the target's remote, leaving out its default
-	// branch. A branch gone from the remote is judged by its local tip. It returns none when the
-	// agent could not have pushed: without a GitHub token or a GitHub origin.
+	// branch. A branch gone from the remote is judged by its local tip. A branch not owned that
+	// still exists is in review only for pull requests from it, and otherwise done. It returns none when the agent could
+	// not have pushed: without a GitHub token or a GitHub origin.
 	Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, refs []BranchRef) ([]RemoteBranch, error)
 	// Remove deletes the named branches on the target's remote and returns those it deleted,
 	// leaving out those already gone or protected.

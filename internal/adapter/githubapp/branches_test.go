@@ -15,15 +15,20 @@ import (
 )
 
 func TestBranches_Inspect(t *testing.T) {
-	tips := map[string]string{"review": "r1", "base": "b1", "closed": "c1", "pushed-after-close": "p2", "merged": "m1", "wip": "w1", "orphan": "o1"}
+	tips := map[string]string{"review": "r1", "base": "b1", "closed": "c1", "pushed-after-close": "p2", "merged": "m1", "wip": "w1", "orphan": "o1", "develop": "d1"}
 	heads := map[string]string{
 		"review":             `[{"number":1,"title":"Docs","html_url":"https://github.com/o/repo/pull/1","state":"open","head":{"sha":"r1"}}]`,
 		"closed":             `[{"number":2,"state":"closed","head":{"sha":"c1"}}]`,
 		"pushed-after-close": `[{"number":3,"state":"closed","head":{"sha":"p1"}}]`,
 		"squashed":           `[{"number":4,"state":"closed","head":{"sha":"s1"}}]`,
+		"squashed-after-fix": `[{"number":6,"state":"closed","head":{"sha":"f2"}}]`,
 	}
-	bases := map[string]string{"base": `[{"number":5,"title":"Stacked","html_url":"https://github.com/o/repo/pull/5","state":"open"}]`}
-	ahead := map[string]int{"p2": 1, "m1": 0, "w1": 2, "l1": 3}
+	bases := map[string]string{
+		"base":    `[{"number":5,"title":"Stacked","html_url":"https://github.com/o/repo/pull/5","state":"open"}]`,
+		"develop": `[{"number":8,"state":"open"}]`,
+	}
+	// ahead tells how far head is ahead of base by "base...head"; a missing pair shares no history.
+	ahead := map[string]int{"main...p2": 1, "main...m1": 0, "main...w1": 2, "main...l1": 3, "p1...p2": 1, "f2...f1": 0, "main...f1": 1}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer t" {
 			t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
@@ -47,13 +52,16 @@ func TestBranches_Inspect(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`[]`))
 		case path == "/pulls" && q.Get("base") != "" && q.Get("state") == "open":
+			if q.Get("base") == "develop" {
+				t.Error("looked for pull requests into a branch the session did not create")
+			}
 			if p, ok := bases[q.Get("base")]; ok {
 				_, _ = w.Write([]byte(p))
 				return
 			}
 			_, _ = w.Write([]byte(`[]`))
-		case strings.HasPrefix(path, "/compare/main..."):
-			n, ok := ahead[strings.TrimPrefix(path, "/compare/main...")]
+		case strings.HasPrefix(path, "/compare/"):
+			n, ok := ahead[strings.TrimPrefix(path, "/compare/")]
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -68,12 +76,13 @@ func TestBranches_Inspect(t *testing.T) {
 	b := NewBranches(srv.URL, srv.Client(), func(context.Context, string) (string, error) { return "git@github.com:o/repo.git", nil })
 
 	ref := func(name, localTip string) usecase.BranchRef {
-		return usecase.BranchRef{Name: name, LocalTip: localTip}
+		return usecase.BranchRef{Name: name, LocalTip: localTip, Owned: name != "develop"}
 	}
 	got, err := b.Inspect(context.Background(), dev, domain.Credentials{GitHubToken: "t"}, []usecase.BranchRef{
 		ref("main", "x"), ref("review", "x"), ref("base", "x"), ref("closed", "x"), ref("pushed-after-close", "x"),
 		ref("merged", "x"), ref("wip", "x"), ref("orphan", "x"),
-		ref("squashed", "s1"), ref("deleted-unmerged", "l1"), ref("never-pushed", "n1"),
+		ref("squashed", "s1"), ref("squashed-after-fix", "f1"), ref("deleted-unmerged", "l1"), ref("never-pushed", "n1"),
+		ref("develop", "x"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -89,8 +98,12 @@ func TestBranches_Inspect(t *testing.T) {
 		{BranchRef: ref("orphan", "x"), State: usecase.BranchUnfinished, Exists: true},
 		// Gone from the remote: judged by the local tip.
 		{BranchRef: ref("squashed", "s1"), State: usecase.BranchDone},
+		// The pull request got another commit after the session last pulled.
+		{BranchRef: ref("squashed-after-fix", "f1"), State: usecase.BranchDone},
 		{BranchRef: ref("deleted-unmerged", "l1"), State: usecase.BranchUnfinished},
 		{BranchRef: ref("never-pushed", "n1"), State: usecase.BranchUnfinished},
+		// Not the session's: neither a pull request into it nor its own commits keep the session.
+		{BranchRef: ref("develop", "x"), State: usecase.BranchDone, Exists: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Inspect() =\n%+v\nwant\n%+v", got, want)
