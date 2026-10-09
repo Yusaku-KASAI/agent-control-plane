@@ -1,4 +1,6 @@
-name: agent-control-plane-dev
+# Names and paths come from .devcontainer/.env, written by init-host.sh, so that this file is the
+# same in every target.
+name: ${REPO_NAME:?run .devcontainer/init-host.sh}-dev
 
 services:
   dev-container:
@@ -7,50 +9,35 @@ services:
       dockerfile: ./.devcontainer/Dockerfile
       target: go
       args:
-        TZ: Asia/Tokyo
-        CLAUDE_CODE_VERSION: "latest"
-        GIT_DELTA_VERSION: "0.18.2"
-        ZSH_IN_DOCKER_VERSION: "1.2.0"
-        GO_VERSION: "1.27.1"
-        REPO_NAME: "agent-control-plane"
+        TZ: ${TZ:-UTC}
+        HOST_UID: ${HOST_UID:?run .devcontainer/init-host.sh}
+        HOST_GID: ${HOST_GID:?run .devcontainer/init-host.sh}
+    # Agents run this image too (image in acp.yaml).
+    image: ${REPO_NAME}-devcontainer
+    working_dir: /workspace/${REPO_NAME}
     volumes:
       # Docker mounts parents first, so the repo mount below overlays this read-only one.
       - ../..:/workspace:ro
-      - ..:/workspace/agent-control-plane:cached
-      - dev-gh-config:/home/node/.config/gh
-      - dev-go-mod:/home/node/go/pkg/mod
-      - dev-go-build:/home/node/.cache/go-build
-      - claude-code-bashhistory:/commandhistory
-      - claude-code-config:/home/node/.claude
+      - ..:/workspace/${REPO_NAME}:cached
+      # On the host, outside Docker, so that no prune or `down -v` removes logins and history.
+      - ${DEV_STATE_DIR:?run .devcontainer/init-host.sh}/claude:/home/node/.claude
+      - ${DEV_STATE_DIR}/gh:/home/node/.config/gh
+      - ${DEV_STATE_DIR}/history:/commandhistory
+      # Caches only: losing them costs a download.
+      - go-mod:/home/node/go/pkg/mod
+      - go-build:/home/node/.cache/go-build
     environment:
-      - FIREWALL_ENABLED=false
       - NODE_OPTIONS=--max-old-space-size=4096
-      - CLAUDE_CONFIG_DIR=/home/node/.claude
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history
       # The API token is deliberately not passed: it would let this container start agents that
       # hold GitHub credentials.
       - ACP_SERVER=http://control-plane:8787
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYSLOG
-    devices:
-      - /dev/net/tun:/dev/net/tun
 
 volumes:
-  dev-gh-config:
-  dev-go-mod:
-  dev-go-build:
-
-  # External + fixed name: Claude Code login/history/memory survive `down -v` and project renames.
-  claude-code-bashhistory:
-    external: true
-    name: agent-control-plane_claude-code-bashhistory
-  claude-code-config:
-    external: true
-    name: agent-control-plane_claude-code-config
+  go-mod:
+  go-build:
 
 networks:
   default:

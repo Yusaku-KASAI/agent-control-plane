@@ -1,8 +1,11 @@
 {
-  "name": "agent-control-plane",
+  "name": "${localWorkspaceFolderBasename}",
   "dockerComposeFile": ["compose.yaml"],
   "service": "dev-container",
-  "workspaceFolder": "/workspace/agent-control-plane",
+  "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
+  // VS Code only attaches: the container is built, started and stopped by commands
+  // (docs/target/README.md). With the container up, compose up does nothing.
+  "overrideCommand": false,
   "shutdownAction": "none",
   "runServices": [],
   "customizations": {
@@ -25,7 +28,7 @@
         "bierner.markdown-mermaid"
       ],
       "settings": {
-        // Keep identical to .vscode/settings.json.
+        // Keep identical to .vscode/settings.json (make check-target checks).
         "claudeCode.respectGitIgnore": true,
         "claudeCode.useCtrlEnterToSend": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -34,12 +37,11 @@
         "editor.wordWrap": "on",
         "files.autoSave": "onFocusChange",
         "files.eol": "\n",
-        // tmux is required for hook-driven terminal bells (README.md).
         "accessibility.signals.terminalBell": {
           "sound": "on"
         },
-        "terminal.integrated.enableVisualBell": true, // 音の保険。タブ名の横に出る視覚ベル
-        "terminal.integrated.bellDuration": 150, // その表示時間（ms・既定 1000）
+        "terminal.integrated.enableVisualBell": true, // in case the sound is missed
+        "terminal.integrated.bellDuration": 150,
         "terminal.integrated.defaultProfile.linux": "tmux",
         "terminal.integrated.profiles.linux": {
           "bash": {
@@ -116,7 +118,6 @@
     }
   },
   "remoteUser": "node",
-  // docker-entrypoint.sh owns UID/GID alignment (docs/target/adr/0001).
-  "updateRemoteUserUID": false,
-  "postAttachCommand": "/usr/local/bin/background-sync.sh"
+  // The image is built with the host UID/GID (docs/target/adr/0009); VS Code must not change it.
+  "updateRemoteUserUID": false
 }

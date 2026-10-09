@@ -52,10 +52,6 @@
     "ask": [],
     "deny": []
   },
-  "hooks": {
-    "PreToolUse": [],
-    "PostToolUse": []
-  },
   "extraKnownMarketplaces": {
     "acp-platform": {
       "source": {
@@ -68,6 +64,7 @@
     "roles@acp-platform": true,
     "slack@acp-platform": true,
     "github@acp-platform": true,
-    "rules@acp-platform": true
+    "rules@acp-platform": true,
+    "bell@acp-platform": true
   }
 }

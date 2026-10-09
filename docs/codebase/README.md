@@ -20,6 +20,6 @@
 ## コマンド
 
 ```bash
-make check   # lint (golangci-lint, shellcheck, go mod tidy の差分検査) + test
-make fmt     # 整形
+make check-go   # golangci-lint、go mod tidy の差分、govulncheck、go test -race
+make fmt        # 整形
 ```

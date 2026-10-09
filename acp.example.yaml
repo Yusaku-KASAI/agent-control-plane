@@ -39,7 +39,7 @@ agents:
     role: developer # a Claude Code agent from platform/plugins/roles, or the target's .claude/agents/
     target:
       path: /home/you/projects/agent-control-plane # the repository the agent works on
-      image: agent-control-plane-dev-dev-container # built from the target's devcontainer
+      image: agent-control-plane-devcontainer # built from the target's devcontainer
     # Author of the agent's commits: the GitHub App's bot user. The number is the bot user's account
     # id (gh api '/users/<app-slug>[bot]' --jq .id), not the App ID.
     git:
@@ -69,7 +69,7 @@ agents:
     role: guide
     target:
       path: /home/you/projects/agent-control-plane
-      image: agent-control-plane-dev-dev-container
+      image: agent-control-plane-devcontainer
     github:
       app_id: 234567
       installation_id: 23456789
