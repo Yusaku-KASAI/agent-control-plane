@@ -11,6 +11,7 @@ import (
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 const sessionID domain.SessionID = "0f8fad5b-d9cb-469f-a165-70867728950e"
@@ -173,61 +174,60 @@ func TestProvider_Branches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type branch struct {
-		name, upstream string
-		unpushed       bool
+	type local struct {
+		name     string
+		unpushed bool
 	}
-	check := func(want ...branch) {
+	check := func(wantPushed []string, wantLocal ...local) {
 		t.Helper()
 		got, err := p.Branches(ctx, ws.Path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var names []branch
-		for _, b := range got {
+		var pushed []string
+		for _, b := range got.Pushed {
+			if want := gitOutput(t, ws.Path, "rev-parse", "refs/remotes/origin/"+b.Name); b.LocalTip != want {
+				t.Errorf("tip of pushed %s = %q, want %q", b.Name, b.LocalTip, want)
+			}
+			pushed = append(pushed, b.Name)
+		}
+		if !slices.Equal(pushed, wantPushed) {
+			t.Errorf("Pushed = %v, want %v", pushed, wantPushed)
+		}
+		var locals []local
+		for _, b := range got.Local {
 			if b.Name != "HEAD" && b.Tip != gitOutput(t, ws.Path, "rev-parse", "refs/heads/"+b.Name) {
 				t.Errorf("tip of %s = %q", b.Name, b.Tip)
 			}
-			names = append(names, branch{b.Name, b.Upstream, b.Unpushed})
+			locals = append(locals, local{b.Name, b.Unpushed})
 		}
-		if !slices.Equal(names, want) {
-			t.Errorf("Branches() = %+v, want %+v", names, want)
+		if !slices.Equal(locals, wantLocal) {
+			t.Errorf("Local = %+v, want %+v", locals, wantLocal)
 		}
 	}
 
-	// The session branch tracks origin before it is pushed; the clone's branch, feature, is gone.
-	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", false})
+	// The clone's branch, feature, holds a commit origin lacks, but it is the target's. Fetching
+	// origin/main is no push.
+	check(nil, local{"acp/0f8fad5b", false}, local{"feature", false})
 
 	commit(t, ws.Path, "a.txt", "session work")
-	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", true})
+	check(nil, local{"acp/0f8fad5b", true}, local{"feature", false})
 	git(t, ws.Path, "push", "--quiet", "origin", "acp/0f8fad5b")
-	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", false})
+	check([]string{"acp/0f8fad5b"}, local{"acp/0f8fad5b", false}, local{"feature", false})
 
-	git(t, ws.Path, "switch", "--quiet", "-c", "acp/0f8fad5b-docs")
-	commit(t, ws.Path, "b.txt", "docs")
-	git(t, ws.Path, "push", "--quiet", "-u", "origin", "HEAD")
 	git(t, ws.Path, "switch", "--quiet", "-c", "scratch")
+	commit(t, ws.Path, "b.txt", "docs")
+	git(t, ws.Path, "push", "--quiet", "origin", "HEAD:refs/heads/acp/0f8fad5b-docs")
 	commit(t, ws.Path, "c.txt", "scratch")
 	git(t, ws.Path, "tag", "scratch")
 	git(t, ws.Path, "switch", "--quiet", "--detach", "acp/0f8fad5b")
 	commit(t, ws.Path, "d.txt", "detached")
-	check(
-		branch{"acp/0f8fad5b", "acp/0f8fad5b", false},
-		branch{"acp/0f8fad5b-docs", "acp/0f8fad5b-docs", false},
-		branch{"scratch", "", true},
-		branch{"HEAD", "", true},
-	)
-}
+	want := []local{{"acp/0f8fad5b", false}, {"feature", false}, {"scratch", true}, {"HEAD", true}}
+	check([]string{"acp/0f8fad5b", "acp/0f8fad5b-docs"}, want...)
 
-func TestProvider_Branches_ClonedBranchOfOlderWorkspace(t *testing.T) {
-	f := newFixture(t)
-	ws := filepath.Join(t.TempDir(), "repo")
-	git(t, "", "clone", "--quiet", f.source, ws)
-	git(t, ws, "switch", "--quiet", "-c", "acp/0f8fad5b")
-	got, err := gitworkspace.NewProvider(t.TempDir()).Branches(context.Background(), ws)
-	if err != nil || len(got) != 1 || got[0].Name != "acp/0f8fad5b" {
-		t.Errorf("Branches() = %+v, %v; want only the session branch", got, err)
-	}
+	// What the session pushed outlives gc, whatever the retention period.
+	git(t, ws.Path, "-c", "gc.reflogExpire=now", "-c", "gc.reflogExpireUnreachable=now", "reflog", "expire", "--all")
+	check([]string{"acp/0f8fad5b", "acp/0f8fad5b-docs"}, want...)
 }
 
 func TestProvider_Branches_NoRepository(t *testing.T) {
@@ -238,13 +238,13 @@ func TestProvider_Branches_NoRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"", filepath.Join(t.TempDir(), "gone"), inside} {
-		if got, err := p.Branches(context.Background(), path); got != nil || err != nil {
-			t.Errorf("Branches(%q) = %v, %v; want nothing", path, got, err)
+		if got, err := p.Branches(context.Background(), path); got.Pushed != nil || got.Local != nil || err != nil {
+			t.Errorf("Branches(%q) = %+v, %v; want nothing", path, got, err)
 		}
 	}
 }
 
-func TestProvider_Prepare_WithoutCredentialsLeavesSessionBranchUntracked(t *testing.T) {
+func TestProvider_Branches_WithoutCredentials(t *testing.T) {
 	f := newFixture(t)
 	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
 	p := gitworkspace.NewProvider(t.TempDir())
@@ -252,8 +252,9 @@ func TestProvider_Prepare_WithoutCredentialsLeavesSessionBranchUntracked(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The session branch starts from the target's commit, which the clone's remote-tracking branches hold.
 	got, err := p.Branches(context.Background(), ws.Path)
-	if err != nil || len(got) != 1 || got[0].Upstream != "" || got[0].Unpushed {
-		t.Errorf("Branches() = %+v, %v; want the session branch, untracked and with nothing unpushed", got, err)
+	if err != nil || len(got.Pushed) != 0 || slices.ContainsFunc(got.Local, func(b usecase.LocalBranch) bool { return b.Unpushed }) {
+		t.Errorf("Branches() = %+v, %v; want nothing pushed or unpushed", got, err)
 	}
 }

@@ -27,7 +27,5 @@ model: opus
   そのブランチの PR が既にあれば、push して PR を更新する。PR の作り方と更新の仕方は github スキルに従う。
   報告には PR の URL を含める。
 - 別の PR に分けるべき変更は、リモートのデフォルトブランチから `$ACP_SESSION_BRANCH-<内容>` という
-  ブランチを `git switch --no-track -c` で切って同じように扱う。
-- ブランチは `git push -u` で push する。control-plane は upstream から、セッションが触ったブランチを知る。
-  GitHub に push できるときは、`ACP_SESSION_BRANCH` には push する前から upstream が設定されている。
+  ブランチを切って同じように扱う。
 - push や PR の作成ができない場合は、コミットまでにとどめ、その理由を報告する。

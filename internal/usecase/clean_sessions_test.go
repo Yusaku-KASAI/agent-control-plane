@@ -13,11 +13,11 @@ import (
 )
 
 // fakeWork holds the branches of each session's workspace, by the session ID that names its path.
-type fakeWork map[domain.SessionID][]usecase.LocalBranch
+type fakeWork map[domain.SessionID]usecase.WorkspaceBranches
 
 func workspacePath(id domain.SessionID) string { return "/sessions/" + string(id) }
 
-func (f fakeWork) Branches(_ context.Context, path string) ([]usecase.LocalBranch, error) {
+func (f fakeWork) Branches(_ context.Context, path string) (usecase.WorkspaceBranches, error) {
 	return f[domain.SessionID(strings.TrimPrefix(path, "/sessions/"))], nil
 }
 
@@ -149,21 +149,26 @@ func TestSessionCleaner_Clean(t *testing.T) {
 	e.save(gone, "removed-agent", expired)
 	e.sessions.orphans = map[domain.SessionID]bool{orphan: true}
 	e.sessions.held = map[domain.SessionID]bool{inUse: true}
-	tracking := func(name, upstream string, unpushed bool) usecase.LocalBranch {
-		return usecase.LocalBranch{Name: name, Upstream: upstream, Tip: "tip-" + name, Unpushed: unpushed}
+	pushed := func(names ...string) []usecase.BranchRef {
+		var refs []usecase.BranchRef
+		for _, n := range names {
+			refs = append(refs, usecase.BranchRef{Name: n, LocalTip: "tip-" + n})
+		}
+		return refs
 	}
-	e.work[done] = []usecase.LocalBranch{
-		tracking("acp/d0000000", "acp/d0000000", false),
-		// Updated another session's branch, which is that session's to delete.
-		tracking("shared", "acp/e0000000", false),
-		tracking("acp/d0000000-docs", "acp/d0000000-docs", false),
+	unpushedBranch := func(name string) usecase.LocalBranch {
+		return usecase.LocalBranch{Name: name, Tip: "tip-" + name, Unpushed: true}
+	}
+	e.work[done] = usecase.WorkspaceBranches{
+		// Pushed to another session's branch too, which is that session's to delete.
+		Pushed: pushed("acp/d0000000", "acp/e0000000", "acp/d0000000-docs"),
 		// Squash-merged, deleted on GitHub and pruned: its commits are on no remote-tracking branch.
-		tracking("acp/d0000000-fix", "acp/d0000000-fix", true),
+		Local: []usecase.LocalBranch{unpushedBranch("acp/d0000000-fix")},
 	}
-	e.work[review] = []usecase.LocalBranch{tracking("acp/a0000000", "acp/a0000000", false)}
-	e.work[unfinished] = []usecase.LocalBranch{tracking("acp/20000000", "acp/20000000", false)}
-	e.work[unpushed] = []usecase.LocalBranch{tracking("scratch", "", true), {Name: "HEAD", Unpushed: true}}
-	e.work[neverPushed] = []usecase.LocalBranch{tracking("acp/40000000", "acp/40000000", true)}
+	e.work[review] = usecase.WorkspaceBranches{Pushed: pushed("acp/a0000000")}
+	e.work[unfinished] = usecase.WorkspaceBranches{Pushed: pushed("acp/20000000")}
+	e.work[unpushed] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{unpushedBranch("scratch"), {Name: "HEAD", Unpushed: true}}}
+	e.work[neverPushed] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{unpushedBranch("acp/40000000")}}
 	e.branches.states = map[string]usecase.RemoteBranch{
 		"acp/d0000000": {State: usecase.BranchDone, Exists: true},
 		// Not the session's to delete, so its pushed work stays on the remote and does not keep it.
@@ -172,6 +177,7 @@ func TestSessionCleaner_Clean(t *testing.T) {
 			Pulls: []usecase.PullRequest{{Number: 7, Title: "Fix", URL: "https://github.com/o/r/pull/7"}}},
 		"acp/20000000": {State: usecase.BranchUnfinished, Exists: true},
 		"acp/40000000": {State: usecase.BranchUnfinished},
+		"scratch":      {State: usecase.BranchUnfinished},
 	}
 
 	report, err := e.cleaner.Clean(context.Background())
@@ -230,7 +236,8 @@ func TestSessionCleaner_Clean(t *testing.T) {
 func TestSessionCleaner_NotifiesKeptOncePerRetention(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = []usecase.LocalBranch{{Name: "acp/0f8fad5b", Unpushed: true}}
+	e.work[existingID] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{{Name: "acp/0f8fad5b", Tip: "t", Unpushed: true}}}
+	e.branches.states = map[string]usecase.RemoteBranch{"acp/0f8fad5b": {State: usecase.BranchUnfinished}}
 	clean := func() {
 		t.Helper()
 		if _, err := e.cleaner.Clean(context.Background()); err != nil {
@@ -256,22 +263,10 @@ func TestSessionCleaner_NotifiesKeptOncePerRetention(t *testing.T) {
 	}
 }
 
-func TestSessionCleaner_RecordWithoutLastUse(t *testing.T) {
-	e := newCleanEnv()
-	e.save(existingID, dev.Name, time.Time{})
-	report, err := e.cleaner.Clean(context.Background())
-	if err != nil || len(report.Removed) != 0 {
-		t.Fatalf("Clean() = %+v, %v; want nothing removed", report, err)
-	}
-	if got := e.sessions.saved[existingID].LastUsedAt; !got.Equal(e.now) {
-		t.Errorf("LastUsedAt = %v, want the time it was first seen, %v", got, e.now)
-	}
-}
-
 func TestSessionCleaner_KeepsSessionWhenBranchesFail(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = []usecase.LocalBranch{{Name: "acp/0f8fad5b", Upstream: "acp/0f8fad5b", Tip: "t"}}
+	e.work[existingID] = usecase.WorkspaceBranches{Pushed: []usecase.BranchRef{{Name: "acp/0f8fad5b", LocalTip: "t"}}}
 	e.branches.err = errors.New("github is down")
 
 	report, err := e.cleaner.Clean(context.Background())
@@ -307,7 +302,7 @@ func TestSessionCleaner_KeepsSessionUsedMeanwhile(t *testing.T) {
 func TestSessionCleaner_KeepsSessionWithWorkFoundUnderLock(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = []usecase.LocalBranch{{Name: "acp/0f8fad5b", Upstream: "acp/0f8fad5b", Tip: "t"}}
+	e.work[existingID] = usecase.WorkspaceBranches{Pushed: []usecase.BranchRef{{Name: "acp/0f8fad5b", LocalTip: "t"}}}
 	e.sessions.onLock = func(domain.SessionID) {
 		e.sessions.onLock = nil
 		e.branches.states = map[string]usecase.RemoteBranch{"acp/0f8fad5b": {Name: "acp/0f8fad5b", State: usecase.BranchUnfinished, Exists: true}}

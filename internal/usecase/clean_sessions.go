@@ -62,7 +62,7 @@ type work struct {
 }
 
 func (w work) remoteOf(b LocalBranch) (RemoteBranch, bool) {
-	i := slices.IndexFunc(w.remote, func(r RemoteBranch) bool { return r.Name == b.Upstream && r.LocalTip == b.Tip })
+	i := slices.IndexFunc(w.remote, func(r RemoteBranch) bool { return r.Name == b.Name && r.LocalTip == b.Tip })
 	if i < 0 {
 		return RemoteBranch{}, false
 	}
@@ -142,14 +142,6 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	if err != nil {
 		return false, err
 	}
-	if s.LastUsedAt.IsZero() {
-		// A record without LastUsedAt counts as used when first seen.
-		err := c.update(ctx, id, func(s *domain.Session) { s.LastUsedAt = c.now() })
-		if errors.Is(err, domain.ErrSessionNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
 	cutoff := c.now().Add(-c.retention)
 	if !s.LastUsedAt.Before(cutoff) {
 		return false, nil
@@ -184,18 +176,24 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	return true, nil
 }
 
+// work inspects the branches the session pushed and the local branches holding unpushed commits:
+// GitHub may have those commits under the same name, as when a merge deleted the branch and a
+// prune removed its remote-tracking branch.
 func (c *SessionCleaner) work(ctx context.Context, agent domain.Agent, s domain.Session, creds domain.Credentials) (work, error) {
-	local, err := c.workspaces.Branches(ctx, s.Workspace.Path)
+	branches, err := c.workspaces.Branches(ctx, s.Workspace.Path)
 	if err != nil {
 		return work{}, fmt.Errorf("read workspace branches: %w", err)
 	}
-	var refs []BranchRef
-	for _, b := range local {
-		if ref := (BranchRef{Name: b.Upstream, LocalTip: b.Tip, Owned: s.ID.OwnsBranch(b.Upstream)}); b.Upstream != "" && !slices.Contains(refs, ref) {
+	refs := slices.Clone(branches.Pushed)
+	for _, b := range branches.Local {
+		if ref := (BranchRef{Name: b.Name, LocalTip: b.Tip}); b.Unpushed && b.Name != "HEAD" && !slices.Contains(refs, ref) {
 			refs = append(refs, ref)
 		}
 	}
-	w := work{local: local}
+	for i := range refs {
+		refs[i].Owned = s.ID.OwnsBranch(refs[i].Name)
+	}
+	w := work{local: branches.Local}
 	if len(refs) > 0 {
 		if w.remote, err = c.branches.Inspect(ctx, agent, creds, refs); err != nil {
 			return work{}, fmt.Errorf("inspect branches: %w", err)
@@ -313,7 +311,7 @@ func (c *SessionCleaner) keptText(s domain.Session, w work) string {
 		case !r.Owned || r.State != BranchUnfinished:
 		case r.Exists:
 			fmt.Fprintf(&b, "\n- 開いている PR がなく、既定のブランチにも入っていないブランチ：`%s`", r.Name)
-		case !slices.ContainsFunc(w.local, func(l LocalBranch) bool { return l.Unpushed && l.Upstream == r.Name && l.Tip == r.LocalTip }):
+		case !slices.ContainsFunc(w.local, func(l LocalBranch) bool { return l.Unpushed && l.Name == r.Name && l.Tip == r.LocalTip }):
 			fmt.Fprintf(&b, "\n- リモートから消えたが、既定のブランチにも閉じた PR にも入っていないブランチ：`%s`", r.Name)
 		}
 	}

@@ -45,22 +45,27 @@ const (
 
 type LocalBranch struct {
 	Name string
-	// Upstream is the name of the branch it tracks on origin, if any.
-	Upstream string
-	Tip      string
-	// Unpushed is set when it holds commits that no remote-tracking branch has.
+	Tip  string
+	// Unpushed is set when it holds commits found on no remote-tracking branch and not in the
+	// target's checkout the workspace was cloned from.
 	Unpushed bool
+}
+
+type WorkspaceBranches struct {
+	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
+	Pushed []BranchRef
+	// Local are the local branches, plus HEAD named "HEAD" when it is detached on commits no
+	// branch has.
+	Local []LocalBranch
 }
 
 // SessionWorkspace tells what work a session's workspace holds.
 type SessionWorkspace interface {
-	// Branches returns the session's local branches in the workspace at path: all but the one the
-	// clone created, plus HEAD named "HEAD" when it is detached on commits no branch has. A path
-	// that is missing or not a repository has none.
-	Branches(ctx context.Context, path string) ([]LocalBranch, error)
+	// Branches returns none for a path that is missing or not a repository.
+	Branches(ctx context.Context, path string) (WorkspaceBranches, error)
 }
 
-// BranchRef is a branch on the remote, with the tip a local branch tracking it has.
+// BranchRef is a branch on the remote, with the tip the workspace has for it.
 type BranchRef struct {
 	Name     string
 	LocalTip string

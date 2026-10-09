@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -46,9 +47,8 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 		}
 	}
 
-	cloned, err := g.run(ctx, dest, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if err != nil {
-		cloned = ""
+	if err := keepWorkRecords(ctx, g, dest); err != nil {
+		return domain.Workspace{}, err
 	}
 	start := "HEAD"
 	if hasUpstream && g.token != "" {
@@ -62,21 +62,6 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	}
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
-	}
-	// The clone's branch is the target's checkout, not the session's work.
-	if cloned != "" {
-		if _, err := g.run(ctx, dest, "branch", "--quiet", "-D", cloned); err != nil {
-			return domain.Workspace{}, err
-		}
-	}
-	if start != "HEAD" {
-		// The session branch tracks its namesake on origin before it is pushed, so that it counts as
-		// the session's however the agent pushes it.
-		for key, value := range map[string]string{"remote": "origin", "merge": "refs/heads/" + id.Branch()} {
-			if _, err := g.run(ctx, dest, "config", "branch."+id.Branch()+"."+key, value); err != nil {
-				return domain.Workspace{}, err
-			}
-		}
 	}
 	if err := installCommitMsgHook(dest); err != nil {
 		return domain.Workspace{}, err
@@ -147,61 +132,88 @@ func Origin(ctx context.Context, path string) (string, error) {
 	return url, nil
 }
 
-// Branches tells the local branches by the tip each has and whether it has been pushed.
-func (p *Provider) Branches(ctx context.Context, path string) ([]usecase.LocalBranch, error) {
+// targetRef keeps the target's checkout the workspace was cloned from. Its commits are the
+// target's, not the session's, even when origin lacks them.
+const targetRef = "refs/acp/target"
+
+// keepWorkRecords marks the target's checkout and keeps the reflogs of remote-tracking branches,
+// which tell what the session pushed, past any retention period.
+func keepWorkRecords(ctx context.Context, g gitRunner, repo string) error {
+	if _, err := g.run(ctx, repo, "update-ref", targetRef, "HEAD"); err != nil {
+		return err
+	}
+	for _, key := range []string{"reflogExpire", "reflogExpireUnreachable"} {
+		if _, err := g.run(ctx, repo, "config", "gc.refs/remotes/*."+key, "never"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Branches tells the branches the session pushed, by the remote-tracking branches a push updated,
+// and the local branches with whether they hold commits found nowhere else.
+func (p *Provider) Branches(ctx context.Context, path string) (usecase.WorkspaceBranches, error) {
+	var w usecase.WorkspaceBranches
 	if ok, err := exists(filepath.Join(path, ".git")); !ok || err != nil {
-		return nil, err
+		return w, err
 	}
 	g := gitRunner{}
-	out, err := g.run(ctx, path, "for-each-ref", "--format=%(refname:lstrip=2)%09%(objectname)%09%(upstream:remotename)%09%(upstream:remoteref)", "refs/heads")
+	remotes, err := g.run(ctx, path, "for-each-ref", "--format=%(refname)%09%(objectname)", "refs/remotes/origin")
 	if err != nil {
-		return nil, err
+		return w, err
 	}
-	var branches []usecase.LocalBranch
-	for line := range strings.Lines(out) {
-		fields := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 4)
-		fields = append(fields, make([]string, 4-len(fields))...)
-		b := usecase.LocalBranch{Name: fields[0], Tip: fields[1]}
-		if upstream, ok := strings.CutPrefix(fields[3], "refs/heads/"); ok && fields[2] == "origin" {
-			b.Upstream = upstream
+	tips := make(map[string]string)
+	var refs []string
+	for line := range strings.Lines(remotes) {
+		ref, tip, _ := strings.Cut(strings.TrimSpace(line), "\t")
+		if ref != "refs/remotes/origin/HEAD" {
+			tips[ref] = tip
+			refs = append(refs, ref)
 		}
-		created, err := createdByClone(ctx, g, path, b.Name)
+	}
+	if len(refs) > 0 {
+		reflogs, err := g.run(ctx, path, append(append([]string{"log", "--walk-reflogs", "--format=%gD%x09%gs"}, refs...), "--")...)
 		if err != nil {
-			return nil, err
+			return w, err
 		}
-		if created {
-			continue
+		pushed := make(map[string]bool)
+		for line := range strings.Lines(reflogs) {
+			entry, subject, _ := strings.Cut(strings.TrimSpace(line), "\t")
+			ref, _, _ := strings.Cut(entry, "@{")
+			if subject == "update by push" && !pushed[ref] {
+				pushed[ref] = true
+				w.Pushed = append(w.Pushed, usecase.BranchRef{Name: strings.TrimPrefix(ref, "refs/remotes/origin/"), LocalTip: tips[ref]})
+			}
 		}
-		if b.Unpushed, err = hasUnpushed(ctx, g, path, "refs/heads/"+b.Name, "--remotes"); err != nil {
-			return nil, err
+		slices.SortFunc(w.Pushed, func(a, b usecase.BranchRef) int { return strings.Compare(a.Name, b.Name) })
+	}
+	locals, err := g.run(ctx, path, "for-each-ref", "--format=%(refname:lstrip=2)%09%(objectname)", "refs/heads")
+	if err != nil {
+		return w, err
+	}
+	for line := range strings.Lines(locals) {
+		name, tip, _ := strings.Cut(strings.TrimSpace(line), "\t")
+		unpushed, err := hasUnpushed(ctx, g, path, "refs/heads/"+name)
+		if err != nil {
+			return w, err
 		}
-		branches = append(branches, b)
+		w.Local = append(w.Local, usecase.LocalBranch{Name: name, Tip: tip, Unpushed: unpushed})
 	}
 	if _, err := g.run(ctx, path, "symbolic-ref", "--quiet", "HEAD"); err != nil {
-		detached, err := hasUnpushed(ctx, g, path, "HEAD", "--branches", "--remotes")
+		detached, err := hasUnpushed(ctx, g, path, "HEAD", "--branches")
 		if err != nil {
-			return nil, err
+			return w, err
 		}
 		if detached {
-			branches = append(branches, usecase.LocalBranch{Name: "HEAD", Unpushed: true})
+			w.Local = append(w.Local, usecase.LocalBranch{Name: "HEAD", Unpushed: true})
 		}
 	}
-	return branches, nil
+	return w, nil
 }
 
-// createdByClone tells the branch the clone created by its first reflog entry. Prepare deletes that
-// branch, but workspaces prepared before it did still have it.
-func createdByClone(ctx context.Context, g gitRunner, path, branch string) (bool, error) {
-	reflog, err := g.run(ctx, path, "reflog", "show", "--format=%gs", "refs/heads/"+branch, "--")
-	if err != nil {
-		return false, err
-	}
-	lines := strings.Split(reflog, "\n")
-	return strings.HasPrefix(lines[len(lines)-1], "clone: "), nil
-}
-
-func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, pushed ...string) (bool, error) {
-	n, err := g.run(ctx, path, append([]string{"rev-list", "--count", rev, "--not"}, pushed...)...)
+func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, elsewhere ...string) (bool, error) {
+	args := append([]string{"rev-list", "--count", rev, "--not", "--remotes", "--glob=refs/acp/*"}, elsewhere...)
+	n, err := g.run(ctx, path, args...)
 	return n != "0", err
 }
 
