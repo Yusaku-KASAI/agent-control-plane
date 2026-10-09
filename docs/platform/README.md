@@ -42,15 +42,16 @@ platform/
 
 ## bell
 
-対話で使っている Claude Code が止まったら、hook が `terminalSequence` でベル（BEL）を返し、Claude Code が自分の
-端末に書く（tmux の中でも届く。`-p` では書かれないので、エージェントでは鳴らない）。
+対話で使っている Claude Code が止まったら、hook が端末のベルを鳴らす。聞き逃さないよう、どの場面でも2回以上鳴らす。
 
 | 止まり方 | hook | ベル |
 | --- | --- | --- |
-| ターンの終わり | `Stop` | 1回 |
-| API のエラーでの終わり（利用上限、認証の失敗など） | `StopFailure` | 2回 |
-| 権限の確認 | `PermissionRequest` | 2回 |
-| 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回 |
-| 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回 |
+| ターンの終わり、API のエラーでの終わり（利用上限、認証の失敗など） | `Stop`、`StopFailure` | 3回、0.8秒おき |
+| 権限の確認 | `PermissionRequest` | 2回、0.4秒おき |
+| 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回、0.4秒おき |
+| 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回、0.4秒おき |
 
-人が Esc で止めたときは、人がその場にいるので鳴らさない（`Stop` も動かない）。プロセスが落ちたときは hook が動かない。
+- tmux の中では、つながっている端末に、間隔を空けてベルを書く（hook は待たずに戻る）。tmux の外では、hook が
+  `terminalSequence` でベルを返し、Claude Code が自分の端末に書く。このときは間隔を空けられず、続けて届く。
+- `-p` で動くエージェントには tmux も端末もなく、`terminalSequence` も書かれないので、鳴らない。
+- 人が Esc で止めたときは、人がその場にいるので鳴らさない（`Stop` も動かない）。プロセスが落ちたときは hook が動かない。

@@ -1,24 +1,55 @@
 {
   "hooks": {
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\"}'" }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" 3 0.8"
+          }
+        ]
+      }
     ],
     "StopFailure": [
-      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" 3 0.8"
+          }
+        ]
+      }
     ],
     "PermissionRequest": [
-      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" 2 0.4"
+          }
+        ]
+      }
     ],
     "PreToolUse": [
       {
         "matcher": "AskUserQuestion|ExitPlanMode",
-        "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" 2 0.4"
+          }
+        ]
       }
     ],
     "Notification": [
       {
         "matcher": "idle_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input",
-        "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" 2 0.4"
+          }
+        ]
       }
     ]
   }
