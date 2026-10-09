@@ -9,11 +9,11 @@ control-plane というアプリケーションの今の姿。判断の理由は
 | 段階 | 起きること |
 | --- | --- |
 | ID が決まる | Slack では、エージェントとスレッド（ワークスペース、チャンネル、スレッドの ts）から UUIDv5 で決まる。同じスレッドなら何度でも同じ ID になる（[ADR 0016](adr/0016-chat-entry-point.md)）。CLI では新しいセッションごとにランダム |
-| 作る | 記録（`<sessions.root>/<ID>/session.json`）がなければ、ロックを取って作る。ターゲットを `<sessions.root>/<ID>/workspace/<リポジトリ名>` に clone し、ブランチ `acp/<ID の先頭8文字>` をリモートのデフォルトブランチ（GitHub App がなければ元のリポジトリの HEAD）から切る（[ADR 0010](adr/0010-per-session-cloned-workspace.md)、[0013](adr/0013-session-branch-from-remote-default.md)） |
+| 作る | 記録（`<sessions.root>/<ID>/session.json`）がなければ、ロックを取って作る。ターゲットを `<sessions.root>/<ID>/workspace/<リポジトリ名>` に clone し、ブランチ `acp/<ID の先頭8文字>` をリモートのデフォルトブランチ（GitHub App がなければ元のリポジトリの HEAD）から切る（[ADR 0010](adr/0010-per-session-cloned-workspace.md)、[0013](adr/0013-session-branch-from-remote-default.md)）。clone が作ったブランチは消し、セッションのブランチには同じ名前の upstream を設定する（[0026](adr/0026-clean-up-unused-sessions.md)） |
 | 動かす | 依頼が来るとセッションのワーカーができ、ロック（`<ID>/.lock` の flock）を取る。コンテナがなければ起動し、Claude Code を、終えたターンが 0 なら `--session-id <ID>`、それ以外は `--resume <ID>` で動かし続ける（[ADR 0017](adr/0017-long-lived-session-process.md)）。ターンを終えるたびに記録の `Turns` を増やして保存する |
 | 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを片付けてロックを放す。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
 | 中断する | control-plane の再起動で、動いていた処理は中断され、コンテナは片付けられる（[ADR 0024](adr/0024-restart-abandons-running-work.md)）。次の依頼で `--resume` する |
-| 片付ける | 使われないまま `sessions.retention`（既定 30 日）を過ぎたセッションを、control-plane が起動時と 1 時間ごとに消す。最後に使った時刻は記録の `last_used_at` で、作ったとき、依頼を受けてロックを取ったとき、ターンを終えたときに書く。ブランチから開いている PR があるセッションは残し、保持期間ごとに 1 回、スレッドに PR を挙げてマージか閉じるよう促す（知らせた時刻は `review_notified_at`）。ロックが取れないセッションも残す。それ以外はロックを取り、ブランチ、認証情報と会話の履歴、記録と作業領域の順に消して、スレッドに何を消したかを知らせる（[ADR 0026](adr/0026-clean-up-unused-sessions.md)） |
+| 片付ける | 使われないまま `sessions.retention`（既定 30 日）を過ぎたセッションを、control-plane が起動時と 1 時間ごとに消す。最後に使った時刻は記録の `last_used_at`。ほかにない作業（開いている PR、PR も既定のブランチへの取り込みもないブランチ、push していないコミット）があれば残し、保持期間ごとに 1 回スレッドで片付けを促す。消すときはスレッドに何を消したかを知らせる（[ADR 0026](adr/0026-clean-up-unused-sessions.md)） |
 
 セッションに属するものの置き場所：
 
@@ -23,7 +23,7 @@ control-plane というアプリケーションの今の姿。判断の理由は
 | 作業領域 | `<sessions.root>/<ID>/workspace/<リポジトリ名>`（コンテナでは `/workspace/<リポジトリ名>`） |
 | 会話の履歴 | エージェントの Claude Code の設定ディレクトリ（`acp-claude` ボリュームの `<エージェント名>/`）の `projects/` の下。作業ディレクトリのパスと ID で決まる |
 | 認証情報 | `acp-credentials` ボリュームの `<ID>/` |
-| ブランチと PR | リモートの `acp/<ID の先頭8文字>` と、それに `-<内容>` を付けたブランチ |
+| ブランチと PR | セッションが作るのはリモートの `acp/<ID の先頭8文字>` と、それに `-<内容>` を付けたブランチ。ほかのブランチも更新することがあり、作業領域のローカルのブランチの upstream から分かる |
 
 ### 壊してはいけない前提
 

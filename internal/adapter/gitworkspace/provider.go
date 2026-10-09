@@ -2,13 +2,16 @@ package gitworkspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 // Provider clones the target repository into <root>/<session id>/workspace/<repo name>, points
@@ -43,6 +46,10 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 		}
 	}
 
+	cloned, err := g.run(ctx, dest, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		cloned = ""
+	}
 	start := "HEAD"
 	if hasUpstream && g.token != "" {
 		if _, err := g.run(ctx, dest, "fetch", "--quiet", "--prune", "origin"); err != nil {
@@ -55,6 +62,21 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	}
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
+	}
+	// The clone's branch is the target's checkout, not the session's work.
+	if cloned != "" {
+		if _, err := g.run(ctx, dest, "branch", "--quiet", "-D", cloned); err != nil {
+			return domain.Workspace{}, err
+		}
+	}
+	if start != "HEAD" {
+		// The session branch tracks its namesake on origin before it is pushed, so that it counts as
+		// the session's however the agent pushes it.
+		for key, value := range map[string]string{"remote": "origin", "merge": "refs/heads/" + id.Branch()} {
+			if _, err := g.run(ctx, dest, "config", "branch."+id.Branch()+"."+key, value); err != nil {
+				return domain.Workspace{}, err
+			}
+		}
 	}
 	if err := installCommitMsgHook(dest); err != nil {
 		return domain.Workspace{}, err
@@ -123,4 +145,73 @@ func Origin(ctx context.Context, path string) (string, error) {
 		return "", nil
 	}
 	return url, nil
+}
+
+// Branches tells the local branches by the tip each has and whether it has been pushed.
+func (p *Provider) Branches(ctx context.Context, path string) ([]usecase.LocalBranch, error) {
+	if ok, err := exists(filepath.Join(path, ".git")); !ok || err != nil {
+		return nil, err
+	}
+	g := gitRunner{}
+	out, err := g.run(ctx, path, "for-each-ref", "--format=%(refname:lstrip=2)%09%(objectname)%09%(upstream:remotename)%09%(upstream:remoteref)", "refs/heads")
+	if err != nil {
+		return nil, err
+	}
+	var branches []usecase.LocalBranch
+	for line := range strings.Lines(out) {
+		fields := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 4)
+		fields = append(fields, make([]string, 4-len(fields))...)
+		b := usecase.LocalBranch{Name: fields[0], Tip: fields[1]}
+		if upstream, ok := strings.CutPrefix(fields[3], "refs/heads/"); ok && fields[2] == "origin" {
+			b.Upstream = upstream
+		}
+		created, err := createdByClone(ctx, g, path, b.Name)
+		if err != nil {
+			return nil, err
+		}
+		if created {
+			continue
+		}
+		if b.Unpushed, err = hasUnpushed(ctx, g, path, "refs/heads/"+b.Name, "--remotes"); err != nil {
+			return nil, err
+		}
+		branches = append(branches, b)
+	}
+	if _, err := g.run(ctx, path, "symbolic-ref", "--quiet", "HEAD"); err != nil {
+		detached, err := hasUnpushed(ctx, g, path, "HEAD", "--branches", "--remotes")
+		if err != nil {
+			return nil, err
+		}
+		if detached {
+			branches = append(branches, usecase.LocalBranch{Name: "HEAD", Unpushed: true})
+		}
+	}
+	return branches, nil
+}
+
+// createdByClone tells the branch the clone created by its first reflog entry. Prepare deletes that
+// branch, but workspaces prepared before it did still have it.
+func createdByClone(ctx context.Context, g gitRunner, path, branch string) (bool, error) {
+	reflog, err := g.run(ctx, path, "reflog", "show", "--format=%gs", "refs/heads/"+branch, "--")
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(reflog, "\n")
+	return strings.HasPrefix(lines[len(lines)-1], "clone: "), nil
+}
+
+func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, pushed ...string) (bool, error) {
+	n, err := g.run(ctx, path, append([]string{"rev-list", "--count", rev, "--not"}, pushed...)...)
+	return n != "0", err
+}
+
+func exists(path string) (bool, error) {
+	if path == "" {
+		return false, nil
+	}
+	_, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
 }

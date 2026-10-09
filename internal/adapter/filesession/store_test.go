@@ -25,9 +25,9 @@ func TestStore_SaveFind(t *testing.T) {
 
 	want := domain.Session{
 		ID: id, AgentName: "repo-dev", Workspace: domain.Workspace{Path: "/w/repo"}, Turns: 2,
-		Conversation:     domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
-		LastUsedAt:       time.Date(2026, 10, 7, 1, 2, 3, 4, time.UTC),
-		ReviewNotifiedAt: time.Date(2026, 10, 8, 1, 2, 3, 4, time.UTC),
+		Conversation:   domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
+		LastUsedAt:     time.Date(2026, 10, 7, 1, 2, 3, 4, time.UTC),
+		KeptNotifiedAt: time.Date(2026, 10, 8, 1, 2, 3, 4, time.UTC),
 	}
 	if err := store.Save(ctx, want); err != nil {
 		t.Fatalf("Save() error = %v", err)

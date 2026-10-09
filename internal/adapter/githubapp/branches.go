@@ -16,8 +16,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
-// Branches removes a session's branches from the GitHub repository the target's origin points
-// at: the session branch and those named after it with a "-" suffix.
+// Branches inspects and removes branches of the GitHub repository the target's origin points at.
 type Branches struct {
 	baseURL string
 	http    *http.Client
@@ -29,34 +28,113 @@ func NewBranches(baseURL string, httpClient *http.Client, origin func(ctx contex
 	return &Branches{baseURL: baseURL, http: httpClient, origin: origin}
 }
 
-// OpenPullRequests and Remove do nothing without a GitHub token or a GitHub origin: the agent
-// could not have pushed.
-func (b *Branches) OpenPullRequests(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]usecase.PullRequest, error) {
-	c, branches, err := b.list(ctx, agent, id, creds)
-	if err != nil || len(branches) == 0 {
+// Inspect reads, per branch, one page of its pull requests: a branch is the head or base of few.
+func (b *Branches) Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, refs []usecase.BranchRef) ([]usecase.RemoteBranch, error) {
+	c, ok, err := b.client(ctx, agent, creds)
+	if err != nil || !ok {
 		return nil, err
 	}
-	return c.openPullRequests(ctx, branches)
+	var repo struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if err := c.do(ctx, http.MethodGet, "", &repo); err != nil {
+		return nil, err
+	}
+	var branches []usecase.RemoteBranch
+	for _, ref := range refs {
+		if ref.Name == repo.DefaultBranch {
+			continue
+		}
+		br, err := c.inspect(ctx, repo.DefaultBranch, ref)
+		if err != nil {
+			return nil, fmt.Errorf("branch %s: %w", ref.Name, err)
+		}
+		branches = append(branches, br)
+	}
+	return branches, nil
 }
 
-func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]string, error) {
-	c, branches, err := b.list(ctx, agent, id, creds)
-	if err != nil || len(branches) == 0 {
-		return nil, err
+type pull struct {
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	HTMLURL string `json:"html_url"`
+	State   string `json:"state"`
+	Head    struct {
+		SHA string `json:"sha"`
+	} `json:"head"`
+}
+
+func (c apiClient) inspect(ctx context.Context, defaultBranch string, ref usecase.BranchRef) (usecase.RemoteBranch, error) {
+	br := usecase.RemoteBranch{BranchRef: ref, State: usecase.BranchUnfinished}
+	var remote struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
 	}
-	pulls, err := c.openPullRequests(ctx, branches)
+	tip := ref.LocalTip
+	switch err := c.do(ctx, http.MethodGet, "/git/ref/heads/"+escapeRef(ref.Name), &remote); {
+	case isStatus(err, http.StatusNotFound):
+	case err != nil:
+		return br, err
+	default:
+		br.Exists = true
+		tip = remote.Object.SHA
+	}
+	owner, _, _ := strings.Cut(c.repo, "/")
+	var heads, bases []pull
+	if err := c.do(ctx, http.MethodGet, "/pulls?state=all&per_page=100&head="+url.QueryEscape(owner+":"+ref.Name), &heads); err != nil {
+		return br, err
+	}
+	if br.Exists {
+		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&base="+url.QueryEscape(ref.Name), &bases); err != nil {
+			return br, err
+		}
+	}
+	closedAtTip := false
+	for _, p := range append(heads, bases...) {
+		switch {
+		case p.State == "open":
+			br.Pulls = append(br.Pulls, usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL})
+		case p.Head.SHA == tip:
+			closedAtTip = true
+		}
+	}
+	switch {
+	case len(br.Pulls) > 0:
+		br.State = usecase.BranchInReview
+		return br, nil
+	case closedAtTip:
+		br.State = usecase.BranchDone
+		return br, nil
+	}
+	var cmp struct {
+		AheadBy int `json:"ahead_by"`
+	}
+	err := c.do(ctx, http.MethodGet, "/compare/"+escapeRef(defaultBranch)+"..."+tip, &cmp)
+	// GitHub answers 404 for a commit it does not have or one sharing no history with the default branch.
+	if isStatus(err, http.StatusNotFound) {
+		return br, nil
+	}
 	if err != nil {
-		return nil, err
+		return br, err
 	}
-	if len(pulls) > 0 {
-		return nil, usecase.ErrBranchInReview
+	if cmp.AheadBy == 0 {
+		br.State = usecase.BranchDone
+	}
+	return br, nil
+}
+
+func (b *Branches) Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error) {
+	c, ok, err := b.client(ctx, agent, creds)
+	if err != nil || !ok {
+		return nil, err
 	}
 	var removed []string
-	for _, name := range branches {
+	for _, name := range names {
 		err := c.do(ctx, http.MethodDelete, "/git/refs/heads/"+escapeRef(name), nil)
-		// GitHub answers 422 for a branch already deleted, as when a merge deleted it meanwhile.
-		var status statusError
-		if errors.As(err, &status) && (status.code == http.StatusNotFound || status.code == http.StatusUnprocessableEntity) {
+		// GitHub answers 422 for a branch already deleted, as when a merge deleted it meanwhile, and
+		// for a protected one.
+		if isStatus(err, http.StatusNotFound) || isStatus(err, http.StatusUnprocessableEntity) {
 			continue
 		}
 		if err != nil {
@@ -67,54 +145,25 @@ func (b *Branches) Remove(ctx context.Context, agent domain.Agent, id domain.Ses
 	return removed, nil
 }
 
-func (b *Branches) list(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) (apiClient, []string, error) {
+// client is not ok without a GitHub token or a GitHub origin: the agent could not have pushed.
+func (b *Branches) client(ctx context.Context, agent domain.Agent, creds domain.Credentials) (apiClient, bool, error) {
 	if creds.GitHubToken == "" {
-		return apiClient{}, nil, nil
+		return apiClient{}, false, nil
 	}
 	origin, err := b.origin(ctx, agent.Target.Path)
 	if err != nil {
-		return apiClient{}, nil, err
+		return apiClient{}, false, err
 	}
 	repo, ok := parseRepo(origin)
 	if !ok {
-		return apiClient{}, nil, nil
+		return apiClient{}, false, nil
 	}
-	c := apiClient{baseURL: b.baseURL, http: b.http, token: creds.GitHubToken, repo: repo}
-	var refs []struct {
-		Ref string `json:"ref"`
-	}
-	if err := c.do(ctx, http.MethodGet, "/git/matching-refs/heads/"+escapeRef(id.Branch()), &refs); err != nil {
-		return apiClient{}, nil, err
-	}
-	var branches []string
-	for _, r := range refs {
-		name := strings.TrimPrefix(r.Ref, "refs/heads/")
-		if name == id.Branch() || strings.HasPrefix(name, id.Branch()+"-") {
-			branches = append(branches, name)
-		}
-	}
-	return c, branches, nil
+	return apiClient{baseURL: b.baseURL, http: b.http, token: creds.GitHubToken, repo: repo}, true, nil
 }
 
-// openPullRequests reads one page per branch: a branch is the head of at most one open pull
-// request per base, and sessions do not open many.
-func (c apiClient) openPullRequests(ctx context.Context, branches []string) ([]usecase.PullRequest, error) {
-	owner, _, _ := strings.Cut(c.repo, "/")
-	var open []usecase.PullRequest
-	for _, name := range branches {
-		var pulls []struct {
-			Number  int    `json:"number"`
-			Title   string `json:"title"`
-			HTMLURL string `json:"html_url"`
-		}
-		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&head="+url.QueryEscape(owner+":"+name), &pulls); err != nil {
-			return nil, err
-		}
-		for _, p := range pulls {
-			open = append(open, usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL})
-		}
-	}
-	return open, nil
+func isStatus(err error, code int) bool {
+	var status statusError
+	return errors.As(err, &status) && status.code == code
 }
 
 func escapeRef(name string) string {

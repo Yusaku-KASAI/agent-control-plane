@@ -28,4 +28,6 @@ model: opus
   報告には PR の URL を含める。
 - 別の PR に分けるべき変更は、リモートのデフォルトブランチから `$ACP_SESSION_BRANCH-<内容>` という
   ブランチを切って同じように扱う。
+- ブランチは upstream を付けて push する（`git push -u`）。control-plane は upstream から、セッションが触った
+  ブランチを知る。`ACP_SESSION_BRANCH` には push する前から upstream が設定されている。
 - push や PR の作成ができない場合は、コミットまでにとどめ、その理由を報告する。

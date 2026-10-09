@@ -76,6 +76,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	}
 
 	sessions := filesession.NewStore(cfg.SessionsRoot)
+	workspaces := gitworkspace.NewProvider(cfg.SessionsRoot)
 	runnerOpts := docker.Options{
 		ClaudeConfigDir:    cfg.Claude.ConfigDir,
 		ClaudeConfigVolume: cfg.Claude.ConfigVolume,
@@ -86,7 +87,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
 		sessions,
-		gitworkspace.NewProvider(cfg.SessionsRoot),
+		workspaces,
 		issuer,
 		cfg.People,
 		docker.NewRunner(dockerClient, runnerOpts),
@@ -134,6 +135,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		Agents:      cfg.Agents,
 		Sessions:    sessions,
 		Credentials: issuer,
+		Workspaces:  workspaces,
 		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
 		Files:       docker.NewSessionFiles(runnerOpts),
 		Notifier:    observer,
@@ -178,6 +180,9 @@ func cleanSessions(ctx context.Context, cleaner *usecase.SessionCleaner, interva
 		report, err := cleaner.Clean(ctx)
 		if len(report.Removed) > 0 {
 			log.Info("removed unused sessions", "sessions", report.Removed)
+		}
+		if len(report.Kept) > 0 {
+			log.Info("kept unused sessions holding work", "sessions", report.Kept)
 		}
 		if err != nil && ctx.Err() == nil {
 			log.Error("cleaning up unused sessions failed", "err", err)

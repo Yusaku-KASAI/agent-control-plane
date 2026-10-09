@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,12 @@ func (id SessionID) Branch() string {
 	return "acp/" + string(id)[:8]
 }
 
+// OwnsBranch tells whether the session created the branch: its default working branch, or one
+// named after it with a "-" suffix.
+func (id SessionID) OwnsBranch(name string) bool {
+	return name == id.Branch() || strings.HasPrefix(name, id.Branch()+"-")
+}
+
 func NewRandomSessionID() SessionID {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
@@ -49,8 +56,8 @@ type Session struct {
 	Turns int
 	// LastUsedAt is when the session was created, last took a request or last finished a turn.
 	LastUsedAt time.Time
-	// ReviewNotifiedAt is when the thread was last told that the session is kept for an open pull request.
-	ReviewNotifiedAt time.Time
+	// KeptNotifiedAt is when the thread was last told that the session is kept for the work it holds.
+	KeptNotifiedAt time.Time
 }
 
 func (s Session) IsNew() bool {

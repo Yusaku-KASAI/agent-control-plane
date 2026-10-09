@@ -24,13 +24,13 @@ func NewStore(root string) *Store {
 }
 
 type record struct {
-	ID               string        `json:"id"`
-	Agent            string        `json:"agent"`
-	WorkspacePath    string        `json:"workspace_path"`
-	Conversation     *conversation `json:"conversation,omitempty"`
-	Turns            int           `json:"turns"`
-	LastUsedAt       *time.Time    `json:"last_used_at,omitempty"`
-	ReviewNotifiedAt *time.Time    `json:"review_notified_at,omitempty"`
+	ID             string        `json:"id"`
+	Agent          string        `json:"agent"`
+	WorkspacePath  string        `json:"workspace_path"`
+	Conversation   *conversation `json:"conversation,omitempty"`
+	Turns          int           `json:"turns"`
+	LastUsedAt     *time.Time    `json:"last_used_at,omitempty"`
+	KeptNotifiedAt *time.Time    `json:"kept_notified_at,omitempty"`
 }
 
 type conversation struct {
@@ -61,8 +61,8 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 	if r.LastUsedAt != nil {
 		sess.LastUsedAt = *r.LastUsedAt
 	}
-	if r.ReviewNotifiedAt != nil {
-		sess.ReviewNotifiedAt = *r.ReviewNotifiedAt
+	if r.KeptNotifiedAt != nil {
+		sess.KeptNotifiedAt = *r.KeptNotifiedAt
 	}
 	if c := r.Conversation; c != nil {
 		sess.Conversation = domain.Conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
@@ -72,12 +72,12 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 
 func (s *Store) Save(_ context.Context, sess domain.Session) error {
 	r := record{
-		ID:               string(sess.ID),
-		Agent:            string(sess.AgentName),
-		WorkspacePath:    sess.Workspace.Path,
-		Turns:            sess.Turns,
-		LastUsedAt:       optionalTime(sess.LastUsedAt),
-		ReviewNotifiedAt: optionalTime(sess.ReviewNotifiedAt),
+		ID:             string(sess.ID),
+		Agent:          string(sess.AgentName),
+		WorkspacePath:  sess.Workspace.Path,
+		Turns:          sess.Turns,
+		LastUsedAt:     optionalTime(sess.LastUsedAt),
+		KeptNotifiedAt: optionalTime(sess.KeptNotifiedAt),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
 		r.Conversation = &conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}

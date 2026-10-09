@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -26,21 +25,63 @@ type SessionRepository interface {
 	Remove(ctx context.Context, id domain.SessionID) error
 }
 
-// ErrBranchInReview reports that a session branch has an open pull request.
-var ErrBranchInReview = errors.New("a session branch has an open pull request")
-
 type PullRequest struct {
 	Number int
 	Title  string
 	URL    string
 }
 
+type BranchState int
+
+const (
+	// BranchDone is a branch whose work is kept elsewhere: contained in the default branch or the
+	// head of a closed pull request.
+	BranchDone BranchState = iota + 1
+	// BranchInReview is the head or the base of an open pull request.
+	BranchInReview
+	// BranchUnfinished has commits that are in no pull request and not in the default branch.
+	BranchUnfinished
+)
+
+type LocalBranch struct {
+	Name string
+	// Upstream is the name of the branch it tracks on origin, if any.
+	Upstream string
+	Tip      string
+	// Unpushed is set when it holds commits that no remote-tracking branch has.
+	Unpushed bool
+}
+
+// SessionWorkspace tells what work a session's workspace holds.
+type SessionWorkspace interface {
+	// Branches returns the session's local branches in the workspace at path: all but the one the
+	// clone created, plus HEAD named "HEAD" when it is detached on commits no branch has. A path
+	// that is missing or not a repository has none.
+	Branches(ctx context.Context, path string) ([]LocalBranch, error)
+}
+
+// BranchRef is a branch on the remote, with the tip a local branch tracking it has.
+type BranchRef struct {
+	Name     string
+	LocalTip string
+}
+
+type RemoteBranch struct {
+	BranchRef
+	State  BranchState
+	Exists bool
+	// Pulls are the open pull requests from or into the branch.
+	Pulls []PullRequest
+}
+
 type SessionBranches interface {
-	// OpenPullRequests returns the open pull requests from the session's branches.
-	OpenPullRequests(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]PullRequest, error)
-	// Remove deletes the session's branches on the target's remote and returns their names, or
-	// returns an error wrapping ErrBranchInReview and deletes none of them.
-	Remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials) ([]string, error)
+	// Inspect tells the state of the branches on the target's remote, leaving out its default
+	// branch. A branch gone from the remote is judged by its local tip. It returns none when the
+	// agent could not have pushed: without a GitHub token or a GitHub origin.
+	Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, refs []BranchRef) ([]RemoteBranch, error)
+	// Remove deletes the named branches on the target's remote and returns those it deleted,
+	// leaving out those already gone or protected.
+	Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error)
 }
 
 type SessionNotifier interface {

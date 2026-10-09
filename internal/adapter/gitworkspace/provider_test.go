@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -160,5 +161,99 @@ func TestOrigin(t *testing.T) {
 	}
 	if _, err := gitworkspace.Origin(ctx, t.TempDir()); err == nil {
 		t.Error("Origin(not a repository) succeeded")
+	}
+}
+
+func TestProvider_Branches(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	p := gitworkspace.NewProvider(t.TempDir())
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := p.Prepare(ctx, agent, sessionID, domain.Credentials{GitHubToken: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type branch struct {
+		name, upstream string
+		unpushed       bool
+	}
+	check := func(want ...branch) {
+		t.Helper()
+		got, err := p.Branches(ctx, ws.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []branch
+		for _, b := range got {
+			if b.Name != "HEAD" && b.Tip != gitOutput(t, ws.Path, "rev-parse", "refs/heads/"+b.Name) {
+				t.Errorf("tip of %s = %q", b.Name, b.Tip)
+			}
+			names = append(names, branch{b.Name, b.Upstream, b.Unpushed})
+		}
+		if !slices.Equal(names, want) {
+			t.Errorf("Branches() = %+v, want %+v", names, want)
+		}
+	}
+
+	// The session branch tracks origin before it is pushed; the clone's branch, feature, is gone.
+	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", false})
+
+	commit(t, ws.Path, "a.txt", "session work")
+	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", true})
+	git(t, ws.Path, "push", "--quiet", "origin", "acp/0f8fad5b")
+	check(branch{"acp/0f8fad5b", "acp/0f8fad5b", false})
+
+	git(t, ws.Path, "switch", "--quiet", "-c", "acp/0f8fad5b-docs")
+	commit(t, ws.Path, "b.txt", "docs")
+	git(t, ws.Path, "push", "--quiet", "-u", "origin", "HEAD")
+	git(t, ws.Path, "switch", "--quiet", "-c", "scratch")
+	commit(t, ws.Path, "c.txt", "scratch")
+	git(t, ws.Path, "tag", "scratch")
+	git(t, ws.Path, "switch", "--quiet", "--detach", "acp/0f8fad5b")
+	commit(t, ws.Path, "d.txt", "detached")
+	check(
+		branch{"acp/0f8fad5b", "acp/0f8fad5b", false},
+		branch{"acp/0f8fad5b-docs", "acp/0f8fad5b-docs", false},
+		branch{"scratch", "", true},
+		branch{"HEAD", "", true},
+	)
+}
+
+func TestProvider_Branches_ClonedBranchOfOlderWorkspace(t *testing.T) {
+	f := newFixture(t)
+	ws := filepath.Join(t.TempDir(), "repo")
+	git(t, "", "clone", "--quiet", f.source, ws)
+	git(t, ws, "switch", "--quiet", "-c", "acp/0f8fad5b")
+	got, err := gitworkspace.NewProvider(t.TempDir()).Branches(context.Background(), ws)
+	if err != nil || len(got) != 1 || got[0].Name != "acp/0f8fad5b" {
+		t.Errorf("Branches() = %+v, %v; want only the session branch", got, err)
+	}
+}
+
+func TestProvider_Branches_NoRepository(t *testing.T) {
+	p := gitworkspace.NewProvider(t.TempDir())
+	// A directory inside another repository must not be read as that repository.
+	inside := filepath.Join(newFixture(t).source, "sub")
+	if err := os.Mkdir(inside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"", filepath.Join(t.TempDir(), "gone"), inside} {
+		if got, err := p.Branches(context.Background(), path); got != nil || err != nil {
+			t.Errorf("Branches(%q) = %v, %v; want nothing", path, got, err)
+		}
+	}
+}
+
+func TestProvider_Prepare_WithoutCredentialsLeavesSessionBranchUntracked(t *testing.T) {
+	f := newFixture(t)
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	p := gitworkspace.NewProvider(t.TempDir())
+	ws, err := p.Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := p.Branches(context.Background(), ws.Path)
+	if err != nil || len(got) != 1 || got[0].Upstream != "" || got[0].Unpushed {
+		t.Errorf("Branches() = %+v, %v; want the session branch, untracked and with nothing unpushed", got, err)
 	}
 }
