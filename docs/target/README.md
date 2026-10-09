@@ -70,13 +70,12 @@ compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフ�
 `permissions` は効かない。コンテナの隔離で守る方針なので、対話でも権限の確認を省いて（bypass）使ってよい。
 `permissions.allow` の一覧は、組織の制限などで bypass が使えない環境で確認を減らすためにある。
 
-### tmux とターミナルのベル
+### tmux とベル
 
 - マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は選択するだけで、クリップボードに自動ではコピーしない。
   選択は残り、`y` か `Enter` でコピーする。`q` か `Escape` で選択をやめる。
-- Claude Code が対話で止まったときは、platform の bell プラグインが、tmux につながった端末にベルを書く（hook の
-  プロセスは制御端末を持たないため）。VS Code の既定のターミナルプロファイルが tmux なのはこのため。tmux は、
-  ベルを外の端末に渡しつつ、自分でも表示する。
+- Claude Code が対話で止まったときは、platform の bell プラグインが端末のベルを鳴らす（[platform](../platform/README.md#bell)）。
+  tmux は、ベルを外の端末（VS Code の音）に渡しつつ、自分でも表示する。
 
 ### VS Code の設定
 

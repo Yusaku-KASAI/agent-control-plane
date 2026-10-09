@@ -1,19 +1,24 @@
 {
   "hooks": {
-    "Notification": [
-      {
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" wait" }]
-      }
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\"}'" }] }
+    ],
+    "StopFailure": [
+      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }] }
     ],
     "PreToolUse": [
       {
-        "matcher": "AskUserQuestion",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" wait" }]
+        "matcher": "AskUserQuestion|ExitPlanMode",
+        "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }]
       }
     ],
-    "Stop": [
+    "Notification": [
       {
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ring\" done" }]
+        "matcher": "idle_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input",
+        "hooks": [{ "type": "command", "command": "printf '{\"terminalSequence\":\"\\\\u0007\\\\u0007\"}'" }]
       }
     ]
   }

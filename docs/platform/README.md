@@ -14,7 +14,7 @@ platform/
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
     github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
     rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
-    bell/                           対話で使うとき、Claude Code が応答を待つと2回、ターンを終えると1回、端末のベルを鳴らす hook
+    bell/                           対話で使うとき、Claude Code が止まったら端末のベルを鳴らす hook（下の「bell」）
 ```
 
 ## 使われ方
@@ -39,3 +39,18 @@ platform/
   （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
 - プラグインの検査（`claude plugin validate ./platform` と、`bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。
 - プラグインには、どのターゲットでも通用する内容だけを書く。
+
+## bell
+
+対話で使っている Claude Code が止まったら、hook が `terminalSequence` でベル（BEL）を返し、Claude Code が自分の
+端末に書く（tmux の中でも届く。`-p` では書かれないので、エージェントでは鳴らない）。
+
+| 止まり方 | hook | ベル |
+| --- | --- | --- |
+| ターンの終わり | `Stop` | 1回 |
+| API のエラーでの終わり（利用上限、認証の失敗など） | `StopFailure` | 2回 |
+| 権限の確認 | `PermissionRequest` | 2回 |
+| 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回 |
+| 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回 |
+
+人が Esc で止めたときは、人がその場にいるので鳴らさない（`Stop` も動かない）。プロセスが落ちたときは hook が動かない。

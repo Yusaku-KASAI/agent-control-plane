@@ -11,7 +11,7 @@ check-go:
 
 check-platform:
 	claude plugin validate ./platform
-	shellcheck platform/plugins/*/bin/* platform/plugins/*/scripts/*
+	shellcheck $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/*)
 
 check-target:
 	shellcheck .devcontainer/*.sh

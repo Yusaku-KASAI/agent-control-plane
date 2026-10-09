@@ -1,6 +1,6 @@
 {
   "name": "bell",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ring the terminal when Claude Code stops or waits for you",
   "author": {
     "name": "Yusaku KASAI"

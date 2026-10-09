@@ -8,7 +8,6 @@
   "editor.wordWrap": "on",
   "files.autoSave": "onFocusChange",
   "files.eol": "\n",
-  // tmux is required for hook-driven terminal bells (docs/target/README.md).
   "accessibility.signals.terminalBell": {
     "sound": "on"
   },

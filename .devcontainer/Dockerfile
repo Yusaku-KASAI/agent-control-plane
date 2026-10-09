@@ -2,7 +2,7 @@
 
 # COPY --from cannot expand build args, so pinned upstream images are aliased as stages here.
 ARG UV_VERSION=0.12.20
-ARG GO_VERSION=1.27.1
+ARG GO_VERSION=1.27.2
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
 FROM golang:${GO_VERSION}-trixie AS go-source
 
