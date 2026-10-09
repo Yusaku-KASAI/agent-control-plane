@@ -66,8 +66,10 @@ acp stop --agent <name> --session <id> [--server <url>]
 ### 2. エージェントごとの GitHub App（任意）
 
 - エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。権限は
-  ロールに合わせる：変更する developer は Contents と Pull requests を Read and write、読むだけの guide は
-  Contents・Pull requests・Issues を Read-only。
+  ロールに合わせる。
+  - 変更する developer：Contents と Pull requests を Read and write。Issues と、PR の CI の結果とログを読むための
+    Actions・Checks・Commit statuses を Read-only。
+  - 読むだけの guide：Contents・Pull requests・Issues を Read-only。
 - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
 - コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は
   `gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べる。
