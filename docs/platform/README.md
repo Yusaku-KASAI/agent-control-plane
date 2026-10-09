@@ -43,10 +43,13 @@ platform/
 ## bell
 
 対話で使っている Claude Code が止まったら、hook が端末のベルを鳴らす。聞き逃さないよう、どの場面でも2回以上鳴らす。
+すぐに人の操作が要る場面（操作すれば再開できる、または直す必要がある）は短い間隔で2回、ターンを終えて結果を
+見ればよい場面は3回にして、聞き分けられるようにする。
 
 | 止まり方 | hook | ベル |
 | --- | --- | --- |
-| ターンの終わり、API のエラーでの終わり（利用上限、認証の失敗など） | `Stop`、`StopFailure` | 3回、0.8秒おき |
+| ターンの終わり | `Stop` | 3回、0.8秒おき |
+| API のエラーでの終わり（利用上限、認証の失敗など） | `StopFailure` | 2回、0.4秒おき |
 | 権限の確認 | `PermissionRequest` | 2回、0.4秒おき |
 | 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回、0.4秒おき |
 | 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回、0.4秒おき |
