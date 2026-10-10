@@ -29,7 +29,12 @@ func (c sessionCredentials) write(creds domain.Credentials) error {
 		}
 	}
 	if creds.GitHubToken != "" {
-		hosts := fmt.Sprintf("github.com:\n    oauth_token: %s\n    user: x-access-token\n    git_protocol: https\n", creds.GitHubToken)
+		// Without version "1", gh migrates the config on every call and fails on the read-only mount.
+		if err := writeAtomic(filepath.Join(c.dir(), "gh", "config.yml"), []byte("version: \"1\"\n")); err != nil {
+			return err
+		}
+		hosts := fmt.Sprintf("github.com:\n    users:\n        x-access-token:\n            oauth_token: %[1]s\n"+
+			"    oauth_token: %[1]s\n    user: x-access-token\n    git_protocol: https\n", creds.GitHubToken)
 		if err := writeAtomic(filepath.Join(c.dir(), "gh", "hosts.yml"), []byte(hosts)); err != nil {
 			return err
 		}
