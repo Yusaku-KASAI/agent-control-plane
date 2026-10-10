@@ -33,6 +33,11 @@ func (c sessionCredentials) write(creds domain.Credentials) error {
 		if err := writeAtomic(filepath.Join(c.dir(), "gh", "hosts.yml"), []byte(hosts)); err != nil {
 			return err
 		}
+		// Without the config version, gh migrates hosts.yml to multiple accounts on every call: it
+		// fails on the read-only mount and asks GitHub for a user an app token does not have.
+		if err := writeAtomic(filepath.Join(c.dir(), "gh", "config.yml"), []byte("version: \"1\"\n")); err != nil {
+			return err
+		}
 	}
 	if creds.SlackBotToken != "" {
 		if err := writeAtomic(filepath.Join(c.dir(), slackTokenFile), []byte(creds.SlackBotToken)); err != nil {
