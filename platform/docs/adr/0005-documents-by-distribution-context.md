@@ -28,7 +28,7 @@ control-plane-dev は原因を見つけた。エージェントに要る知識�
 | control-plane | アプリの仕組み、設定、運用の手順、Go の書き方 | control-plane の開発者 |
 | 各ターゲット | プロダクトの前提（目的、使われ方、公開方法、守る互換）、そのリポジトリの判断 | そのターゲットのエージェント |
 
-切り出すまでは、このリポジトリの `docs/platform/` と `platform/`、`docs/target/` と `.devcontainer/` などが、
+切り出すまでは、このリポジトリの `platform/`（文書は `platform/docs/`）、`docs/target/` と `.devcontainer/` などが、
 それぞれ platform と target-template の区切りに当たる。
 
 ### 区切りをまたぐのは、契約と用語集だけ

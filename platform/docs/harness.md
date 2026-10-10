@@ -1,0 +1,81 @@
+# ハーネスの契約
+
+エージェントが動く環境と、そこで渡されるもの。control-plane はこの契約に合わせて作り、エージェントとプラグインは
+これを前提にしてよい（[ADR 0005](adr/0005-documents-by-distribution-context.md)）。言葉は[用語集](glossary.md)のとおり。
+
+## 動き方
+
+| 動き方 | 見分け方 | 人 |
+| --- | --- | --- |
+| control-plane 経由 | 環境変数 `ACP_SESSION_BRANCH` がある | 端末にいない。依頼は Slack か CLI から届き、ターンの最後の回答が依頼者に届く |
+| devcontainer で直接 | `ACP_SESSION_BRANCH` がない | 端末にいて、対話できる |
+
+どちらもターゲットのイメージで、非 root のユーザー `node` として動く。sudo はないので、使える道具はイメージに
+入っているものだけ。
+
+## control-plane 経由で渡されるもの
+
+### 依頼と回答
+
+- Claude Code は、ロールをカスタムエージェント（`--agent <ロール>`）にし、権限の確認なしで動く。
+- Slack からの依頼では、プロンプトは依頼のメッセージの場所だけを指す。本文とスレッドは slack スキルで読む。
+- ターンの最後の回答は control-plane がスレッドに投稿する（12,000 文字で切られる）。自分で投稿しない。
+- ターンの途中で依頼者に質問して返事を待つことはできない。同じスレッドへの返信は同じセッションの次のターンになる
+  ので、問いかけで終えることはできる。
+- ターンの途中にも、プロンプトが届くことがある（Slack の `:zap:` で始まる発言、CLI の `--inject`）。待っていた
+  依頼がまとめて届くこともある。最後の回答は、届いたすべてに答える。
+
+### コンテナの寿命
+
+- コンテナはターンをまたいで動き続ける。依頼もバックグラウンドの処理もない状態が続くと、コンテナは**消され**、
+  次の依頼で新しいコンテナで会話を再開する。control-plane の再起動でも、動いていた処理は中断され、コンテナは消される。
+- 残るのは作業領域と `CLAUDE_CONFIG_DIR` だけ。`/tmp`、キャッシュ、自分で入れたもの、バックグラウンドの
+  プロセスは残らない。
+- 使われないまま一定期間（既定 30 日）が過ぎたセッションは、作業領域ごと消される。push していないコミット、
+  作業ツリーの変更、開いている PR があるあいだは残る。
+
+### 作業領域とブランチ
+
+- 作業ディレクトリ `/workspace/<名前>` は、このセッションのためにターゲットを clone した作業領域。`<名前>` は
+  ホストでのターゲットのディレクトリ名。`origin` はターゲットのリモートを指す。
+- セッションのブランチ `ACP_SESSION_BRANCH` は、GitHub App があればリモートの既定のブランチから、なければ
+  ターゲットの今の HEAD から切られている。別の PR に分けるときは、リモートの既定のブランチから
+  `$ACP_SESSION_BRANCH-<内容>` を切る。
+- `/workspace` のほかのリポジトリは見えない。例外はプラグインのマーケットプレイスで、ターゲットの隣にある
+  マーケットプレイスは、ターゲットが宣言したパスに読み取り専用で見える。ターゲット自身の中にあるマーケットプレイス
+  は、作業領域の中（作業中のブランチの版）がそのまま使われる。
+
+### 認証情報
+
+GitHub App や Slack アプリはエージェントごとに任意なので、ないものの環境変数は渡されない。
+
+| 環境変数 | 渡されるとき | 中身 |
+| --- | --- | --- |
+| `GH_CONFIG_DIR` | GitHub App がある | gh の設定（`/run/acp/credentials/gh`）。GitHub App のトークンが入る。git も github.com には gh を通して HTTPS で認証する（SSH の URL も HTTPS に読み替える） |
+| `SLACK_BOT_TOKEN_FILE` | Slack アプリがある | Slack の Bot のトークンのファイル（`/run/acp/credentials/slack/bot-token`） |
+| `CLAUDE_CODE_OAUTH_TOKEN` か `ANTHROPIC_API_KEY` | いつも | Claude Code の認証 |
+
+- `/run/acp/credentials` は読み取り専用。トークンは control-plane が失効する前に書き換えるので、毎回ファイルから
+  読む。`gh auth login` や `gh config set` のように設定を書き換えるコマンドは失敗する。
+- できることは、エージェントの GitHub App と Slack アプリの権限で決まる。
+
+### コミット
+
+| 環境変数 | 渡されるとき | 中身 |
+| --- | --- | --- |
+| `GIT_AUTHOR_NAME`、`GIT_AUTHOR_EMAIL`、`GIT_COMMITTER_NAME`、`GIT_COMMITTER_EMAIL` | エージェントのコミットの作者が設定されている | エージェントの名前（GitHub App の Bot） |
+| `ACP_CO_AUTHORS_FILE` | いつも | 今のターンの依頼者を 1 行に 1 人（`名前 <メール>`）で書いた一覧（`/run/acp/credentials/git/co-authors`） |
+
+作業領域の `.git/hooks/commit-msg` が、一覧の人を `Co-authored-by` としてコミットに足す。ターゲットが
+`core.hooksPath` を設定しているときや、`--no-verify` でコミットしたときは足されない。
+
+### Claude Code の設定
+
+- `CLAUDE_CONFIG_DIR`（`/home/node/.claude`）はエージェントごとに一つで、そのエージェントのすべてのセッション
+  （同時に動くものも含む）が共有する。会話の履歴と auto memory が入る。
+
+## devcontainer で直接動くとき
+
+- 認証情報は、人が devcontainer の中で用意したもの（`gh auth login` など）。
+- `/workspace` には、ホストで並べたリポジトリが読み取り専用で見える。書けるのは自分のリポジトリだけ。
+- ブランチや PR の進め方は、ターゲットの決まり（CLAUDE.md）と人の指示に従う。

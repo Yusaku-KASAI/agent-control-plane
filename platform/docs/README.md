@@ -14,12 +14,16 @@ platform/
     slack/                          Slack を読み書きする slackctl コマンド（bin/）と、その使い方のスキル
     github/                         PR の本文を今のブランチに合わせ続ける prctl コマンドと hook、GitHub での作業のスキル
     rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
+    harness/                        どう起動されているか（control-plane 経由か devcontainer で直接か）と契約の在りかを、
+                                    セッションとサブエージェントの始めに hook で伝える。詰まったときの切り分けのスキル
     bell/                           対話で使うとき、Claude Code が止まったら端末のベルを鳴らす hook（下の「bell」）
+  docs/                             この文書、ハーネスの契約（harness.md）、用語集（glossary.md）、ADR。
+                                    エージェントにもマーケットプレイスと一緒に届く
 ```
 
 ## 使われ方
 
-- ターゲットは `.claude/settings.json` で使うプラグインを宣言する（[target ADR 0004](../target/adr/0004-plugins-declared-in-settings.md)）。
+- ターゲットは `.claude/settings.json` で使うプラグインを宣言する。
 - control-plane から起動するエージェントには、control-plane が宣言を読んで `--plugin-dir` で読み込ませる。
 - どのターゲットも `acp-platform` を、切り出した後の場所 `/workspace/agent-platform` で宣言する。切り出すまでは、
   ホストでリポジトリを並べたディレクトリに、相対パスのシンボリックリンクを置いてこの `platform/` を指す
@@ -38,6 +42,7 @@ platform/
   ターンの終わりに hook が PR の本文が古くないかを確かめ、古ければ書き換えを促す
   （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
 - プラグインの検査（`claude plugin validate ./platform` と、`bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。
+- roles のロールは、harness が伝える動き方とハーネスの契約を前提にする。roles を使うターゲットは harness も有効にする。
 - プラグインには、どのターゲットでも通用する内容だけを書く。
 
 ## bell

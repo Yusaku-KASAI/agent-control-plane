@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Tells the agent how it is run, in a few lines; the details stay in the docs it points to.
+set -euo pipefail
+
+# The docs sit beside the plugins in the marketplace. A copy of the plugin elsewhere (such as a
+# plugin cache) falls back to where every target declares the marketplace.
+docs=$(cd "$(dirname "$0")/../../../docs" 2>/dev/null && pwd) || docs=/workspace/agent-platform/docs
+[[ -f $docs/harness.md ]] || docs="（見つからない。platform の docs/）"
+if [[ -n ${ACP_SESSION_BRANCH:-} ]]; then
+  how="control-plane から起動されている。人は端末にいない。依頼者に質問して待つことはできず、最後の回答だけが依頼者に届く。作業はセッションのブランチ ${ACP_SESSION_BRANCH} で行う。認証情報は読み取り専用で渡される。"
+else
+  how="devcontainer で人と直接動いている。人は端末にいて、対話できる。"
+fi
+jq -n --arg event "$1" --arg ctx "# ハーネス
+
+${how}
+渡されるもの（環境変数、作業領域、認証情報）とその制約は ${docs}/harness.md、言葉の意味は ${docs}/glossary.md にある。
+認証、push、マウント、環境変数などで詰まったら、harness スキルで切り分ける。" \
+  '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'

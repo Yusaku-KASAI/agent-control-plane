@@ -447,3 +447,32 @@ func (f *fakeAPI) exit(status int64) {
 	f.status <- status
 	_ = f.output.Close()
 }
+
+// Agents rely on the harness contract, not on this code, for what the container is given.
+func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
+	contract, err := os.ReadFile("../../../platform/docs/harness.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := testAgent
+	agent.Git = domain.GitIdentity{Name: "repo-dev (agent)", Email: "1+u@users.noreply.github.com"}
+	for _, creds := range []domain.Credentials{
+		{GitHubToken: "ghs_x", SlackBotToken: "xoxb-x", ClaudeOAuthToken: "sk-ant-oat-x"},
+		{ClaudeAPIKey: "sk-ant-api-x"},
+	} {
+		env := containerSpec(usecase.StartRequest{Agent: agent, Session: testSession, Credentials: creds}, nil, Options{}).Config.Env
+		for _, kv := range env {
+			name, value, _ := strings.Cut(kv, "=")
+			// How git and gh are configured is not part of the contract.
+			if strings.HasPrefix(name, "GIT_CONFIG_") || name == "GH_NO_UPDATE_NOTIFIER" {
+				continue
+			}
+			if !strings.Contains(string(contract), "`"+name+"`") {
+				t.Errorf("harness.md does not describe %s", name)
+			}
+			if strings.HasPrefix(value, "/") && !strings.Contains(string(contract), value) {
+				t.Errorf("harness.md does not give the path of %s (%s)", name, value)
+			}
+		}
+	}
+}

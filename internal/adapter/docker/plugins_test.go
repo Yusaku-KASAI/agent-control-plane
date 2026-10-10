@@ -158,7 +158,7 @@ func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The host as docs/platform/README.md sets it up: agent-platform beside the repository links into it.
+	// The host as platform/docs/README.md sets it up: agent-platform beside the repository links into it.
 	hostRoot := t.TempDir()
 	for name, target := range map[string]string{filepath.Base(repo): repo, "agent-platform": filepath.Join(repo, "platform")} {
 		if err := os.Symlink(target, filepath.Join(hostRoot, name)); err != nil {
