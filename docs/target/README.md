@@ -58,7 +58,8 @@ compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフ�
   マウントする。隣に置いたリポジトリは参照できるが書き込めない。
 - Claude Code の設定（ログイン、履歴、メモリ）、`gh` の設定、シェルの履歴は、ホストの `DEV_STATE_DIR` の下に置いて
   マウントする。Docker の外にあるので、`docker compose down -v` や prune でも消えない
-  （[ADR 0010](adr/0010-devcontainer-state-on-the-host.md)）。Go のキャッシュは消えても困らないので、名前付きボリュームに置く。
+  （[ADR 0010](adr/0010-devcontainer-state-on-the-host.md)）。VS Code のサーバー（拡張機能とチャットの履歴を含む）は、コンテナを作り直しても残るよう名前付きボリュームに置く。
+  Go のキャッシュは消えても困らないので、名前付きボリュームに置く。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](adr/0009-containers-run-as-non-root.md)）。
   UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。control-plane の
   `.env` の `ACP_UID` / `ACP_GID` も同じ値にする。ボリュームのマウント先はイメージの中に `node` の持ち物として
@@ -70,12 +71,14 @@ compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフ�
 `permissions` は効かない。コンテナの隔離で守る方針なので、対話でも権限の確認を省いて（bypass）使ってよい。
 `permissions.allow` の一覧は、組織の制限などで bypass が使えない環境で確認を減らすためにある。
 
-### tmux とベル
+### ターミナル
 
-- マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は選択するだけで、クリップボードに自動ではコピーしない。
-  選択は残り、`y` か `Enter` でコピーする。`q` か `Escape` で選択をやめる。
-- Claude Code が対話で止まったときは、platform の bell プラグインが端末のベルを鳴らす（[platform](../platform/README.md#bell)）。
-  tmux は、ベルを外の端末（VS Code の音）に渡しつつ、自分でも表示する。
+- VS Code の既定のターミナルは tmux。VS Code やリモートの接続が切れても、中で動いている Claude Code は止まらない。
+- tmux のコピーモードは普段の端末の選択に近づけている。マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は
+  選択するだけで自動ではコピーせず、`y`、`Enter`、`Ctrl+C` でコピーする。`Esc` かクリックで抜ける。
+- Claude Code のフルスクリーン表示では、マウスでの選択を Claude Code が扱い、離したときに自動でコピーする。
+  止めるには `/config` の Copy on select をオフにする（そのあとは選択中に `Ctrl+C` か `Ctrl+Shift+C` でコピーする）。
+- Claude Code が対話で止まったときは、platform の bell プラグインがベルを鳴らす（[platform](../platform/README.md#bell)）。
 
 ### VS Code の設定
 
