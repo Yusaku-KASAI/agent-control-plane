@@ -175,6 +175,10 @@ func TestSessionCredentials_Write(t *testing.T) {
 		if err != nil || !strings.Contains(string(b), "oauth_token: ghs_"+n) {
 			t.Errorf("hosts.yml = %q, %v; want token ghs_%s", b, err, n)
 		}
+		b, err = os.ReadFile(filepath.Join(c.dir(), "gh", "config.yml"))
+		if err != nil || string(b) != "version: \"1\"\n" {
+			t.Errorf("config.yml = %q, %v; want version 1 so gh skips migration", b, err)
+		}
 		b, err = os.ReadFile(filepath.Join(c.dir(), "slack", "bot-token"))
 		if err != nil || string(b) != "xoxb-"+n {
 			t.Errorf("slack bot-token = %q, %v; want xoxb-%s", b, err, n)
