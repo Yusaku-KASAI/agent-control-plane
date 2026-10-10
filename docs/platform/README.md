@@ -54,7 +54,7 @@ platform/
 | 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回、0.4秒おき |
 | 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回、0.4秒おき |
 
-- tmux の中では、つながっている端末に、間隔を空けてベルを書く（hook は待たずに戻る）。tmux の外では、hook が
-  `terminalSequence` でベルを返し、Claude Code が自分の端末に書く。このときは間隔を空けられず、続けて届く。
-- `-p` で動くエージェントには tmux も端末もなく、`terminalSequence` も書かれないので、鳴らない。
+- hook は自分の端末を持たないので、祖先のプロセスのうち端末を持つもの（対話で動いている Claude Code）の端末に、
+  間隔を空けてベルを書く。書くのは裏で行い、hook は待たずに戻る。tmux の中でも外でも同じ。
+- `-p` で動くエージェントには端末を持つ祖先がないので、鳴らない。
 - 人が Esc で止めたときは、人がその場にいるので鳴らさない（`Stop` も動かない）。プロセスが落ちたときは hook が動かない。

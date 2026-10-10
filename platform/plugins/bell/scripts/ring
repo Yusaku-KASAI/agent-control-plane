@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # ring <count> <gap>: rings the terminal count times, gap seconds apart.
 #
-# In tmux, the bells are written to the attached clients' terminals in the background, so that the
-# hook returns at once and the bells stay apart. Elsewhere a hook cannot reach the terminal, so
-# Claude Code writes them through terminalSequence; there they arrive together.
+# A hook has no terminal of its own, so the bells go to the terminal of the nearest ancestor that
+# has one: the interactive Claude Code. They are written in the background, so that the hook returns
+# at once. A headless agent has no such ancestor and rings nothing.
 set -uo pipefail
 count=$1 gap=$2
 
-mapfile -t ttys < <(tmux list-clients -F '#{client_tty}' 2>/dev/null | sort -u)
-if ((${#ttys[@]} > 0)); then
-  (
-    for ((i = 0; i < count; i++)); do
-      ((i == 0)) || sleep "$gap"
-      for tty in "${ttys[@]}"; do printf '\a' >"$tty"; done
-    done
-  ) </dev/null >/dev/null 2>&1 &
-  exit 0
-fi
+pid=$$ tty=
+while [[ -n $pid && $pid != 0 && $pid != 1 ]]; do
+  tty=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
+  [[ -n $tty && $tty != '?' ]] && break
+  tty=''
+  pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+done
+[[ -n $tty ]] || exit 0
 
-bells=
-for ((i = 0; i < count; i++)); do bells+='\u0007'; done
-printf '{"terminalSequence":"%s"}\n' "$bells"
+(
+  for ((i = 0; i < count; i++)); do
+    ((i == 0)) || sleep "$gap"
+    printf '\a' >"/dev/$tty"
+  done
+) </dev/null >/dev/null 2>&1 &
+exit 0
