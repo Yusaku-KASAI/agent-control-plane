@@ -14,30 +14,30 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
-func TestBranches_Inspect(t *testing.T) {
-	tips := map[string]string{"review": "r1", "base": "b1", "closed": "c1", "pushed-after-close": "p2", "merged": "m1", "wip": "w1", "orphan": "o1", "develop": "d1"}
+func TestBranches_InspectAndList(t *testing.T) {
+	tips := map[string]string{"review": "r1", "base": "b1", "acp/0f8fad5b": "a1", "acp/0f8fad5b-docs": "d1"}
 	heads := map[string]string{
-		"review":             `[{"number":1,"title":"Docs","html_url":"https://github.com/o/repo/pull/1","state":"open","head":{"sha":"r1"}}]`,
-		"closed":             `[{"number":2,"state":"closed","head":{"sha":"c1"}}]`,
-		"pushed-after-close": `[{"number":3,"state":"closed","head":{"sha":"p1"}}]`,
-		"squashed":           `[{"number":4,"state":"closed","head":{"sha":"s1"}}]`,
-		"squashed-after-fix": `[{"number":6,"state":"closed","head":{"sha":"f2"}}]`,
+		"review": `[{"number":1,"title":"Docs","html_url":"https://github.com/o/repo/pull/1","state":"open","head":{"sha":"r1"}}]`,
+		"gone": `[{"number":2,"state":"closed","merged_at":"2026-10-01T00:00:00Z","head":{"sha":"m2"}},` +
+			`{"number":3,"state":"closed","merged_at":null,"head":{"sha":"c3"}}]`,
 	}
-	bases := map[string]string{
-		"base":    `[{"number":5,"title":"Stacked","html_url":"https://github.com/o/repo/pull/5","state":"open"}]`,
-		"develop": `[{"number":8,"state":"open"}]`,
-	}
+	bases := map[string]string{"base": `[{"number":5,"title":"Stacked","html_url":"https://github.com/o/repo/pull/5","state":"open"}]`}
 	// ahead tells how far head is ahead of base by "base...head"; a missing pair shares no history.
-	ahead := map[string]int{"main...p2": 1, "main...m1": 0, "main...w1": 2, "main...l1": 3, "p1...p2": 1, "f2...f1": 0, "main...f1": 1}
+	ahead := map[string]int{"main...m1": 0, "main...x1": 1, "m2...m1": 0, "c3...m1": 1, "m2...c1": 1, "c3...c1": 0, "main...c1": 2, "main...n1": 3, "m2...n1": 1, "c3...n1": 1,
+		"main...r1": 1, "main...b1": 0, "main...a1": 0, "main...d1": 1}
+	var calls []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer t" {
 			t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/repos/o/repo")
+		calls = append(calls, path+"?"+r.URL.RawQuery)
 		q := r.URL.Query()
 		switch {
 		case path == "":
 			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		case path == "/git/matching-refs/heads/acp/0f8fad5b":
+			_, _ = w.Write([]byte(`[{"ref":"refs/heads/acp/0f8fad5b"},{"ref":"refs/heads/acp/0f8fad5b-docs"}]`))
 		case strings.HasPrefix(path, "/git/ref/heads/"):
 			tip, ok := tips[strings.TrimPrefix(path, "/git/ref/heads/")]
 			if !ok {
@@ -52,9 +52,6 @@ func TestBranches_Inspect(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`[]`))
 		case path == "/pulls" && q.Get("base") != "" && q.Get("state") == "open":
-			if q.Get("base") == "develop" {
-				t.Error("looked for pull requests into a branch the session did not create")
-			}
 			if p, ok := bases[q.Get("base")]; ok {
 				_, _ = w.Write([]byte(p))
 				return
@@ -74,39 +71,45 @@ func TestBranches_Inspect(t *testing.T) {
 	}))
 	defer srv.Close()
 	b := NewBranches(srv.URL, srv.Client(), func(context.Context, string) (string, error) { return "git@github.com:o/repo.git", nil })
+	creds := domain.Credentials{GitHubToken: "t"}
 
-	ref := func(name, localTip string) usecase.BranchRef {
-		return usecase.BranchRef{Name: name, LocalTip: localTip, Owned: name != "develop"}
+	names, err := b.List(context.Background(), dev, creds, "acp/0f8fad5b")
+	if want := []string{"acp/0f8fad5b", "acp/0f8fad5b-docs"}; err != nil || !slices.Equal(names, want) {
+		t.Errorf("List() = %v, %v; want %v", names, err, want)
 	}
-	got, err := b.Inspect(context.Background(), dev, domain.Credentials{GitHubToken: "t"}, []usecase.BranchRef{
-		ref("main", "x"), ref("review", "x"), ref("base", "x"), ref("closed", "x"), ref("pushed-after-close", "x"),
-		ref("merged", "x"), ref("wip", "x"), ref("orphan", "x"),
-		ref("squashed", "s1"), ref("squashed-after-fix", "f1"), ref("deleted-unmerged", "l1"), ref("never-pushed", "n1"),
-		ref("develop", "x"),
+
+	got, err := b.Inspect(context.Background(), dev, creds, []usecase.BranchQuery{
+		{Name: "review", Commits: []string{"x1"}},
+		{Name: "base"},
+		{Name: "gone", Commits: []string{"m1", "c1", "n1"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []usecase.RemoteBranch{
-		{BranchRef: ref("review", "x"), State: usecase.BranchInReview, Exists: true, Pulls: []usecase.PullRequest{{Number: 1, Title: "Docs", URL: "https://github.com/o/repo/pull/1"}}},
-		{BranchRef: ref("base", "x"), State: usecase.BranchInReview, Exists: true, Pulls: []usecase.PullRequest{{Number: 5, Title: "Stacked", URL: "https://github.com/o/repo/pull/5"}}},
-		{BranchRef: ref("closed", "x"), State: usecase.BranchDone, Exists: true},
-		{BranchRef: ref("pushed-after-close", "x"), State: usecase.BranchUnfinished, Exists: true},
-		{BranchRef: ref("merged", "x"), State: usecase.BranchDone, Exists: true},
-		{BranchRef: ref("wip", "x"), State: usecase.BranchUnfinished, Exists: true},
-		// No history in common with the default branch.
-		{BranchRef: ref("orphan", "x"), State: usecase.BranchUnfinished, Exists: true},
-		// Gone from the remote: judged by the local tip.
-		{BranchRef: ref("squashed", "s1"), State: usecase.BranchDone},
-		// The pull request got another commit after the session last pulled.
-		{BranchRef: ref("squashed-after-fix", "f1"), State: usecase.BranchDone},
-		{BranchRef: ref("deleted-unmerged", "l1"), State: usecase.BranchUnfinished},
-		{BranchRef: ref("never-pushed", "n1"), State: usecase.BranchUnfinished},
-		// Not the session's: neither a pull request into it nor its own commits keep the session.
-		{BranchRef: ref("develop", "x"), State: usecase.BranchDone, Exists: true},
+	pr := func(n int, title string) usecase.PullRequest {
+		return usecase.PullRequest{Number: n, Title: title, URL: fmt.Sprintf("https://github.com/o/repo/pull/%d", n)}
+	}
+	want := []usecase.BranchFacts{
+		{Name: "review", Exists: true, Tip: "r1", OpenHead: []usecase.PullRequest{pr(1, "Docs")},
+			Commits: map[string]usecase.CommitPlaces{
+				// x1 shares no history with the branch.
+				"x1": {},
+				"r1": {InBranch: true},
+			}},
+		{Name: "base", Exists: true, Tip: "b1", OpenBase: []usecase.PullRequest{pr(5, "Stacked")},
+			Commits: map[string]usecase.CommitPlaces{"b1": {InDefault: true, InBranch: true}}},
+		{Name: "gone", Commits: map[string]usecase.CommitPlaces{
+			"m1": {InDefault: true, InMergedPull: true},
+			// In the head of a pull request closed without merging, after the session last pulled.
+			"c1": {InClosedPull: true},
+			"n1": {},
+		}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Inspect() =\n%+v\nwant\n%+v", got, want)
+	}
+	if slices.Contains(calls, "/pulls?base=gone&per_page=100&state=open") {
+		t.Error("asked for pull requests into a branch that is gone")
 	}
 }
 
@@ -143,9 +146,13 @@ func TestBranches_CouldNotHavePushed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			b := NewBranches("http://127.0.0.1:0", http.DefaultClient, func(context.Context, string) (string, error) { return tt.origin, nil })
 			creds := domain.Credentials{GitHubToken: tt.token}
-			got, err := b.Inspect(context.Background(), dev, creds, []usecase.BranchRef{{Name: "acp/0f8fad5b", LocalTip: "x"}})
+			got, err := b.Inspect(context.Background(), dev, creds, []usecase.BranchQuery{{Name: "acp/0f8fad5b", Commits: []string{"x"}}})
 			if err != nil || got != nil {
 				t.Errorf("Inspect() = %v, %v; want nothing", got, err)
+			}
+			names, err := b.List(context.Background(), dev, creds, "acp/0f8fad5b")
+			if err != nil || names != nil {
+				t.Errorf("List() = %v, %v; want nothing", names, err)
 			}
 			removed, err := b.Remove(context.Background(), dev, creds, []string{"acp/0f8fad5b"})
 			if err != nil || removed != nil {
@@ -169,5 +176,29 @@ func TestParseRepo(t *testing.T) {
 		if got != want || ok != (want != "") {
 			t.Errorf("parseRepo(%q) = %q, %v; want %q", remote, got, ok, want)
 		}
+	}
+}
+
+func TestBranches_CompareReadsOnlyAheadBy(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/repos/o/repo":
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		case strings.HasPrefix(r.URL.Path, "/repos/o/repo/git/ref/"):
+			w.WriteHeader(http.StatusNotFound)
+		case r.URL.Path == "/repos/o/repo/pulls":
+			_, _ = w.Write([]byte(`[]`))
+		case strings.HasPrefix(r.URL.Path, "/repos/o/repo/compare/"):
+			// Larger than any body read whole.
+			_, _ = fmt.Fprintf(w, `{"status":"ahead","ahead_by":2,"files":[{"patch":%q}]}`, strings.Repeat("x", 2<<20))
+		default:
+			t.Errorf("unexpected %s", r.URL)
+		}
+	}))
+	defer srv.Close()
+	b := NewBranches(srv.URL, srv.Client(), func(context.Context, string) (string, error) { return "https://github.com/o/repo", nil })
+	got, err := b.Inspect(context.Background(), dev, domain.Credentials{GitHubToken: "t"}, []usecase.BranchQuery{{Name: "x", Commits: []string{"c"}}})
+	if err != nil || len(got) != 1 || got[0].Commits["c"] != (usecase.CommitPlaces{}) {
+		t.Errorf("Inspect() = %+v, %v; want c kept nowhere", got, err)
 	}
 }

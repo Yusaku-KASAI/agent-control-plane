@@ -105,6 +105,8 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_TERMINAL_PROMPT=0",
+		// git status would otherwise refresh the index, racing with an agent using the workspace.
+		"GIT_OPTIONAL_LOCKS=0",
 		"ACP_GIT_TOKEN="+g.token,
 		"GIT_CONFIG_COUNT=4",
 		"GIT_CONFIG_KEY_0=credential.helper", "GIT_CONFIG_VALUE_0="+tokenHelper,
@@ -150,42 +152,20 @@ func keepWorkRecords(ctx context.Context, g gitRunner, repo string) error {
 	return nil
 }
 
-// Branches tells the branches the session pushed, by the remote-tracking branches a push updated,
-// and the local branches with whether they hold commits found nowhere else.
-func (p *Provider) Branches(ctx context.Context, path string) (usecase.WorkspaceBranches, error) {
-	var w usecase.WorkspaceBranches
+// State tells the working tree, the branches the session pushed, by the remote-tracking branches a
+// push updated, and the local branches with whether they hold commits found nowhere else.
+func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceState, error) {
+	var w usecase.WorkspaceState
 	if ok, err := exists(filepath.Join(path, ".git")); !ok || err != nil {
 		return w, err
 	}
 	g := gitRunner{}
-	remotes, err := g.run(ctx, path, "for-each-ref", "--format=%(refname)%09%(objectname)", "refs/remotes/origin")
-	if err != nil {
+	if err := readWorkingTree(ctx, g, path, &w); err != nil {
 		return w, err
 	}
-	tips := make(map[string]string)
-	var refs []string
-	for line := range strings.Lines(remotes) {
-		ref, tip, _ := strings.Cut(strings.TrimSpace(line), "\t")
-		if ref != "refs/remotes/origin/HEAD" {
-			tips[ref] = tip
-			refs = append(refs, ref)
-		}
-	}
-	if len(refs) > 0 {
-		reflogs, err := g.run(ctx, path, append(append([]string{"log", "--walk-reflogs", "--format=%gD%x09%gs"}, refs...), "--")...)
-		if err != nil {
-			return w, err
-		}
-		pushed := make(map[string]bool)
-		for line := range strings.Lines(reflogs) {
-			entry, subject, _ := strings.Cut(strings.TrimSpace(line), "\t")
-			ref, _, _ := strings.Cut(entry, "@{")
-			if subject == "update by push" && !pushed[ref] {
-				pushed[ref] = true
-				w.Pushed = append(w.Pushed, usecase.BranchRef{Name: strings.TrimPrefix(ref, "refs/remotes/origin/"), LocalTip: tips[ref]})
-			}
-		}
-		slices.SortFunc(w.Pushed, func(a, b usecase.BranchRef) int { return strings.Compare(a.Name, b.Name) })
+	var err error
+	if w.Pushed, err = pushedBranches(ctx, g, path); err != nil {
+		return w, err
 	}
 	locals, err := g.run(ctx, path, "for-each-ref", "--format=%(refname:lstrip=2)%09%(objectname)", "refs/heads")
 	if err != nil {
@@ -197,7 +177,7 @@ func (p *Provider) Branches(ctx context.Context, path string) (usecase.Workspace
 		if err != nil {
 			return w, err
 		}
-		w.Local = append(w.Local, usecase.LocalBranch{Name: name, Tip: tip, Unpushed: unpushed})
+		w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: name, Tip: tip}, Unpushed: unpushed})
 	}
 	if _, err := g.run(ctx, path, "symbolic-ref", "--quiet", "HEAD"); err != nil {
 		detached, err := hasUnpushed(ctx, g, path, "HEAD", "--branches")
@@ -205,14 +185,88 @@ func (p *Provider) Branches(ctx context.Context, path string) (usecase.Workspace
 			return w, err
 		}
 		if detached {
-			w.Local = append(w.Local, usecase.LocalBranch{Name: "HEAD", Unpushed: true})
+			tip, err := g.run(ctx, path, "rev-parse", "HEAD")
+			if err != nil {
+				return w, err
+			}
+			w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: "HEAD", Tip: tip}, Unpushed: true})
 		}
 	}
 	return w, nil
 }
 
+// operations are the files git keeps while an operation is stopped halfway.
+var operations = []struct{ file, name string }{
+	{"rebase-merge", "rebase"}, {"rebase-apply", "rebase"}, {"MERGE_HEAD", "merge"},
+	{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"}, {"BISECT_LOG", "bisect"},
+}
+
+func readWorkingTree(ctx context.Context, g gitRunner, path string, w *usecase.WorkspaceState) error {
+	status, err := g.run(ctx, path, "status", "--porcelain", "--untracked-files=normal")
+	if err != nil {
+		return err
+	}
+	w.Changes = status != ""
+	if _, err := g.run(ctx, path, "rev-parse", "--verify", "--quiet", "refs/stash"); err == nil {
+		w.Stash = true
+	}
+	for _, op := range operations {
+		file, err := g.run(ctx, path, "rev-parse", "--git-path", op.file)
+		if err != nil {
+			return err
+		}
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(path, file)
+		}
+		if ok, err := exists(file); err != nil {
+			return err
+		} else if ok {
+			w.Operation = op.name
+			break
+		}
+	}
+	return nil
+}
+
+func pushedBranches(ctx context.Context, g gitRunner, path string) ([]usecase.BranchTip, error) {
+	remotes, err := g.run(ctx, path, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+	if err != nil {
+		return nil, err
+	}
+	var refs []string
+	for line := range strings.Lines(remotes) {
+		if ref := strings.TrimSpace(line); ref != "refs/remotes/origin/HEAD" {
+			refs = append(refs, ref)
+		}
+	}
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	reflogs, err := g.run(ctx, path, append(append([]string{"log", "--walk-reflogs", "--format=%gD%x09%H%x09%gs"}, refs...), "--")...)
+	if err != nil {
+		return nil, err
+	}
+	var pushed []usecase.BranchTip
+	seen := make(map[string]bool)
+	// The newest entry comes first. Its commit, not the remote-tracking branch now, is what the
+	// session pushed: a fetch may have moved the branch past it or away from it.
+	for line := range strings.Lines(reflogs) {
+		fields := strings.SplitN(strings.TrimSpace(line), "\t", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		ref, _, _ := strings.Cut(fields[0], "@{")
+		if fields[2] == "update by push" && !seen[ref] {
+			seen[ref] = true
+			pushed = append(pushed, usecase.BranchTip{Name: strings.TrimPrefix(ref, "refs/remotes/origin/"), Tip: fields[1]})
+		}
+	}
+	slices.SortFunc(pushed, func(a, b usecase.BranchTip) int { return strings.Compare(a.Name, b.Name) })
+	return pushed, nil
+}
+
 func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, elsewhere ...string) (bool, error) {
-	args := append([]string{"rev-list", "--count", rev, "--not", "--remotes", "--glob=refs/acp/*"}, elsewhere...)
+	args := append([]string{"rev-list", "--count", rev, "--not", "--remotes=origin", "--glob=refs/acp/*"}, elsewhere...)
 	n, err := g.run(ctx, path, args...)
 	return n != "0", err
 }

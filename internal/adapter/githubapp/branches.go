@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -28,8 +29,27 @@ func NewBranches(baseURL string, httpClient *http.Client, origin func(ctx contex
 	return &Branches{baseURL: baseURL, http: httpClient, origin: origin}
 }
 
-// Inspect reads, per branch, one page of its pull requests: a branch is the head or base of few.
-func (b *Branches) Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, refs []usecase.BranchRef) ([]usecase.RemoteBranch, error) {
+func (b *Branches) List(ctx context.Context, agent domain.Agent, creds domain.Credentials, prefix string) ([]string, error) {
+	c, ok, err := b.client(ctx, agent, creds)
+	if err != nil || !ok {
+		return nil, err
+	}
+	var refs []struct {
+		Ref string `json:"ref"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/git/matching-refs/heads/"+escapeRef(prefix), &refs); err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, r := range refs {
+		names = append(names, strings.TrimPrefix(r.Ref, "refs/heads/"))
+	}
+	return names, nil
+}
+
+// Inspect reads, per branch, one page of pull requests from it and one into it: a branch is the
+// head or base of few.
+func (b *Branches) Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, queries []usecase.BranchQuery) ([]usecase.BranchFacts, error) {
 	c, ok, err := b.client(ctx, agent, creds)
 	if err != nil || !ok {
 		return nil, err
@@ -40,107 +60,152 @@ func (b *Branches) Inspect(ctx context.Context, agent domain.Agent, creds domain
 	if err := c.do(ctx, http.MethodGet, "", &repo); err != nil {
 		return nil, err
 	}
-	var branches []usecase.RemoteBranch
-	for _, ref := range refs {
-		if ref.Name == repo.DefaultBranch {
-			continue
-		}
-		br, err := c.inspect(ctx, repo.DefaultBranch, ref)
+	facts := make([]usecase.BranchFacts, 0, len(queries))
+	for _, q := range queries {
+		f, err := c.inspect(ctx, repo.DefaultBranch, q)
 		if err != nil {
-			return nil, fmt.Errorf("branch %s: %w", ref.Name, err)
+			return nil, fmt.Errorf("branch %s: %w", q.Name, err)
 		}
-		branches = append(branches, br)
+		facts = append(facts, f)
 	}
-	return branches, nil
+	return facts, nil
 }
 
 type pull struct {
-	Number  int    `json:"number"`
-	Title   string `json:"title"`
-	HTMLURL string `json:"html_url"`
-	State   string `json:"state"`
-	Head    struct {
+	Number   int     `json:"number"`
+	Title    string  `json:"title"`
+	HTMLURL  string  `json:"html_url"`
+	State    string  `json:"state"`
+	MergedAt *string `json:"merged_at"`
+	Head     struct {
 		SHA string `json:"sha"`
 	} `json:"head"`
 }
 
-func (c apiClient) inspect(ctx context.Context, defaultBranch string, ref usecase.BranchRef) (usecase.RemoteBranch, error) {
-	br := usecase.RemoteBranch{BranchRef: ref, State: usecase.BranchUnfinished}
+func (p pull) pullRequest() usecase.PullRequest {
+	return usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL}
+}
+
+func (c apiClient) inspect(ctx context.Context, defaultBranch string, q usecase.BranchQuery) (usecase.BranchFacts, error) {
+	f := usecase.BranchFacts{Name: q.Name, Commits: make(map[string]usecase.CommitPlaces)}
 	var remote struct {
 		Object struct {
 			SHA string `json:"sha"`
 		} `json:"object"`
 	}
-	tip := ref.LocalTip
-	switch err := c.do(ctx, http.MethodGet, "/git/ref/heads/"+escapeRef(ref.Name), &remote); {
+	switch err := c.do(ctx, http.MethodGet, "/git/ref/heads/"+escapeRef(q.Name), &remote); {
 	case isStatus(err, http.StatusNotFound):
 	case err != nil:
-		return br, err
+		return f, err
 	default:
-		br.Exists = true
-		tip = remote.Object.SHA
+		f.Exists = true
+		f.Tip = remote.Object.SHA
 	}
 	owner, _, _ := strings.Cut(c.repo, "/")
 	var heads, bases []pull
-	if err := c.do(ctx, http.MethodGet, "/pulls?state=all&per_page=100&head="+url.QueryEscape(owner+":"+ref.Name), &heads); err != nil {
-		return br, err
+	if err := c.do(ctx, http.MethodGet, "/pulls?state=all&per_page=100&head="+url.QueryEscape(owner+":"+q.Name), &heads); err != nil {
+		return f, err
 	}
-	if br.Exists && ref.Owned {
-		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&base="+url.QueryEscape(ref.Name), &bases); err != nil {
-			return br, err
+	if f.Exists {
+		if err := c.do(ctx, http.MethodGet, "/pulls?state=open&per_page=100&base="+url.QueryEscape(q.Name), &bases); err != nil {
+			return f, err
 		}
 	}
-	var closed []string
-	for _, p := range append(heads, bases...) {
-		if p.State == "open" {
-			br.Pulls = append(br.Pulls, usecase.PullRequest{Number: p.Number, Title: p.Title, URL: p.HTMLURL})
-		} else {
+	for _, p := range bases {
+		f.OpenBase = append(f.OpenBase, p.pullRequest())
+	}
+	var merged, closed []string
+	for _, p := range heads {
+		switch {
+		case p.State == "open":
+			f.OpenHead = append(f.OpenHead, p.pullRequest())
+		case p.MergedAt != nil:
+			merged = append(merged, p.Head.SHA)
+		default:
 			closed = append(closed, p.Head.SHA)
 		}
 	}
-	if len(br.Pulls) > 0 {
-		br.State = usecase.BranchInReview
-		return br, nil
+	commits := q.Commits
+	if f.Exists && !slices.Contains(commits, f.Tip) {
+		commits = append(slices.Clone(commits), f.Tip)
 	}
-	if !ref.Owned && br.Exists {
-		br.State = usecase.BranchDone
-		return br, nil
-	}
-	for _, head := range closed {
-		contained, err := c.contains(ctx, head, tip)
-		if err != nil {
-			return br, err
+	for _, commit := range commits {
+		var places usecase.CommitPlaces
+		var err error
+		if places.InDefault, err = c.contains(ctx, escapeRef(defaultBranch), commit); err != nil {
+			return f, err
 		}
-		if contained {
-			br.State = usecase.BranchDone
-			return br, nil
+		if places.InMergedPull, err = c.containsAny(ctx, merged, commit); err != nil {
+			return f, err
 		}
+		if places.InClosedPull, err = c.containsAny(ctx, closed, commit); err != nil {
+			return f, err
+		}
+		if f.Exists {
+			if places.InBranch, err = c.contains(ctx, f.Tip, commit); err != nil {
+				return f, err
+			}
+		}
+		f.Commits[commit] = places
 	}
-	contained, err := c.contains(ctx, escapeRef(defaultBranch), tip)
-	if err != nil {
-		return br, err
-	}
-	if contained {
-		br.State = usecase.BranchDone
-	}
-	return br, nil
+	return f, nil
 }
 
-// contains tells whether the history of base has commit, as when a pull request got more commits
-// after the session last pulled. GitHub answers 404 for a commit it does not have or one sharing no
-// history with base.
+// containsAny looks for the commit itself before comparing, as a pull request's head is usually
+// the commit pushed last.
+func (c apiClient) containsAny(ctx context.Context, bases []string, commit string) (bool, error) {
+	if slices.Contains(bases, commit) {
+		return true, nil
+	}
+	for _, base := range bases {
+		ok, err := c.contains(ctx, base, commit)
+		if ok || err != nil {
+			return ok, err
+		}
+	}
+	return false, nil
+}
+
+// contains tells whether the history of base has commit. GitHub answers 404 for a commit it does
+// not have or one sharing no history with base.
 func (c apiClient) contains(ctx context.Context, base, commit string) (bool, error) {
 	if base == commit {
 		return true, nil
 	}
-	var cmp struct {
-		AheadBy int `json:"ahead_by"`
-	}
-	err := c.do(ctx, http.MethodGet, "/compare/"+base+"..."+commit, &cmp)
+	aheadBy, err := c.aheadBy(ctx, base, commit)
 	if isStatus(err, http.StatusNotFound) {
 		return false, nil
 	}
-	return err == nil && cmp.AheadBy == 0, err
+	return err == nil && aheadBy == 0, err
+}
+
+// aheadBy reads only up to ahead_by, which comes before the commits and files of a comparison that
+// may run to megabytes.
+func (c apiClient) aheadBy(ctx context.Context, base, head string) (int, error) {
+	resp, err := c.request(ctx, http.MethodGet, "/compare/"+base+"..."+head+"?per_page=1")
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	dec := json.NewDecoder(resp.Body)
+	if _, err := dec.Token(); err != nil {
+		return 0, err
+	}
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			return 0, err
+		}
+		if key == "ahead_by" {
+			var n int
+			return n, dec.Decode(&n)
+		}
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return 0, err
+		}
+	}
+	return 0, fmt.Errorf("github compare %s...%s: no ahead_by", base, head)
 }
 
 func (b *Branches) Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error) {
@@ -164,7 +229,6 @@ func (b *Branches) Remove(ctx context.Context, agent domain.Agent, creds domain.
 	return removed, nil
 }
 
-// client is not ok without a GitHub token or a GitHub origin: the agent could not have pushed.
 func (b *Branches) client(ctx context.Context, agent domain.Agent, creds domain.Credentials) (apiClient, bool, error) {
 	if creds.GitHubToken == "" {
 		return apiClient{}, false, nil
@@ -212,14 +276,7 @@ type apiClient struct {
 }
 
 func (c apiClient) do(ctx context.Context, method, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/repos/"+c.repo+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	resp, err := c.http.Do(req)
+	resp, err := c.request(ctx, method, path)
 	if err != nil {
 		return err
 	}
@@ -228,13 +285,31 @@ func (c apiClient) do(ctx context.Context, method, path string, out any) error {
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode/100 != 2 {
-		return statusError{code: resp.StatusCode, msg: fmt.Sprintf("github %s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(body))}
-	}
 	if out == nil {
 		return nil
 	}
 	return json.Unmarshal(body, out)
+}
+
+// request returns the response of a successful request, whose body the caller closes.
+func (c apiClient) request(ctx context.Context, method, path string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/repos/"+c.repo+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		defer func() { _ = resp.Body.Close() }()
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return nil, statusError{code: resp.StatusCode, msg: fmt.Sprintf("github %s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(body))}
+	}
+	return resp, nil
 }
 
 type statusError struct {

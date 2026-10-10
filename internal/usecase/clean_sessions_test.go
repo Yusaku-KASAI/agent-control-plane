@@ -12,40 +12,50 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
-// fakeWork holds the branches of each session's workspace, by the session ID that names its path.
-type fakeWork map[domain.SessionID]usecase.WorkspaceBranches
+// fakeWork holds the state of each session's workspace, by the session ID that names its path.
+type fakeWork map[domain.SessionID]usecase.WorkspaceState
 
 func workspacePath(id domain.SessionID) string { return "/sessions/" + string(id) }
 
-func (f fakeWork) Branches(_ context.Context, path string) (usecase.WorkspaceBranches, error) {
+func (f fakeWork) State(_ context.Context, path string) (usecase.WorkspaceState, error) {
 	return f[domain.SessionID(strings.TrimPrefix(path, "/sessions/"))], nil
 }
 
 type fakeBranches struct {
 	sessions *fakeSessions
-	// states are the remote branches by name; a missing one is gone and contained in the default branch.
-	states  map[string]usecase.RemoteBranch
+	// remote are the branches on GitHub by name; a missing one is gone and keeps nothing.
+	remote  map[string]usecase.BranchFacts
 	err     error
 	removed []string
 }
 
-func (f *fakeBranches) Inspect(_ context.Context, _ domain.Agent, creds domain.Credentials, refs []usecase.BranchRef) ([]usecase.RemoteBranch, error) {
+func (f *fakeBranches) List(_ context.Context, _ domain.Agent, creds domain.Credentials, prefix string) ([]string, error) {
 	if creds.GitHubToken == "" {
 		return nil, errors.New("no token")
 	}
+	var names []string
+	for name, b := range f.remote {
+		if b.Exists && strings.HasPrefix(name, prefix) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names, f.err
+}
+
+func (f *fakeBranches) Inspect(_ context.Context, _ domain.Agent, _ domain.Credentials, queries []usecase.BranchQuery) ([]usecase.BranchFacts, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	var branches []usecase.RemoteBranch
-	for _, ref := range refs {
-		b, ok := f.states[ref.Name]
+	var facts []usecase.BranchFacts
+	for _, q := range queries {
+		b, ok := f.remote[q.Name]
 		if !ok {
-			b = usecase.RemoteBranch{State: usecase.BranchDone}
+			b = usecase.BranchFacts{Name: q.Name}
 		}
-		b.BranchRef = ref
-		branches = append(branches, b)
+		facts = append(facts, b)
 	}
-	return branches, nil
+	return facts, nil
 }
 
 func (f *fakeBranches) Remove(_ context.Context, _ domain.Agent, _ domain.Credentials, names []string) ([]string, error) {
@@ -112,7 +122,7 @@ func newCleanEnv() *cleanEnv {
 	e := &cleanEnv{now: time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC), notifier: &fakeNotifier{}}
 	e.sessions = &fakeSessions{saved: make(map[domain.SessionID]domain.Session)}
 	e.work = make(fakeWork)
-	e.branches = &fakeBranches{sessions: e.sessions}
+	e.branches = &fakeBranches{sessions: e.sessions, remote: make(map[string]usecase.BranchFacts)}
 	e.files = &fakeFiles{sessions: e.sessions}
 	e.cleaner = usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
 		Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &fakeIssuer{},
@@ -125,60 +135,50 @@ func (e *cleanEnv) save(id domain.SessionID, agent domain.AgentName, lastUsed ti
 	e.sessions.saved[id] = domain.Session{ID: id, AgentName: agent, Workspace: domain.Workspace{Path: workspacePath(id)}, LastUsedAt: lastUsed}
 }
 
+// merged is a branch on GitHub whose tip is in the default branch.
+func merged(name string) usecase.BranchFacts {
+	tip := "tip-" + name
+	return usecase.BranchFacts{Name: name, Exists: true, Tip: tip,
+		Commits: map[string]usecase.CommitPlaces{tip: {InDefault: true, InBranch: true}}}
+}
+
+// unmerged is a branch on GitHub whose tip is only in itself.
+func unmerged(name string) usecase.BranchFacts {
+	tip := "tip-" + name
+	return usecase.BranchFacts{Name: name, Exists: true, Tip: tip,
+		Commits: map[string]usecase.CommitPlaces{tip: {InBranch: true}}}
+}
+
 func TestSessionCleaner_Clean(t *testing.T) {
 	const (
-		fresh       domain.SessionID = "f0000000-0000-4000-8000-000000000001"
-		done        domain.SessionID = "d0000000-0000-4000-8000-000000000002"
-		review      domain.SessionID = "a0000000-0000-4000-8000-000000000003"
-		inUse       domain.SessionID = "b0000000-0000-4000-8000-000000000004"
-		orphan      domain.SessionID = "c0000000-0000-4000-8000-000000000005"
-		gone        domain.SessionID = "e0000000-0000-4000-8000-000000000006"
-		boundary    domain.SessionID = "10000000-0000-4000-8000-000000000007"
-		unfinished  domain.SessionID = "20000000-0000-4000-8000-000000000008"
-		unpushed    domain.SessionID = "30000000-0000-4000-8000-000000000009"
-		neverPushed domain.SessionID = "40000000-0000-4000-8000-00000000000a"
+		fresh    domain.SessionID = "f0000000-0000-4000-8000-000000000001"
+		done     domain.SessionID = "d0000000-0000-4000-8000-000000000002"
+		review   domain.SessionID = "a0000000-0000-4000-8000-000000000003"
+		inUse    domain.SessionID = "b0000000-0000-4000-8000-000000000004"
+		orphan   domain.SessionID = "c0000000-0000-4000-8000-000000000005"
+		gone     domain.SessionID = "e0000000-0000-4000-8000-000000000006"
+		boundary domain.SessionID = "10000000-0000-4000-8000-000000000007"
+		dirty    domain.SessionID = "20000000-0000-4000-8000-000000000008"
 	)
 	e := newCleanEnv()
 	expired := e.now.Add(-retention - time.Second)
 	for id, used := range map[domain.SessionID]time.Time{
-		fresh: e.now.Add(-time.Hour), done: expired, review: expired, inUse: expired, boundary: e.now.Add(-retention),
-		unfinished: expired, unpushed: expired, neverPushed: expired,
+		fresh: e.now.Add(-time.Hour), done: expired, review: expired, inUse: expired, boundary: e.now.Add(-retention), dirty: expired,
 	} {
 		e.save(id, dev.Name, used)
 	}
 	e.save(gone, "removed-agent", expired)
 	e.sessions.orphans = map[domain.SessionID]bool{orphan: true}
 	e.sessions.held = map[domain.SessionID]bool{inUse: true}
-	pushed := func(names ...string) []usecase.BranchRef {
-		var refs []usecase.BranchRef
-		for _, n := range names {
-			refs = append(refs, usecase.BranchRef{Name: n, LocalTip: "tip-" + n})
-		}
-		return refs
-	}
-	unpushedBranch := func(name string) usecase.LocalBranch {
-		return usecase.LocalBranch{Name: name, Tip: "tip-" + name, Unpushed: true}
-	}
-	e.work[done] = usecase.WorkspaceBranches{
-		// Pushed to another session's branch too, which is that session's to delete.
-		Pushed: pushed("acp/d0000000", "acp/e0000000", "acp/d0000000-docs"),
-		// Squash-merged, deleted on GitHub and pruned: its commits are on no remote-tracking branch.
-		Local: []usecase.LocalBranch{unpushedBranch("acp/d0000000-fix")},
-	}
-	e.work[review] = usecase.WorkspaceBranches{Pushed: pushed("acp/a0000000")}
-	e.work[unfinished] = usecase.WorkspaceBranches{Pushed: pushed("acp/20000000")}
-	e.work[unpushed] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{unpushedBranch("scratch"), {Name: "HEAD", Unpushed: true}}}
-	e.work[neverPushed] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{unpushedBranch("acp/40000000")}}
-	e.branches.states = map[string]usecase.RemoteBranch{
-		"acp/d0000000": {State: usecase.BranchDone, Exists: true},
-		// Not the session's to delete, so its pushed work stays on the remote and does not keep it.
-		"acp/e0000000": {State: usecase.BranchUnfinished, Exists: true},
-		"acp/a0000000": {State: usecase.BranchInReview, Exists: true,
-			Pulls: []usecase.PullRequest{{Number: 7, Title: "Fix", URL: "https://github.com/o/r/pull/7"}}},
-		"acp/20000000": {State: usecase.BranchUnfinished, Exists: true},
-		"acp/40000000": {State: usecase.BranchUnfinished},
-		"scratch":      {State: usecase.BranchUnfinished},
-	}
+	// done created two branches, one only on GitHub, and pushed to a branch it did not create.
+	e.branches.remote["acp/d0000000"] = merged("acp/d0000000")
+	e.branches.remote["acp/d0000000-docs"] = merged("acp/d0000000-docs")
+	e.branches.remote["shared"] = unmerged("shared")
+	e.work[done] = usecase.WorkspaceState{Pushed: []usecase.BranchTip{{Name: "acp/d0000000", Tip: "tip-acp/d0000000"}, {Name: "shared", Tip: "tip-shared"}}}
+	review7 := unmerged("acp/a0000000")
+	review7.OpenHead = []usecase.PullRequest{{Number: 7, Title: "Fix", URL: "https://github.com/o/r/pull/7"}}
+	e.branches.remote["acp/a0000000"] = review7
+	e.work[dirty] = usecase.WorkspaceState{Changes: true}
 
 	report, err := e.cleaner.Clean(context.Background())
 
@@ -188,40 +188,29 @@ func TestSessionCleaner_Clean(t *testing.T) {
 	if want := []domain.SessionID{orphan, done}; !slices.Equal(sortedCopy(report.Removed), want) || !slices.Equal(sortedCopy(e.sessions.removed), want) {
 		t.Errorf("Removed = %v, sessions removed = %v, want %v", report.Removed, e.sessions.removed, want)
 	}
-	if want := []domain.SessionID{unfinished, unpushed, neverPushed, review}; !slices.Equal(sortedCopy(report.Kept), want) {
+	if want := []domain.SessionID{dirty, review}; !slices.Equal(sortedCopy(report.Kept), want) {
 		t.Errorf("Kept = %v, want %v", report.Kept, want)
 	}
-	if want := []string{"acp/d0000000"}; !slices.Equal(e.branches.removed, want) {
-		t.Errorf("branches removed = %v, want only the existing ones the session created, %v", e.branches.removed, want)
+	if want := []string{"acp/d0000000", "acp/d0000000-docs"}; !slices.Equal(e.branches.removed, want) {
+		t.Errorf("branches removed = %v, want only those the session created, %v", e.branches.removed, want)
 	}
 	if want := []domain.SessionID{done}; !slices.Equal(e.files.removed, want) {
 		t.Errorf("files removed = %v, want %v", e.files.removed, want)
 	}
-	if len(e.notifier.posts) != 5 {
-		t.Errorf("notified %v, want the removed and the kept sessions", e.notifier.posts)
-	}
 	for id, want := range map[domain.SessionID][]string{
-		done:        {"`acp/d0000000`", "新しいセッション"},
-		review:      {"https://github.com/o/r/pull/7"},
-		unfinished:  {"`acp/20000000`", "既定のブランチ"},
-		unpushed:    {"push していないコミットがあるブランチ：`scratch`", "detached HEAD"},
-		neverPushed: {"push していないコミットがあるブランチ：`acp/40000000`"},
+		done:   {"`acp/d0000000-docs`", "新しいセッション"},
+		review: {"https://github.com/o/r/pull/7"},
+		dirty:  {"コミットしていない変更"},
 	} {
 		p := e.notifier.posts[id]
-		if len(p) != 1 {
-			t.Errorf("notices for %s = %q, want one", id, p)
-			continue
-		}
-		for _, w := range want {
-			if !strings.Contains(p[0], w) {
-				t.Errorf("notice for %s = %q, want it to mention %q", id, p[0], w)
-			}
-		}
-		if id == neverPushed && strings.Contains(p[0], "リモートから消えた") {
-			t.Errorf("notice for %s = %q, tells a branch never pushed as gone", id, p[0])
+		if len(p) != 1 || !strings.Contains(p[0], want[0]) || !strings.Contains(p[0], want[len(want)-1]) {
+			t.Errorf("notices for %s = %q, want one mentioning %q", id, p, want)
 		}
 	}
-	for _, id := range []domain.SessionID{review, unfinished, unpushed, neverPushed} {
+	if len(e.notifier.posts) != 3 {
+		t.Errorf("notified %v, want the removed and the kept sessions", e.notifier.posts)
+	}
+	for _, id := range []domain.SessionID{review, dirty} {
 		if got := e.sessions.saved[id].KeptNotifiedAt; !got.Equal(e.now) {
 			t.Errorf("KeptNotifiedAt of %s = %v, want %v", id, got, e.now)
 		}
@@ -236,8 +225,7 @@ func TestSessionCleaner_Clean(t *testing.T) {
 func TestSessionCleaner_NotifiesKeptOncePerRetention(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = usecase.WorkspaceBranches{Local: []usecase.LocalBranch{{Name: "acp/0f8fad5b", Tip: "t", Unpushed: true}}}
-	e.branches.states = map[string]usecase.RemoteBranch{"acp/0f8fad5b": {State: usecase.BranchUnfinished}}
+	e.work[existingID] = usecase.WorkspaceState{Stash: true}
 	clean := func() {
 		t.Helper()
 		if _, err := e.cleaner.Clean(context.Background()); err != nil {
@@ -266,7 +254,6 @@ func TestSessionCleaner_NotifiesKeptOncePerRetention(t *testing.T) {
 func TestSessionCleaner_KeepsSessionWhenBranchesFail(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = usecase.WorkspaceBranches{Pushed: []usecase.BranchRef{{Name: "acp/0f8fad5b", LocalTip: "t"}}}
 	e.branches.err = errors.New("github is down")
 
 	report, err := e.cleaner.Clean(context.Background())
@@ -302,10 +289,10 @@ func TestSessionCleaner_KeepsSessionUsedMeanwhile(t *testing.T) {
 func TestSessionCleaner_KeepsSessionWithWorkFoundUnderLock(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-2*retention))
-	e.work[existingID] = usecase.WorkspaceBranches{Pushed: []usecase.BranchRef{{Name: "acp/0f8fad5b", LocalTip: "t"}}}
+	e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b")
 	e.sessions.onLock = func(domain.SessionID) {
 		e.sessions.onLock = nil
-		e.branches.states = map[string]usecase.RemoteBranch{"acp/0f8fad5b": {Name: "acp/0f8fad5b", State: usecase.BranchUnfinished, Exists: true}}
+		e.branches.remote["acp/0f8fad5b"] = unmerged("acp/0f8fad5b")
 	}
 	report, err := e.cleaner.Clean(context.Background())
 	if err != nil || len(report.Removed) != 0 || len(e.branches.removed) != 0 || len(e.files.removed) != 0 {

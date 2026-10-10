@@ -31,63 +31,74 @@ type PullRequest struct {
 	URL    string
 }
 
-type BranchState int
-
-const (
-	// BranchDone is a branch whose work is kept elsewhere: contained in the default branch or in the
-	// head of a closed pull request.
-	BranchDone BranchState = iota + 1
-	// BranchInReview is the head of an open pull request, or the base of one for an owned branch.
-	BranchInReview
-	// BranchUnfinished has commits that are in no pull request and not in the default branch.
-	BranchUnfinished
-)
-
-type LocalBranch struct {
-	Name string
-	Tip  string
-	// Unpushed is set when it holds commits found on no remote-tracking branch and not in the
-	// target's checkout the workspace was cloned from.
-	Unpushed bool
-}
-
-type WorkspaceBranches struct {
+// WorkspaceState is what a session's workspace holds besides what the remote has.
+type WorkspaceState struct {
+	// Changes is set for uncommitted changes or untracked files.
+	Changes bool
+	Stash   bool
+	// Operation names an operation stopped halfway, such as "rebase" or "merge".
+	Operation string
 	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
-	Pushed []BranchRef
+	Pushed []BranchTip
 	// Local are the local branches, plus HEAD named "HEAD" when it is detached on commits no
 	// branch has.
 	Local []LocalBranch
 }
 
+type BranchTip struct {
+	Name string
+	Tip  string
+}
+
+type LocalBranch struct {
+	BranchTip
+	// Unpushed is set when it holds commits found on no remote-tracking branch and not in the
+	// target's checkout the workspace was cloned from.
+	Unpushed bool
+}
+
 // SessionWorkspace tells what work a session's workspace holds.
 type SessionWorkspace interface {
-	// Branches returns none for a path that is missing or not a repository.
-	Branches(ctx context.Context, path string) (WorkspaceBranches, error)
+	// State returns nothing for a path that is missing or not a repository.
+	State(ctx context.Context, path string) (WorkspaceState, error)
 }
 
-// BranchRef is a branch on the remote, with the tip the workspace has for it.
-type BranchRef struct {
-	Name     string
-	LocalTip string
-	// Owned is set for a branch the session created. Only such a branch is deleted, so only its
-	// state beyond the pull requests from it matters.
-	Owned bool
+// BranchQuery asks about a branch on the remote and where the given commits are kept.
+type BranchQuery struct {
+	Name    string
+	Commits []string
 }
 
-type RemoteBranch struct {
-	BranchRef
-	State  BranchState
+// CommitPlaces tells where on the remote a commit is kept.
+type CommitPlaces struct {
+	InDefault bool
+	// InMergedPull and InClosedPull are set when the head of a pull request from the branch, merged
+	// or closed without merging, contains the commit.
+	InMergedPull bool
+	InClosedPull bool
+	// InBranch is set when the branch exists and contains the commit.
+	InBranch bool
+}
+
+type BranchFacts struct {
+	Name   string
 	Exists bool
-	// Pulls are the open pull requests from or into the branch.
-	Pulls []PullRequest
+	// Tip is set when the branch exists.
+	Tip string
+	// OpenHead and OpenBase are the open pull requests from and into the branch.
+	OpenHead []PullRequest
+	OpenBase []PullRequest
+	// Commits tells where each queried commit, and Tip, is kept.
+	Commits map[string]CommitPlaces
 }
 
+// SessionBranches reads and deletes branches on the target's remote. List and Inspect return
+// nothing when the agent could not have pushed: without a GitHub token or a GitHub origin.
 type SessionBranches interface {
-	// Inspect tells the state of the branches on the target's remote, leaving out its default
-	// branch. A branch gone from the remote is judged by its local tip. A branch not owned that
-	// still exists is in review only for pull requests from it, and otherwise done. It returns none when the agent could
-	// not have pushed: without a GitHub token or a GitHub origin.
-	Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, refs []BranchRef) ([]RemoteBranch, error)
+	// List returns the names of the branches on the target's remote that start with prefix.
+	List(ctx context.Context, agent domain.Agent, creds domain.Credentials, prefix string) ([]string, error)
+	// Inspect tells facts of the branches on the target's remote.
+	Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, queries []BranchQuery) ([]BranchFacts, error)
 	// Remove deletes the named branches on the target's remote and returns those it deleted,
 	// leaving out those already gone or protected.
 	Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error)
