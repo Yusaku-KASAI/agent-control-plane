@@ -22,6 +22,8 @@ type Config struct {
 	SessionsRoot string
 	// IdleTimeout is how long a session's agent process waits for the next prompt.
 	IdleTimeout time.Duration
+	// Retention is how long an unused session is kept.
+	Retention time.Duration
 	// StateDir is where the control plane keeps state it alone reads and writes, such as rotating tokens.
 	StateDir    string
 	Credentials Credentials
@@ -85,6 +87,7 @@ type fileFormat struct {
 	Sessions struct {
 		Root        string `yaml:"root"`
 		IdleTimeout string `yaml:"idle_timeout"`
+		Retention   string `yaml:"retention"`
 	} `yaml:"sessions"`
 	Credentials struct {
 		Dir    string `yaml:"dir"`
@@ -130,7 +133,10 @@ type fileFormat struct {
 	} `yaml:"agents"`
 }
 
-const defaultIdleTimeout = 15 * time.Minute
+const (
+	defaultIdleTimeout = 15 * time.Minute
+	defaultRetention   = 30 * 24 * time.Hour
+)
 
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
@@ -173,6 +179,14 @@ func Parse(data []byte) (Config, error) {
 			return Config{}, fmt.Errorf("sessions.idle_timeout %q is not a positive duration", f.Sessions.IdleTimeout)
 		}
 		idle = d
+	}
+	retention := defaultRetention
+	if f.Sessions.Retention != "" {
+		d, err := time.ParseDuration(f.Sessions.Retention)
+		if err != nil || d <= 0 {
+			return Config{}, fmt.Errorf("sessions.retention %q is not a positive duration", f.Sessions.Retention)
+		}
+		retention = d
 	}
 	if !filepath.IsAbs(f.Credentials.Dir) {
 		return Config{}, fmt.Errorf("credentials.dir %q is not absolute", f.Credentials.Dir)
@@ -236,6 +250,7 @@ func Parse(data []byte) (Config, error) {
 		Claude:       Claude{OAuthTokenPath: cl.OAuthTokenPath, APIKeyPath: cl.APIKeyPath, ConfigDir: cl.ConfigDir, ConfigVolume: cl.ConfigVolume},
 		SessionsRoot: f.Sessions.Root,
 		IdleTimeout:  idle,
+		Retention:    retention,
 		StateDir:     f.StateDir,
 		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
 		GitHubApps:   apps,

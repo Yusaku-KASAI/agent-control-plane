@@ -16,8 +16,104 @@ type SessionRepository interface {
 	// Find returns an error wrapping domain.ErrSessionNotFound when the session does not exist.
 	Find(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Save(ctx context.Context, s domain.Session) error
-	// Lock returns an error wrapping domain.ErrSessionBusy while another turn holds the session.
+	// Lock returns an error wrapping domain.ErrSessionBusy while someone else holds the session.
+	// A session can be locked before it exists.
 	Lock(ctx context.Context, id domain.SessionID) (unlock func(), err error)
+	// List returns the IDs of every stored session, including those without a record.
+	List(ctx context.Context) ([]domain.SessionID, error)
+	// Remove deletes the session's record and workspace. The caller holds the lock.
+	Remove(ctx context.Context, id domain.SessionID) error
+}
+
+type PullRequest struct {
+	Number int
+	Title  string
+	URL    string
+}
+
+// WorkspaceState is what a session's workspace holds besides what the remote has.
+type WorkspaceState struct {
+	// Changes is set for uncommitted changes or untracked files.
+	Changes bool
+	Stash   bool
+	// Operation names an operation stopped halfway, such as "rebase" or "merge".
+	Operation string
+	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
+	Pushed []BranchTip
+	// Local are the local branches, plus HEAD named "HEAD" when it is detached on commits no
+	// branch has.
+	Local []LocalBranch
+}
+
+type BranchTip struct {
+	Name string
+	Tip  string
+}
+
+type LocalBranch struct {
+	BranchTip
+	// Unpushed is set when it holds commits found on no remote-tracking branch and not in the
+	// target's checkout the workspace was cloned from.
+	Unpushed bool
+}
+
+// SessionWorkspace tells what work a session's workspace holds.
+type SessionWorkspace interface {
+	// State returns nothing for a path that is missing or not a repository.
+	State(ctx context.Context, path string) (WorkspaceState, error)
+}
+
+// BranchQuery asks about a branch on the remote and where the given commits are kept.
+type BranchQuery struct {
+	Name    string
+	Commits []string
+}
+
+// CommitPlaces tells where on the remote a commit is kept.
+type CommitPlaces struct {
+	InDefault bool
+	// InMergedPull and InClosedPull are set when the head of a pull request from the branch, merged
+	// or closed without merging, contains the commit.
+	InMergedPull bool
+	InClosedPull bool
+	// InBranch is set when the branch exists and contains the commit.
+	InBranch bool
+}
+
+type BranchFacts struct {
+	Name   string
+	Exists bool
+	// Tip is set when the branch exists.
+	Tip string
+	// OpenHead and OpenBase are the open pull requests from and into the branch.
+	OpenHead []PullRequest
+	OpenBase []PullRequest
+	// Commits tells where each queried commit, and Tip, is kept.
+	Commits map[string]CommitPlaces
+}
+
+// SessionBranches reads and deletes branches on the target's remote. List and Inspect return
+// nothing when the agent could not have pushed: without a GitHub token or a GitHub origin.
+type SessionBranches interface {
+	// List returns the names of the branches on the target's remote that start with prefix.
+	List(ctx context.Context, agent domain.Agent, creds domain.Credentials, prefix string) ([]string, error)
+	// Inspect tells facts of the branches on the target's remote.
+	Inspect(ctx context.Context, agent domain.Agent, creds domain.Credentials, queries []BranchQuery) ([]BranchFacts, error)
+	// Remove deletes the named branches on the target's remote and returns those it deleted,
+	// leaving out those already gone or protected.
+	Remove(ctx context.Context, agent domain.Agent, creds domain.Credentials, names []string) ([]string, error)
+}
+
+type SessionNotifier interface {
+	// Notify posts text where the session started. It does nothing for a session that did not
+	// start in a chat.
+	Notify(ctx context.Context, s domain.Session, text string) error
+}
+
+type SessionFiles interface {
+	// Remove deletes what the runner keeps for the session outside its workspace, such as its
+	// credentials and the agent's conversation history.
+	Remove(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
 }
 
 type WorkspaceProvider interface {

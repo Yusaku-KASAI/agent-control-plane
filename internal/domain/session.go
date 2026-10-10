@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
+	"time"
 )
 
 var (
 	ErrSessionNotFound      = errors.New("session not found")
-	ErrSessionBusy          = errors.New("session is running another turn")
+	ErrSessionBusy          = errors.New("session is in use")
 	ErrSessionAgentMismatch = errors.New("session belongs to another agent")
 )
 
@@ -30,6 +32,12 @@ func (id SessionID) Branch() string {
 	return "acp/" + string(id)[:8]
 }
 
+// OwnsBranch tells whether the session created the branch: its default working branch, or one
+// named after it with a "-" suffix.
+func (id SessionID) OwnsBranch(name string) bool {
+	return name == id.Branch() || strings.HasPrefix(name, id.Branch()+"-")
+}
+
 func NewRandomSessionID() SessionID {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
@@ -46,6 +54,10 @@ type Session struct {
 	Conversation Conversation
 	// Turns counts completed turns. The first turn starts the Claude Code session; later turns resume it.
 	Turns int
+	// LastUsedAt is when the session was created, last took a request or last finished a turn.
+	LastUsedAt time.Time
+	// KeptNotifiedAt is when the thread was last told that the session is kept for the work it holds.
+	KeptNotifiedAt time.Time
 }
 
 func (s Session) IsNew() bool {

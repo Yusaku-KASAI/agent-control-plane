@@ -10,6 +10,10 @@ sessions:
   root: /home/you/projects/acp-sessions
   # Close an agent's container after this long with no turn, queued prompt or background task.
   idle_timeout: 15m
+  # Remove a session (record, workspace, conversation history, credentials and its branches on
+  # GitHub) unused for this long and tell its thread. One holding work found nowhere else is kept,
+  # and its thread is reminded once per this period (docs/app/adr/0026).
+  retention: 720h
 
 # Short-lived credentials handed to agent containers, per session.
 credentials:

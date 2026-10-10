@@ -5,11 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/gitworkspace"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 const sessionID domain.SessionID = "0f8fad5b-d9cb-469f-a165-70867728950e"
@@ -147,4 +150,185 @@ func gitOutput(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func TestOrigin(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	if got, err := gitworkspace.Origin(ctx, f.source); err != nil || got != f.remote {
+		t.Errorf("Origin(clone) = %q, %v; want %q", got, err, f.remote)
+	}
+	if got, err := gitworkspace.Origin(ctx, f.remote); err != nil || got != "" {
+		t.Errorf("Origin(no origin) = %q, %v; want empty", got, err)
+	}
+	if _, err := gitworkspace.Origin(ctx, t.TempDir()); err == nil {
+		t.Error("Origin(not a repository) succeeded")
+	}
+}
+
+func TestProvider_State_Branches(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	p := gitworkspace.NewProvider(t.TempDir())
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := p.Prepare(ctx, agent, sessionID, domain.Credentials{GitHubToken: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type local struct {
+		name     string
+		unpushed bool
+	}
+	check := func(wantPushed []string, wantLocal ...local) {
+		t.Helper()
+		got, err := p.State(ctx, ws.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pushed []string
+		for _, b := range got.Pushed {
+			if want := gitOutput(t, ws.Path, "rev-parse", "refs/remotes/origin/"+b.Name); b.Tip != want {
+				t.Errorf("tip of pushed %s = %q, want %q", b.Name, b.Tip, want)
+			}
+			pushed = append(pushed, b.Name)
+		}
+		if !slices.Equal(pushed, wantPushed) {
+			t.Errorf("Pushed = %v, want %v", pushed, wantPushed)
+		}
+		var locals []local
+		for _, b := range got.Local {
+			if rev := "refs/heads/" + b.Name; b.Name == "HEAD" && b.Tip != gitOutput(t, ws.Path, "rev-parse", "HEAD") ||
+				b.Name != "HEAD" && b.Tip != gitOutput(t, ws.Path, "rev-parse", rev) {
+				t.Errorf("tip of %s = %q", b.Name, b.Tip)
+			}
+			locals = append(locals, local{b.Name, b.Unpushed})
+		}
+		if !slices.Equal(locals, wantLocal) {
+			t.Errorf("Local = %+v, want %+v", locals, wantLocal)
+		}
+	}
+
+	// The clone's branch, feature, holds a commit origin lacks, but it is the target's. Fetching
+	// origin/main is no push.
+	check(nil, local{"acp/0f8fad5b", false}, local{"feature", false})
+
+	commit(t, ws.Path, "a.txt", "session work")
+	check(nil, local{"acp/0f8fad5b", true}, local{"feature", false})
+	git(t, ws.Path, "push", "--quiet", "origin", "acp/0f8fad5b")
+	check([]string{"acp/0f8fad5b"}, local{"acp/0f8fad5b", false}, local{"feature", false})
+
+	git(t, ws.Path, "switch", "--quiet", "-c", "scratch")
+	commit(t, ws.Path, "b.txt", "docs")
+	git(t, ws.Path, "push", "--quiet", "origin", "HEAD:refs/heads/acp/0f8fad5b-docs")
+	commit(t, ws.Path, "c.txt", "scratch")
+	git(t, ws.Path, "tag", "scratch")
+	git(t, ws.Path, "switch", "--quiet", "--detach", "acp/0f8fad5b")
+	commit(t, ws.Path, "d.txt", "detached")
+	want := []local{{"acp/0f8fad5b", false}, {"feature", false}, {"scratch", true}, {"HEAD", true}}
+	check([]string{"acp/0f8fad5b", "acp/0f8fad5b-docs"}, want...)
+
+	// What the session pushed outlives gc, whatever the retention period.
+	git(t, ws.Path, "-c", "gc.reflogExpire=now", "-c", "gc.reflogExpireUnreachable=now", "reflog", "expire", "--all")
+	check([]string{"acp/0f8fad5b", "acp/0f8fad5b-docs"}, want...)
+}
+
+func TestProvider_State_NoRepository(t *testing.T) {
+	p := gitworkspace.NewProvider(t.TempDir())
+	// A directory inside another repository must not be read as that repository.
+	inside := filepath.Join(newFixture(t).source, "sub")
+	if err := os.Mkdir(inside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"", filepath.Join(t.TempDir(), "gone"), inside} {
+		if got, err := p.State(context.Background(), path); !reflect.DeepEqual(got, usecase.WorkspaceState{}) || err != nil {
+			t.Errorf("State(%q) = %+v, %v; want nothing", path, got, err)
+		}
+	}
+}
+
+func TestProvider_State_WithoutCredentials(t *testing.T) {
+	f := newFixture(t)
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	p := gitworkspace.NewProvider(t.TempDir())
+	ws, err := p.Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The session branch starts from the target's commit, which the clone's remote-tracking branches hold.
+	got, err := p.State(context.Background(), ws.Path)
+	if err != nil || len(got.Pushed) != 0 || slices.ContainsFunc(got.Local, func(b usecase.LocalBranch) bool { return b.Unpushed }) {
+		t.Errorf("State() = %+v, %v; want nothing pushed or unpushed", got, err)
+	}
+}
+
+func TestProvider_State_WorkingTree(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	p := gitworkspace.NewProvider(t.TempDir())
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := p.Prepare(ctx, agent, sessionID, domain.Credentials{GitHubToken: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(want usecase.WorkspaceState) {
+		t.Helper()
+		got, err := p.State(ctx, ws.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Changes != want.Changes || got.Stash != want.Stash || got.Operation != want.Operation {
+			t.Errorf("State() = changes %v, stash %v, operation %q; want %v, %v, %q",
+				got.Changes, got.Stash, got.Operation, want.Changes, want.Stash, want.Operation)
+		}
+	}
+	check(usecase.WorkspaceState{})
+
+	if err := os.WriteFile(filepath.Join(ws.Path, "new.txt"), []byte("untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	check(usecase.WorkspaceState{Changes: true})
+	git(t, ws.Path, "add", "new.txt")
+	git(t, ws.Path, "-c", "user.name=test", "-c", "user.email=test@example.com", "stash", "--quiet")
+	check(usecase.WorkspaceState{Stash: true})
+	git(t, ws.Path, "stash", "drop", "--quiet")
+
+	// A merge stopped by a conflict.
+	commit(t, ws.Path, "README.md", "session")
+	git(t, ws.Path, "switch", "--quiet", "-c", "other", "HEAD~1")
+	commit(t, ws.Path, "README.md", "other")
+	cmd := exec.Command("git", "-c", "user.name=test", "-c", "user.email=test@example.com", "merge", "--quiet", "acp/0f8fad5b")
+	cmd.Dir = ws.Path
+	if err := cmd.Run(); err == nil {
+		t.Fatal("merge succeeded, want a conflict")
+	}
+	check(usecase.WorkspaceState{Changes: true, Operation: "merge"})
+}
+
+func TestProvider_State_PushedTipIsWhatWasPushed(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	p := gitworkspace.NewProvider(t.TempDir())
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := p.Prepare(ctx, agent, sessionID, domain.Credentials{GitHubToken: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit(t, ws.Path, "a.txt", "session work")
+	git(t, ws.Path, "push", "--quiet", "origin", "acp/0f8fad5b")
+	pushed := gitOutput(t, ws.Path, "rev-parse", "HEAD")
+
+	// Someone force-pushes the branch away from the session's commit, and the workspace fetches it.
+	other := filepath.Join(t.TempDir(), "other")
+	git(t, "", "clone", "--quiet", f.remote, other)
+	commit(t, other, "b.txt", "someone else")
+	git(t, other, "push", "--quiet", "--force", "origin", "HEAD:acp/0f8fad5b")
+	git(t, ws.Path, "fetch", "--quiet", "origin")
+
+	got, err := p.State(ctx, ws.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Pushed) != 1 || got.Pushed[0].Tip != pushed {
+		t.Errorf("Pushed = %+v, want acp/0f8fad5b at the pushed commit %s", got.Pushed, pushed)
+	}
 }

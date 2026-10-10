@@ -46,3 +46,14 @@ func TestSession_CheckAgent(t *testing.T) {
 		t.Errorf("CheckAgent(other) error = %v, want ErrSessionAgentMismatch", err)
 	}
 }
+
+func TestSessionID_OwnsBranch(t *testing.T) {
+	id := domain.SessionID("0f8fad5b-d9cb-469f-a165-70867728950e")
+	for name, want := range map[string]bool{
+		"acp/0f8fad5b": true, "acp/0f8fad5b-docs": true, "acp/0f8fad5bx": false, "acp/1f8fad5b": false, "main": false,
+	} {
+		if got := id.OwnsBranch(name); got != want {
+			t.Errorf("OwnsBranch(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

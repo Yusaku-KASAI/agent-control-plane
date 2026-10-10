@@ -16,6 +16,7 @@ const validYAML = `
 sessions:
   root: /var/acp/sessions
   idle_timeout: 5m
+  retention: 240h
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
@@ -60,7 +61,7 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if cfg.Claude != (config.Claude{OAuthTokenPath: "/keys/claude-oauth-token", ConfigDir: "/var/lib/acp/claude", ConfigVolume: "acp-claude"}) || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute ||
+	if cfg.Claude != (config.Claude{OAuthTokenPath: "/keys/claude-oauth-token", ConfigDir: "/var/lib/acp/claude", ConfigVolume: "acp-claude"}) || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute || cfg.Retention != 240*time.Hour ||
 		cfg.Credentials != (config.Credentials{Dir: "/var/lib/acp/credentials", Volume: "acp-credentials"}) {
 		t.Errorf("Parse() = %+v", cfg)
 	}
@@ -123,6 +124,11 @@ claude: {oauth_token_path: /t, api_key_path: /k, config_dir: /cc}
 `,
 		"bad idle timeout": `
 sessions: {root: /w, idle_timeout: soon}
+credentials: {dir: /c}
+claude: {oauth_token_path: /t, config_dir: /cc}
+`,
+		"bad retention": `
+sessions: {root: /w, retention: 30d}
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,

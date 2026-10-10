@@ -75,19 +75,22 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		slackauth.NewIssuer(slackTokens),
 	}
 
+	sessions := filesession.NewStore(cfg.SessionsRoot)
+	workspaces := gitworkspace.NewProvider(cfg.SessionsRoot)
+	runnerOpts := docker.Options{
+		ClaudeConfigDir:    cfg.Claude.ConfigDir,
+		ClaudeConfigVolume: cfg.Claude.ConfigVolume,
+		CredentialsDir:     cfg.Credentials.Dir,
+		CredentialsVolume:  cfg.Credentials.Volume,
+	}
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
-		filesession.NewStore(cfg.SessionsRoot),
-		gitworkspace.NewProvider(cfg.SessionsRoot),
+		sessions,
+		workspaces,
 		issuer,
 		cfg.People,
-		docker.NewRunner(dockerClient, docker.Options{
-			ClaudeConfigDir:    cfg.Claude.ConfigDir,
-			ClaudeConfigVolume: cfg.Claude.ConfigVolume,
-			CredentialsDir:     cfg.Credentials.Dir,
-			CredentialsVolume:  cfg.Credentials.Volume,
-		}),
+		docker.NewRunner(dockerClient, runnerOpts),
 		observer,
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
@@ -128,6 +131,16 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			}
 		})
 	}
+	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+		Agents:      cfg.Agents,
+		Sessions:    sessions,
+		Credentials: issuer,
+		Workspaces:  workspaces,
+		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
+		Files:       docker.NewSessionFiles(runnerOpts),
+		Notifier:    observer,
+	}, cfg.Retention, time.Now)
+	running.Go(func() { cleanSessions(ctx, cleaner, time.Hour, log) })
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {
 			log.Error("slack token refresh failed", "agent", name, "err", err)
@@ -157,6 +170,29 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		return nil
 	}
 	return runErr
+}
+
+// cleanSessions cleans at start and then every interval until ctx is done.
+func cleanSessions(ctx context.Context, cleaner *usecase.SessionCleaner, interval time.Duration, log *slog.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		report, err := cleaner.Clean(ctx)
+		if len(report.Removed) > 0 {
+			log.Info("removed unused sessions", "sessions", report.Removed)
+		}
+		if len(report.Kept) > 0 {
+			log.Info("kept unused sessions holding work", "sessions", report.Kept)
+		}
+		if err != nil && ctx.Err() == nil {
+			log.Error("cleaning up unused sessions failed", "err", err)
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
@@ -242,6 +278,17 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
 		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", e.Result.Output)
 	}
+}
+
+// Notify posts to the session's Slack thread. Sessions started elsewhere have no place to tell.
+func (o *sessionObserver) Notify(ctx context.Context, s domain.Session, text string) error {
+	o.mu.Lock()
+	bot, ok := o.bots[s.AgentName]
+	o.mu.Unlock()
+	if !ok || s.Conversation.Platform != "slack" {
+		return nil
+	}
+	return bot.Post(ctx, s.Conversation, text)
 }
 
 // credentialIssuers merges what each issuer grants the agent.
