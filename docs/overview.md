@@ -16,7 +16,7 @@
 | エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの振る舞いは platform で共有し、ターゲット固有の事実はターゲットに置く | [app 0002](app/adr/0002-agent-is-target-times-role.md)、[target 0003](target/adr/0003-roles-as-claude-code-agents.md) |
 | 共通の能力は platform に | ターゲットをまたいで使うもの（ロール、共通のルール、プラグイン、スキル、hook、コマンド）は platform に置き、ターゲットはそれを宣言して使う | [platform 0001](platform/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](app/adr/0017-long-lived-session-process.md)、[app 0020](app/adr/0020-slack-requests-by-reference.md) |
-| 全体の知識は control-plane に | 全体の狙い、設計、ドメインはこのリポジトリに置く。platform と target-template は、そこから切り出す部品 | — |
+| 知識は届く先で区切る | 全体の狙い、設計、ドメインはこのリポジトリに置く。エージェントに要る部分（ハーネスの契約、用語集）は、どのエージェントにも届く platform が持つ。区切りの間は契約でつなぐ | [platform 0005](platform/adr/0005-documents-by-distribution-context.md) |
 
 ### 安全
 
