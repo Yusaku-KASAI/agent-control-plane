@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -183,6 +184,30 @@ func TestSessionCredentials_Write(t *testing.T) {
 		if err != nil || string(b) != "xoxb-"+n {
 			t.Errorf("slack bot-token = %q, %v; want xoxb-%s", b, err, n)
 		}
+	}
+}
+
+// The container mounts the credentials read-only, and gh must still hand git the token.
+func TestSessionCredentials_Write_ReadOnlyGh(t *testing.T) {
+	gh, err := exec.LookPath("gh")
+	if err != nil {
+		t.Skip("gh not installed")
+	}
+	c := sessionCredentials{root: t.TempDir(), id: testSession.ID}
+	if err := c.write(domain.Credentials{GitHubToken: "ghs_token"}); err != nil {
+		t.Fatalf("write() error = %v", err)
+	}
+	dir := filepath.Join(c.dir(), "gh")
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	cmd := exec.Command(gh, "auth", "git-credential", "get")
+	cmd.Env = append(os.Environ(), "GH_CONFIG_DIR="+dir, "GH_NO_UPDATE_NOTIFIER=1")
+	cmd.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "password=ghs_token") {
+		t.Errorf("gh auth git-credential get = %q, %v; want the token", out, err)
 	}
 }
 
