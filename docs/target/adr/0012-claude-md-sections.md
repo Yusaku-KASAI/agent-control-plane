@@ -1,7 +1,9 @@
-# 0012. ターゲットの CLAUDE.md は、プロダクトの前提を含む決まった節を持つ
+---
+status: accepted
+date: 2026-10-11
+---
 
-- Status: Accepted
-- Date: 2026-10-11
+# 0012. ターゲットの CLAUDE.md は、プロダクトの前提を含む決まった節を持つ
 
 ## Context
 

@@ -1,7 +1,10 @@
-# 0009. コンテナは root を使わず、ビルドのときに決めた数値の UID で動かす
+---
+status: accepted
+date: 2026-10-08
+amends: [1]
+---
 
-- Status: Accepted
-- Date: 2026-10-08
+# 0009. コンテナは root を使わず、ビルドのときに決めた数値の UID で動かす
 
 ## Context
 

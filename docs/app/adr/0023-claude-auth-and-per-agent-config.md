@@ -1,7 +1,10 @@
-# 0023. エージェントの Claude Code は専用のトークンで認証し、設定ディレクトリをエージェントごとに分ける
+---
+status: accepted
+date: 2026-10-03
+amends: [7, 9]
+---
 
-- Status: Accepted
-- Date: 2026-10-03
+# 0023. エージェントの Claude Code は専用のトークンで認証し、設定ディレクトリをエージェントごとに分ける
 
 ## Context
 

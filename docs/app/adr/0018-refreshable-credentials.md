@@ -1,7 +1,10 @@
-# 0018. 認証情報はセッションごとのディレクトリのファイルで渡し、control-plane が失効前に更新する
+---
+status: accepted
+date: 2026-10-03
+amends: [11]
+---
 
-- Status: Accepted
-- Date: 2026-10-03
+# 0018. 認証情報はセッションごとのディレクトリのファイルで渡し、control-plane が失効前に更新する
 
 ## Context
 

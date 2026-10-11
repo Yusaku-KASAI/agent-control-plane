@@ -1,7 +1,10 @@
-# 0002. エージェントが動くユーザーに sudo を与えない
+---
+status: accepted
+date: 2026-09-30
+amended_by: [8]
+---
 
-- Status: Accepted, Amended by 0008
-- Date: 2026-09-30
+# 0002. エージェントが動くユーザーに sudo を与えない
 
 ## Context
 

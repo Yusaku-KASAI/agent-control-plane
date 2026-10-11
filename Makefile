@@ -1,7 +1,7 @@
-.PHONY: check check-go check-platform check-target fmt test build
+.PHONY: check check-go check-platform check-target check-docs fmt test build
 
-# One target per concern, so that CI can run each from only the files it reads (docs/target/README.md).
-check: check-go check-platform check-target
+# One target per concern, so that CI can run each from only the files it reads (docs/target/contract.md).
+check: check-go check-platform check-target check-docs
 
 check-go:
 	golangci-lint run ./...
@@ -16,6 +16,9 @@ check-platform:
 check-target:
 	shellcheck .devcontainer/*.sh
 	python3 .devcontainer/check-vscode-settings.py
+
+check-docs:
+	python3 tools/check-docs.py
 
 fmt:
 	golangci-lint fmt ./...

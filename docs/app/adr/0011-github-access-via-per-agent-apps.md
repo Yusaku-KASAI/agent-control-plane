@@ -1,7 +1,10 @@
-# 0011. GitHub へのアクセスはエージェントごとの GitHub App のトークンで行う
+---
+status: accepted
+date: 2026-10-01
+amended_by: [18]
+---
 
-- Status: Accepted, Amended by 0018
-- Date: 2026-10-01
+# 0011. GitHub へのアクセスはエージェントごとの GitHub App のトークンで行う
 
 ## Context
 

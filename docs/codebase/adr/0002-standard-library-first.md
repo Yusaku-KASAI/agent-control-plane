@@ -1,7 +1,9 @@
-# 0002. エラー、テスト、CLI は標準ライブラリで書く
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0002. エラー、テスト、CLI は標準ライブラリで書く
 
 ## Context
 

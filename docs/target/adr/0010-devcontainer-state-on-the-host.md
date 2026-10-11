@@ -1,7 +1,10 @@
-# 0010. devcontainer のログインや履歴は、ホストのディレクトリに置いてマウントする
+---
+status: accepted
+date: 2026-10-08
+amends: [1]
+---
 
-- Status: Accepted
-- Date: 2026-10-08
+# 0010. devcontainer のログインや履歴は、ホストのディレクトリに置いてマウントする
 
 ## Context
 

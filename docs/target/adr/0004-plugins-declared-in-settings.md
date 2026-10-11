@@ -1,7 +1,10 @@
-# 0004. ターゲットはプラグインを .claude/settings.json で宣言し、control-plane は --plugin-dir で読み込ませる
+---
+status: accepted
+date: 2026-10-03
+amended_by: [7]
+---
 
-- Status: Accepted, Amended by 0007
-- Date: 2026-10-03
+# 0004. ターゲットはプラグインを .claude/settings.json で宣言し、control-plane は --plugin-dir で読み込ませる
 
 ## Context
 

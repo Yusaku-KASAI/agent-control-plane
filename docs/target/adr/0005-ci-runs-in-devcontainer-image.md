@@ -1,7 +1,10 @@
-# 0005. CI は devcontainer のイメージの中で make check を実行する
+---
+status: accepted
+date: 2026-10-04
+amended_by: [11]
+---
 
-- Status: Accepted, Amended by 0011
-- Date: 2026-10-04
+# 0005. CI は devcontainer のイメージの中で make check を実行する
 
 ## Context
 

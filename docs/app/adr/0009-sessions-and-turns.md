@@ -1,7 +1,10 @@
-# 0009. 会話の単位をセッション、1 回の依頼をターンとして扱う
+---
+status: accepted
+date: 2026-10-01
+amended_by: [17, 23]
+---
 
-- Status: Accepted, Amended by 0017, 0023
-- Date: 2026-10-01
+# 0009. 会話の単位をセッション、1 回の依頼をターンとして扱う
 
 ## Context
 

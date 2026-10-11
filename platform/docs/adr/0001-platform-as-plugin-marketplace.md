@@ -1,7 +1,9 @@
-# 0001. ターゲットをまたぐ能力は platform/ に Claude Code のプラグインとしてまとめる
+---
+status: accepted
+date: 2026-10-03
+---
 
-- Status: Accepted
-- Date: 2026-10-03
+# 0001. ターゲットをまたぐ能力は platform/ に Claude Code のプラグインとしてまとめる
 
 ## Context
 

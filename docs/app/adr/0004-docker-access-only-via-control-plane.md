@@ -1,7 +1,9 @@
-# 0004. Docker の操作は control-plane だけが行う
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0004. Docker の操作は control-plane だけが行う
 
 ## Context
 

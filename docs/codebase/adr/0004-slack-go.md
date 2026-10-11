@@ -1,7 +1,9 @@
-# 0004. Slack の API と Socket Mode には slack-go/slack を使う
+---
+status: accepted
+date: 2026-10-02
+---
 
-- Status: Accepted
-- Date: 2026-10-02
+# 0004. Slack の API と Socket Mode には slack-go/slack を使う
 
 ## Context
 

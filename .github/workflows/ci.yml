@@ -18,6 +18,7 @@ jobs:
           - { check: go, file: .devcontainer/Dockerfile, target: check-go }
           - { check: platform, file: .devcontainer/Dockerfile, target: check-platform }
           - { check: target, file: .devcontainer/Dockerfile, target: check-target }
+          - { check: docs, file: .devcontainer/Dockerfile, target: check-docs }
           # The control plane's own image builds.
           - { check: image, file: Dockerfile, target: "" }
     runs-on: ubuntu-latest

@@ -1,7 +1,9 @@
-# 0014. control-plane は常駐するサーバーとしてコンテナで動き、CLI はそのクライアントになる
+---
+status: accepted
+date: 2026-10-01
+---
 
-- Status: Accepted
-- Date: 2026-10-01
+# 0014. control-plane は常駐するサーバーとしてコンテナで動き、CLI はそのクライアントになる
 
 ## Context
 
