@@ -16,6 +16,8 @@ platform/
     rules/                          どのターゲットでも同じルール（rules/*.md）。セッションとサブエージェントの始めに hook で読み込ませる（ADR 0004）
     harness/                        どう起動されているか（control-plane 経由か devcontainer で直接か）と契約の在りかを、
                                     セッションとサブエージェントの始めに hook で伝える。詰まったときの切り分けのスキル
+    review/                         設計とレビューの観点のスキル（design：状態の軸、事実と判定の分離、失われうるもの、手順の突き合わせ、大きさ）。
+                                    developer は作るときに、レビューでは抜けを探す観点として使う
     bell/                           対話で使うとき、Claude Code が止まったら端末のベルを鳴らす hook（下の「bell」）
   docs/                             この文書、ハーネスの契約（harness.md）、用語集（glossary.md）、ADR。
                                     エージェントにもマーケットプレイスと一緒に届く
@@ -42,7 +44,7 @@ platform/
   ターンの終わりに hook が PR の本文が古くないかを確かめ、古ければ書き換えを促す
   （[ADR 0002](adr/0002-pr-body-tracks-head.md)）。
 - プラグインの検査（`claude plugin validate ./platform` と、`bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。
-- roles のロールは、harness が伝える動き方とハーネスの契約を前提にする。roles を使うターゲットは harness も有効にする。
+- roles のロールは、harness が伝える動き方とハーネスの契約、review の観点を前提にする。roles を使うターゲットは harness と review も有効にする。
 - プラグインには、どのターゲットでも通用する内容だけを書く。
 
 ## bell

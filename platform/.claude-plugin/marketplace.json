@@ -31,6 +31,11 @@
       "description": "Tell agents how they are run and where the harness contract is"
     },
     {
+      "name": "review",
+      "source": "./plugins/review",
+      "description": "Viewpoints for designing and reviewing changes"
+    },
+    {
       "name": "bell",
       "source": "./plugins/bell",
       "description": "Ring the terminal when Claude Code stops or waits for you"

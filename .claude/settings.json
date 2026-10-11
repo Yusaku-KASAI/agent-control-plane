@@ -66,6 +66,7 @@
     "github@acp-platform": true,
     "rules@acp-platform": true,
     "harness@acp-platform": true,
+    "review@acp-platform": true,
     "bell@acp-platform": true
   }
 }
