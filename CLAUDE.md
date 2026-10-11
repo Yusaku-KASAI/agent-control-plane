@@ -10,7 +10,7 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 ## 公開と運用
 
-公開も配布もしていない。手元での動かし方は [README.md](README.md)。
+公開も配布もしていない。手元での動かし方は [docs/app/operations.md](docs/app/operations.md)。
 
 ## 守る互換
 
@@ -22,7 +22,8 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 - [docs/overview.md](docs/overview.md) — 狙い、考え方、全体の構成、目指す姿
 - [docs/README.md](docs/README.md) — ドキュメントの構成、ADR、ドキュメントと Issue の分担
-- [docs/app/README.md](docs/app/README.md) — control-plane の今の姿（セッションのライフサイクル）
+- [docs/app/README.md](docs/app/README.md) — control-plane の今の姿（セッションのライフサイクル）。依頼の仕方は
+  [usage.md](docs/app/usage.md)、運用の手順は [operations.md](docs/app/operations.md)
 - [docs/codebase/README.md](docs/codebase/README.md) — Go コードの層と書き方
 - [platform/docs/README.md](platform/docs/README.md) — 共通のプラグイン、ハーネスの契約、用語集
 - [docs/target/README.md](docs/target/README.md) — 開発・エージェント実行環境（devcontainer）、CI、PR と Issue での作業の進め方。
