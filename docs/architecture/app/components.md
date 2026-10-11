@@ -3,7 +3,7 @@
 control-plane のプロセス `acp serve` の中にある構成要素と、依頼がそれらをどう流れるか。コードの層と依存の向きは
 [コードの構成](../codebase/layers.md)に、依頼の入口と知らせの中身は[依頼と知らせ](requests.md)にある。
 
-## 全体の構成
+## 構成
 
 `acp serve` は常駐するサーバーで、`compose.yaml` で Docker のプロキシと並べて動かす
 （[ADR 0014](../../adr/app/0014-control-plane-as-a-server.md)）。依頼は Slack の Bot か HTTP API から入り、
