@@ -60,7 +60,7 @@
   スレッドの ts をつないだ名前から UUIDv5 で作る。スレッドを持たない依頼（CLI）は UUIDv4 のランダム。どちらも
   小文字の UUID で、Claude Code のセッション ID にそのまま使う。ID とスレッドの対応表は持たない。
 - **関係**：セッションのブランチの名前は ID から決まる（[作業領域とブランチ](workspace.md#branch)）。
-- **当てはめた原則・パターン**：[SSOT](../../../platform/docs/reference/principles.md#ssot)：スレッドから毎回計算するので、
+- **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：スレッドから毎回計算するので、
   ID の持ち主はスレッドだけで、対応表と食い違わない。その代わり、記録が消えても同じ ID が戻ってくる
   （[壊してはいけない前提](#invariants)）。
 
@@ -83,7 +83,7 @@
   | `kept_notified_at` | 片付けで残したことを最後にスレッドに知らせた時刻 |
 
 - **関係**：usecase の `SessionRepository`（`internal/usecase/ports.go`）を実装する。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：ファイルの形式は
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：ファイルの形式は
   アダプタだけが知り、usecase は `domain.Session` だけを扱う。
 
 <a id="lock"></a>
@@ -97,7 +97,7 @@
   取り直す。
 - **関係**：持つのは、セッションを作る間、[ワーカー](#worker)が動いている間、[片付け](#cleaner)が消す間と
   `kept_notified_at` を書く間。ロックを取ったら、記録を読み直してから使う。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：同時に触らないことを
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同時に触らないことを
   呼び出し側の気遣いではなく OS のロックで守る。
 
 <a id="worker"></a>
@@ -115,7 +115,7 @@
   - コンテナの起動と Claude Code の動かし方は置かない（[コンテナ](containers.md)）。
 - **関係**：`Dispatcher` がセッションごとに一つ持ち、`Dispatcher` 自身はワーカーの一覧と受付だけを持つ。usecase のポート（`SessionRepository`、`Runner`、
   `CredentialIssuer` など）だけに依存する。
-- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：一つのセッションの
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：一つのセッションの
   状態を一つのゴルーチンに集め、ほかからはチャネルで依頼と停止だけを渡す。
 
 <a id="cleaner"></a>
@@ -141,9 +141,9 @@
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
   `SessionNotifier`）だけに依存する。会話の履歴と認証情報を消すのは `SessionFiles`
   （`internal/adapter/docker/sessionfiles.go`）、記録と作業領域を消すのは `SessionRepository.Remove`。
-- **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/docs/reference/patterns.md#facts-and-judgement)：アダプタは事実
+- **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：アダプタは事実
   だけを返し、判定はここに置く。残すか消すか、何を知らせるかは理由のリスト一つから決める。
-  [状態を軸で洗い出す](../../../platform/docs/reference/patterns.md#state-axes)：判定は ADR 0026 の軸と判定の表に沿う。
-  [失われうるものを先に挙げる](../../../platform/docs/reference/patterns.md#loss-first)：消すと失われるものがあれば残す。
-  [高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：記録、会話の履歴、ブランチは一緒に
+  [状態を軸で洗い出す](../../../platform/plugins/principles/docs/reference/patterns.md#state-axes)：判定は ADR 0026 の軸と判定の表に沿う。
+  [失われうるものを先に挙げる](../../../platform/plugins/principles/docs/reference/patterns.md#loss-first)：消すと失われるものがあれば残す。
+  [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：記録、会話の履歴、ブランチは一緒に
   変わるものとして一緒に消す（[壊してはいけない前提](#invariants)）。

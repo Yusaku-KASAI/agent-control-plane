@@ -1,6 +1,6 @@
 # ターゲットの契約
 
-ターゲットが用意するもの。control-plane と platform はこれを前提にする（[platform ADR 0005](../../../platform/docs/adr/0005-documents-by-distribution-context.md)）。
+ターゲットが用意するもの。control-plane と platform はこれを前提にする（[platform ADR 0005](../../../platform/plugins/conventions/docs/adr/0005-documents-by-distribution-context.md)）。
 control-plane がコンテナに渡すものは、逆向きの契約として platform の[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
 
 ## イメージ
@@ -27,7 +27,7 @@ control-plane はセッションごとにターゲットのイメージからコ
     隣のリポジトリを指すパスは、control-plane がホストでターゲットの隣にあるそのディレクトリだけを、同じパスに
     読み取り専用でマウントする。ただし、ホストでシンボリックリンクをたどった先がターゲット自身の中なら、作業領域の
     中として扱う（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
-- platform の roles を使うなら、それが前提にする harness と review も有効にする。
+- platform の roles を使うなら、それが前提にする harness と conventions も有効にする。conventions を使うなら principles も有効にする。
 - ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
   起動する（[ADR 0003](../adr/0003-roles-as-claude-code-agents.md)）。ターゲットの `.claude/agents/<ロール名>.md` に
   platform のロールと同名の定義を置くと、そちらが優先される。定義が見つからないロールで起動すると、エージェントは
@@ -58,7 +58,7 @@ control-plane はセッションごとにターゲットのイメージからコ
 | 参照先 | 文書の入口へのリンクと、それぞれ何があるか |
 | 作業の完了条件 | `make check` など、変更後に通すもの |
 | 言語 | ドキュメント、コミットメッセージ、コード中のコメントの言語 |
-| 共通のルール | platform の rules プラグインが読み込ませること（文面は下のとおり） |
+| 共通のルール | platform の conventions プラグインが読み込ませること（文面は下のとおり） |
 
 共通のルールの節の文面：
 
@@ -66,7 +66,7 @@ control-plane はセッションごとにターゲットのイメージからコ
 ## 共通のルール
 
 コメントとドキュメントの書き方など、どのターゲットでも同じルールは、`.claude/settings.json` で有効にしている
-platform の rules プラグインが、セッションとサブエージェントの始めに読み込ませる。
+platform の conventions プラグインが、セッションとサブエージェントの始めに読み込ませる。
 ```
 
 ほかに、そのターゲットだけの決まり（このリポジトリの「他のリポジトリ」など）は、この後に節を足す。

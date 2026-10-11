@@ -1,8 +1,0 @@
-{
-  "name": "rules",
-  "version": "0.5.0",
-  "description": "Rules every target's agents follow, loaded at session start",
-  "author": {
-    "name": "Yusaku KASAI"
-  }
-}

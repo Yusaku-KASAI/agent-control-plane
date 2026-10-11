@@ -1,7 +1,7 @@
 # target-template
 
 ターゲットに共通の環境と、ターゲットの契約。切り出すまでは、このリポジトリがひな形を兼ねる（環境のファイルは
-ルートにある）。文書の分け方は platform の[文書の体系](../../platform/docs/architecture/documentation.md)にある。
+ルートにある）。文書の分け方は conventions の[文書の体系](../../platform/plugins/conventions/docs/architecture/documentation.md)にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |

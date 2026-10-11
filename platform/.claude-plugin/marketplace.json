@@ -6,6 +6,16 @@
   },
   "plugins": [
     {
+      "name": "principles",
+      "source": "./plugins/principles",
+      "description": "Design principles and patterns that apply anywhere"
+    },
+    {
+      "name": "conventions",
+      "source": "./plugins/conventions",
+      "description": "How repositories in this project family write documents, design changes and work"
+    },
+    {
       "name": "roles",
       "source": "./plugins/roles",
       "description": "Base roles for agents"
@@ -21,19 +31,9 @@
       "description": "Keep pull requests describing their branch"
     },
     {
-      "name": "rules",
-      "source": "./plugins/rules",
-      "description": "Rules every target's agents follow"
-    },
-    {
       "name": "harness",
       "source": "./plugins/harness",
       "description": "Tell agents how they are run and where the harness contract is"
-    },
-    {
-      "name": "review",
-      "source": "./plugins/review",
-      "description": "Viewpoints for designing and reviewing changes"
     },
     {
       "name": "bell",

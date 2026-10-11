@@ -1,6 +1,6 @@
 # docs
 
-このリポジトリ（control-plane）の文書の一覧。分け方は platform の[文書の体系](../platform/docs/architecture/documentation.md)にある。
+このリポジトリ（control-plane）の文書の一覧。分け方は conventions の[文書の体系](../platform/plugins/conventions/docs/architecture/documentation.md)にある。
 platform と target-template の文書は、それぞれ [platform/docs/README.md](../platform/docs/README.md) と
 [template/docs/README.md](../template/docs/README.md) にある。
 

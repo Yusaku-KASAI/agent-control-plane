@@ -57,7 +57,7 @@ GitHub のブランチと PR
   5. [commit-msg フック](#commit-msg)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md)の発行したもの。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：git の操作は
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：git の操作は
   ここに閉じ、usecase は作業領域のパスだけを受け取る。
 
 <a id="git"></a>
@@ -69,7 +69,7 @@ GitHub のブランチと PR
   control-plane が発行したトークンだけを使う（認証ヘルパーで渡す）。github.com の SSH の URL は HTTPS に読み替える。
   所有者の違う作業領域も扱えるよう `safe.directory` を `*` にする。状態を読むときに index を書き換えない
   （`GIT_OPTIONAL_LOCKS=0`）ので、エージェントが使っている最中に読んでもぶつからない。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：ホストの鍵や設定を
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：ホストの鍵や設定を
   使わないことを、呼び出しごとの環境変数で強制する。
 
 <a id="branch"></a>
@@ -82,7 +82,7 @@ GitHub のブランチと PR
   ことがあり、それは名前ではなく[作業領域の状態](#state)の push の記録で分かる。
 - **関係**：名前は `ACP_SESSION_BRANCH` でエージェントに渡す（[コンテナ](containers.md)）。片付けは、セッションが
   作ったブランチだけをリモートから消す。
-- **当てはめた原則・パターン**：[SSOT](../../../platform/docs/reference/principles.md#ssot)：名前の決まりはここだけに置き、
+- **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：名前の決まりはここだけに置き、
   作るとき、渡すとき、片付けるときは同じ関数を使う。
 
 <a id="commit-msg"></a>
@@ -95,7 +95,7 @@ GitHub のブランチと PR
   取り込まれた依頼の依頼者を、設定にある git の名前とメールアドレスで書く。
 - **関係**：一覧のファイルは認証情報のディレクトリにある（[認証情報](credentials.md)）。書き換えるのは
   [ワーカー](sessions.md#worker)が依頼をターンに取り込んだとき。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：エージェントへの
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：エージェントへの
   指示ではなくフックで足す。
 
 <a id="state"></a>
@@ -115,7 +115,7 @@ GitHub のブランチと PR
   | detached HEAD | ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
 - **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner)。
-- **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
+- **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 
 <a id="github-branches"></a>
@@ -135,5 +135,5 @@ GitHub のブランチと PR
     何もしない。
 - **関係**：usecase の `SessionBranches` を実装する。トークンはエージェントの GitHub App のもの
   （[認証情報](credentials.md)）。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：GitHub の API の
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：GitHub の API の
   形はここに閉じ、usecase には `BranchFacts` だけを返す。どのブランチを消すかは決めない（[事実と判定](#facts)）。

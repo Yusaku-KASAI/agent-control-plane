@@ -2,8 +2,9 @@
 
 platform は、ターゲットをまたいで使うエージェントの能力を、Claude Code のプラグインのマーケットプレイス
 `acp-platform` としてまとめたもの。将来 agent-platform として別のリポジトリに切り出す
-（[ADR 0001](adr/0001-platform-as-plugin-marketplace.md)）。マーケットプレイスと一緒に `docs/` もエージェントに届くので、
-どのターゲットのエージェントも読める知識（原則、文書の体系、契約、用語、作業の進め方）もここに置く。
+（[ADR 0001](adr/0001-platform-as-plugin-marketplace.md)）。マーケットプレイスの中のものはすべてのエージェントに届くので、
+ハーネスの契約とエージェントの用語もここに置く。どこでも通用する原則とパターン（principles）と、このプロジェクト群の
+決まり（conventions）も、それぞれプラグインとしてここから配る。
 
 ## 構成
 
@@ -25,9 +26,9 @@ platform/
 
 ```
 roles ──前提にする──▶ harness（動き方と契約の在りか）
-  │                 review（設計の観点）
+  │                 conventions（決まり、設計の観点）──前提にする──▶ principles（原則とパターン）
   └─使う──▶ github、slack のスキル
-rules（常に読み込む決まり）、bell（対話のときのベル）は独立
+bell（対話のときのベル）は独立
 ```
 
 各プラグインの説明は [architecture/plugins.md](architecture/plugins.md) にある。

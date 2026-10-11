@@ -56,9 +56,9 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   発行の中身は置かない。
 - **関係**：usecase の `CredentialIssuer` を実装し、dispatcher と片付け（`SessionCleaner`）に渡す。
   発行元も同じインターフェースを実装する。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：usecase は
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：usecase は
   発行元の技術を知らず、一つのインターフェースだけを見る。
-  [高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：外部サービスを足すときは発行元を一つ足し、
+  [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：外部サービスを足すときは発行元を一つ足し、
   ここに項目を一つ足すだけで済む。
 
 ### `internal/domain`（`Credentials`）
@@ -66,7 +66,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 - **責務**：エージェントに渡しうる認証情報の項目を定める。
 - **置くもの / 置かないもの**：GitHub のトークン、Slack の Bot トークン、Claude Code の OAuth トークンか API キー。
   空の値は、その機能がないことを表す。どう渡すかは置かない。
-- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/docs/reference/principles.md#schema-first)：発行元と runner は
+- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：発行元と runner は
   この形だけを受け渡す。
 
 ### `internal/adapter/claudeauth`
@@ -76,7 +76,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   弾く）。
 - **関係**：runner はこれを環境変数 `CLAUDE_CODE_OAUTH_TOKEN` か `ANTHROPIC_API_KEY` で渡す。環境変数はコンテナの
   作成時に決まるので、ファイルを差し替えたら次に起動するコンテナから効く。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/docs/reference/principles.md#soc)：Claude Code の認証方式は
+- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Claude Code の認証方式は
   この発行元に閉じ、方式を差し替えても他は変わらない（[ADR 0007](../../adr/app/0007-pluggable-claude-auth.md)、
   [0023](../../adr/app/0023-claude-auth-and-per-agent-config.md)）。
 
@@ -103,7 +103,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
     `Run` が 10 分ごとに確かめ、失敗はログに出して次の回にやり直す。
 - **関係**：同じ `Source` を、control-plane の Slack Bot（`slackbot`）とエージェントへの発行の両方が使うので、
   更新したトークンはどちらにも届く。
-- **当てはめた原則・パターン**：[単一の情報源](../../../platform/docs/reference/principles.md#ssot)：今のトークンを持つのは
+- **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：今のトークンを持つのは
   エージェントごとに一つの `Source` だけ。
 
 ### `acp slack-auth`（`cmd/acp/slackauth.go`）
