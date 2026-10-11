@@ -14,6 +14,12 @@
 
 区切りの中では、文書を種類（手順、参照、解説、ADR）で分け、1 つの文書には 1 つの種類だけを書く。
 
+| 区切り | 解説 | 参照 | 手順 |
+| --- | --- | --- | --- |
+| control-plane | [overview.md](overview.md)、[app/README.md](app/README.md)、[codebase/README.md](codebase/README.md) | [app/usage.md](app/usage.md)、[acp.example.yaml](../acp.example.yaml) | [app/operations.md](app/operations.md) |
+| target-template | [target/README.md](target/README.md) | [target/contract.md](target/contract.md) | [target/README.md](target/README.md) の「使い方」 |
+| platform | [platform/docs/README.md](../platform/docs/README.md) | [harness.md](../platform/docs/harness.md)、[glossary.md](../platform/docs/glossary.md) | 各プラグインのスキル |
+
 ## ADR
 
 - 置き場所は各ディレクトリの `adr/NNNN-<slug>.md`。番号はディレクトリごとの連番。
