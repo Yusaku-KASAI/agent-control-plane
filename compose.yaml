@@ -16,7 +16,7 @@ services:
       # Same paths as on the host: the config and the agent containers' bind mounts use host paths.
       - ${ACP_HOST_ROOT:?set ACP_HOST_ROOT in .env}:${ACP_HOST_ROOT}
       - ${ACP_SECRETS_DIR:?set ACP_SECRETS_DIR in .env}:${ACP_SECRETS_DIR}:ro
-      # Short-lived per-session credentials (docs/app/adr/0018). Agent containers mount their
+      # Short-lived per-session credentials (docs/adr/app/0018). Agent containers mount their
       # session's subpath of this volume by name, so the name is fixed.
       - acp-credentials:/var/lib/acp/credentials
       # Each agent's Claude Code config directory (history, auto memory), apart from the dev container's.
@@ -32,7 +32,7 @@ services:
       - docker-proxy
 
   # The only holder of the Docker socket. It passes just the container calls the runner makes
-  # (docs/app/adr/0015).
+  # (docs/adr/app/0015).
   docker-proxy:
     image: wollomatic/socket-proxy:1.13.1
     restart: unless-stopped

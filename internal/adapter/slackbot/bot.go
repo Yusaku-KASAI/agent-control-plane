@@ -176,7 +176,7 @@ func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppM
 const injectPrefix = ":zap:"
 
 // requestPrompt points the agent at the message instead of quoting it: the agent reads the
-// request, and the thread around it, from Slack (docs/app/adr/0020).
+// request, and the thread around it, from Slack (docs/adr/app/0020).
 func requestPrompt(user, channel, ts, thread string) string {
 	return fmt.Sprintf(`Slack のスレッドで依頼を受けました。依頼の本文はこのメッセージには含めていません。
 slack スキルの手順で次のメッセージを読み、その依頼に応えてください。スレッドのほかの発言やリンク先は、必要に応じて読んでください。

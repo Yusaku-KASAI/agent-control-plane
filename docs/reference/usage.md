@@ -1,6 +1,6 @@
 # 依頼の仕方
 
-エージェントへの依頼の出し方と、依頼に対して control-plane がすること。セッションの動きは [README](README.md) にある。
+エージェントへの依頼の出し方と、依頼に対して control-plane がすること。セッションの動きは [セッション](../architecture/app/sessions.md) にある。
 
 ## Slack から
 

@@ -1,7 +1,7 @@
 # ターゲットの契約
 
-ターゲットが用意するもの。control-plane と platform はこれを前提にする（[platform ADR 0005](../../platform/docs/adr/0005-documents-by-distribution-context.md)）。
-control-plane がコンテナに渡すものは、逆向きの契約として platform の[ハーネスの契約](../../platform/docs/harness.md)にある。
+ターゲットが用意するもの。control-plane と platform はこれを前提にする（[platform ADR 0005](../../../platform/docs/adr/0005-documents-by-distribution-context.md)）。
+control-plane がコンテナに渡すものは、逆向きの契約として platform の[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
 
 ## イメージ
 
@@ -17,59 +17,34 @@ control-plane はセッションごとにターゲットのイメージからコ
 ## プラグインとロール
 
 - 使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
-  （[ADR 0004](adr/0004-plugins-declared-in-settings.md)）。control-plane は、`directory` のマーケットプレイスから
+  （[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。control-plane は、`directory` のマーケットプレイスから
   有効なプラグインを `--plugin-dir` で読み込ませる。それ以外のマーケットプレイスのプラグインは Claude Code に任せる。
   - マーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
     `/workspace/agent-platform` で宣言する。
   - ターゲット自身の中を指すパスは、エージェントのコンテナではセッションの作業領域（作業中のブランチ）を指す。
     隣のリポジトリを指すパスは、control-plane がホストでターゲットの隣にあるそのディレクトリだけを、同じパスに
     読み取り専用でマウントする。ただし、ホストでシンボリックリンクをたどった先がターゲット自身の中なら、作業領域の
-    中として扱う（[ADR 0007](adr/0007-marketplaces-beside-the-target.md)）。
+    中として扱う（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
 - platform の roles を使うなら、それが前提にする harness と review も有効にする。
 - ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
-  起動する（[ADR 0003](adr/0003-roles-as-claude-code-agents.md)）。ターゲットの `.claude/agents/<ロール名>.md` に
+  起動する（[ADR 0003](../adr/0003-roles-as-claude-code-agents.md)）。ターゲットの `.claude/agents/<ロール名>.md` に
   platform のロールと同名の定義を置くと、そちらが優先される。定義が見つからないロールで起動すると、エージェントは
   エラーで終了する。
 - ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は CLAUDE.md に書く。
+
+<a id="checks"></a>
 
 ## 検査
 
 - `make check` が、そのターゲットの検査をすべて行う。関心ごとに `check-<関心>` に分け、`check-target`
   （devcontainer のスクリプトと設定）と `check-docs`（Markdown の相対リンクと ADR の形）を含める。
 - CI は `check-<関心>` ごとのジョブで、devcontainer の Dockerfile の同じ名前のステージをビルドし、結果を
-  `check` ジョブにまとめる（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)、
-  [ADR 0011](adr/0011-ci-checks-as-cached-build-stages.md)）。必須のチェックは `check` だけにする。
-
-## ADR
-
-判断の記録は `<文書のディレクトリ>/adr/NNNN-<slug>.md` に置く。番号はディレクトリごとの連番。
-
-```markdown
----
-status: accepted        # accepted か superseded
-date: 2026-10-11
-amends: [7]             # 一部を変えた ADR（なければ書かない）
-amended_by: [12]        # この ADR の一部を変えた ADR
-supersedes: [3]         # 全体を置き換えた ADR
-superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded と組み）
----
-
-# NNNN. 決めたこと（一文）
-
-## Context
-## Decision
-## Alternatives
-## Consequences
-```
-
-- ADR はその時点の判断の記録なので、後から本文を書き換えない。判断を変えるときは新しい ADR を作り、両方の
-  frontmatter に向き合う参照（`amends` と `amended_by`、`supersedes` と `superseded_by`）を書く。番号は同じ
-  ディレクトリの ADR を指す。
-- frontmatter の形、見出しの番号、参照が向き合っていることは `make check-docs` が確かめる。
+  `check` ジョブにまとめる（[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)、
+  [ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。必須のチェックは `check` だけにする。
 
 ## CLAUDE.md
 
-エージェントに常に読み込まれる入口（[ADR 0012](adr/0012-claude-md-sections.md)）。次の節をこの順に持ち、どの節も
+エージェントに常に読み込まれる入口（[ADR 0012](../adr/0012-claude-md-sections.md)）。次の節をこの順に持ち、どの節も
 短くして、詳しいことは文書へのリンクにする。当てはまらない節は「なし」と書いて残す。
 
 | 節 | 書くこと |
