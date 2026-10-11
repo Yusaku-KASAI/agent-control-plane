@@ -1,32 +1,12 @@
 # docs
 
-全体の狙い、考え方、構成、目指す姿は [overview.md](overview.md) にある。
+このリポジトリの文書の一覧。文書の分け方と置き場所の決め方は[ドキュメントの設計](../platform/docs/documentation.md)にある。
 
-ドキュメントは、届く先（誰が読めるか）で区切ってディレクトリを分ける（[platform ADR 0005](../platform/docs/adr/0005-documents-by-distribution-context.md)）。
-書く前に、どの区切りの話かを決める。
+| 区切り | 解説 | 参照 | 手順 | ADR |
+| --- | --- | --- | --- | --- |
+| 全体 | [overview.md](overview.md)（狙い、考え方、構成、目指す姿） | — | — | — |
+| control-plane | [app/README.md](app/README.md)（セッションのライフサイクル）、[codebase/README.md](codebase/README.md)（Go の層と書き方） | [app/usage.md](app/usage.md)（依頼の仕方）、[acp.example.yaml](../acp.example.yaml)（設定） | [app/operations.md](app/operations.md)（準備と起動） | [app/adr/](app/adr/)、[codebase/adr/](codebase/adr/) |
+| target-template | [target/README.md](target/README.md)（devcontainer、CI、作業の進め方） | [target/contract.md](target/contract.md)（ターゲットの契約） | [target/README.md](target/README.md) の「使い方」 | [target/adr/](target/adr/) |
+| platform | [platform/docs/README.md](../platform/docs/README.md)（プラグイン）、[documentation.md](../platform/docs/documentation.md)（ドキュメントの設計） | [harness.md](../platform/docs/harness.md)（ハーネスの契約）、[glossary.md](../platform/docs/glossary.md)（用語集） | 各プラグインのスキル | [platform/docs/adr/](../platform/docs/adr/) |
 
-| ディレクトリ | 区切り | 中身 |
-| --- | --- | --- |
-| `app/` | control-plane | アプリケーションそのもの（何をするか、ドメイン、システム構成）。[README](app/README.md) |
-| `codebase/` | control-plane | Go アプリとしての作り方（レイヤ構成、コーディング規約、テスト） |
-| `target/` | target-template | ターゲットを成り立たせる環境（devcontainer、エージェント向け設定） |
-| `../platform/docs/` | platform | ターゲットをまたいで使うエージェントの能力（ロール、プラグイン）、ハーネスの契約、用語集。エージェントに届くよう、マーケットプレイスの中に置く |
-
-区切りの中では、文書を種類（手順、参照、解説、ADR）で分け、1 つの文書には 1 つの種類だけを書く。
-
-| 区切り | 解説 | 参照 | 手順 |
-| --- | --- | --- | --- |
-| control-plane | [overview.md](overview.md)、[app/README.md](app/README.md)、[codebase/README.md](codebase/README.md) | [app/usage.md](app/usage.md)、[acp.example.yaml](../acp.example.yaml) | [app/operations.md](app/operations.md) |
-| target-template | [target/README.md](target/README.md) | [target/contract.md](target/contract.md) | [target/README.md](target/README.md) の「使い方」 |
-| platform | [platform/docs/README.md](../platform/docs/README.md) | [harness.md](../platform/docs/harness.md)、[glossary.md](../platform/docs/glossary.md) | 各プラグインのスキル |
-
-## ADR
-
-各ディレクトリの `adr/` に置く。形（frontmatter、見出し、変えるときの扱い）は[ターゲットの契約](target/contract.md#adr)にあり、
-`make check-docs` で確かめる。
-
-## ドキュメントと Issue の分担
-
-- ドキュメント：今の姿と、今の方針。目指す姿も、今の方針として [overview.md](overview.md) に書く。
-- ADR：その方針を選んだ理由と、選ばなかった案。
-- Issue：目指す姿への道筋。何をどの順でやるか、どこまで進んだか（[作業の進め方](target/README.md#作業の進め方)）。
+目指す姿は、今の方針として overview.md に書く。そこへの道筋は Issue にある（[作業の進め方](target/README.md#作業の進め方)）。

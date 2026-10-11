@@ -21,11 +21,11 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 ## 参照先
 
 - [docs/overview.md](docs/overview.md) — 狙い、考え方、全体の構成、目指す姿
-- [docs/README.md](docs/README.md) — ドキュメントの構成、ADR、ドキュメントと Issue の分担
+- [docs/README.md](docs/README.md) — このリポジトリの文書の一覧（区切りと種類ごと）
 - [docs/app/README.md](docs/app/README.md) — control-plane の今の姿（セッションのライフサイクル）。依頼の仕方は
   [usage.md](docs/app/usage.md)、運用の手順は [operations.md](docs/app/operations.md)
 - [docs/codebase/README.md](docs/codebase/README.md) — Go コードの層と書き方
-- [platform/docs/README.md](platform/docs/README.md) — 共通のプラグイン、ハーネスの契約、用語集
+- [platform/docs/README.md](platform/docs/README.md) — 共通のプラグイン、ハーネスの契約、用語集、ドキュメントの設計
 - [docs/target/README.md](docs/target/README.md) — 開発・エージェント実行環境（devcontainer）、CI、PR と Issue での作業の進め方。
   ターゲットの契約は [docs/target/contract.md](docs/target/contract.md)
 

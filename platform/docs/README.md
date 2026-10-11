@@ -19,7 +19,7 @@ platform/
     review/                         設計とレビューの観点のスキル（design：状態の軸、事実と判定の分離、失われうるもの、手順の突き合わせ、大きさ）。
                                     developer は作るときに、レビューでは抜けを探す観点として使う
     bell/                           対話で使うとき、Claude Code が止まったら端末のベルを鳴らす hook（下の「bell」）
-  docs/                             この文書、ハーネスの契約（harness.md）、用語集（glossary.md）、ADR。
+  docs/                             この文書、ドキュメントの設計（documentation.md）、ハーネスの契約（harness.md）、用語集（glossary.md）、ADR。
                                     エージェントにもマーケットプレイスと一緒に届く
 ```
 

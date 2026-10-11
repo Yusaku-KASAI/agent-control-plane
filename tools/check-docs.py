@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks the Markdown files in the repository: relative links point at existing files, and ADRs keep
-the frontmatter and cross-references described in docs/target/contract.md."""
+the frontmatter and cross-references described in the platform's docs/documentation.md."""
 
 import os
 import re

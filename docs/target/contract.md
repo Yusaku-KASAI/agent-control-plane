@@ -35,37 +35,10 @@ control-plane はセッションごとにターゲットのイメージからコ
 ## 検査
 
 - `make check` が、そのターゲットの検査をすべて行う。関心ごとに `check-<関心>` に分け、`check-target`
-  （devcontainer のスクリプトと設定）と `check-docs`（Markdown の相対リンクと ADR の形）を含める。
+  （devcontainer のスクリプトと設定）と `check-docs`（[ドキュメントの設計](../../platform/docs/documentation.md#決まりの強さ)の検査）を含める。
 - CI は `check-<関心>` ごとのジョブで、devcontainer の Dockerfile の同じ名前のステージをビルドし、結果を
   `check` ジョブにまとめる（[ADR 0005](adr/0005-ci-runs-in-devcontainer-image.md)、
   [ADR 0011](adr/0011-ci-checks-as-cached-build-stages.md)）。必須のチェックは `check` だけにする。
-
-## ADR
-
-判断の記録は `<文書のディレクトリ>/adr/NNNN-<slug>.md` に置く。番号はディレクトリごとの連番。
-
-```markdown
----
-status: accepted        # accepted か superseded
-date: 2026-10-11
-amends: [7]             # 一部を変えた ADR（なければ書かない）
-amended_by: [12]        # この ADR の一部を変えた ADR
-supersedes: [3]         # 全体を置き換えた ADR
-superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded と組み）
----
-
-# NNNN. 決めたこと（一文）
-
-## Context
-## Decision
-## Alternatives
-## Consequences
-```
-
-- ADR はその時点の判断の記録なので、後から本文を書き換えない。判断を変えるときは新しい ADR を作り、両方の
-  frontmatter に向き合う参照（`amends` と `amended_by`、`supersedes` と `superseded_by`）を書く。番号は同じ
-  ディレクトリの ADR を指す。
-- frontmatter の形、見出しの番号、参照が向き合っていることは `make check-docs` が確かめる。
 
 ## CLAUDE.md
 
