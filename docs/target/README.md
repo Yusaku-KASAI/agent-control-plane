@@ -1,7 +1,7 @@
 # ターゲット
 
 このリポジトリを、エージェントが作業するターゲットとして成り立たせる環境（devcontainer、Claude Code の設定、CI、
-作業の進め方）。target-template の元になる。
+作業の進め方）と、ターゲットの契約（[contract.md](contract.md)）。target-template の元になる。
 
 ## devcontainer
 
@@ -86,35 +86,10 @@ compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフ�
 `.vscode/settings.json`（attach していないウィンドウ）に同じ内容で置く。ベル設定のように、片方だけだと
 効いたり効かなかったりするものがあるため。同じであることは `make check-target` で確かめる。
 
-## イメージに求めること
+## ターゲットの契約
 
-control-plane はセッションごとにターゲットのイメージからコンテナを作り、`claude -p` を `stream-json` の
-入出力で動かし続けて、依頼を標準入力に送る。そのためにイメージは次を満たす必要がある。
-
-- イメージのユーザーが root でなく、作業ディレクトリ（リポジトリのマウント先）に書き込める。control-plane は
-  `claude ...` をそのままコマンドとして渡す（Claude Code は root では権限確認を省略できない）。
-- `claude`、`git`、`gh` が入っている。
-- entrypoint があれば、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡し、自身の出力は
-  stderr に出す。stdout はエージェントの回答として扱われる。
-
-control-plane がコンテナに渡すもの（環境変数、認証情報、作業領域の commit-msg フックなど）は、エージェントにも
-届くよう platform の[ハーネスの契約](../../platform/docs/harness.md)にある。
-
-## プラグインとロール
-
-- ターゲットが使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
-  （[ADR 0004](adr/0004-plugins-declared-in-settings.md)）。control-plane は、`directory` のマーケットプレイスから
-  有効なプラグインを `--plugin-dir` で読み込ませる。それ以外のマーケットプレイスのプラグインは Claude Code に任せる。
-  - マーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。ターゲット自身の
-    中を指すパスは、エージェントのコンテナではセッションの作業領域（作業中のブランチ）を指す。隣のリポジトリを
-    指すパスは、control-plane がホストでターゲットの隣にあるそのディレクトリだけを、同じパスに読み取り専用で
-    マウントする。ただし、ホストでシンボリックリンクをたどった先がターゲット自身の中なら、作業領域の中として扱う
-    （[ADR 0007](adr/0007-marketplaces-beside-the-target.md)）。
-- ロールは Claude Code のカスタムエージェントとして定義し、control-plane は `claude -p --agent <ロール名>` で
-  起動する（[ADR 0003](adr/0003-roles-as-claude-code-agents.md)）。共有のロールは [platform](../../platform/docs/README.md) の
-  `roles` プラグインにあり、ターゲットの `.claude/agents/<ロール名>.md` に同名の定義を置くとそちらが優先される。
-- ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は `CLAUDE.md` に書く。
-- 定義が見つからないロールで起動すると、エージェントはエラーで終了する。
+ターゲットが用意するもの（イメージの要件、プラグインとロールの宣言、検査、CLAUDE.md の節、ファイルの分類）は
+[contract.md](contract.md) にある。
 
 ## CI
 
@@ -129,7 +104,7 @@ PR と main への push ごとに、devcontainer のイメージの中で `make 
   イメージを書き出さずにビルドする（`check-image` も書き出さない）。各ステージはその検査が読むファイルだけを
   コピーして実行するので、それらが変わらなければ層のキャッシュが当たり、検査は実行されない。層は GitHub Actions の
   キャッシュにジョブごとに残す。
-- 必須のチェックは、すべてのジョブの結果をまとめる `check` ジョブ1つ。ジョブを足しても ruleset は変えない。
+- ジョブを足しても ruleset は変えない（必須のチェックは `check` だけ。[契約](contract.md#検査)）。
 - キャッシュが当たると新しく公開された脆弱性を拾えないので、週に1回、`check-go` だけキャッシュを使わずに実行する。
 
 ## 作業の進め方
