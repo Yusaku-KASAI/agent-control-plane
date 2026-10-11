@@ -1,0 +1,8 @@
+{
+  "name": "conventions",
+  "version": "0.1.0",
+  "description": "How repositories in this project family write documents, design changes and work",
+  "author": {
+    "name": "Yusaku KASAI"
+  }
+}

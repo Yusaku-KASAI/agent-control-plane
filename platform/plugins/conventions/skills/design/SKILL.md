@@ -6,7 +6,7 @@ description: 状態によって振る舞いが変わる処理、消す・上書�
 # 設計の観点
 
 次のパターンを、作るときは順に当てはめ、レビューでは当てはまっていないところを指摘する。各パターンの形とよくある
-失敗は、platform の文書 `docs/reference/patterns.md`（このスキルから見て `../../../../docs/reference/patterns.md`）にある。
+失敗は、principles プラグインの `docs/reference/patterns.md`（このスキルから見て `../../../principles/docs/reference/patterns.md`）にある。
 
 | 当てはまる変更 | パターン |
 | --- | --- |

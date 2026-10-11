@@ -62,7 +62,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     `Dispatcher` が閉じて依頼が終わるのを待つ。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
 - **関係**：`ChatResponder` を満たす。Bot のトークンは毎回 `slackauth.Source` から受け取る。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/docs/reference/principles.md#soc)：Slack の受け方と書き方
+- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Slack の受け方と書き方
   だけを持ち、依頼の扱いは `HandleMessage` に任せる。Slack に固有のこと（記号、ブロック、文字数の上限）はここに
   閉じる（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。
 
@@ -76,7 +76,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **関係**：`sessionObserver` から `SessionEvent` を受ける。どの状態メッセージがどのセッションのものかは
   メモリにだけ持つので、再起動の前に出した状態メッセージへのリアクションは効かない。停止は
   `HandleMessage.Stop` に渡し、依頼できる人の指示だけが効く。
-- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：ワーカーは
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：ワーカーは
   状態の値だけを伝え、どう見せるかと Slack の API の回数の抑え方はここで決める。
 
 ### `usecase.HandleMessage`（`handle_message.go`）
@@ -91,7 +91,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - 失敗には、セッションが使用中、待っている依頼が多すぎる、内容が空、それ以外の失敗（セッション ID と
     エラー）を書き分けて返す。
 - **関係**：会話からセッション ID を決め、なければ作るよう `Dispatcher` に頼む。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：返事の手段は
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：返事の手段は
   `ChatResponder` で、Slack 以外の受け方も同じユースケースを使える（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。
 
 ### 依頼の順番（`usecase.Dispatcher` のワーカー）
@@ -108,7 +108,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     ターンを中断する。何も動いていないセッションには何もしない。
 - **関係**：進み具合を `SessionObserver` に順に伝える。ターンの始まりと終わり、今の作業、待っている依頼と
   バックグラウンドの処理の数の変化を伝える。
-- **当てはめた原則・パターン**：[単一の情報源](../../../platform/docs/reference/principles.md#ssot)：セッションの状態は
+- **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：セッションの状態は
   ワーカーだけが持ち、状態メッセージはそこから伝えられた値だけを見せる。
 
 <a id="shutdown"></a>
@@ -132,7 +132,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **責務**：セッションの出来事と知らせを、セッションのエージェントの Bot に渡す。
 - **関係**：`SessionObserver` と `SessionNotifier` を満たす。Slack のスレッドから始まったセッションだけを Bot に
   渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：ユースケースは
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：ユースケースは
   知らせる先を知らず、組み立ての場所で入口と結ぶ。
 
 <a id="http-api"></a>
@@ -155,5 +155,5 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - 会話を持たないセッションなので、状態メッセージは出ず、自分で始めたターンの回答は届かない。
 - **関係**：`Dispatcher` を、自分で定めた `TurnRunner` として呼ぶ。クライアントは `httpapi.Client` で、`acp run` と
   `acp stop` が使う（[依頼の仕方](../../reference/usage.md)）。
-- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/docs/reference/principles.md#schema-first)：要求、応答、
+- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：要求、応答、
   エラーの形を `types.go` に定め、サーバーとクライアントがそれを共有する。

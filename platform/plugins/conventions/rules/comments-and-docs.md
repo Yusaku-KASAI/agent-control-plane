@@ -1,11 +1,10 @@
 # 共通のルール：コメントとドキュメント
 
-どのターゲットでも守るルール（platform の rules プラグインが常に読み込ませる）。ターゲットの CLAUDE.md と
+どのターゲットでも守るルール（platform の conventions プラグインが常に読み込ませる）。ターゲットの CLAUDE.md と
 食い違うときは CLAUDE.md に従う。
 
-コメント、コミット、PR についてはここが持ち主。文書についてはいつも守らせたいことの要約で、中身は platform の
-文書にある（原則とパターンは `docs/reference/principles.md` と `patterns.md`、分け方と置き場所は
-`docs/architecture/documentation.md`、書くときの手順は `docs/guides/write-docs.md`）。
+コメント、コミット、PR についてはここが持ち主。文書についてはいつも守らせたいことの要約で、中身は conventions
+プラグインの文書（文書の体系、形式、作業の進め方）と、principles プラグインの原則とパターンにある。
 
 ## コメント、コミット、PR
 

@@ -64,9 +64,9 @@
     "roles@acp-platform": true,
     "slack@acp-platform": true,
     "github@acp-platform": true,
-    "rules@acp-platform": true,
+    "principles@acp-platform": true,
+    "conventions@acp-platform": true,
     "harness@acp-platform": true,
-    "review@acp-platform": true,
     "bell@acp-platform": true
   }
 }
