@@ -1,6 +1,6 @@
 # 用語集
 
-区切り（[ADR 0005](adr/0005-documents-by-distribution-context.md)）をまたいで使う言葉。どの文書でも、この意味で使う。
+区切り（[ADR 0005](../adr/0005-documents-by-distribution-context.md)）をまたいで使う言葉。どの文書でも、この意味で使う。
 一つの区切りの中だけで使う言葉は、その区切りの文書で定める。
 
 | 言葉 | 意味 |

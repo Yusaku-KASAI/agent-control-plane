@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks the Markdown files in the repository: relative links point at existing files, and ADRs keep
-the frontmatter and cross-references described in docs/target/contract.md."""
+the frontmatter and cross-references described in the platform's docs/reference/formats.md."""
 
 import os
 import re
@@ -10,7 +10,8 @@ import sys
 STATUSES = {"accepted", "superseded"}
 # Each key names ADRs in the same directory; the value is the key the other ADR must answer with.
 INVERSE = {"amends": "amended_by", "amended_by": "amends", "supersedes": "superseded_by", "superseded_by": "supersedes"}
-LINK = re.compile(r"\]\(([^)\s]+?)(?:#[^)\s]*)?\)")
+LINK = re.compile(r"\]\(([^)\s#]*)(?:#([^)\s]*))?\)")
+ANCHOR = re.compile(r'<a id="([^"]+)"></a>')
 FENCE = re.compile(r"^(```|~~~).*?^\1", re.M | re.S)
 
 
@@ -28,12 +29,32 @@ def tracked_markdown():
         return sorted(paths)
 
 
+def strip_code(text):
+    return FENCE.sub("", re.sub(r"`[^`\n]*`", "", text))
+
+
+def anchors(path):
+    """The ids set with <a id>, and the ids GitHub derives from headings written in ASCII only."""
+    text = strip_code(open(path, encoding="utf-8").read())
+    ids = set(ANCHOR.findall(text))
+    for heading in re.findall(r"^#{1,6} (.+)$", text, re.M):
+        if heading.isascii():
+            ids.add(re.sub(r"[^a-z0-9 _-]", "", heading.strip().lower()).replace(" ", "-"))
+    return ids
+
+
 def check_links(path, text, errors):
-    for target in LINK.findall(FENCE.sub("", re.sub(r"`[^`\n]*`", "", text))):
-        if re.match(r"[a-z][a-z0-9+.-]*:", target) or target.startswith("#"):
+    for target, fragment in LINK.findall(strip_code(text)):
+        if re.match(r"[a-z][a-z0-9+.-]*:", target):
             continue
-        if not os.path.exists(os.path.normpath(os.path.join(os.path.dirname(path), target))):
+        resolved = os.path.normpath(os.path.join(os.path.dirname(path), target)) if target else path
+        if not os.path.exists(resolved):
             errors.append(f"{path}: broken link {target}")
+        elif fragment and resolved.endswith(".md"):
+            if not fragment.isascii():
+                errors.append(f"{path}: link #{fragment} with an <a id> instead of a non-ASCII heading")
+            elif fragment not in anchors(resolved):
+                errors.append(f"{path}: no anchor #{fragment} in {target or path}")
 
 
 def parse_frontmatter(text):
@@ -55,7 +76,7 @@ def check_adrs(paths, errors):
     adrs = {}
     for path in paths:
         name = os.path.basename(path)
-        if os.path.basename(os.path.dirname(path)) != "adr" or not re.match(r"\d{4}-", name):
+        if "adr" not in path.split(os.sep)[:-1] or not re.match(r"\d{4}-", name):
             continue
         number = int(name[:4])
         text = open(path, encoding="utf-8").read()

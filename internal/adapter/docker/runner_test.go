@@ -450,7 +450,7 @@ func (f *fakeAPI) exit(status int64) {
 
 // Agents rely on the harness contract, not on this code, for what the container is given.
 func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
-	contract, err := os.ReadFile("../../../platform/docs/harness.md")
+	contract, err := os.ReadFile("../../../platform/docs/reference/harness.md")
 	if err != nil {
 		t.Fatal(err)
 	}

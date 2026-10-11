@@ -11,7 +11,8 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 - `.env` の `ACP_HOST_ROOT` の下にターゲットと `sessions.root` を、`ACP_SECRETS_DIR` の下にトークンや鍵のファイルを
   置く。コンテナにはホストと同じパスでマウントされる。
-- ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
+- ターゲットの隣に platform を並べ（[ホストの準備](../../template/docs/guides/devcontainer.md#host)）、ターゲットのイメージを
+  ビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
 
