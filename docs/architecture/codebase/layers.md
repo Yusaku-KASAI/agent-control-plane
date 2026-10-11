@@ -3,12 +3,16 @@
 control-plane の Go のコードは、[層に分けた構成](../../../platform/docs/reference/patterns.md#layered-architecture)をとり、依存の向きを内側へそろえた層に分ける（[ADR 0001](../../adr/codebase/0001-layered-architecture.md)）。
 書き方の決まりは [reference/coding.md](../../reference/coding.md) にある。
 
+## 構成
+
 ```
 cmd/acp ──▶ internal/adapter/<技術> ──▶ internal/usecase ──▶ internal/domain
 （組み立て）  （技術ごとの実装）          （ユースケースとポート）  （エンティティ）
 ```
 
 依存の向きは golangci-lint の depguard で検査する（`.golangci.yml`）。
+
+## 構成要素
 
 ### `internal/domain`
 

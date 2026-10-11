@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Checks the Markdown files in the repository: relative links point at existing files, and ADRs keep
-the frontmatter and cross-references described in the platform's docs/reference/formats.md."""
+"""Checks the Markdown files in the repository against the platform's docs/reference/formats.md and
+docs/architecture/documentation.md: relative links and anchors, ADR frontmatter and cross-references,
+the layout of each docs/ directory, its index, and the component descriptions in architecture docs."""
 
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 
 STATUSES = {"accepted", "superseded"}
+DOCS_LAYOUT = {"README.md", "overview.md", "architecture", "guides", "reference", "adr"}
 # Each key names ADRs in the same directory; the value is the key the other ADR must answer with.
 INVERSE = {"amends": "amended_by", "amended_by": "amends", "supersedes": "superseded_by", "superseded_by": "supersedes"}
 LINK = re.compile(r"\]\(([^)\s#]*)(?:#([^)\s]*))?\)")
@@ -35,8 +37,8 @@ def strip_code(text):
 
 def anchors(path):
     """The ids set with <a id>, and the ids GitHub derives from headings written in ASCII only."""
-    text = strip_code(open(path, encoding="utf-8").read())
-    ids = set(ANCHOR.findall(text))
+    text = FENCE.sub("", open(path, encoding="utf-8").read())
+    ids = set(ANCHOR.findall(re.sub(r"`[^`\n]*`", "", text)))
     for heading in re.findall(r"^#{1,6} (.+)$", text, re.M):
         if heading.isascii():
             ids.add(re.sub(r"[^a-z0-9 _-]", "", heading.strip().lower()).replace(" ", "-"))
@@ -104,12 +106,48 @@ def check_adrs(paths, errors):
                     errors.append(f"{path}: {key} {other:04d}, but {other:04d} lacks {inverse} {number:04d}")
 
 
+def docs_roots(paths):
+    return sorted({os.path.dirname(p) for p in paths if os.path.basename(os.path.dirname(p)) == "docs"
+                   and os.path.basename(p) == "README.md"})
+
+
+def check_docs_dirs(paths, errors):
+    for root in docs_roots(paths):
+        for entry in sorted(os.listdir(root)):
+            if entry not in DOCS_LAYOUT:
+                errors.append(f"{root}/{entry}: not part of the docs layout ({', '.join(sorted(DOCS_LAYOUT))})")
+        index = os.path.join(root, "README.md")
+        linked = {os.path.normpath(os.path.join(root, t)) for t, _ in LINK.findall(strip_code(open(index, encoding="utf-8").read()))}
+        for path in paths:
+            inside = os.path.relpath(path, root)
+            if inside.startswith("..") or inside == "README.md" or inside.split(os.sep)[0] == "adr":
+                continue
+            if os.path.normpath(path) not in linked:
+                errors.append(f"{path}: not listed in {index}")
+            if inside.split(os.sep)[0] == "architecture":
+                check_components(path, errors)
+
+
+def check_components(path, errors):
+    # Only fenced blocks are dropped: headings often consist of inline code, such as a path.
+    text = FENCE.sub("", open(path, encoding="utf-8").read())
+    m = re.search(r"^## 構成要素\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not m:
+        errors.append(f"{path}: no '## 構成要素' section")
+        return
+    for block in re.split(r"(?m)^(?=### )", m.group(1)):
+        heading = re.match(r"### (.+)", block)
+        if heading and "**責務**" not in block:
+            errors.append(f"{path}: component '{heading.group(1)}' has no 責務")
+
+
 def main():
     errors = []
     paths = tracked_markdown()
     for path in paths:
         check_links(path, open(path, encoding="utf-8").read(), errors)
     check_adrs(paths, errors)
+    check_docs_dirs(paths, errors)
     for e in errors:
         print(e, file=sys.stderr)
     return 1 if errors else 0

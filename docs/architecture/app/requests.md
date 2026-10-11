@@ -5,7 +5,7 @@
 [ハーネスの契約](../../../platform/docs/reference/harness.md)にある。プロセスの中の構成要素は
 [control-plane の構成](components.md)にある。
 
-## 全体の構成
+## 構成
 
 依頼の入口は二つあり、どちらも `Dispatcher.Execute` に依頼を渡して、それに答えるターンが終わるまで待つ。
 
