@@ -2,7 +2,7 @@
 
 どのターゲットでも守るルール（platform の rules プラグインが読み込ませる）。ターゲットの CLAUDE.md と
 食い違うときは CLAUDE.md に従う。文書をどう分け、どこに置くかは platform の `docs/architecture/documentation.md` に、
-原則は `docs/reference/principles.md` にある。
+原則とパターンは `docs/reference/principles.md` と `patterns.md` にある。
 
 - コードは自己説明的に書き、コメントはできる限り削る。コードから読み取れることは書かない。
   コメントに残すのは、コードで表しきれない制約や理由だけ。

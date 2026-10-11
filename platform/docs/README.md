@@ -9,7 +9,8 @@
 | [architecture/plugins.md](architecture/plugins.md) | 解説 | 各プラグインの責務と関係 |
 | [guides/use-interactively.md](guides/use-interactively.md) | 手順 | 対話で使う準備 |
 | [guides/write-docs.md](guides/write-docs.md) | 手順 | 文書を書く（区切り → 種類 → 持ち主） |
-| [reference/principles.md](reference/principles.md) | 参照 | 設計の原則（どのリポジトリにも共通） |
+| [reference/principles.md](reference/principles.md) | 参照 | 設計の原則：何を大事にするか（どのリポジトリにも共通） |
+| [reference/patterns.md](reference/patterns.md) | 参照 | 設計のパターン：よくある問題への解き方と、よくある失敗 |
 | [reference/harness.md](reference/harness.md) | 参照 | ハーネスの契約：エージェントが動く環境と渡されるもの |
 | [reference/glossary.md](reference/glossary.md) | 参照 | 用語集 |
 | [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：構成要素の説明、ADR、リンク |

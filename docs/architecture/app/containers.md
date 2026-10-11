@@ -64,7 +64,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   `control-plane` からだけで、プロキシ自身は読み取り専用のファイルシステムで、capability をすべて落として動く。
   作成するコンテナの中身（マウント、イメージ、特権）は検査しない。
 - **関係**：許可の一覧にない API はプロキシが拒むので、runner が使う Docker API とこの一覧は一致している。
-- **当てはめた原則**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：control-plane が
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：control-plane が
   できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。
 
 <a id="runner"></a>
@@ -92,7 +92,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - いつ起動し、いつ止めるか（休ませる時間、停止）は置かない。dispatcher が決める。
 - **関係**：usecase の `Runner` と `StartRequest` だけを見る。イメージへの前提はターゲットの契約にある。
   エージェントに渡すものの一覧はハーネスの契約と一致させる。
-- **当てはめた原則**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：判定は usecase に
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：判定は usecase に
   置き、ここは Docker の操作と事実（プロセスの出力）だけを扱う。
   [単一の情報源](../../../platform/docs/reference/principles.md#ssot)：コンテナの形は `containerSpec` にだけある。
 
@@ -109,7 +109,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを
     強制的に消す。
 - **関係**：usecase の `Process` を実装する。出来事をどう扱うか（受信箱、状態の表示、休ませること）は dispatcher にある。
-- **当てはめた原則**：[関心の分離](../../../platform/docs/reference/principles.md#soc)：Claude Code の出力の形を
+- **当てはめた原則・パターン**：[関心の分離](../../../platform/docs/reference/principles.md#soc)：Claude Code の出力の形を
   知るのはここだけで、usecase は `ProcessEvent` だけを見る。
 
 ### `internal/adapter/docker`（`plugins.go`）
@@ -126,8 +126,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - プラグインの場所はマーケットプレイスの `.claude-plugin/marketplace.json` で引き、相対パスの source だけを扱う。
 - **関係**：決まりの理由は [target ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
-- **当てはめた原則**：[境界づけられた文脈](../../../platform/docs/reference/principles.md#bounded-context)：
-  プラグインの宣言はターゲットとの約束（Published Language）で、control-plane はそれを読んで動かすだけ
+- **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/docs/reference/patterns.md#published-language)：
+  プラグインの宣言はターゲットの契約で、control-plane はそれを読んで動かすだけ
   （[ADR 0001](../../adr/app/0001-repository-centric-agents.md)、[0005](../../adr/app/0005-extensions-standard-first.md)）。
 
 <a id="claude-config"></a>
@@ -151,5 +151,5 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   （`SessionRepository` が消す）。
 - **関係**：usecase の `SessionFiles` を実装し、片付け（[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）から
   呼ばれる。runner と同じ `Options` で場所を知る。
-- **当てはめた原則**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：runner が作るものと
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：runner が作るものと
   消すものを同じパッケージに置く。

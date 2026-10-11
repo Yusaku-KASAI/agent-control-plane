@@ -67,7 +67,7 @@ usecase.SessionCleaner（起動時と定期的に）
   前の実行が残したコンテナを `Dispatcher.Recover` で片付けてから、HTTP サーバー、Bot、片付けを動かす。停止は、
   Bot が受付をやめたあと `Dispatcher.Close` で待っている依頼を終わらせ、HTTP サーバーと Bot が返事を書き終える
   のを待つ（[依頼と知らせ](requests.md#shutdown)）。
-- **当てはめた原則**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：組み立てを外側の
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：組み立てを外側の
   一か所に集め、ユースケースはアダプターを知らない。
 
 ### `cmd/acp`（`main.go`、`run.go`、`slackauth.go`）
@@ -82,7 +82,7 @@ usecase.SessionCleaner（起動時と定期的に）
 - **責務**：ユースケースが外部に求めるインターフェースと、それに渡す値の型。
 - **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）は
   ここではなく `handle_message.go` に置く。
-- **当てはめた原則**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：アダプターは
+- **当てはめた原則・パターン**：[依存の向き](../../../platform/docs/reference/principles.md#dependency-rule)：アダプターは
   ここに合わせて作る。
 
 ### `internal/adapter/config`
@@ -92,7 +92,7 @@ usecase.SessionCleaner（起動時と定期的に）
 - **置くもの / 置かないもの**：ファイルの形、既定値、読むときの検証。設定の項目の説明は
   [acp.example.yaml](../../../acp.example.yaml) に置く。
 - **関係**：`AgentRegistry`、`AccessPolicy`、`People` を満たす。
-- **当てはめた原則**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：知らない項目や
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：知らない項目や
   相対パスは、起動の前に読むところで弾く。
 
 ### `internal/adapter/slackbot`

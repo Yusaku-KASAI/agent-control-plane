@@ -37,7 +37,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   `check-docs`。ほかに `fmt`、`test`、`build` のような手元の作業用のターゲットも置くが、`check` には含めない。
 - **関係**：人も CI も同じターゲットを実行する。`check-target` と `check-docs` はどのターゲットでも共通
   （[契約](../reference/contract.md)）。
-- **当てはめた原則**：[単一の情報源](../../../platform/docs/reference/principles.md#ssot)：検査のコマンドはここにだけ書き、
+- **当てはめた原則・パターン**：[単一の情報源](../../../platform/docs/reference/principles.md#ssot)：検査のコマンドはここにだけ書き、
   Dockerfile と CI は `make` で呼ぶ。
   [関心の分離](../../../platform/docs/reference/principles.md#soc)：関心ごとに分け、読むファイルの範囲を区切る。
 
@@ -53,7 +53,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   - ステージに見えるのはコピーしたファイルだけなので、コピーにないファイルは検査から読めず、変えてもキャッシュを
     外さない。
 - **関係**：ビルドの文脈は `Dockerfile.dockerignore` で決まる（[devcontainer](devcontainer.md)）。
-- **当てはめた原則**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：検査と、それが読むファイルを
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/docs/reference/principles.md#cohesion)：検査と、それが読むファイルを
   一つのステージにまとめ、ほかのファイルの変更がキャッシュを外さない。
   [仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：devcontainer と同じイメージで検査するので、
   手元と CI で道具がずれない。
@@ -71,9 +71,9 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
     飛ばされたジョブは成功と数えられてしまうため。
   - 検査のコマンドは置かない。
 - **関係**：ターゲットごとに埋めるのは、行列の `check-<関心>` とアプリのイメージの検査（[契約](../reference/contract.md)）。
-- **当てはめた原則**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：必須のチェックを `check`
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/docs/reference/principles.md#mechanisms)：必須のチェックを `check`
   一つにし、ジョブの増減で ruleset を変えずに済ませる。
-  [Docs as Code](../../../platform/docs/reference/principles.md#docs-as-code)：文書もコードと同じ PR の検査を通す。
+  [Docs as Code](../../../platform/docs/reference/patterns.md#docs-as-code)：文書もコードと同じ PR の検査を通す。
 
 ### `tools/check-docs.py`
 
@@ -82,6 +82,6 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   ある。対象は git が追う Markdown で、CI のビルドの文脈のように `.git` がないときは、文脈にあるすべての Markdown を
   対象にする。
 - **関係**：`make check-docs` が実行する。どのターゲットでも共通（[契約](../reference/contract.md)）。
-- **当てはめた原則**：[Docs as Code](../../../platform/docs/reference/principles.md#docs-as-code)：リンク切れと ADR の
+- **当てはめた原則・パターン**：[Docs as Code](../../../platform/docs/reference/patterns.md#docs-as-code)：リンク切れと ADR の
   食い違いを機械で見つける。
-  [メタデータ](../../../platform/docs/reference/principles.md#metadata)：ADR の状態と参照を frontmatter から読んで確かめる。
+  [メタデータ](../../../platform/docs/reference/patterns.md#metadata)：ADR の状態と参照を frontmatter から読んで確かめる。
