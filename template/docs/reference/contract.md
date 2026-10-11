@@ -14,6 +14,8 @@ control-plane はセッションごとにターゲットのイメージからコ
 - entrypoint があれば、準備を済ませたあと引数のコマンドを `exec` する。標準入力はそのまま渡し、自身の出力は
   stderr に出す。stdout はエージェントの回答として扱われる。
 
+<a id="plugins"></a>
+
 ## プラグインとロール
 
 - 使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
