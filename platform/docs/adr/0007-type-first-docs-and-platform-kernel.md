@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-11
 amends: [5]
+amended_by: [8]
 ---
 
 # 0007. 文書は種類のディレクトリに置き、platform を全区切りが前提にしてよい共有の核にする

@@ -33,7 +33,7 @@
 | 標準を先に | 拡張は Claude Code の標準機能（プラグイン、スキル、hook）で作り、外部とは公式の API やプロトコルでつなぐ。コンテナの外の準備が要るものだけ、control-plane が解釈する独自の宣言にする | [app 0005](adr/app/0005-extensions-standard-first.md)、[target 0004](../template/docs/adr/0004-plugins-declared-in-settings.md) |
 | 外部の認証は機能で割り当てる | 拡張は「Slack に投稿できる」のような機能を求め、どの方式（トークン、MCP、webhook など）で渡すかは環境ごとに control-plane が決める。拡張は、渡された機能の組み合わせに合わせて動く | [app 0006](adr/app/0006-external-auth-by-capability.md) |
 | プロンプトより仕組み | [仕組みで守る](../platform/docs/reference/principles.md#mechanisms)。hook、コマンド、検査で確かめる | [app 0021](adr/app/0021-credit-requesters-as-co-authors.md)、[platform 0002](../platform/docs/adr/0002-pr-body-tracks-head.md)、[target 0005](../template/docs/adr/0005-ci-runs-in-devcontainer-image.md) |
-| 文書は届く先と種類で分け、一か所に今だけを書く | 原則は [principles.md](../platform/docs/reference/principles.md)、分け方と置き場所は[文書の体系](../platform/docs/architecture/documentation.md) | [platform 0005](../platform/docs/adr/0005-documents-by-distribution-context.md)、[0007](../platform/docs/adr/0007-type-first-docs-and-platform-kernel.md) |
+| 文書は届く先と種類で分け、一か所に今だけを書く | 原則とパターンは [principles.md](../platform/docs/reference/principles.md) と [patterns.md](../platform/docs/reference/patterns.md)、分け方と置き場所は[文書の体系](../platform/docs/architecture/documentation.md) | [platform 0005](../platform/docs/adr/0005-documents-by-distribution-context.md)、[0007](../platform/docs/adr/0007-type-first-docs-and-platform-kernel.md) |
 | 必要になってから決める | 規約や共通化は、前もって一度に作らず、使って必要になったものから一つずつ決める。共通部分は、まずコピーして始め、実際に共通だったものだけを切り出す | — |
 | 手元から、持ち出せる形で | 手元の Docker で動かすことを先に固める。実行、認証、保存先は差し替えられるようにし、特定のクラウドに依存しない | [app 0007](adr/app/0007-pluggable-claude-auth.md)、[app 0008](adr/app/0008-local-first-portable.md) |
 
