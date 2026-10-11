@@ -2,18 +2,21 @@
 
 全体の狙い、考え方、構成、目指す姿は [overview.md](overview.md) にある。
 
-ドキュメントは関心ごとにディレクトリを分ける。書く前に、どの関心の話かを決める。
+ドキュメントは、届く先（誰が読めるか）で区切ってディレクトリを分ける（[platform ADR 0005](../platform/docs/adr/0005-documents-by-distribution-context.md)）。
+書く前に、どの区切りの話かを決める。
 
-| ディレクトリ | 関心 |
-| --- | --- |
-| `app/` | control-plane というアプリケーションそのもの（何をするか、ドメイン、システム構成）。[README](app/README.md) |
-| `codebase/` | Go アプリとしての作り方（レイヤ構成、コーディング規約、テスト） |
-| `target/` | このリポジトリを「エージェントが作業するターゲット」として成り立たせる環境（devcontainer、エージェント向け設定）。target-template の抽出元 |
-| `platform/` | ターゲットをまたいで使うエージェントの能力（ロール、プラグイン）。`platform/` ディレクトリの設計で、agent-platform の抽出元 |
+| ディレクトリ | 区切り | 中身 |
+| --- | --- | --- |
+| `app/` | control-plane | アプリケーションそのもの（何をするか、ドメイン、システム構成）。[README](app/README.md) |
+| `codebase/` | control-plane | Go アプリとしての作り方（レイヤ構成、コーディング規約、テスト） |
+| `target/` | target-template | ターゲットを成り立たせる環境（devcontainer、エージェント向け設定） |
+| `../platform/docs/` | platform | ターゲットをまたいで使うエージェントの能力（ロール、プラグイン）、ハーネスの契約、用語集。エージェントに届くよう、マーケットプレイスの中に置く |
+
+区切りの中では、文書を種類（手順、参照、解説、ADR）で分け、1 つの文書には 1 つの種類だけを書く。
 
 ## ADR
 
-- 置き場所は `<関心>/adr/NNNN-<slug>.md`。番号は関心ごとの連番。
+- 置き場所は各ディレクトリの `adr/NNNN-<slug>.md`。番号はディレクトリごとの連番。
 - 見出しは Status / Date / Context / Decision / Alternatives / Consequences。
 - ADR はその時点の判断の記録なので、後から内容を書き換えない。判断を変えるときは新しい ADR を作り、
   古い方の Status に、全体を覆すなら `Superseded by NNNN`、一部を変えるなら `Amended by NNNN` を付ける。

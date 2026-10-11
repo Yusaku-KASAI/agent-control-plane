@@ -14,9 +14,9 @@
 | --- | --- | --- |
 | リポジトリが宣言する | エージェントの実行環境（devcontainer）、ロールの指示、拡張、規約（CLAUDE.md）は、ターゲットのリポジトリが宣言する。control-plane はそれを読んで動かすだけで、汎用のエージェント像を押し付けない。人間の開発環境とエージェントの実行環境は同じもの | [app 0001](app/adr/0001-repository-centric-agents.md) |
 | エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの振る舞いは platform で共有し、ターゲット固有の事実はターゲットに置く | [app 0002](app/adr/0002-agent-is-target-times-role.md)、[target 0003](target/adr/0003-roles-as-claude-code-agents.md) |
-| 共通の能力は platform に | ターゲットをまたいで使うもの（ロール、共通のルール、プラグイン、スキル、hook、コマンド）は platform に置き、ターゲットはそれを宣言して使う | [platform 0001](platform/adr/0001-platform-as-plugin-marketplace.md) |
+| 共通の能力は platform に | ターゲットをまたいで使うもの（ロール、共通のルール、プラグイン、スキル、hook、コマンド）は platform に置き、ターゲットはそれを宣言して使う | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](app/adr/0017-long-lived-session-process.md)、[app 0020](app/adr/0020-slack-requests-by-reference.md) |
-| 全体の知識は control-plane に | 全体の狙い、設計、ドメインはこのリポジトリに置く。platform と target-template は、そこから切り出す部品 | — |
+| 知識は届く先で区切る | 全体の狙い、設計、ドメインはこのリポジトリに置く。エージェントに要る部分（ハーネスの契約、用語集）は、どのエージェントにも届く platform が持つ。区切りの間は契約でつなぐ | [platform 0005](../platform/docs/adr/0005-documents-by-distribution-context.md) |
 
 ### 安全
 
@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | 標準を先に | 拡張は Claude Code の標準機能（プラグイン、スキル、hook）で作り、外部とは公式の API やプロトコルでつなぐ。コンテナの外の準備が要るものだけ、control-plane が解釈する独自の宣言にする | [app 0005](app/adr/0005-extensions-standard-first.md)、[target 0004](target/adr/0004-plugins-declared-in-settings.md) |
 | 外部の認証は機能で割り当てる | 拡張は「Slack に投稿できる」のような機能を求め、どの方式（トークン、MCP、webhook など）で渡すかは環境ごとに control-plane が決める。拡張は、渡された機能の組み合わせに合わせて動く | [app 0006](app/adr/0006-external-auth-by-capability.md) |
-| プロンプトより仕組み | 守らせたいことは、指示で頼むより、hook、コマンド、検査などの仕組みで確かめる | [app 0021](app/adr/0021-credit-requesters-as-co-authors.md)、[platform 0002](platform/adr/0002-pr-body-tracks-head.md)、[target 0005](target/adr/0005-ci-runs-in-devcontainer-image.md) |
+| プロンプトより仕組み | 守らせたいことは、指示で頼むより、hook、コマンド、検査などの仕組みで確かめる | [app 0021](app/adr/0021-credit-requesters-as-co-authors.md)、[platform 0002](../platform/docs/adr/0002-pr-body-tracks-head.md)、[target 0005](target/adr/0005-ci-runs-in-devcontainer-image.md) |
 | ドキュメントは最小、単一、現状 | コードで分かることは書かない。同じ事実は一か所に置き、今の姿だけを書く。理由は ADR に、経緯はコミットと PR に置く（[共通のルール](../platform/plugins/rules/rules/comments-and-docs.md)） | — |
 | 必要になってから決める | 規約や共通化は、前もって一度に作らず、使って必要になったものから一つずつ決める。共通部分は、まずコピーして始め、実際に共通だったものだけを切り出す | — |
 | 手元から、持ち出せる形で | 手元の Docker で動かすことを先に固める。実行、認証、保存先は差し替えられるようにし、特定のクラウドに依存しない | [app 0007](app/adr/0007-pluggable-claude-auth.md)、[app 0008](app/adr/0008-local-first-portable.md) |
@@ -60,7 +60,7 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 | 部分 | 中身 | 説明 |
 | --- | --- | --- |
 | control-plane | `cmd/`、`internal/`、`compose.yaml` | [app](app/)、[codebase](codebase/README.md) |
-| platform | `platform/`（ロール、共通のルール、共通のプラグイン） | [platform](platform/README.md) |
+| platform | `platform/`（ロール、共通のルール、共通のプラグイン） | [platform](../platform/docs/README.md) |
 | ターゲットとしての環境 | `.devcontainer/`、`.claude/`、`CLAUDE.md` | [target](target/README.md) |
 
 ## 目指す姿

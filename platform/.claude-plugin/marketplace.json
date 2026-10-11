@@ -26,6 +26,11 @@
       "description": "Rules every target's agents follow"
     },
     {
+      "name": "harness",
+      "source": "./plugins/harness",
+      "description": "Tell agents how they are run and where the harness contract is"
+    },
+    {
       "name": "bell",
       "source": "./plugins/bell",
       "description": "Ring the terminal when Claude Code stops or waits for you"

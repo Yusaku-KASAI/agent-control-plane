@@ -113,7 +113,7 @@ docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --ag
 ## プラグイン
 
 エージェントの共通の能力は `platform/` のプラグインにある。構成と、対話で使うときの準備は
-[docs/platform/README.md](docs/platform/README.md) を参照。
+[platform/docs/README.md](platform/docs/README.md) を参照。
 
 ## クライアントをビルドする
 

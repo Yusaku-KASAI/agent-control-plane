@@ -122,7 +122,7 @@ COPY --chown=node:node Makefile ./
 FROM check-base AS check-go
 COPY --chown=node:node go.mod go.sum ./
 RUN go mod download
-# Tests also read the example config and this repository's plugin declarations.
+# Tests also read the example config, this repository's plugin declarations and the harness contract.
 COPY --chown=node:node .golangci.yml acp.example.yaml ./
 COPY --chown=node:node .claude .claude
 COPY --chown=node:node platform platform
