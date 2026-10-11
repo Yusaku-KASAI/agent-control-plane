@@ -1,7 +1,9 @@
-# 0020. Slack からの依頼は本文ではなく場所を渡し、エージェントが Bot トークンで Slack を読み書きする
+---
+status: accepted
+date: 2026-10-03
+---
 
-- Status: Accepted
-- Date: 2026-10-03
+# 0020. Slack からの依頼は本文ではなく場所を渡し、エージェントが Bot トークンで Slack を読み書きする
 
 ## Context
 

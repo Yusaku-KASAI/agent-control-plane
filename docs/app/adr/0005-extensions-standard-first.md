@@ -1,7 +1,9 @@
-# 0005. 拡張は Claude Code の標準機能を優先し、コンテナの外に関わるものだけ独自に定義する
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0005. 拡張は Claude Code の標準機能を優先し、コンテナの外に関わるものだけ独自に定義する
 
 ## Context
 

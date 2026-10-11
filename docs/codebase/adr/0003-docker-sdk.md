@@ -1,7 +1,9 @@
-# 0003. Docker の操作には moby/moby/client を使う
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0003. Docker の操作には moby/moby/client を使う
 
 ## Context
 

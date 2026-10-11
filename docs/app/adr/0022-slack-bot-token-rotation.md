@@ -1,7 +1,9 @@
-# 0022. Slack の Bot トークンはトークンローテーションで短命にし、control-plane が更新する
+---
+status: accepted
+date: 2026-10-03
+---
 
-- Status: Accepted
-- Date: 2026-10-03
+# 0022. Slack の Bot トークンはトークンローテーションで短命にし、control-plane が更新する
 
 ## Context
 

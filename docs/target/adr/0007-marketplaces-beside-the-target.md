@@ -1,7 +1,10 @@
-# 0007. マーケットプレイスは devcontainer でのパスで宣言し、隣のリポジトリのものは control-plane がそこだけマウントする
+---
+status: accepted
+date: 2026-10-06
+amends: [4]
+---
 
-- Status: Accepted
-- Date: 2026-10-06
+# 0007. マーケットプレイスは devcontainer でのパスで宣言し、隣のリポジトリのものは control-plane がそこだけマウントする
 
 ## Context
 

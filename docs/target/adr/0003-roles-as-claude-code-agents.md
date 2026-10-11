@@ -1,7 +1,9 @@
-# 0003. ロールは Claude Code のカスタムエージェントとして定義し、プラグインで共有する
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0003. ロールは Claude Code のカスタムエージェントとして定義し、プラグインで共有する
 
 ## Context
 

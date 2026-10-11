@@ -1,7 +1,10 @@
-# 0012. エージェントはセッションのブランチで作業し、PR として届ける
+---
+status: accepted
+date: 2026-10-01
+amended_by: [13]
+---
 
-- Status: Accepted, Amended by 0013
-- Date: 2026-10-01
+# 0012. エージェントはセッションのブランチで作業し、PR として届ける
 
 ## Context
 

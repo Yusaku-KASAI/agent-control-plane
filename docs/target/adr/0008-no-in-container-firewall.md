@@ -1,7 +1,10 @@
-# 0008. コンテナの中にファイアウォールを置かない
+---
+status: accepted
+date: 2026-10-07
+amends: [2]
+---
 
-- Status: Accepted
-- Date: 2026-10-07
+# 0008. コンテナの中にファイアウォールを置かない
 
 ## Context
 

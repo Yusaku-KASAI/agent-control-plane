@@ -16,10 +16,8 @@
 
 ## ADR
 
-- 置き場所は各ディレクトリの `adr/NNNN-<slug>.md`。番号はディレクトリごとの連番。
-- 見出しは Status / Date / Context / Decision / Alternatives / Consequences。
-- ADR はその時点の判断の記録なので、後から内容を書き換えない。判断を変えるときは新しい ADR を作り、
-  古い方の Status に、全体を覆すなら `Superseded by NNNN`、一部を変えるなら `Amended by NNNN` を付ける。
+各ディレクトリの `adr/` に置く。形（frontmatter、見出し、変えるときの扱い）は[ターゲットの契約](target/contract.md#adr)にあり、
+`make check-docs` で確かめる。
 
 ## ドキュメントと Issue の分担
 

@@ -1,7 +1,11 @@
-# 0017. アクティブなセッションは 1 つの Claude Code のプロセスを動かし続け、受信箱で依頼の順番を決める
+---
+status: accepted
+date: 2026-10-03
+amends: [9]
+amended_by: [19]
+---
 
-- Status: Accepted, Amended by 0019
-- Date: 2026-10-03
+# 0017. アクティブなセッションは 1 つの Claude Code のプロセスを動かし続け、受信箱で依頼の順番を決める
 
 ## Context
 

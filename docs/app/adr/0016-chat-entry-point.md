@@ -1,7 +1,9 @@
-# 0016. チャットからの依頼は受信方式に依存しない形で受け、Slack は Socket Mode から始める
+---
+status: accepted
+date: 2026-10-02
+---
 
-- Status: Accepted
-- Date: 2026-10-02
+# 0016. チャットからの依頼は受信方式に依存しない形で受け、Slack は Socket Mode から始める
 
 ## Context
 

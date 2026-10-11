@@ -1,7 +1,9 @@
-# 0001. domain / usecase / adapter の 3 層に分け、依存の向きを機械的に検査する
+---
+status: accepted
+date: 2026-09-30
+---
 
-- Status: Accepted
-- Date: 2026-09-30
+# 0001. domain / usecase / adapter の 3 層に分け、依存の向きを機械的に検査する
 
 ## Context
 

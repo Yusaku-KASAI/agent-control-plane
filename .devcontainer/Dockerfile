@@ -138,3 +138,8 @@ FROM check-base AS check-target
 COPY --chown=node:node .devcontainer .devcontainer
 COPY --chown=node:node .vscode .vscode
 RUN make check-target
+
+# Links may point at any file, so the whole context is copied.
+FROM check-base AS check-docs
+COPY --chown=node:node . .
+RUN make check-docs
