@@ -26,11 +26,9 @@ docker compose -f .devcontainer/compose.yaml down            # 止める
 
 - `.devcontainer/.env`（gitignore の対象。項目は `.devcontainer/.env.example`）に、ホストから決めた値を書く。
   リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ（既定は `~/.local/state/devcontainers/<リポジトリ名>`）。
-- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。状態の
-  ディレクトリがないまま起動すると、Docker が root の持ち物として作り、root でないコンテナから書き込めない。
+- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。
 
-compose.yaml と devcontainer.json は、名前やパスを `.env` の値とフォルダ名から決めるので、ターゲットが変わっても
-書き換えない。
+なぜ先に作るのか、`.env` の値がどこで使われるかは [architecture/devcontainer.md](../architecture/devcontainer.md) にある。
 
 <a id="root"></a>
 
