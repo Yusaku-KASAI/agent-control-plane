@@ -38,7 +38,7 @@ platform の各プラグインの責務と関係。
 ### `harness`
 
 - **責務**：エージェントに、どう起動されているか（control-plane 経由か devcontainer で直接か）と、ハーネスの契約と
-  用語集の在りかを、セッションとサブエージェントの始めに伝える。詰まったときの切り分けのスキルを持つ。
+  platform の文書の一覧の在りかを、セッションとサブエージェントの始めに伝える。詰まったときの切り分けのスキルを持つ。
 - **置くもの / 置かないもの**：数行の案内と、切り分けの手順。契約の中身は [reference/harness.md](../reference/harness.md) に置く。
 - **関係**：文書のパスは、プラグインの隣の `docs/` から決める。見つからなければ `/workspace/agent-platform/docs` を使う。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めないエージェントにも、
