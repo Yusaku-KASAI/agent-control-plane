@@ -2,6 +2,8 @@
 
 ## 構成
 
+roles は harness と conventions を前提にする。roles を有効にするリポジトリは、この二つも有効にする。
+
 ```
 roles/
   agents/developer.md   変更を実装して PR にする

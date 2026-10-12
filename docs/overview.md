@@ -57,26 +57,65 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 
 <a id="contexts"></a>
 
-### 区切り
+### 地図
 
-このプロジェクト群の知識は、次の区切りに分ける（分け方の決まりは conventions の[文書の体系](../platform/plugins/conventions/docs/architecture/documentation.md)）。
-切り出すまでは、ターゲットを除く区切りがこのリポジトリに同居する。
+このプロジェクト群の知識を、入れ子の項目に分ける。決まりは conventions の
+[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)。ここは最上位の地図で、各項目の中の地図は
+その項目の文書にある。切り出すまでは、各ターゲットを除く項目がこのリポジトリに同居する。
 
-| 区切り | 持つもの | 届く先 | 場所 | 文書 |
+| 項目 | 持つもの | 届く先 | 置き場所 | 中の地図 |
 | --- | --- | --- | --- | --- |
 | principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） | `platform/plugins/principles/` | [README](../platform/plugins/principles/docs/README.md) |
-| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント | `platform/plugins/conventions/` | [README](../platform/plugins/conventions/docs/README.md) |
-| platform | エージェントの能力（ロール、スキル、hook）、ハーネスの契約、エージェントの用語 | すべてのエージェント | `platform/` のほかの部分 | [README](../platform/docs/README.md) |
-| target-template | ターゲットの契約、ターゲットに共通の環境のファイル | すべてのターゲット（テンプレートから作る） | `template/docs/` と、ルートの環境のファイル（[ファイルの分類](../template/docs/reference/contract.md#files)） | [README](../template/docs/README.md) |
+| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント | `platform/plugins/conventions/` | [overview](../platform/plugins/conventions/docs/overview.md) |
+| 契約 | 区切りの間の約束：エージェントとハーネスの用語集、ハーネスの契約（control-plane がエージェントに渡すもの）、ターゲットの契約（ターゲットが用意するもの） | 契約の両側 | 使う側から読める所：用語集とハーネスの契約は `platform/docs/reference/`、ターゲットの契約は `template/docs/reference/` | 下の「契約の中」 |
+| platform | エージェントの能力（ロール、スキル、hook） | すべてのエージェント | `platform/` のほかの部分 | [plugins](../platform/docs/architecture/plugins.md) |
+| target-template | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） | `template/docs/` と、ルートの環境のファイル | [overview](../template/docs/overview.md) |
 | control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 | `cmd/`、`internal/`、`compose.yaml`、`Dockerfile`、`docs/` など | [README](README.md) |
 | 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント | 各リポジトリ | 各リポジトリの CLAUDE.md |
 
-- principles と conventions は、ほかのすべての区切りが前提にしてよい共有の核。principles は何も、conventions は
-  principles だけを前提にする。
-- platform、target-template、control-plane、各ターゲットの間は、二つの契約でつなぐ。ターゲットの契約（ターゲットが
-  用意するもの、target-template にある）と、ハーネスの契約（control-plane がエージェントに渡すもの、使うエージェントに
-  届くよう platform にある）。
-- platform、principles、conventions は、ほかのターゲットのエージェントに届くようマーケットプレイス（`platform/`）の中に置く。
+前提の向き（行の項目が列の項目を前提にする。●は前提にしてよい）：
+
+| | principles | conventions | 契約 | platform | target-template | control-plane | 各ターゲット |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| principles | | | | | | | |
+| conventions | ● | | | | | | |
+| 契約 | ● | ● | | | | | |
+| platform | ● | ● | ● | | | | |
+| target-template | ● | ● | ● | ● | | | |
+| control-plane | ● | ● | ● | ● | ● | | |
+| 各ターゲット | ● | ● | ● | ● | ● | | |
+
+- principles と conventions は、ほかのすべての項目が前提にしてよい共有の核。
+- 契約は、作る側（control-plane）にも使う側（platform のプラグイン、エージェント、各ターゲット）にも属さない。両側が
+  契約を前提にし、互いの中身は前提にしない（依存関係の逆転）。契約が多くから前提にされるので、変わりにくく小さく保つ。
+- 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
+  マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
+
+<a id="contracts"></a>
+
+#### 契約の中
+
+| | 用語集 | ハーネスの契約 | ターゲットの契約 |
+| --- | --- | --- | --- |
+| 用語集 | | | |
+| ハーネスの契約 | ● | | |
+| ターゲットの契約 | ● | ● | |
+
+文書は、用語集が [platform/docs/reference/glossary.md](../platform/docs/reference/glossary.md)、ハーネスの契約が
+[platform/docs/reference/harness.md](../platform/docs/reference/harness.md)、ターゲットの契約が
+[template/docs/reference/contract.md](../template/docs/reference/contract.md)。
+
+<a id="inside"></a>
+
+#### 各項目の中
+
+| 項目 | 中の項目と前提の向き |
+| --- | --- |
+| principles | パターン → 原則 |
+| conventions | rules、hook、スキル → 文書の体系と形式（[overview](../platform/plugins/conventions/docs/overview.md)） |
+| platform | roles → harness、conventions のスキル、github、slack。harness、github、slack、bell はほかのプラグインを前提にしない（[plugins](../platform/docs/architecture/plugins.md)） |
+| target-template | 検査（CI）→ devcontainer。Claude Code の設定は devcontainer の一部（[overview](../template/docs/overview.md)） |
+| control-plane | アプリ（`docs/architecture/app/`）→ コード（`docs/architecture/codebase/`）。手順と参照 → 解説 |
 
 ## 目指す姿
 

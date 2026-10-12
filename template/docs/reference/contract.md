@@ -7,7 +7,7 @@ control-plane がコンテナに渡すものは、逆向きの契約として pl
 
 ## イメージ
 
-control-plane は、ターゲットのイメージ（[devcontainer](../architecture/devcontainer.md) のイメージ）でエージェントの
+control-plane は、ターゲットのイメージ（ターゲットの devcontainer のイメージ）でエージェントの
 コンテナを作る。イメージは次を満たす（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
 
 - イメージのユーザーが root でなく、作業ディレクトリ（リポジトリのマウント先）に書き込める。
@@ -34,7 +34,7 @@ control-plane は、ターゲットのイメージ（[devcontainer](../architect
   - `directory` のマーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
   - 宣言したマーケットプレイスがエージェントにどう見えるかは、platform の[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
-- platform の roles を使うなら、それが前提にする harness と conventions も有効にする。conventions を使うなら principles も有効にする。
+- 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
 - ロールは Claude Code のカスタムエージェントとして定義する（[ADR 0003](../adr/0003-roles-as-claude-code-agents.md)）。
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
   定義が見つからないロールで起動すると、エージェントはエラーで終了する。
