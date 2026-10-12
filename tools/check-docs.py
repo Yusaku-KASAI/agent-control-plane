@@ -214,6 +214,33 @@ def check_components(path, errors):
             errors.append(f"{path}: component '{heading.group(1)}' has no 責務")
 
 
+# Documents read at every start, and how many lines (without blank lines and frontmatter) each may hold.
+ALWAYS_READ = [
+    (lambda p: p == "CLAUDE.md", 60, "file"),
+    (lambda p: os.sep + "plugins" + os.sep in os.sep + p and os.path.basename(os.path.dirname(p)) == "rules", 40, "directory"),
+    (lambda p: os.sep + "plugins" + os.sep in os.sep + p and os.path.basename(os.path.dirname(p)) == "agents", 50, "file"),
+]
+
+
+def content_lines(path):
+    text = read(path)
+    m = re.match(r"---\n.*?\n---\n", text, re.S)
+    body = text[m.end():] if m else text
+    return sum(1 for line in body.splitlines() if line.strip())
+
+
+def check_sizes(paths, errors):
+    for matches, limit, unit in ALWAYS_READ:
+        groups = {}
+        for path in paths:
+            if matches(path):
+                key = os.path.dirname(path) if unit == "directory" else path
+                groups[key] = groups.get(key, 0) + content_lines(path)
+        for key, lines in sorted(groups.items()):
+            if lines > limit:
+                errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+
+
 class Map:
     """The items gathered from every map table: name -> parent, places, prerequisites, and the table's file."""
 
@@ -395,6 +422,7 @@ def main():
         check_links(path, errors)
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
+    check_sizes(paths, errors)
     if m is not None:
         check_map(m, paths, errors)
     for e in errors:

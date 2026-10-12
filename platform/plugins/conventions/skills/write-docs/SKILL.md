@@ -18,4 +18,8 @@ description: 文書（README、CLAUDE.md、docs/ の下、ADR）を足したり�
    索引）から子へのリンクは案内にする。前提のリンクは、地図の前提の向きに沿わせる。
 6. **地図を直す**：項目を足す、移す、消すとき、または項目が前提にするものが変わるときは、その親の地図（親の
    `overview.md`）を直す（[形式](../../docs/reference/formats.md#map)）。
-7. **確かめる**：`make check-docs` を通す。
+7. **量を整える**：要らないもの、ほかに持ち主があるもの、古くなったものは、消すか持ち主へ移す。削るのは重複、経緯、
+   置き場所違いから。構成、言葉の定義、前提は削らない（[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
+   決まりを守るためなら、まとめ直す、移す、構成を変えるなど、破壊的に書き換えてよい
+   （[書き換え](../../docs/architecture/documentation.md#rewrite)）。
+8. **確かめる**：`make check-docs` を通す。

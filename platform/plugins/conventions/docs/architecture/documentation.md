@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md "案内")にある。
 
@@ -92,47 +92,48 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 ### 文書の外
 
 コード中のコメント、コミットメッセージ、PR に何を書くかは、共通のルール（conventions の `rules/`）にある。道筋と
-予定は Issue に置き、文書には書かない（[作業の進め方](../reference/workflow.md)）。
+予定は Issue に置き、文書には書かない（[課題の扱い方](../reference/issues.md "案内")）。
+
+<a id="rewrite"></a>
 
 ### 書き換え
 
 決まりを守るためなら、文書とコメントは破壊的に変えてよい。散らばった説明をまとめ直す、置き場所を移す、
 ディレクトリ構成を変えることも含む。
 
-### 決まりの強さ
+<a id="delivery"></a>
 
-決まりは、強いものから次の 3 つで守らせ、できるだけ強い方に寄せる（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
-なぜそう決めたかは ADR にある。
+### 定義と届け方
 
-| 強さ | 仕組み |
-| --- | --- |
-| 検査 | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
-| 常に読み込む決まり | conventions の `rules/`（hook が読み込ませる） |
-| 必要なときに読む指針 | この文書、[形式](../reference/formats.md)、write-docs と design のスキル |
+決まりは、一か所で定義し、効き方の違う形でエージェントや人に届ける（[一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)）。
 
-### 体系を作る部品
+- **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まり（conventions の `docs/`：書き方、
+  変更と課題の扱い方、文書の体系、形式、用語集）、区切りの間の契約。同じ決まりを二か所で定義しない。
+- **届け方**：定義を、効く形に写したもの。新しい決まりを足さず、どの定義によるかを示す。定義を変えたら、写しも直す。
 
-体系は、各リポジトリが持つ上の器と、それを決めて守らせる principles と conventions の部品からなる。
+届け方は、強いものから次のとおり。守らせたいことは、できるだけ強い形で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
 
-```
-principles：原則（principles.md）◀──拠り所──パターン（patterns.md）
-                  ▲                              ▲
-                  └──── 構成要素の説明がリンクする ┘
-principles スキル ──引く──▶ 原則、パターン
-conventions：
-  文書の体系（この文書）──形──▶ 形式（formats.md）◀──確かめる── check-docs.py（各リポジトリ）
-     │
-     └──手順──▶ write-docs スキル
-  rules ＝ 常に読み込む要約 ──指す──▶ 原則、この文書
-  hook（scripts/context）──読み込ませる──▶ rules と、文書の在りか
-  design スキル ──どの変更にどのパターンか──▶ パターン
-  用語集（glossary.md）：文書と作業の言葉
-```
+| 届け方 | 効き方 | 例 |
+| --- | --- | --- |
+| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
+| いつも読み込む要約 | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
+| 役割ごとの選び出し | その役割で動くときの前提になる | 役割ごとの指示（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
+| 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design） |
+| 定義の文書そのもの | 読みに行ったとき | conventions と principles の文書 |
+
+- **いつも読み込む要約**は、毎回すべての作業の前に読まれるので、載せるものを絞る。載せるのは、ほぼすべての作業に
+  関わり、破られやすく、検査で守れない決まりだけ。特定の作業（文書を書く、変更する）にだけ要る決まりは、その作業の
+  スキルや役割ごとの指示で届ける。
+- **スキル**は、定義の写し（手順と観点）であり、新しい決まりを持たない。ただし、そのプラグインが持つ道具の使い方
+  （コマンドの使い方など）は、そのスキル自身が持ち主になってよい。
+- 写しの各項目には、出典（定義の文書へのリンク）を付ける。
+- いつも読み込むものと役割ごとの指示は、[形式](../reference/formats.md#size "案内")の量の上限の中に収める
+  （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
 
 ## 構成要素
 
-器の構成要素（各文書の根にある）と、体系を作る conventions の部品と、各リポジトリの `tools/check-docs.py`。principles の
-部品は [principles の全体像](../../../principles/docs/overview.md "案内")にある。
+各文書の根の器の構成要素。体系を作る部品（conventions の定義と届け方、`tools/check-docs.py`）は
+[conventions の全体像](../overview.md "案内")にある。
 
 ### `README.md`
 
@@ -201,54 +202,3 @@ conventions：
   書く手順は文書を書くに、理由は ADR に置く。
 - **関係**：原則とパターンを指す。形式と手順を指す。共通のルールから指される。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の解説。
-
-### 形式（`docs/reference/formats.md`）
-
-- **責務**：構成要素の説明、ADR、リンクの形を決める。
-- **関係**：check-docs.py がこの形を確かめる。
-- **当てはめた原則・パターン**：[スキーマを先に](../../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
-
-### 文書を書く（`skills/write-docs/`）
-
-- **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → 確かめる）。
-- **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の手順。
-
-### 用語集（`docs/reference/glossary.md`）
-
-- **責務**：文書の体系と作業の進め方の言葉（区切り、文書の種類、構成要素の説明など）を一か所で定める。ほかの言葉は、
-  それを使う区切りの用語集にある。
-- **当てはめた原則・パターン**：[ユビキタス言語と用語集](../../../principles/docs/reference/principles.md#glossary)、
-  [共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)。
-
-### 作業の進め方（`docs/reference/workflow.md`）
-
-- **責務**：変更（PR）と課題（Issue）の扱い方。文書に置かない道筋と予定の置き場所を決める。
-- **当てはめた原則・パターン**：[今と経緯を分ける](../../../principles/docs/reference/principles.md#present-state)。
-
-### 共通のルール（`rules/`）
-
-- **責務**：いつも守らせたいことを、セッションとサブエージェントの始めに読み込ませる。
-- **置くもの / 置かないもの**：コメント、コミット、PR に何を書くか（ここが持ち主）と、文書の決まりの短い要約。要約には
-  どの原則や手順の要約かを書き、定義は原則とこの文書に任せる。
-- **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
-  [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
-
-### hook（`hooks/`、`scripts/context`）
-
-- **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる。
-- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。
-- **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
-
-### design スキル（`skills/design/`）
-
-- **責務**：どの変更にどのパターンを当てはめるかと、レビューでの指摘の仕方。
-- **置くもの / 置かないもの**：パターンの定義は置かず、パターンの一覧を指す。
-- **当てはめた原則・パターン**：[SSOT](../../../principles/docs/reference/principles.md#ssot)。
-
-### 文書の検査（`tools/check-docs.py`）
-
-- **責務**：形式と器の決まりのうち、機械で確かめられるものを `make check-docs` で確かめる。
-- **置くもの / 置かないもの**：何を確かめるかは[形式](../reference/formats.md)の各節の「検査」にある。文の書き方や置き場所の
-  良し悪しは確かめない（レビューの観点に任せる）。
-- **関係**：形式に沿う。どのリポジトリにも同じものを置く。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../../principles/docs/reference/patterns.md#docs-as-code)。
