@@ -1,82 +1,73 @@
 # プラグイン
 
-platform の各プラグインの責務と関係。
+platform の各プラグインの責務と、プラグインの間の関係。各プラグインの中の構成と構成要素は、そのプラグインの文書に
+ある。
 
 ## 構成
 
-各プラグインは `plugins/<名前>/` にあり、hook、スキル、コマンド（`bin/`）、スクリプトを持つ。プラグインの間の
-関係の全体は [overview.md](../overview.md) にある。
+```
+plugins/
+  harness/   動き方と、ハーネスの契約の在りかを伝える
+  roles/     ロール（developer、guide）
+  github/    PR の本文を今のブランチに合わせ続ける
+  slack/     Slack を読み書きする
+  bell/      対話で止まったら端末のベルを鳴らす
+```
+
+```
+roles ──前提にする──▶ harness（動き方と契約の在りか）
+  │   ──前提にする──▶ conventions（決まり、設計の観点）──前提にする──▶ principles（原則とパターン）
+  └─使う──▶ github、slack のスキル
+github、slack ──使う──▶ ハーネスの契約で渡される認証情報
+bell（対話のときのベル）は独立
+```
+
+- 各プラグインは `plugins/<名前>/` にあり、hook、スキル、コマンド（`bin/`）、スクリプト、カスタムエージェント
+  （`agents/`）のうち要るものを持つ。文書の根はそれぞれの `docs/`。
+- マーケットプレイスは、platform のプラグインのほかに、principles と conventions のプラグインも運ぶ。この二つは
+  platform に属さない別の区切りで、platform のプラグインはそれを前提にしてよい（[principles の文書](../../plugins/principles/docs/README.md)、
+  [conventions の文書](../../plugins/conventions/docs/README.md)）。
 
 ## 構成要素
 
-### `roles`
-
-- **責務**：共通のロール（Claude Code のカスタムエージェント）を定義する。developer（変更を実装する）と guide（質問に
-  答え、変更しない）。
-- **置くもの / 置かないもの**：ロールの振る舞いと、そのロールが使うモデル（[ADR 0003](../adr/0003-roles-choose-their-model.md)）。
-  ターゲット固有の事実や、ハーネスの事実（環境変数、ブランチの決め方）は置かない。
-- **関係**：harness が伝える動き方とハーネスの契約、conventions の決まりと観点を前提にする。github と slack のスキルを使う。
-- **当てはめた原則・パターン**：[関心の分離](../../plugins/principles/docs/reference/principles.md#soc)：振る舞いだけを持ち、事実は契約とターゲットの CLAUDE.md に任せる。
-  [段階的な開示](../../plugins/principles/docs/reference/principles.md#progressive-disclosure)：ロールの定義は常に読み込まれるので、観点や手順の中身はスキルを参照する。
-
-### `principles`
-
-- **責務**：どこでも通用する設計の原則とパターンを、スキルと文書で届ける。
-- **関係**：ほかのどのプラグインも前提にしない。conventions と、各リポジトリの構成要素の説明から指される。詳しくは
-  [principles の文書](../../plugins/principles/docs/README.md)。
-- **当てはめた原則・パターン**：[依存の向き](../../plugins/principles/docs/reference/principles.md#dependency-rule)：いちばん内側。
-
-### `conventions`
-
-- **責務**：このプロジェクト群の決まり（書き方、文書の体系と形式、作業の進め方、設計の観点）を届ける。いつも守らせる
-  決まりはセッションとサブエージェントの始めに読み込ませ（[ADR 0004](../adr/0004-common-rules-via-session-start-hook.md)）、
-  手順と観点はスキル（write-docs、design）にする。
-- **関係**：principles を前提にする。詳しくは [conventions の文書](../../plugins/conventions/docs/README.md)。
-- **当てはめた原則・パターン**：[共有の核](../../plugins/principles/docs/reference/patterns.md#shared-kernel)：principles とあわせて、
-  すべての区切りが前提にする核。
-
 ### `harness`
 
-- **責務**：エージェントに、どう起動されているか（control-plane 経由か devcontainer で直接か）と、ハーネスの契約と
-  platform の文書の一覧の在りかを、セッションとサブエージェントの始めに伝える。詰まったときの切り分けのスキルを持つ。
-- **置くもの / 置かないもの**：数行の案内と、切り分けの手順。契約の中身は [reference/harness.md](../reference/harness.md) に置く。
-- **関係**：文書のパスは、プラグインの隣の `docs/` から決める。見つからなければ `/workspace/agent-platform/docs` を使う。
-- **当てはめた原則・パターン**：[使う側に届く契約](../../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めないエージェントにも、
-  契約を届ける。[段階的な開示](../../plugins/principles/docs/reference/principles.md#progressive-disclosure)：始めに渡すのは行き先だけ。
+- **責務**：エージェントに、どう動かされているかと、ハーネスの契約と platform の文書の一覧の在りかを伝え、詰まったときの
+  切り分けを助ける。
+- **置くもの / 置かないもの**：短い案内と、切り分けの手順。契約の中身は[ハーネスの契約](../reference/harness.md)に置く。
+- **関係**：ほかのプラグインに依存しない。roles が前提にする。中の構成は [harness の文書](../../plugins/harness/docs/README.md)。
+- **当てはめた原則・パターン**：[使う側に届く契約](../../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
+  エージェントにも、契約を届ける。
+
+### `roles`
+
+- **責務**：共通のロール（Claude Code のカスタムエージェント）を定義する。
+- **置くもの / 置かないもの**：ロールの振る舞いと、そのロールが使うモデル（[ADR 0003](../adr/0003-roles-choose-their-model.md)）。
+  ターゲット固有の事実や、ハーネスの事実は置かない。
+- **関係**：harness が伝える動き方とハーネスの契約、conventions の決まりと観点を前提にする。github と slack のスキルを
+  使う。中の構成は [roles の文書](../../plugins/roles/docs/README.md)。
+- **当てはめた原則・パターン**：[関心の分離](../../plugins/principles/docs/reference/principles.md#soc)：振る舞いだけを持ち、事実は契約とターゲットの
+  CLAUDE.md に任せる。
 
 ### `github`
 
-- **責務**：PR の本文を今のブランチに合わせ続ける。`prctl` コマンド、push の直後とターンの終わりの hook、GitHub での
-  作業のスキル（[ADR 0002](../adr/0002-pr-body-tracks-head.md)）。
-- **関係**：`gh` の認証を使う（エージェントには control-plane が `GH_CONFIG_DIR` で渡す）。
-- **当てはめた原則・パターン**：[仕組みで守る](../../plugins/principles/docs/reference/principles.md#mechanisms)：本文が古いことを hook が見つけ、書き換えを促す。
+- **責務**：PR の本文を今のブランチに合わせ続け、GitHub での作業（PR、レビュー、CI）の手順を届ける
+  （[ADR 0002](../adr/0002-pr-body-tracks-head.md)）。
+- **関係**：`gh` の認証を使う（エージェントへの渡し方は[ハーネスの契約](../reference/harness.md)）。roles の developer が
+  使う。中の構成は [github の文書](../../plugins/github/docs/README.md)。
+- **当てはめた原則・パターン**：[仕組みで守る](../../plugins/principles/docs/reference/principles.md#mechanisms)：本文が古いことを hook が見つけ、
+  書き換えを促す。
 
 ### `slack`
 
-- **責務**：Slack を読み書きする `slackctl` コマンドと、その使い方のスキル。
-- **関係**：`SLACK_BOT_TOKEN_FILE`（呼ばれるたびに読む）か `SLACK_BOT_TOKEN` を使い、なければ投稿だけを
-  `SLACK_WEBHOOK_URL` で行う。
+- **責務**：Slack のメッセージとスレッドを読み、投稿する。
+- **関係**：渡された認証情報の組み合わせで、できることが決まる（エージェントへの渡し方は
+  [ハーネスの契約](../reference/harness.md)）。中の構成は [slack の文書](../../plugins/slack/docs/README.md)。
 
 <a id="bell"></a>
 
 ### `bell`
 
 - **責務**：対話で使っている Claude Code が止まったら、端末のベルを鳴らす。
-- **関係**：hook だけで、ほかのプラグインに依存しない。
-
-対話で使っている Claude Code が止まったら、hook が端末のベルを鳴らす。聞き逃さないよう、どの場面でも2回以上鳴らす。
-すぐに人の操作が要る場面（操作すれば再開できる、または直す必要がある）は短い間隔で2回、ターンを終えて結果を
-見ればよい場面は3回にして、聞き分けられるようにする。
-
-| 止まり方 | hook | ベル |
-| --- | --- | --- |
-| ターンの終わり | `Stop` | 3回、0.8秒おき |
-| API のエラーでの終わり（利用上限、認証の失敗など） | `StopFailure` | 2回、0.4秒おき |
-| 権限の確認 | `PermissionRequest` | 2回、0.4秒おき |
-| 質問、プランの承認 | `PreToolUse`（`AskUserQuestion`、`ExitPlanMode`） | 2回、0.4秒おき |
-| 入力待ちが続く、MCP やエージェントからの入力の依頼 | `Notification`（`idle_prompt`、`elicitation_dialog`、`elicitation_url_dialog`、`agent_needs_input`） | 2回、0.4秒おき |
-
-- hook は自分の端末を持たないので、祖先のプロセスのうち端末を持つもの（対話で動いている Claude Code）の端末に、
-  間隔を空けてベルを書く。書くのは裏で行い、hook は待たずに戻る。tmux の中でも外でも同じ。
-- `-p` で動くエージェントには端末を持つ祖先がないので、鳴らない。
-- 人が Esc で止めたときは、人がその場にいるので鳴らさない（`Stop` も動かない）。プロセスが落ちたときは hook が動かない。
+- **関係**：hook だけで、ほかのプラグインに依存しない。中の構成と、どの場面で何回鳴らすかは
+  [bell の文書](../../plugins/bell/docs/README.md)。

@@ -13,8 +13,7 @@ ln -s agent-control-plane/platform agent-platform
 
 ## ビルド、起動、停止
 
-devcontainer のビルド、起動、停止はコマンドで行う。VS Code は起動しているコンテナに入るだけで、ライフサイクルには
-関わらない（「Rebuild Container」は使わない）。
+devcontainer のビルド、起動、停止はコマンドで行う（VS Code の「Rebuild Container」は使わない）。
 
 ```bash
 .devcontainer/init-host.sh                                   # ホストの準備（最初に一度。何度実行してもよい）
@@ -24,13 +23,8 @@ docker compose -f .devcontainer/compose.yaml down            # 止める
 
 起動したあと、VS Code の「Reopen in Container」で入る。
 
-`init-host.sh` は次を行い、`.devcontainer/.env` にすでにある値は変えない。
-
-- `.devcontainer/.env`（gitignore の対象。項目は `.devcontainer/.env.example`）に、ホストから決めた値を書く。
-  リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ（既定は `~/.local/state/devcontainers/<リポジトリ名>`）。
-- 状態を置くディレクトリと、control-plane と共有するネットワーク（`agent-control-plane-net`）を作る。
-
-なぜ先に作るのか、`.env` の値がどこで使われるかは [architecture/devcontainer.md](../architecture/devcontainer.md) にある。
+`init-host.sh` が書いた値を変えるときは、`.devcontainer/.env` を直してからビルドし直す。項目は
+`.devcontainer/.env.example` にある。
 
 <a id="root"></a>
 
@@ -38,6 +32,17 @@ docker compose -f .devcontainer/compose.yaml down            # 止める
 
 コンテナは root を使わないが、人が一時的に root で作業したいとき（apt でのインストールなど）は
 `docker exec -u root -it <コンテナ> bash` で入る。
+
+<a id="permissions"></a>
+
+## Claude Code の権限の確認
+
+対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。コンテナで
+隔離しているので、確認を省いて使ってもよい。
+
+```bash
+claude --dangerously-skip-permissions
+```
 
 <a id="copy"></a>
 

@@ -11,21 +11,20 @@ init-host.sh ─書く─▶ .env ─読む─▶ compose.yaml ─ビルド・�
 （ホストの準備）    （ホストの値）  （コンテナの振る舞い）                       （VS Code の配線）
 
 Dockerfile のステージ（矢印は元にするか、コピーする向き）
-  uv-source ─▶ base ─▶ go ─▶ check-base ─▶ check-<関心>
-  go-source ─▶ go-tools ─▶ go
-  go-source ─▶ go
+  uv-source ─▶ base ─▶ <ツールチェーン> ─▶ check-base ─▶ check-<関心>
 ```
 
 - コンテナの振る舞いは Dockerfile、compose.yaml、entrypoint で決める。devcontainer.json は VS Code 側の配線だけを
   持ち、ビルド、起動、停止はコマンドで行う（[ADR 0001](../adr/0001-devcontainer-independent-of-vscode.md)）。
 - Dockerfile のステージは、変わりにくく共有できるものから順に重ねる。`base` はどのターゲットのエージェントも
-  使うもの、その次のツールチェーンのステージ（このリポジトリでは `go`）はリポジトリ固有のツールチェーンとホストに
-  依存する値を持つ。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
-  名前でビルドされる。control-plane はエージェントも同じイメージで動かす（`acp.yaml` の `agents[].target.image`）。
+  使うもの、その次のツールチェーンのステージはターゲット固有のツールチェーンとホストに依存する値を持つ。ツールチェーンの
+  ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
+  置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
+  名前でビルドされる。エージェントも同じイメージで動く（[契約](../reference/contract.md#image)）。
   `check-*` のステージは CI が使う（[ci.md](ci.md)）。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
-  `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json はターゲットが
-  変わっても書き換えない。
+  `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
+  違うのは、埋める部分（[契約](../reference/contract.md#files)）だけ。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
   UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。root での作業の仕方は[手順](../guides/devcontainer.md#root)にある。
 - マウントするもの：
@@ -36,7 +35,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   | 隣のリポジトリ（`../..`） | `/workspace` に**読み取り専用** | 参照できるが書き込めない |
   | Claude Code の設定（ログイン、履歴、メモリ）、`gh` の設定、シェルの履歴 | ホストの `DEV_STATE_DIR` の下 | Docker の外にあるので、`docker compose down -v` や prune でも消えない（[ADR 0010](../adr/0010-devcontainer-state-on-the-host.md)） |
   | VS Code のサーバー（拡張機能とチャットの履歴を含む） | 名前付きボリューム | コンテナを作り直しても残る |
-  | ツールチェーンのキャッシュ（Go のモジュールとビルド） | 名前付きボリューム | 消えても困らない |
+  | ツールチェーンのキャッシュ | 名前付きボリューム | 消えても困らない |
 
   マウント先とその親はイメージの中に `node` の持ち物として作ってあり、新しい名前付きボリュームはその所有者を
   引き継ぐ。
@@ -53,10 +52,10 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：版の固定と `pipefail`、
   入れた Claude Code の版の確認で、意図しない版や途中の失敗をビルドで止める。
 
-### Dockerfile の `uv-source`、`go-source` ステージ
+### Dockerfile の `uv-source` ステージ
 
 - **責務**：版を固定した外のイメージに名前を付け、`COPY --from` で使えるようにする（`COPY --from` はビルド引数を
-  展開できない）。
+  展開できない）。ツールチェーンが外のイメージを使うときも、同じようにステージを置く。
 
 ### Dockerfile の `base` ステージ
 
@@ -76,23 +75,15 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくいものから層を重ね、変わりやすい
   ものを変えても前の層のキャッシュが当たる。
 
-### Dockerfile の `go-tools` ステージ
+### Dockerfile のツールチェーンのステージ（`base` の次）
 
-- **責務**：Go のツール（gopls、delve、govulncheck、golangci-lint）を、base と切り離してビルドする。
-- **関係**：バイナリだけを `go` の `/usr/local/bin` にコピーする。GOPATH の下は一部がボリュームなので置かない
-  （版がここで固定したものからずれる）。
-- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：base を変えても
-  （Claude Code を上げても）ツールを作り直さない。
-
-### Dockerfile の `go` ステージ（ツールチェーンのステージ）
-
-- **責務**：このリポジトリのツールチェーン（Go とそのツール）と、ホストに依存する値（タイムゾーン、UID と GID）を
-  base に足す。devcontainer のイメージになる。
+- **責務**：ターゲットのツールチェーンと、ホストに依存する値（タイムゾーン、UID と GID）を base に足す。
+  devcontainer のイメージになる。
 - **置くもの / 置かないもの**：UID と GID が `node` と違えば `node` を作り直して持ち物を付け替え、最後に数値の
   `USER` にする（数値なので、プラットフォームが root でないことを確かめられる）。
 - **関係**：compose.yaml がこのステージをビルドする。`check-base` がこれを元にする。ターゲットごとに埋める部分
-  （[契約](../reference/contract.md)）。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：リポジトリとホストに固有のものを、
+  （[契約](../reference/contract.md#files)）。
+- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：ターゲットとホストに固有のものを、
   共有する base から分ける。
 
 ### `.devcontainer/compose.yaml`
@@ -152,7 +143,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   - Claude Code のフルスクリーン表示では、マウスでの選択を Claude Code が扱い、離したときに自動でコピーする。
     止め方は[手順](../guides/devcontainer.md#copy)にある。
   - ペインのベルは外の端末に届け、tmux にも表示する。Claude Code が対話で止まったときは、platform の bell プラグインが
-    ベルを鳴らす（[bell](../../../platform/docs/architecture/plugins.md#bell)）。
+    ベルを鳴らす（[bell](../../../platform/plugins/bell/docs/overview.md)）。
 - **関係**：base が `~/.tmux.conf` にコピーする。VS Code のターミナルのプロファイルが tmux を起動する。
 
 ### `.devcontainer/check-vscode-settings.py`
@@ -166,21 +157,20 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 ### `.devcontainer/Dockerfile.dockerignore`
 
 - **責務**：この Dockerfile のビルドの文脈から、手元の秘密（`.env` など）とビルドの出力を除く。
-- **関係**：ルートの `.dockerignore` は control-plane のイメージ用で、この Dockerfile には使われない。`check-*` の
-  ステージはこの文脈からコピーする。
+- **関係**：ルートの `.dockerignore` はこの Dockerfile には使われない（ターゲットにほかのイメージがあれば、そちらが
+  使う）。`check-*` のステージはこの文脈からコピーする。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：イメージごとに文脈を分ける。
 
 ### `.claude/settings.json`
 
 - **責務**：使うプラグインの宣言と、人が対話で使うときの Claude Code の設定を持つ。
 - **置くもの / 置かないもの**：
-  - プラグインは `extraKnownMarketplaces` と `enabledPlugins` で宣言する（[契約](../reference/contract.md)）。
-  - `permissions` は人が対話で使うときだけ効く。エージェントは `--dangerously-skip-permissions` で動くので効かない。
-    コンテナの隔離で守る方針なので、対話でも権限の確認を省いて（bypass）使ってよい。`permissions.allow` の一覧は、
-    組織の制限などで bypass が使えない環境で確認を減らすためにある。
+  - プラグインは `extraKnownMarketplaces` と `enabledPlugins` で宣言する（[契約](../reference/contract.md#plugins)）。
+  - `permissions`（既定のモードと、確認せずに使えるツールの一覧）は、人が対話で使うときの設定。対話での
+    使い方は[手順](../guides/devcontainer.md#permissions)にある。
 - **関係**：control-plane がプラグインの宣言を読む（[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
-- **当てはめた原則・パターン**：[境界づけられた文脈](../../../platform/plugins/principles/docs/reference/principles.md#bounded-context)：プラグインの
-  宣言は control-plane との契約（Published Language）で、使う側も読める決まった場所に置く。
+- **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：プラグインの
+  宣言は control-plane との契約で、使う側も読める決まった場所に置く。
 
 ### `.vscode/settings.json`
 

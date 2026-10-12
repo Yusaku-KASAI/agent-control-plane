@@ -1,6 +1,6 @@
 .PHONY: check check-go check-platform check-target check-docs fmt test build
 
-# One target per concern, so that CI can run each from only the files it reads (template/docs/architecture/ci.md).
+# One target per concern, so that CI can run each from only the files it reads.
 check: check-go check-platform check-target check-docs
 
 check-go:

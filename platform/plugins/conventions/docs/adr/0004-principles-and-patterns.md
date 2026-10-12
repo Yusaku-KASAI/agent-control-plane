@@ -1,14 +1,15 @@
 ---
 status: accepted
 date: 2026-10-11
-amends: [7]
+amends: [3]
+amended_by: [5]
 ---
 
-# 0008. 設計の拠り所を、原則（何を大事にするか）とパターン（どう組むか）の二つの一覧に分ける
+# 0004. 設計の拠り所を、原則（何を大事にするか）とパターン（どう組むか）の二つの一覧に分ける
 
 ## Context
 
-ADR 0007 で、設計の拠り所を platform の原則の一覧（`reference/principles.md`）に置いた。一覧には、単一責任や SSOT の
+ADR 0003 で、設計の拠り所を platform の原則の一覧（`reference/principles.md`）に置いた。一覧には、単一責任や SSOT の
 ような原則と、Clean Architecture、ADR、Diátaxis、Docs as Code のような特定の問題への解き方が混ざっていた。また、
 状態を軸で洗い出す、事実と判定を分けるといった設計の観点は、review プラグインのスキルの中にだけあり、文書から
 リンクできず、構成要素の説明から指せなかった。

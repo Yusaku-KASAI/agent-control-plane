@@ -1,5 +1,5 @@
-# Names and paths come from .devcontainer/.env, written by init-host.sh, so that this file is the
-# same in every target.
+# Names and paths come from .devcontainer/.env, written by init-host.sh, so that only the parts a
+# target fills in (the build target and the toolchain's cache volumes) differ between targets.
 name: ${REPO_NAME:?run .devcontainer/init-host.sh}-dev
 
 services:
@@ -12,7 +12,7 @@ services:
         TZ: ${TZ:-UTC}
         HOST_UID: ${HOST_UID:?run .devcontainer/init-host.sh}
         HOST_GID: ${HOST_GID:?run .devcontainer/init-host.sh}
-    # Agents run this image too (image in acp.yaml).
+    # Agents run this image too.
     image: ${REPO_NAME}-devcontainer
     working_dir: /workspace/${REPO_NAME}
     volumes:

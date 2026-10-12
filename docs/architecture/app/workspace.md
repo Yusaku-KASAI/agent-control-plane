@@ -24,8 +24,8 @@ GitHub のブランチと PR
 
 - 作業領域は、セッションを作るときに一度だけ作り、片付けまで消さない（[ADR 0010](../../adr/app/0010-per-session-cloned-workspace.md)）。
   コンテナにはこの作業領域だけをマウントする。
-- エージェントはセッションのブランチで作業し、push して PR を作る。同じセッションで別の PR に分けるときは
-  `<セッションのブランチ>-<内容>` を切る（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
+- エージェントはセッションのブランチで作業し、push して PR を作る。別の PR に分けるときのブランチの切り方は
+  [ハーネスの契約](../../../platform/docs/reference/harness.md)にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
 - 片付けは、作業領域と GitHub から事実を読み、[片付け](sessions.md#cleaner)が判定する。作業領域を作るときに
   残す `refs/acp/target` と reflog の設定は、その事実を読むためのもの
   （[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）。
@@ -34,8 +34,8 @@ GitHub のブランチと PR
 
 ### 事実と判定
 
-作業領域と GitHub を読むアダプタは、事実（どのブランチに push したか、どのコミットがどこに入っているか）だけを
-返す。残すか消すかは[片付け](sessions.md#cleaner)の 1 か所が決める。アダプタの側では、どのブランチが
+作業領域と GitHub を読むアダプターは、事実（どのブランチに push したか、どのコミットがどこに入っているか）だけを
+返す。残すか消すかは[片付け](sessions.md#cleaner)の 1 か所が決める。アダプターの側では、どのブランチが
 セッションのものかも、どのコミットが失われるかも決めない。
 
 ## 構成要素
@@ -57,7 +57,7 @@ GitHub のブランチと PR
   5. [commit-msg フック](#commit-msg)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md)の発行したもの。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：git の操作は
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
   ここに閉じ、usecase は作業領域のパスだけを受け取る。
 
 <a id="git"></a>
@@ -135,5 +135,5 @@ GitHub のブランチと PR
     何もしない。
 - **関係**：usecase の `SessionBranches` を実装する。トークンはエージェントの GitHub App のもの
   （[認証情報](credentials.md)）。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：GitHub の API の
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：GitHub の API の
   形はここに閉じ、usecase には `BranchFacts` だけを返す。どのブランチを消すかは決めない（[事実と判定](#facts)）。

@@ -1,28 +1,32 @@
 # platform の全体像
 
-platform は、ターゲットをまたいで使うエージェントの能力を、Claude Code のプラグインのマーケットプレイス
-`acp-platform` としてまとめたもの。将来 agent-platform として別のリポジトリに切り出す
-（[ADR 0001](adr/0001-platform-as-plugin-marketplace.md)）。マーケットプレイスの中のものはすべてのエージェントに届くので、
-ハーネスの契約とエージェントの用語もここに置く。どこでも通用する原則とパターン（principles）と、このプロジェクト群の
-決まり（conventions）も、それぞれプラグインとしてここから配る。
+platform は、ターゲットをまたいで使うエージェントの能力（ロール、スキル、hook）を、Claude Code のプラグインの
+マーケットプレイス `acp-platform` としてまとめたもの（[ADR 0001](adr/0001-platform-as-plugin-marketplace.md)）。マーケットプレイスの中のものはすべての
+エージェントに届くので、ハーネスの契約とエージェントの用語もここに置く。
+
+platform は principles と conventions だけを前提にし、エージェントを動かす側（control-plane と devcontainer）とは
+[ハーネスの契約](reference/harness.md)だけでつながる。区切りの分け方と依存の向きの決まりは、conventions の
+[文書の体系](../plugins/conventions/docs/architecture/documentation.md)にある。
 
 ## 構成
 
 ```
 platform/
   .claude-plugin/marketplace.json   マーケットプレイス acp-platform
-  plugins/                          プラグイン（architecture/plugins.md）
+  plugins/
+    harness/ roles/ github/ …       エージェントの能力（platform の区切り。architecture/plugins.md）
     principles/                     どこでも通用する原則とパターン（別の区切り）
     conventions/                    このプロジェクト群の決まり（別の区切り）
-    harness/ roles/ github/ …       エージェントの能力（platform の区切り）
   docs/                             platform 自身の文書（README.md が一覧）
 ```
 
 `platform/` というディレクトリは、platform という区切りであると同時に、principles と conventions という別の区切りを
 エージェントに届ける入れ物も兼ねる。ほかのターゲットのエージェントに届くのはマーケットプレイスの中だけなので、
-すべての区切りが前提にする principles と conventions もここにプラグインとして置く。区切りとしては platform に属さず、
-platform を前提にしない（区切りの一覧は conventions の[文書の体系](../plugins/conventions/docs/architecture/documentation.md)）。
-`docs/` に書くのは platform 自身のことだけで、原則やこのプロジェクト群の決まりは、それぞれのプラグインの `docs/` に書く。
+すべての区切りが前提にする principles と conventions もここにプラグインとして置く。この二つは platform に属さず、
+platform を前提にしない。
+
+`docs/` に書くのは platform 自身のことだけ。各プラグインの中の構成は、そのプラグインの `docs/` に書く。原則と
+このプロジェクト群の決まりは、principles と conventions の `docs/` にある。
 
 ## 届き方
 
@@ -31,15 +35,8 @@ platform を前提にしない（区切りの一覧は conventions の[文書の
   渡す認証情報や環境は、[ハーネスの契約](reference/harness.md)にある。
 - 人が対話で使うときは、[対話で使う準備](guides/use-interactively.md)のとおりに入れる。
 
-## プラグインの間の関係
+## プラグイン
 
-```
-roles ──前提にする──▶ harness（動き方と契約の在りか）
-  │                 conventions（決まり、設計の観点）──前提にする──▶ principles（原則とパターン）
-  └─使う──▶ github、slack のスキル
-bell（対話のときのベル）は独立
-```
-
-各プラグインの説明は [architecture/plugins.md](architecture/plugins.md) にある。
+各プラグインの責務と、プラグインの間の関係は [architecture/plugins.md](architecture/plugins.md) にある。
 プラグインには、どのターゲットでも通用する内容だけを書く。プラグインの検査（`claude plugin validate ./platform` と、
 `bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。

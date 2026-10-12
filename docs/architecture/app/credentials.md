@@ -27,9 +27,11 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   一定間隔ごと、片付けでセッションのブランチを調べるとき。どれも同じ `CredentialIssuer` を呼ぶ。
 - 発行元ごとに、そのエージェントに設定がなければ空の値を返す。空の認証情報はコンテナに渡らず、対応する
   環境変数も設定されない。GitHub App と Slack アプリはエージェントごとに任意で、Claude Code の認証だけは必ずある。
+- Slack の Bot トークンは、control-plane の Bot とエージェントが同じものを使う。エージェントは Bot が招待された
+  チャンネルを読み書きできる。
 - 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
-  （[プラグイン](../../../platform/docs/architecture/plugins.md)）。
+  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md)）。
 
 <a id="secrets"></a>
 
@@ -44,8 +46,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 | Slack の client secret | `agents[].slack.rotation.client_secret_path` | 起動時 |
 
 ファイルはどれも `.env` の `ACP_SECRETS_DIR` の下に置き、control-plane のコンテナにはホストと同じパスで読み取り
-専用でマウントされる。`ACP_SECRETS_DIR` は devcontainer から読める `ACP_HOST_ROOT` の外に置く。項目の意味は
-[acp.example.yaml](../../../acp.example.yaml) と [.env.example](../../../.env.example) が正。
+専用でマウントされる（[コンテナ](containers.md)）。項目の意味と置き場所は [acp.example.yaml](../../../acp.example.yaml) と
+[.env.example](../../../.env.example) が正。
 
 ## 構成要素
 
@@ -56,7 +58,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   発行の中身は置かない。
 - **関係**：usecase の `CredentialIssuer` を実装し、dispatcher と片付け（`SessionCleaner`）に渡す。
   発行元も同じインターフェースを実装する。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：usecase は
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：usecase は
   発行元の技術を知らず、一つのインターフェースだけを見る。
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：外部サービスを足すときは発行元を一つ足し、
   ここに項目を一つ足すだけで済む。
@@ -126,7 +128,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   Claude Code の認証情報は環境変数で渡すので、ここには置かない。
 - **関係**：
   - 置き場所は control-plane だけが書ける `acp-credentials` ボリュームで、エージェントのコンテナにはそのセッション
-    のサブパスだけをマウントする。`credentials.volume` が空なら `credentials.dir` をホストのパスとして bind する。
+    のサブパスだけをマウントする。ボリュームを使わない設定は [acp.example.yaml](../../../acp.example.yaml) にある。
   - runner がコンテナを起動する前に書き、動いている間は `Process.UpdateCredentials` で書き換える。
   - `sessions.root` は devcontainer から読めるので、そこには置かない（[ADR 0018](../../adr/app/0018-refreshable-credentials.md)）。
   - セッションを片付けるとき、`SessionFiles` がディレクトリごと消す（[コンテナ](containers.md)）。

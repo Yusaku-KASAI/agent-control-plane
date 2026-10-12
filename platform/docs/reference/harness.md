@@ -1,7 +1,7 @@
 # ハーネスの契約
 
 エージェントが動く環境と、そこで渡されるもの。control-plane はこの契約に合わせて作り、エージェントとプラグインは
-これを前提にしてよい（[ADR 0005](../../plugins/conventions/docs/adr/0005-documents-by-distribution-context.md)）。言葉は[用語集](glossary.md)のとおり。
+これを前提にしてよい（[ADR 0002](../../plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。言葉は[用語集](glossary.md)のとおり。
 
 ## 動き方
 

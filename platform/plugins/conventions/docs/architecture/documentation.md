@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0005](../adr/0005-documents-by-distribution-context.md)、[0007](../adr/0007-type-first-docs-and-platform-kernel.md)、[0009](../adr/0009-principles-and-conventions-plugins.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md)にある。
 
@@ -12,42 +12,34 @@
 | 層 | 書くもの | 置き場所 |
 | --- | --- | --- |
 | 原則とパターン | 原則（何を大事にするか）と、それを特定の問題への形にしたパターン（どう組むか）。一般的な当てはめ方とよくある失敗まで書き、どこで使うかは書かない | principles プラグインの [principles.md](../../../principles/docs/reference/principles.md) と [patterns.md](../../../principles/docs/reference/patterns.md) |
-| アーキテクチャ | そのリポジトリで採った全体の構成と、部分の間の関係 | 各リポジトリの `docs/overview.md` と、`docs/architecture/` の各文書の冒頭 |
-| 構成要素の説明 | 層、ディレクトリ、ファイルごとの責務と関係、当てはめた原則・パターン | `docs/architecture/` の各文書。[形式](../reference/formats.md#component)に沿う |
+| アーキテクチャ | その区切りで採った全体の構成と、部分の間の関係 | 文書の根の `overview.md` と、`architecture/` の各文書の冒頭 |
+| 構成要素の説明 | 層、ディレクトリ、ファイルごとの責務と関係、当てはめた原則・パターン | `architecture/` の各文書。[形式](../reference/formats.md#component)に沿う |
 
 構成要素の説明から原則やパターンへリンクし、それがそこでどう効いているかを書く。一つの原則やパターンは多くの
 構成要素に、一つの構成要素は多くの原則やパターンに当てはまる。
 
 ### 区切りと依存の向き
 
-知識は、使う人（誰が読めるか）と持ち主が同じものを一つの区切りにまとめ、区切りごとにリポジトリかプラグインを
-分ける。切り出すまでは、このリポジトリに次の区切りが同居する。
+- 知識は、使う人（誰が読めるか）と持ち主が同じものを一つの区切りにまとめる（[境界づけられた文脈](../../../principles/docs/reference/principles.md#bounded-context)）。
+  区切りは、リポジトリか、リポジトリの中で独立して配る単位（プラグインなど）に当て、それぞれが自分の文書の根を持つ。
+- 依存は一方向にだけ向ける（[依存の向き](../../../principles/docs/reference/principles.md#dependency-rule)）。principles は何も前提にせず、
+  conventions は principles だけを前提にする。この二つは、ほかのすべての区切りが前提にしてよい
+  [共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)になる。
+- 共有の核のほかに区切りをまたぐのは、契約だけ。契約は使う側から読める場所に置き、作る側はそれに合わせて作り
+  （[使う側に届く契約](../../../principles/docs/reference/patterns.md#published-language)）、実装との一致は[契約の試験](../../../principles/docs/reference/patterns.md#contract-test)で確かめる。
+- どんな区切りがあり、どこにあって、どれが何を前提にするか（区切りの一覧）は、全体の設計を持つリポジトリの
+  `overview.md` に書く。
 
-| 区切り | 置くもの | 届く先 | 今の場所 |
-| --- | --- | --- | --- |
-| principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） | `platform/plugins/principles/` |
-| conventions | このプロジェクト群の決まり：文書の体系と形式、作業の進め方、書き方、設計の観点 | このプロジェクト群のすべてのリポジトリとエージェント | `platform/plugins/conventions/` |
-| platform | エージェントの能力（ロール、スキル、hook）、ハーネスの契約、エージェントの用語 | すべてのエージェント（マーケットプレイスと一緒に届く） | `platform/` のほかの部分 |
-| target-template | ターゲットの契約、devcontainer、CI | すべてのターゲット（テンプレートから作る） | `template/docs/` と、ルートの環境のファイル |
-| control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 | `docs/` |
-| 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント | 各リポジトリ |
+### 文書の根と器
 
-- 依存は一方向にだけ向ける（[依存の向き](../../../principles/docs/reference/principles.md#dependency-rule)）。principles は何も前提にしない。
-  conventions は principles だけを前提にする。ほかの区切りは conventions と principles を前提にしてよい。
-  principles と conventions は、まとめて[共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)になる。
-- それ以外の区切りの間をつなぐのは、契約だけ。ターゲットの契約（target-template にある）と、ハーネスの契約
-  （使うエージェントに届くよう platform にある）。どちらも[使う側に届く契約](../../../principles/docs/reference/patterns.md#published-language)で、
-  実装との一致は[契約の試験](../../../principles/docs/reference/patterns.md#contract-test)で確かめる。契約は使う側から読める場所に置き、作る側は
-  それに合わせて作る。
-
-### 各リポジトリの器
-
-各リポジトリは、次の構成で文書を持つ。
+区切りごとに一つ、`README.md` を持つ `docs/` ディレクトリ（文書の根）を置く。リポジトリ自身の文書の根はルートの
+`docs/`、リポジトリの中のほかの区切り（プラグインなど）の文書の根は、その区切りのディレクトリの `docs/`。
+入口（`README.md` と `CLAUDE.md`）はリポジトリのルートにだけ置く。
 
 ```
 README.md
 CLAUDE.md
-docs/
+docs/                 （区切りのディレクトリの中なら <区切り>/docs/）
   README.md
   overview.md
   architecture/
@@ -56,14 +48,45 @@ docs/
   adr/
 ```
 
-一つのリポジトリに関心の違う部分があるときは、`architecture/` と `adr/` を `<関心>/` に分ける（例：control-plane の
-`app/` と `codebase/`）。`guides/` と `reference/` は、文書が増えたら同じように分ける。
+- 要らないものは置かない。小さな区切り（プラグインなど）は、`README.md` と `overview.md`（構成と構成要素）だけでもよい。
+- プラグインでは、エージェントが使う手順は `guides/` ではなくスキル（`skills/`）にする。
+- 文書の根の中で関心の違う部分は、`architecture/` と `adr/` を `<関心>/` に分ける。`guides/` と `reference/` は、
+  文書が増えたら同じように分ける。
+
+<a id="types"></a>
+
+### 文書の種類
+
+[文書の種類で分ける](../../../principles/docs/reference/patterns.md#diataxis)のうち、解説、手順、参照を使い、チュートリアルは置かない（読み手が
+限られ、手順で足りる）。かわりに判断（ADR）を 4 つ目の種類にする。
+
+| 種類 | 置き場所 |
+| --- | --- |
+| 解説 | `overview.md`、`architecture/` |
+| 手順 | `guides/`、プラグインのスキル |
+| 参照 | `reference/` |
+| 判断 | `adr/` |
 
 ### 文書の外
 
-コード中のコメント、コミットメッセージ、PR に何を書くかは共通のルール（conventions プラグインの rules）にある。道筋と予定は
-Issue に置き、文書には書かない（[作業の進め方](../reference/workflow.md)）。チュートリアルは置かない。使う人が限られ、
-`guides/` の手順で足りる。
+コード中のコメント、コミットメッセージ、PR に何を書くかは、共通のルール（conventions の `rules/`）にある。道筋と
+予定は Issue に置き、文書には書かない（[作業の進め方](../reference/workflow.md)）。
+
+### 書き換え
+
+決まりを守るためなら、文書とコメントは破壊的に変えてよい。散らばった説明をまとめ直す、置き場所を移す、
+ディレクトリ構成を変えることも含む。
+
+### 決まりの強さ
+
+決まりは、強いものから次の 3 つで守らせ、できるだけ強い方に寄せる（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
+なぜそう決めたかは ADR にある。
+
+| 強さ | 仕組み |
+| --- | --- |
+| 検査 | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
+| 常に読み込む決まり | conventions の `rules/`（hook が読み込ませる） |
+| 必要なときに読む指針 | この文書、[形式](../reference/formats.md)、write-docs と design のスキル |
 
 ### 体系を作る部品
 
@@ -73,19 +96,21 @@ Issue に置き、文書には書かない（[作業の進め方](../reference/w
 principles：原則（principles.md）◀──拠り所──パターン（patterns.md）
                   ▲                              ▲
                   └──── 構成要素の説明がリンクする ┘
+principles スキル ──引く──▶ 原則、パターン
 conventions：
   文書の体系（この文書）──形──▶ 形式（formats.md）◀──確かめる── check-docs.py（各リポジトリ）
      │
      └──手順──▶ write-docs スキル
   rules ＝ 常に読み込む要約 ──指す──▶ 原則、この文書
+  hook（scripts/context）──読み込ませる──▶ rules と、文書の在りか
   design スキル ──どの変更にどのパターンか──▶ パターン
   用語集（glossary.md）：文書と作業の言葉
 ```
 
 ## 構成要素
 
-各リポジトリの器と、体系を作る部品。部品の場所は、principles と書いたものは principles プラグイン、それ以外は
-conventions プラグインの中。
+器の構成要素（各文書の根にある）と、体系を作る部品（principles と conventions のプラグイン、各リポジトリの
+`tools/check-docs.py`）。
 
 ### `README.md`
 
@@ -97,9 +122,9 @@ conventions プラグインの中。
 ### `CLAUDE.md`
 
 - **責務**：エージェントの入口。常に読み込まれる。
-- **置くもの / 置かないもの**：ターゲットの契約にある節（プロダクトの前提、完了条件、言語など）と、`docs/README.md`
-  への道。詳細は置かず、文書へのリンクにする。
-- **関係**：節はターゲットの契約で決まる。
+- **置くもの / 置かないもの**：エージェントがいつも知っておくべき前提（プロダクトの前提、完了条件、言語など）と、
+  `docs/README.md` への道。詳細は置かず、文書へのリンクにする。
+- **関係**：どの節を持つかは、リポジトリが従う契約で決める。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：常に読み込まれるので前提と行き先
   だけ。[スキーマを先に](../../../principles/docs/reference/principles.md#schema-first)：節を決めて揃える。
 
@@ -183,8 +208,8 @@ conventions プラグインの中。
 
 ### 用語集（`docs/reference/glossary.md`）
 
-- **責務**：文書の体系と作業の進め方の言葉（区切り、文書の種類、構成要素の説明など）を一か所で定める。エージェントとハーネスの
-  言葉は platform の用語集にある。
+- **責務**：文書の体系と作業の進め方の言葉（区切り、文書の種類、構成要素の説明など）を一か所で定める。ほかの言葉は、
+  それを使う区切りの用語集にある。
 - **当てはめた原則・パターン**：[ユビキタス言語と用語集](../../../principles/docs/reference/principles.md#glossary)、
   [共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)。
 
@@ -201,6 +226,17 @@ conventions プラグインの中。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
   [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
 
+### hook（`hooks/`、`scripts/context`）
+
+- **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる。
+- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。
+- **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
+
+### principles スキル（principles の `skills/principles/`）
+
+- **責務**：原則とパターンの一覧を、要るときに引けるようにする。
+- **置くもの / 置かないもの**：一覧の在りかと引き方だけ。原則とパターンの中身は置かない。
+
 ### design スキル（`skills/design/`）
 
 - **責務**：どの変更にどのパターンを当てはめるかと、レビューでの指摘の仕方。
@@ -210,18 +246,7 @@ conventions プラグインの中。
 ### 文書の検査（`tools/check-docs.py`）
 
 - **責務**：形式と器の決まりのうち、機械で確かめられるものを `make check-docs` で確かめる。
-- **置くもの / 置かないもの**：確かめるのは、相対リンクとアンカー、ADR の形と参照、`docs/` の器の構成、索引の抜け、
-  構成要素の説明の責務。文の書き方や置き場所の良し悪しは確かめない（レビューの観点に任せる）。
-- **関係**：形式に沿う。target-template の共通のファイルとして、どのリポジトリにも置く。
+- **置くもの / 置かないもの**：何を確かめるかは[形式](../reference/formats.md)の各節の「検査」にある。文の書き方や置き場所の
+  良し悪しは確かめない（レビューの観点に任せる）。
+- **関係**：形式に沿う。どのリポジトリにも同じものを置く。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../../principles/docs/reference/patterns.md#docs-as-code)。
-
-## 決まりの強さ
-
-決まりは、強いものから次の 4 つで守らせ、できるだけ強い方に寄せる（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
-
-| 強さ | 仕組み | 中身 |
-| --- | --- | --- |
-| 検査 | `make check-docs`（`tools/check-docs.py`） | リンクとアンカー、ADR の形と参照、`docs/` の器、索引の抜け、構成要素の責務（[形式](../reference/formats.md)の各節と、上の器） |
-| 常に読み込む決まり | conventions の rules | 一つひとつの文の書き方 |
-| 必要なときに読む指針 | この文書、[形式](../reference/formats.md)、[文書を書く](../../skills/write-docs/SKILL.md)、design スキル | 分け方、置き場所、形 |
-| 判断の理由 | ADR | なぜそう決めたか |

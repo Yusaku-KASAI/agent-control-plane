@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-07
+amended_by: ["../../plugins/conventions/docs/adr/0005-principles-and-conventions-plugins.md"]
 ---
 
 # 0004. どのターゲットでも同じルールは、rules プラグインがセッションとサブエージェントの始めに読み込ませる

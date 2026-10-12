@@ -50,12 +50,28 @@ usecase.SessionCleaner（起動時と定期的に）
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
 
-セッションの段階と置き場所は[セッション](sessions.md)、認証情報は[認証情報](credentials.md)、エージェントの
-コンテナは[コンテナ](containers.md)、作業領域は[作業領域](workspace.md)にある。
+<a id="where"></a>
+
+### 構成要素の在りか
+
+ほかの部品は、それを扱う文書に構成要素として書いてある。
+
+| 部品 | 文書 |
+| --- | --- |
+| `internal/adapter/slackbot` | [依頼と知らせ](requests.md) |
+| `internal/adapter/httpapi` | [依頼と知らせ](requests.md#http-api) |
+| `internal/usecase/handle_message.go` | [依頼と知らせ](requests.md) |
+| `internal/usecase/dispatcher.go` | ワーカーは[セッション](sessions.md#worker)、依頼の順番と停止・再起動は[依頼と知らせ](requests.md)、認証情報の更新は[認証情報](credentials.md) |
+| `internal/usecase/clean_sessions.go` | [セッション](sessions.md#cleaner) |
+| `internal/adapter/filesession` | [セッション](sessions.md#record) |
+| `internal/adapter/gitworkspace` | [作業領域とブランチ](workspace.md) |
+| `internal/adapter/docker`、`compose.yaml`、`Dockerfile` | [コンテナ](containers.md) |
+| `internal/adapter/githubapp`、`internal/adapter/slackauth`、`internal/adapter/claudeauth`、`cmd/acp/slackauth.go` | [認証情報](credentials.md)。`githubapp` のブランチの読み書きは[作業領域とブランチ](workspace.md#github-branches) |
+| `serve.go` の `sessionObserver` と `credentialIssuers` | [依頼と知らせ](requests.md)と[認証情報](credentials.md) |
 
 ## 構成要素
 
-各構成要素の中身は、リンク先の文書にある。
+<a id="serve"></a>
 
 ### `cmd/acp/serve.go`
 
@@ -64,26 +80,23 @@ usecase.SessionCleaner（起動時と定期的に）
   複数のアダプターを一つのポートにまとめる小さな型（`credentialIssuers`、`sessionObserver`）。`Dispatcher` と Bot が
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
 - **関係**：すべてのパッケージに依存してよい。起動は、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
-  前の実行が残したコンテナを `Dispatcher.Recover` で片付けてから、HTTP サーバー、Bot、片付けを動かす。停止は、
-  Bot が受付をやめたあと `Dispatcher.Close` で待っている依頼を終わらせ、HTTP サーバーと Bot が返事を書き終える
-  のを待つ（[依頼と知らせ](requests.md#shutdown)）。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：組み立てを外側の
-  一か所に集め、ユースケースはアダプターを知らない。
+  `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付けを動かす。停止の順番は
+  [依頼と知らせ](requests.md#shutdown)にある。
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
+  部品を組み立てる場所で、ここだけが全部を知る。ユースケースはアダプターを知らない（層は[コードの構成](../codebase/layers.md)）。
 
-### `cmd/acp`（`main.go`、`run.go`、`slackauth.go`）
+### `cmd/acp`（`main.go`、`run.go`）
 
-- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`、Slack のトークンを
-  取り直す `acp slack-auth`。
-- **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md)、
-  `slack-auth` は[認証情報](credentials.md)と[運用](../../guides/operations.md)にある。
+- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。
+- **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md)にある。
 
 ### `internal/usecase/ports.go`
 
 - **責務**：ユースケースが外部に求めるインターフェースと、それに渡す値の型。
 - **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）は
   ここではなく `handle_message.go` に置く。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：アダプターは
-  ここに合わせて作る。
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
+  中心が外側に要るものをポートとして決め、アダプターはここに合わせて作る。
 
 ### `internal/adapter/config`
 
@@ -94,48 +107,3 @@ usecase.SessionCleaner（起動時と定期的に）
 - **関係**：`AgentRegistry`、`AccessPolicy`、`People` を満たす。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：知らない項目や
   相対パスは、起動の前に読むところで弾く。
-
-### `internal/adapter/slackbot`
-
-- **責務**：エージェント一つの Slack アプリとして依頼を受け、スレッドに返事と状態メッセージを書く
-  （[依頼と知らせ](requests.md)）。
-
-### `internal/adapter/httpapi`
-
-- **責務**：HTTP API のサーバーとクライアント（[依頼と知らせ](requests.md#http-api)）。
-
-### `internal/usecase/handle_message.go`
-
-- **責務**：チャットから届いた依頼を、受信方式に関係なく扱う（[依頼と知らせ](requests.md)）。
-
-### `internal/usecase/dispatcher.go`
-
-- **責務**：アクティブなセッションごとにワーカーを動かし、依頼の順番を決めてターンの結果を返す。依頼の順番は
-  [依頼と知らせ](requests.md)、ワーカーの段階は[セッション](sessions.md#worker)、認証情報の更新は
-  [認証情報](credentials.md)にある。
-
-### `internal/usecase/clean_sessions.go`
-
-- **責務**：使われていないセッションを片付ける（[セッション](sessions.md#cleaner)）。
-
-### `internal/adapter/filesession`
-
-- **責務**：セッションの記録とロック（[セッション](sessions.md#record)）。
-
-### `internal/adapter/gitworkspace`
-
-- **責務**：セッションの作業領域を作り、その状態を返す（[作業領域とブランチ](workspace.md)）。
-
-### `internal/adapter/docker`
-
-- **責務**：エージェントのコンテナを動かし、Claude Code とやり取りする（[コンテナ](containers.md)）。
-
-### `internal/adapter/githubapp`、`internal/adapter/slackauth`、`internal/adapter/claudeauth`
-
-- **責務**：エージェントの認証情報を発行する（[認証情報](credentials.md)）。`githubapp` はリモートのブランチも
-  調べて消す（[作業領域とブランチ](workspace.md#github-branches)）。
-
-### `compose.yaml`
-
-- **責務**：`control-plane` と `docker-proxy` の二つのサービスと、ボリューム、ネットワークを宣言する
-  （[コンテナ](containers.md)）。準備と起動の手順は[運用](../../guides/operations.md)にある。

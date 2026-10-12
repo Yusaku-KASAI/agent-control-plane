@@ -2,7 +2,8 @@
 #
 # Paths are host paths: the control plane container mounts them at the same place.
 #   /home/you/projects/...     under ACP_HOST_ROOT  (targets, sessions)
-#   /home/you/acp-secrets/...  under ACP_SECRETS_DIR (tokens and keys; keep it outside ACP_HOST_ROOT)
+#   /home/you/acp-secrets/...  under ACP_SECRETS_DIR (tokens and keys)
+# Where these directories may be is in .env.example.
 # Paths under /var/lib/acp/ are inside the control plane container and match compose.yaml.
 
 sessions:
@@ -10,12 +11,12 @@ sessions:
   root: /home/you/projects/acp-sessions
   # Close an agent's container after this long with no turn, queued prompt or background task.
   idle_timeout: 15m
-  # Remove a session (record, workspace, conversation history, credentials and its branches on
-  # GitHub) unused for this long and tell its thread. One holding work found nowhere else is kept,
-  # and its thread is reminded once per this period (docs/adr/app/0026).
+  # Remove a session unused for this long, unless it has a reason to be kept, and tell its thread.
+  # What is removed and what keeps a session: docs/architecture/app/sessions.md#cleaner.
   retention: 720h
 
-# Short-lived credentials handed to agent containers, per session.
+# Short-lived credentials handed to agent containers, per session. Agent containers mount their
+# session's subpath of the volume; with volume empty, dir is a host path and is bind-mounted.
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
@@ -27,7 +28,9 @@ claude:
   # How agents authenticate Claude Code: a token from `claude setup-token` (oauth_token_path)
   # or an API key (api_key_path). Exactly one.
   oauth_token_path: /home/you/acp-secrets/claude-oauth-token
-  # Each agent's Claude Code config directory (conversation history, auto memory).
+  # Each agent's Claude Code config directory (conversation history, auto memory). Agent containers
+  # mount the agent's subpath of config_volume; with config_volume empty, config_dir is a host path
+  # and is bind-mounted.
   config_dir: /var/lib/acp/claude
   config_volume: acp-claude
 
@@ -49,8 +52,10 @@ agents:
     git:
       author_name: control-plane-dev-agent[bot]
       author_email: 7654321+control-plane-dev-agent[bot]@users.noreply.github.com
-    # The agent's own GitHub App (Contents and Pull requests: read and write). Optional; without it
-    # the agent cannot push and its branches start from the target's local HEAD.
+    # The agent's own GitHub App, installed on the target repository with webhooks off. Optional;
+    # without it the agent cannot push and its branches start from the target's local HEAD.
+    # Permissions for a developer: Contents and Pull requests read and write; Issues, Actions,
+    # Checks and Commit statuses read-only (to read issues and the pull request's CI results and logs).
     github:
       app_id: 123456
       installation_id: 12345678
@@ -67,13 +72,14 @@ agents:
         client_id: "1234567890.1234567890"
         client_secret_path: /home/you/acp-secrets/control-plane-dev.slack-client-secret
 
-  # Answers questions about the target without changing it. Its GitHub App is read-only
-  # (Contents, Pull requests and Issues: read), so it reads the remote but cannot push.
+  # Answers questions about the target without changing it.
   - name: control-plane-guide
     role: guide
     target:
       path: /home/you/projects/agent-control-plane
       image: agent-control-plane-devcontainer
+    # Permissions for a guide: Contents, Pull requests and Issues read-only, so it reads the remote
+    # but cannot push.
     github:
       app_id: 234567
       installation_id: 23456789
