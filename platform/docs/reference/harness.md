@@ -54,7 +54,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 | --- | --- | --- |
 | `GH_CONFIG_DIR` | GitHub App がある | gh の設定（`/run/acp/credentials/gh`）。GitHub App のトークンが入る。git も github.com には gh を通して HTTPS で認証する（SSH の URL も HTTPS に読み替える） |
 | `SLACK_BOT_TOKEN_FILE` | Slack アプリがある | Slack の Bot のトークンのファイル（`/run/acp/credentials/slack/bot-token`） |
-| `CLAUDE_CODE_OAUTH_TOKEN` か `ANTHROPIC_API_KEY` | いつも | Claude Code の認証 |
+| `CLAUDE_CODE_OAUTH_TOKEN` か `ANTHROPIC_API_KEY` | いつも | Claude Code の認証。Claude Code 自身が使い、エージェントが実行するコマンドの環境からは見えない |
 
 - `/run/acp/credentials` は読み取り専用。トークンは control-plane が失効する前に書き換えるので、毎回ファイルから
   読む。`gh auth login` や `gh config set` のように設定を書き換えるコマンドは失敗する。
