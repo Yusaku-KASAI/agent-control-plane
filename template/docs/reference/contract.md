@@ -1,6 +1,6 @@
 # ターゲットの契約
 
-ターゲットが用意するもの。control-plane と platform はこれを前提にする（[platform ADR 0005](../../../platform/plugins/conventions/docs/adr/0005-documents-by-distribution-context.md)）。
+ターゲットが用意するもの。control-plane と platform はこれを前提にする（[conventions ADR 0002](../../../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。
 control-plane がコンテナに渡すものは、逆向きの契約として platform の[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
 
 ## イメージ
@@ -81,6 +81,8 @@ platform の conventions プラグインが、セッションとサブエージ�
 ```
 
 ほかに、そのターゲットだけの決まり（このリポジトリの「他のリポジトリ」など）は、この後に節を足す。
+
+<a id="files"></a>
 
 ## ファイルの分類
 

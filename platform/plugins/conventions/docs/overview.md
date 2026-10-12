@@ -12,4 +12,4 @@ conventions/
 
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を知らない。
 - エージェントには、いつも守らせたいことだけを hook で読み込ませ、手順と詳細はスキルと文書で必要なときに読ませる。
-- 文書の決まりのうち機械で確かめられるものは、各リポジトリの `tools/check-docs.py`（target-template の共通のファイル）が確かめる。
+- 文書の決まりのうち機械で確かめられるものは、各リポジトリに置く `tools/check-docs.py` が確かめる。

@@ -32,8 +32,9 @@
 
 ## ADR
 
-判断の記録は `docs/adr/NNNN-<slug>.md` に置く。番号はディレクトリごとの連番。一つのリポジトリに関心の違う ADR が
-あるときは、`docs/adr/<関心>/NNNN-<slug>.md` に分ける。
+判断の記録は、文書の根の `adr/NNNN-<slug>.md` に置く。番号は `adr/` ごとに 1 から振る連番。ADR をほかの `adr/` に
+移したときは、移した先で次の番号を振り、元の番号は空きのまま使わない。文書の根に関心の違う
+ADR があるときは、`adr/<関心>/NNNN-<slug>.md` に分ける。
 
 ```markdown
 ---
@@ -55,7 +56,7 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 
 - ADR はその時点の判断の記録なので、後から本文を書き換えない（文書を移したときのリンクの付け替えは除く）。判断を
   変えるときは新しい ADR を作り、両方の frontmatter に向き合う参照（`amends` と `amended_by`、`supersedes` と
-  `superseded_by`）を書く。番号は同じディレクトリの ADR を指す。
+  `superseded_by`）を書く。参照は、同じ `adr/` の ADR なら番号、ほかの `adr/` の ADR なら相対パス（`"../../x/adr/0004-y.md"`）で書く。
 - 検査：frontmatter の形と値、`superseded` と `superseded_by` の組、日付の形、見出しの番号とファイル名の一致、
   参照先があることと向き合っていること。
 

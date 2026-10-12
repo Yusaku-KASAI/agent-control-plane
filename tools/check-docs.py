@@ -68,7 +68,8 @@ def parse_frontmatter(text):
         key, _, value = line.partition(":")
         value = value.strip()
         if value.startswith("[") and value.endswith("]"):
-            meta[key.strip()] = [int(v) for v in value[1:-1].split(",") if v.strip()]
+            items = [v.strip() for v in value[1:-1].split(",") if v.strip()]
+            meta[key.strip()] = [v.strip('"') if v.startswith('"') else int(v) for v in items]
         else:
             meta[key.strip()] = value
     return meta
@@ -96,14 +97,24 @@ def check_adrs(paths, errors):
             errors.append(f"{path}: date must be YYYY-MM-DD")
         if not re.search(rf"^# {name[:4]}\. ", text, re.M):
             errors.append(f"{path}: heading must start with '# {name[:4]}. '")
-        adrs[(os.path.dirname(path), number)] = (path, meta)
-    for (directory, number), (path, meta) in adrs.items():
+        adrs[os.path.normpath(path)] = meta
+    for path, meta in adrs.items():
         for key, inverse in INVERSE.items():
-            for other in meta.get(key, []):
-                if (directory, other) not in adrs:
-                    errors.append(f"{path}: {key} {other:04d} does not exist")
-                elif number not in adrs[(directory, other)][1].get(inverse, []):
-                    errors.append(f"{path}: {key} {other:04d}, but {other:04d} lacks {inverse} {number:04d}")
+            for ref in meta.get(key, []):
+                other = resolve_adr(path, ref)
+                if other not in adrs:
+                    errors.append(f"{path}: {key} {ref} does not exist")
+                elif not any(resolve_adr(other, back) == path for back in adrs[other].get(inverse, [])):
+                    errors.append(f"{path}: {key} {ref}, but it lacks {inverse} back to this ADR")
+
+
+def resolve_adr(path, ref):
+    """An ADR reference is a number in the same directory, or a relative path to another directory's ADR."""
+    directory = os.path.dirname(path)
+    if isinstance(ref, int):
+        matches = [f for f in os.listdir(directory) if f.startswith(f"{ref:04d}-")]
+        return os.path.normpath(os.path.join(directory, matches[0])) if matches else f"{directory}/{ref:04d}"
+    return os.path.normpath(os.path.join(directory, ref))
 
 
 def docs_roots(paths):
