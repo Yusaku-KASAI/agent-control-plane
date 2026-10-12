@@ -10,7 +10,7 @@
 | マーケットプレイス | プラグインをまとめて配る単位。`acp-platform` は、platform のプラグインに加えて principles と conventions も配る。ディレクトリは `platform/`、ターゲットの隣では `agent-platform` という名前で置く |
 | ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。devcontainer（イメージ）、`.claude/settings.json`、CLAUDE.md を持つ |
 | target-template | ターゲットに共通のファイルと、ターゲットの契約を持つひな形 |
-| ハーネス | エージェントを動かす仕組みの全体：ターゲットのイメージ、プラグイン、それを起動する control-plane か devcontainer。何が渡されるかは、ハーネスの契約が定める |
+| ハーネス | エージェントを動かす仕組みの全体：ターゲットのイメージ、プラグイン、それを起動する control-plane か devcontainer。何が渡されるかは[ハーネスの契約](harness.md "案内")が定める |
 | ロール | エージェントの役割（developer、guide など）。platform の roles プラグインがカスタムエージェントとして定義する |
 | エージェント | ターゲットとロールの組。Slack では Bot 一つに当たる（例：control-plane-dev） |
 | 依頼者 | エージェントに依頼を出した人 |

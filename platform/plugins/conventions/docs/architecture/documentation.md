@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md)にある。
 
@@ -39,7 +39,8 @@
   違ってよい。
 - 項目の間の関係は種類で分ける（[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。依存の向きの決まりは「前提にする」
   関係にだけ当てる。索引（`docs/README.md`）から各文書へのリンクと、ADR（判断の理由）へのリンクは案内で、依存ではない。
-  前提にされる側から前提にする側の在りかを示したいときは、リンクにせず文章で書く。
+  ほかに在りかを示すだけのリンク（前提にされる側から前提にする側への道など）は、[形式](../reference/formats.md#links)の
+  案内のリンクにする。
 - 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
   変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
   下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。

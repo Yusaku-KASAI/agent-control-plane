@@ -13,7 +13,9 @@ STATUSES = {"accepted", "superseded"}
 DOCS_LAYOUT = {"README.md", "overview.md", "architecture", "guides", "reference", "adr"}
 # Each key names ADRs in the same directory; the value is the key the other ADR must answer with.
 INVERSE = {"amends": "amended_by", "amended_by": "amends", "supersedes": "superseded_by", "superseded_by": "supersedes"}
-LINK = re.compile(r"\]\(([^)\s#]*)(?:#([^)\s]*))?\)")
+LINK = re.compile(r'\]\(([^)\s#]*)(?:#([^)\s]*))?(?:\s+"([^"]*)")?\)')
+# A link titled so only shows where something is; it does not rely on it.
+NAVIGATION = "案内"
 ANCHOR = re.compile(r'<a id="([^"]+)"></a>')
 FENCE = re.compile(r"^(```|~~~).*?^\1", re.M | re.S)
 
@@ -47,7 +49,7 @@ def anchors(path):
 
 
 def check_links(path, text, errors):
-    for target, fragment in LINK.findall(strip_code(text)):
+    for target, fragment, _ in LINK.findall(strip_code(text)):
         if re.match(r"[a-z][a-z0-9+.-]*:", target):
             continue
         resolved = os.path.normpath(os.path.join(os.path.dirname(path), target)) if target else path
@@ -129,7 +131,7 @@ def check_docs_dirs(paths, errors):
             if entry not in DOCS_LAYOUT:
                 errors.append(f"{root}/{entry}: not part of the docs layout ({', '.join(sorted(DOCS_LAYOUT))})")
         index = os.path.join(root, "README.md")
-        linked = {os.path.normpath(os.path.join(root, t)) for t, _ in LINK.findall(strip_code(open(index, encoding="utf-8").read()))}
+        linked = {os.path.normpath(os.path.join(root, t)) for t, _, _ in LINK.findall(strip_code(open(index, encoding="utf-8").read()))}
         for path in paths:
             inside = os.path.relpath(path, root)
             if inside.startswith("..") or inside == "README.md" or inside.split(os.sep)[0] == "adr":
@@ -262,8 +264,8 @@ def check_map(m, paths, errors):
         # An index only shows where documents are; it does not rely on them.
         if source is None or (os.path.basename(path) == "README.md" and os.path.basename(os.path.dirname(path)) == "docs"):
             continue
-        for target, _ in LINK.findall(strip_code(open(path, encoding="utf-8").read())):
-            if not target or re.match(r"[a-z][a-z0-9+.-]*:", target):
+        for target, _, title in LINK.findall(strip_code(open(path, encoding="utf-8").read())):
+            if not target or title == NAVIGATION or re.match(r"[a-z][a-z0-9+.-]*:", target):
                 continue
             resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
             # Decision records give reasons; linking to them does not rely on them.

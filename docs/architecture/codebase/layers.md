@@ -26,7 +26,7 @@ cmd/acp ──▶ internal/adapter/<技術> ──▶ internal/usecase ──▶
 - **責務**：ユースケースと、それが外部に求めるインターフェース（ポート）。
 - **置くもの / 置かないもの**：判定と手順。ユースケースごとに 1 ファイルで、一つの型がそのユースケースの操作
   （`Dispatcher` の `Execute`、`Stop`、`Recover`、`Close` など）をまとめて持つ。ポートをどのファイルに置くかは
-  アプリの文書（control-plane の構成）の `ports.go` の節にある。外部の技術の型は置かない。
+  [control-plane の構成](../app/components.md "案内")の `ports.go` の節にある。外部の技術の型は置かない。
 - **関係**：標準ライブラリと domain に依存する。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   外側はここが決めたポートを実装する。
@@ -42,7 +42,7 @@ cmd/acp ──▶ internal/adapter/<技術> ──▶ internal/usecase ──▶
 
 ### `cmd/acp`
 
-- **責務**：部品を組み立てる場所。ファイルごとの中身は、アプリの文書（control-plane の構成）にある。
+- **責務**：部品を組み立てる場所。ファイルごとの中身は[control-plane の構成](../app/components.md "案内")にある。
 - **関係**：すべてに依存してよい。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   組み立てる場所だけが全部を知る。
