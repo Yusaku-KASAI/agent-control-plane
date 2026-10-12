@@ -9,20 +9,18 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 ### 1. 全体
 
-- `.env` の `ACP_HOST_ROOT` の下にターゲットと `sessions.root` を、`ACP_SECRETS_DIR` の下にトークンや鍵のファイルを
-  置く。コンテナにはホストと同じパスでマウントされる。
-- ターゲットの隣に platform を並べ（決まりは[ホストでの配置](../../template/docs/reference/contract.md#host)、手順は[ホストの準備](../../template/docs/guides/devcontainer.md#host)）、ターゲットのイメージを
-  ビルドしておく（このリポジトリなら devcontainer をビルドする）。
+- ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを
+  `.env` の `ACP_HOST_ROOT` の下に置く（決まりは[ホストでの配置](../../template/docs/reference/contract.md#host)、
+  手順は[ホストの準備](../../template/docs/guides/devcontainer.md#host)）。`sessions.root` も `ACP_HOST_ROOT` の下に、
+  トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example)）。
+- ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
 
 ### 2. エージェントごとの GitHub App（任意）
 
-- エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。権限は
-  ロールに合わせる。
-  - 変更する developer：Contents と Pull requests を Read and write。Issues と、PR の CI の結果とログを読むための
-    Actions・Checks・Commit statuses を Read-only。
-  - 読むだけの guide：Contents・Pull requests・Issues を Read-only。
+- エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。ロールごとに
+  要る権限は [acp.example.yaml](../../acp.example.yaml) の `github` にある。
 - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
 - コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は
   `gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べる。
@@ -33,17 +31,20 @@ control-plane のサーバーを手元で準備して動かす手順。
   エージェントに合わせる。
 - Basic Information で `connections:write` の App-Level Token を作り、ファイルに保存して `app_token_path` で指す。
 - Bot トークン：
-  - ローテーションあり（マニフェストの既定。Bot トークンが 12 時間で失効し、control-plane が更新する）：
+  - ローテーションあり（マニフェストの既定。control-plane が更新する仕組みは[認証情報](../architecture/app/credentials.md)）：
     Basic Information の Client ID と Client Secret（ファイル）を `slack.rotation` に書き、下の
     「Slack のトークンを取り直す」で最初のトークンを取る。
   - ローテーションなし（マニフェストで `token_rotation_enabled: false`）：ワークスペースにインストールして得た
     Bot User OAuth Token を `bot_token_path` に置き、`slack.rotation` は書かない。
   - ローテーションなしで使っていたアプリを後から切り替えるときは、それまでの Bot トークンを `bot_token_path` に
     置いておけば初回に交換される。
-- 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書き、Bot を使うチャンネルに招待する。
-- Bot トークンはエージェントにも渡り、エージェントは Bot が招待されたチャンネルを読み書きできる。
+- 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書き、Bot を使うチャンネルに招待する。招待した
+  チャンネルはエージェントも読み書きできる（[認証情報](../architecture/app/credentials.md)）。
 
 ### 4. 起動
+
+`compose.yaml` は外部のネットワーク `agent-control-plane-net` を使う。このリポジトリの
+[ホストの準備](../../template/docs/guides/devcontainer.md#host)で実行する `.devcontainer/init-host.sh` が作る。
 
 ```bash
 docker compose up -d --build

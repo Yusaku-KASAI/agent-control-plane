@@ -1,6 +1,6 @@
 {
   "name": "slack",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read and post Slack messages through the Slack Web API or an incoming webhook",
   "author": {
     "name": "Yusaku KASAI"

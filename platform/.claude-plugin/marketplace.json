@@ -1,6 +1,6 @@
 {
   "name": "acp-platform",
-  "description": "Shared plugins for agents run by agent-control-plane",
+  "description": "Agent roles, skills and hooks with the harness contract, plus design principles and conventions for any repository",
   "owner": {
     "name": "Yusaku KASAI"
   },
@@ -23,12 +23,12 @@
     {
       "name": "slack",
       "source": "./plugins/slack",
-      "description": "Read and post Slack messages"
+      "description": "Read and post Slack messages through the Slack Web API or an incoming webhook"
     },
     {
       "name": "github",
       "source": "./plugins/github",
-      "description": "Keep pull requests describing their branch"
+      "description": "Keep pull requests describing their branch, and work with reviews and CI on GitHub"
     },
     {
       "name": "harness",

@@ -52,7 +52,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **責務**：エージェントの Slack アプリとしてメンションを依頼に直して `HandleMessage` に渡し、返事をスレッドに
   書く。
 - **置くもの / 置かないもの**：
-  - メンションのスレッド（スレッドの外のメンションなら、そのメッセージ自身）を会話にする。会話からセッション ID が
+  - メンションのスレッド（スレッドの外のメンションなら、そのメッセージ自身）を依頼のスレッドにする。スレッドからセッション ID が
     決まる（[セッション ID](sessions.md#session-id)）。
   - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所だけを書く。本文は、
     `:zap:` で始まるか（流し込み）を見るためだけに使う（[ADR 0020](../../adr/app/0020-slack-requests-by-reference.md)）。
@@ -90,8 +90,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - 停止と再起動で取り消された依頼には、そう返す。
   - 失敗には、セッションが使用中、待っている依頼が多すぎる、内容が空、それ以外の失敗（セッション ID と
     エラー）を書き分けて返す。
-- **関係**：会話からセッション ID を決め、なければ作るよう `Dispatcher` に頼む。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：返事の手段は
+- **関係**：スレッドからセッション ID を決め、なければ作るよう `Dispatcher` に頼む。
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：返事の手段は
   `ChatResponder` で、Slack 以外の受け方も同じユースケースを使える（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。
 
 ### 依頼の順番（`usecase.Dispatcher` のワーカー）
@@ -132,7 +132,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **責務**：セッションの出来事と知らせを、セッションのエージェントの Bot に渡す。
 - **関係**：`SessionObserver` と `SessionNotifier` を満たす。Slack のスレッドから始まったセッションだけを Bot に
   渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：ユースケースは
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：ユースケースは
   知らせる先を知らず、組み立ての場所で入口と結ぶ。
 
 <a id="http-api"></a>
@@ -152,7 +152,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     `allowed_users` は見ない。
   - エラーは HTTP の状態と `code`（`session_busy`、`inbox_full`、`unavailable` など）で返し、セッションが
     あればその ID と作業領域のパスを添える。
-  - 会話を持たないセッションなので、状態メッセージは出ず、自分で始めたターンの回答は届かない。
+  - スレッドを持たないセッションなので、状態メッセージは出ず、自分で始めたターンの回答は届かない。
 - **関係**：`Dispatcher` を、自分で定めた `TurnRunner` として呼ぶ。クライアントは `httpapi.Client` で、`acp run` と
   `acp stop` が使う（[依頼の仕方](../../reference/usage.md)）。
 - **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：要求、応答、

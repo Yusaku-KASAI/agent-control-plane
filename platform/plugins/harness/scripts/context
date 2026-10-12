@@ -7,14 +7,16 @@ set -euo pipefail
 docs=$(cd "$(dirname "$0")/../../../docs" 2>/dev/null && pwd) || docs=/workspace/agent-platform/docs
 [[ -f $docs/reference/harness.md ]] || docs="（見つからない。platform の docs/）"
 if [[ -n ${ACP_SESSION_BRANCH:-} ]]; then
-  how="control-plane から起動されている。人は端末にいない。依頼者に質問して待つことはできず、最後の回答だけが依頼者に届く。作業はセッションのブランチ ${ACP_SESSION_BRANCH} で行う。認証情報は読み取り専用で渡される。"
+  how="control-plane 経由
+要約（詳しくはハーネスの契約）：人は端末にいない。ターンの途中で依頼者に質問して待つことはできず、ターンの最後の回答が依頼者に届く。作業はセッションのブランチ ${ACP_SESSION_BRANCH} で行う。認証情報は読み取り専用。"
 else
-  how="devcontainer で人と直接動いている。人は端末にいて、対話できる。"
+  how="devcontainer で直接
+要約（詳しくはハーネスの契約）：人は端末にいて、対話できる。"
 fi
 jq -n --arg event "$1" --arg ctx "# ハーネス
 
-${how}
-渡されるもの（環境変数、作業領域、認証情報）とその制約は ${docs}/reference/harness.md にある。platform の文書の一覧（用語集、
-プラグインの構成など）は ${docs}/README.md。
-認証、push、マウント、環境変数などで詰まったら、harness スキルで切り分ける。" \
+動き方：${how}
+ハーネスの契約（渡されるもの（環境変数、作業領域、認証情報）とその制約）：${docs}/reference/harness.md
+platform の文書の一覧（用語集、プラグインの構成など）：${docs}/README.md
+認証、push、マウント、環境変数などで詰まったとき：harness スキルで切り分ける" \
   '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'

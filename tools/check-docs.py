@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Checks the Markdown files in the repository against the platform's docs/reference/formats.md and
-docs/architecture/documentation.md: relative links and anchors, ADR frontmatter and cross-references,
+"""Checks the Markdown files in the repository against the conventions plugin's
+docs/reference/formats.md and docs/architecture/documentation.md: relative links and anchors, ADR frontmatter and cross-references,
 the layout of each docs/ directory, its index, and the component descriptions in architecture docs."""
 
 import os

@@ -3,8 +3,8 @@
   "dockerComposeFile": ["compose.yaml"],
   "service": "dev-container",
   "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
-  // VS Code only attaches: the container is built, started and stopped by commands
-  // (template/docs/guides/devcontainer.md). With the container up, compose up does nothing.
+  // VS Code only attaches: the container is built, started and stopped by docker compose commands.
+  // With the container up, compose up does nothing.
   "overrideCommand": false,
   "shutdownAction": "none",
   "runServices": [],
@@ -118,6 +118,6 @@
     }
   },
   "remoteUser": "node",
-  // The image is built with the host UID/GID (template/docs/adr/0009); VS Code must not change it.
+  // The image is built with the host UID/GID; VS Code must not change it.
   "updateRemoteUserUID": false
 }

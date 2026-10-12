@@ -27,7 +27,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   （[ADR 0004](../../adr/app/0004-docker-access-only-via-control-plane.md)）。control-plane もソケットを持たず、プロキシ
   越しに操作する（[ADR 0015](../../adr/app/0015-docker-api-allowlist-proxy.md)）。
 - 動いているセッションごとに、1 つのコンテナで Claude Code を動かし続け、依頼を標準入力に送る
-  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。いつコンテナを起動し、休ませ、片付けるかは
+  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。いつコンテナを起動し、止めて消すかは
   usecase の dispatcher が決め、runner はその指示でコンテナを操作する。段階ごとに起きることは
   [セッション](sessions.md)にある。
 - control-plane とエージェントのコンテナは、どちらもホストのパスで bind する。設定に書くパス（ターゲット、
@@ -41,11 +41,10 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **責務**：control-plane（`acp serve`）を常駐するコンテナとして動かす。
 - **置くもの / 置かないもの**：
   - イメージは `Dockerfile` で、`acp` と git を入れ、名前付きボリュームのマウント先を作っておく。
-  - ホストのユーザー（`ACP_UID`、`ACP_GID`）で動く。エージェントのコンテナはイメージのユーザーで作業領域に書くので、
-    この値はターゲットのイメージのユーザーの UID と GID（[devcontainer](../../../template/docs/architecture/devcontainer.md)
-    ではリポジトリの所有者の値）と同じにして、作業領域の持ち主をそろえる。
-  - マウント：設定ファイル（読み取り専用）、`ACP_HOST_ROOT` と `ACP_SECRETS_DIR`（読み取り専用。置き場所は
-    [ホストに置く秘密](credentials.md#secrets)）をホストと同じパスに。
+  - `ACP_UID`、`ACP_GID` のユーザーで動き、作業領域を作る。エージェントのコンテナはイメージのユーザーで作業領域に
+    書くので、この値をイメージのユーザーと同じにして、作業領域の持ち主をそろえる（値は [.env.example](../../../.env.example)）。
+  - マウント：設定ファイル（読み取り専用）、`ACP_HOST_ROOT` と `ACP_SECRETS_DIR`（読み取り専用）をホストと同じパスに
+    （置き場所は [.env.example](../../../.env.example)）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）。ボリュームはエージェントのコンテナから名前で指すので、
     名前を固定する。
@@ -92,7 +91,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - いつ起動し、いつ止めるか（休ませる時間、停止）は置かない。dispatcher が決める。
 - **関係**：usecase の `Runner` と `StartRequest` だけを見る。イメージへの前提はターゲットの契約にある。
   エージェントに渡すものの一覧はハーネスの契約と一致させる。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：判定は usecase に
+- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：判定は usecase に
   置き、ここは Docker の操作と事実（プロセスの出力）だけを扱う。
   [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：コンテナの形は `containerSpec` にだけある。
 
@@ -121,8 +120,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     マーケットプレイスのプラグインを選んで `--plugin-dir` で渡す。ヘッドレスの Claude Code は宣言されたプラグインを
     入れないため。
   - マーケットプレイスのパスは、契約の形（devcontainer でのパス）のほか、リポジトリからの相対パスも受け付ける。
-    ホストでシンボリックリンクをたどって、ターゲット自身の中か隣のリポジトリかを分け、前者は作業領域の中のパスに、
-    後者はホストのそのディレクトリを同じパスに読み取り専用でマウントする。
+    ターゲット自身の中か隣のリポジトリかの分け方と、それぞれをどう見せるかは契約のとおり。
   - プラグインの場所はマーケットプレイスの `.claude-plugin/marketplace.json` で引き、相対パスの source だけを扱う。
 - **関係**：決まりの理由は [target ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
@@ -136,9 +134,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 - **責務**：エージェントごとに、会話の履歴と auto memory を置く Claude Code の設定ディレクトリを用意する。
 - **置くもの / 置かないもの**：`acp-claude` ボリューム（`claude.config_dir`）の `<エージェント名>/` を、コンテナの
-  `/home/node/.claude` にマウントし、`CLAUDE_CONFIG_DIR` で指す。`claude.config_volume` が空なら `config_dir` を
-  ホストのパスとして bind する。同じエージェントのセッションは、同時に動くものも含めてこれを共有する。
-  devcontainer の Claude Code の設定はエージェントに渡さず、エージェントの間と devcontainer とで会話と記憶を分ける
+  `/home/node/.claude` にマウントし、`CLAUDE_CONFIG_DIR` で指す。ボリュームを使わない設定は
+  [acp.example.yaml](../../../acp.example.yaml) にある。同じエージェントのセッションは、同時に動くものも含めてこれを共有する。
+  devcontainer の Claude Code の設定はエージェントに渡さず、エージェントの間と devcontainer とで会話の履歴と auto memory を分ける
   （[ADR 0023](../../adr/app/0023-claude-auth-and-per-agent-config.md)）。
 - **関係**：Claude Code の認証は設定ディレクトリではなく、発行した認証情報で行う（[認証情報](credentials.md)）。
 
@@ -149,7 +147,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   1〜2 段下にあるセッション ID で始まる名前のもの（`projects/<ディレクトリ>/<ID>.jsonl` など）。ID は UUID なので
   ほかのセッションのものと重ならず、Claude Code のファイルの配置を知らずに済む。記録と作業領域は消さない
   （`SessionRepository` が消す）。
-- **関係**：usecase の `SessionFiles` を実装し、片付け（[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）から
+- **関係**：usecase の `SessionFiles` を実装し、[片付け](sessions.md#cleaner)から
   呼ばれる。runner と同じ `Options` で場所を知る。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：runner が作るものと
   消すものを同じパッケージに置く。

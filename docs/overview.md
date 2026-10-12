@@ -12,7 +12,7 @@
 
 | 考え方 | 内容 | 判断 |
 | --- | --- | --- |
-| リポジトリが宣言する | エージェントの実行環境（devcontainer）、ロールの指示、拡張、規約（CLAUDE.md）は、ターゲットのリポジトリが宣言する。control-plane はそれを読んで動かすだけで、汎用のエージェント像を押し付けない。人間の開発環境とエージェントの実行環境は同じもの | [app 0001](adr/app/0001-repository-centric-agents.md) |
+| リポジトリが宣言する | エージェントの実行環境（devcontainer）、ロールの指示、拡張、CLAUDE.md は、ターゲットのリポジトリが宣言する。control-plane はそれを読んで動かすだけで、汎用のエージェント像を押し付けない。人間の開発環境とエージェントの実行環境は同じもの | [app 0001](adr/app/0001-repository-centric-agents.md) |
 | エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの振る舞いは platform で共有し、ターゲット固有の事実はターゲットに置く | [app 0002](adr/app/0002-agent-is-target-times-role.md)、[target 0003](../template/docs/adr/0003-roles-as-claude-code-agents.md) |
 | 共通の能力は platform に | ターゲットをまたいで使うもの（ロール、共通のルール、プラグイン、スキル、hook、コマンド）は platform に置き、ターゲットはそれを宣言して使う | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](adr/app/0017-long-lived-session-process.md)、[app 0020](adr/app/0020-slack-requests-by-reference.md) |
@@ -49,7 +49,7 @@ control-plane（acp serve）──── Docker のプロキシ（許可した A
             ▼
 エージェントのコンテナ（セッションごと）
   ターゲットのイメージ ＋ セッションの作業領域 ＋ 短命の認証情報
-  Claude Code（ロール ＝ platform のプラグイン、規約 ＝ ターゲットの CLAUDE.md）
+  Claude Code（ロール ＝ platform のプラグイン、ターゲットの CLAUDE.md）
             │
             ▼
 GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
@@ -80,10 +80,12 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 
 ## 目指す姿
 
-- 上の3つを、それぞれのリポジトリ（agent-control-plane、agent-platform、agent-target-template）に分ける。
-  ターゲットはテンプレートから作り、platform のロール、共通のルール、プラグインと、ベースイメージを使う。
-- ターゲットは、エージェントが起動する環境（ハーネス：イメージ、設定、プラグイン、規約）と、作業するリポジトリ
-  （0 個以上）の組になる。コードを持たない雑務や壁打ちは、作業するリポジトリが 0 個のターゲットで受ける。
+- このリポジトリに同居する control-plane、platform、target-template を、それぞれのリポジトリ（agent-control-plane、
+  agent-platform、agent-target-template）に分ける。ターゲットはテンプレートから作り、platform のロール、共通のルール、
+  プラグインと、ベースイメージを使う。
+- ターゲットは、エージェントが起動する環境（イメージ、設定、プラグイン、CLAUDE.md。control-plane と合わせて
+  [ハーネス](../platform/docs/reference/glossary.md)になる）と、作業するリポジトリ（0 個以上）の組になる。コードを
+  持たない雑務や壁打ちは、作業するリポジトリが 0 個のターゲットで受ける。
 - エージェントはロールで役割を分け（developer、guide、reviewer、pm など）、必要なら Bot 同士で依頼し合う。
 - Slack からでも手元の CLI からでも、同じセッションに依頼し、途中経過を見られる。
 
