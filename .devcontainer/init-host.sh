@@ -1,6 +1,7 @@
 #!/bin/sh
 # Prepares the host for the devcontainer: .env (see .env.example), the state directories and the
-# shared network. Run it before the first start; values already in .env are kept.
+# network shared with the control plane (per the target contract). Run it before the first start;
+# values already in .env are kept.
 set -eu
 cd "$(dirname "$0")"
 repo=$(basename "$(cd .. && pwd)")

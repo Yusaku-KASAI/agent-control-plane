@@ -43,13 +43,13 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - イメージは `Dockerfile` で、`acp` と git を入れ、名前付きボリュームのマウント先を作っておく。
   - `ACP_UID`、`ACP_GID` のユーザーで動き、作業領域を作る。エージェントのコンテナはイメージのユーザーで作業領域に
     書くので、この値をイメージのユーザーと同じにして、作業領域の持ち主をそろえる（値は [.env.example](../../../.env.example)）。
-  - マウント：設定ファイル（読み取り専用）、`ACP_HOST_ROOT` と `ACP_SECRETS_DIR`（読み取り専用）をホストと同じパスに
-    （置き場所は [.env.example](../../../.env.example)）。
+  - マウント：設定ファイル（読み取り専用）。`ACP_HOST_ROOT`（読み書き可）と `ACP_SECRETS_DIR`（読み取り専用）を、
+    ホストと同じパスに（置き場所は [.env.example](../../../.env.example)）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）。ボリュームはエージェントのコンテナから名前で指すので、
     名前を固定する。
-  - API は、ホストからは `127.0.0.1:8787`、devcontainer からは共有ネットワーク `agent-control-plane-net` の
-    `control-plane:8787` で届く。リクエストには `ACP_API_TOKEN` を要求する。
+  - API は、ホストからは `127.0.0.1:8787`、ターゲットの devcontainer からは共有ネットワーク `agent-control-plane-net` の
+    `control-plane:8787` で届く（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane)）。リクエストには `ACP_API_TOKEN` を要求する。
   - 止めるときの猶予は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。実行中のターンを中断して
     スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown)、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
 - **関係**：プロキシにだけ、内部ネットワーク `docker-proxy` でつながる。秘密のファイルとボリュームの中身は

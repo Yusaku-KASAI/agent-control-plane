@@ -2,7 +2,7 @@
 
 ## 構成
 
-roles は harness と conventions を前提にする。roles を有効にするリポジトリは、この二つも有効にする。
+roles は harness、github と conventions を前提にする。roles を有効にするリポジトリは、この三つも有効にする。
 
 ```
 roles/
@@ -23,7 +23,7 @@ roles/
 - **置くもの / 置かないもの**：進め方（前提を確かめる、壊れうる場面を挙げる、レビューさせる）と、報告に書くこと、
   使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）。作業するブランチ、依頼者に聞いて待てるかなどの
   ハーネスの事実と、ターゲット固有の事実は置かない。
-- **関係**：ハーネスの契約、conventions の design スキル、github スキル、harness スキルを使う。
+- **関係**：ハーネスの契約、conventions の design スキル、github スキル、harness スキルを前提にする。
 - **当てはめた原則・パターン**：[関心の分離](../../principles/docs/reference/principles.md#soc)：振る舞いだけを持ち、事実は契約とターゲットの
   CLAUDE.md に任せる。[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：観点や手順の中身はスキルを参照する。
 

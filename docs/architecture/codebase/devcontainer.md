@@ -1,8 +1,10 @@
-# このリポジトリの devcontainer
+# このリポジトリの devcontainer と検査
 
-このリポジトリが、target-template の環境のファイルの埋める部分（[ファイルの分類](../../../template/docs/reference/contract.md#files)）に
-何を入れているか。共通の部分の構成は target-template の [devcontainer](../../../template/docs/architecture/devcontainer.md) と
-[CI](../../../template/docs/architecture/ci.md) にある。
+target-template の環境のファイルのうち、このリポジトリが埋める部分（[ファイルの分類](../../../template/docs/overview.md#files)）。
+Dockerfile の Go のツールチェーンと検査のステージ、Makefile の検査のルール、CI のジョブ、devcontainer.json と
+`.vscode/settings.json` の Go の部分を扱う。共通の部分の構成は target-template の
+[devcontainer](../../../template/docs/architecture/devcontainer.md) と [CI](../../../template/docs/architecture/ci.md) にあり、
+ルール（make のルール）という言葉も CI の文書のとおりに使う。
 
 ## 構成
 
@@ -47,9 +49,10 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：このリポジトリのツールチェーンを、
   共有する base から分ける。
 
-### `check-go`
+### `check-go`（ルール、ステージ、CI のジョブ）
 
-- **責務**：Go のコードの lint、`go mod tidy` の差分、govulncheck、テストを行う。
+- **責務**：Go のコードの lint、`go mod tidy` の差分、govulncheck、テストを行う。中身は Makefile のルールにあり、
+  同じ名前のステージと CI のジョブがそれを呼ぶ。
 - **置くもの / 置かないもの**：ステージは依存の取得（`go mod download`）を先に一つの層にし、そのあと lint の設定、
   例の設定、プラグインの宣言（`.claude`）、`platform`、Go のコードをコピーする。テストがそれらも読むため。
 - **関係**：キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
@@ -57,7 +60,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
   先に置き、コードを変えても依存の取得はやり直さない。
 
-### `check-platform`
+### `check-platform`（ルール、ステージ、CI のジョブ）
 
 - **責務**：`platform/` のプラグインを検証し、そのスクリプトを shellcheck にかける。
 

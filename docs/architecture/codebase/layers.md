@@ -25,8 +25,9 @@ cmd/acp ──▶ internal/adapter/<技術> ──▶ internal/usecase ──▶
 
 - **責務**：ユースケースと、それが外部に求めるインターフェース（ポート）。
 - **置くもの / 置かないもの**：判定と手順。ユースケースごとに 1 ファイルで、一つの型がそのユースケースの操作
-  （`Dispatcher` の `Execute`、`Stop`、`Recover`、`Close` など）をまとめて持つ。ポートをどのファイルに置くかは
-  [control-plane の構成](../app/components.md "案内")の `ports.go` の節にある。外部の技術の型は置かない。
+  （`Dispatcher` の `Execute`、`Stop`、`Recover`、`Close` など）をまとめて持つ。ポートは `ports.go` に置く。
+  ただしチャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）は、それを使う
+  `handle_message.go` に置く。外部の技術の型は置かない。
 - **関係**：標準ライブラリと domain に依存する。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   外側はここが決めたポートを実装する。

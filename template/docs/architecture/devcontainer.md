@@ -1,8 +1,7 @@
 # devcontainer
 
-人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）。Anthropic の
-[Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer) を元にしている。
-使い方は[手順](../guides/devcontainer.md)に、ファイルごとの共通・埋める・固有の分類は[契約](../reference/contract.md)にある。
+人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）と、VS Code の設定（`.vscode/settings.json`）。
+使い方は[手順](../guides/devcontainer.md "案内")に、ファイルごとの共通・埋める・固有の分類は[全体像](../overview.md#files)にある。
 
 ## 構成
 
@@ -20,11 +19,11 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   使うもの、その次のツールチェーンのステージはターゲット固有のツールチェーンとホストに依存する値を持つ。ツールチェーンの
   ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
   置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
-  名前でビルドされる。エージェントも同じイメージで動く（[契約](../reference/contract.md#image)）。
+  名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../reference/contract.md#image)）。
   `check-*` のステージは CI が使う（[ci.md](ci.md "案内")）。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
   `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
-  違うのは、埋める部分（[契約](../reference/contract.md#files)）だけ。
+  違うのは、埋める部分（[ファイルの分類](../overview.md#files)）だけ。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
   UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。root での作業の仕方は[手順](../guides/devcontainer.md#root)にある。
 - マウントするもの：
@@ -69,7 +68,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   - Claude Code はネイティブのインストーラーで入れ、自分で更新しないよう `DISABLE_UPDATES=1` にする。設定が
     マウントしたディレクトリの外（`~/.claude.json`）に残らないよう、`CLAUDE_CONFIG_DIR` を `~/.claude` にする。
   - git-delta は system の gitconfig で設定する。VS Code がホストから持ち込む `~/.gitconfig` に上書きされない。
-- **関係**：ツールチェーンのステージがこれを元にする。どのターゲットでも同じ内容（[契約](../reference/contract.md)）。
+- **関係**：ツールチェーンのステージがこれを元にする。どのターゲットでも同じ内容（[ファイルの分類](../overview.md#files)）。
 - **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：共有される中心なので、
   リポジトリやホストを知らない。後段がこれに足す。
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくいものから層を重ね、変わりやすい
@@ -82,7 +81,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：UID と GID が `node` と違えば `node` を作り直して持ち物を付け替え、最後に数値の
   `USER` にする（数値なので、プラットフォームが root でないことを確かめられる）。
 - **関係**：compose.yaml がこのステージをビルドする。`check-base` がこれを元にする。ターゲットごとに埋める部分
-  （[契約](../reference/contract.md#files)）。
+  （[ファイルの分類](../overview.md#files)）。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：ターゲットとホストに固有のものを、
   共有する base から分ける。
 
@@ -92,9 +91,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ネットワーク）を決める。
 - **置くもの / 置かないもの**：名前とパスは `.env` の値から決め、値そのものは置かない。値がなければ `init-host.sh`
   を実行するよう言って止まる。
-  - control-plane と共有するネットワーク `agent-control-plane-net`（外部のネットワーク）につなぎ、`ACP_SERVER` で
-    control-plane を指す。API のトークンは渡さない。渡すと、このコンテナから GitHub の認証情報を持つエージェントを
-    起動できてしまう。
+  - control-plane への接続（共有のネットワークと、API を指す環境変数）は、[ターゲットの契約](../reference/contract.md#control-plane)の
+    とおりにする。
 - **関係**：`.env` を読み、Dockerfile のツールチェーンのステージをビルドする。devcontainer.json がこれを参照する。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。
   [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：コンテナの振る舞いを VS Code の配線から分ける。
@@ -110,7 +108,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 ### `.devcontainer/init-host.sh`
 
-- **責務**：ホストを devcontainer のために準備する（`.env`、状態を置くディレクトリ、共有のネットワーク）。
+- **責務**：ホストを devcontainer のために準備する（`.env`、状態を置くディレクトリ、control-plane と共有するネットワーク）。
 - **置くもの / 置かないもの**：何度実行しても同じになる処理。`.env` にすでにある値は変えない。何をするかは
   [手順](../guides/devcontainer.md)にある。
 - **関係**：`.env.example` の項目を `.env` に書く。
@@ -129,7 +127,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 - **責務**：イメージのユーザーが作業ディレクトリに書き込めないときにそう知らせ、引数のコマンドを `exec` する。
 - **置くもの / 置かないもの**：知らせは stderr に出す。標準入力と stdout には触らない。
-- **関係**：[契約](../reference/contract.md)のイメージの entrypoint の決まりに沿う。
+- **関係**：[ターゲットの契約](../reference/contract.md#image)のイメージの entrypoint の決まりに沿う。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：UID の食い違いを、ツールが
   後で権限で失敗する前に知らせる。
 
@@ -160,17 +158,6 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **関係**：ルートの `.dockerignore` はこの Dockerfile には使われない（ターゲットにほかのイメージがあれば、そちらが
   使う）。`check-*` のステージはこの文脈からコピーする。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：イメージごとに文脈を分ける。
-
-### `.claude/settings.json`
-
-- **責務**：使うプラグインの宣言と、人が対話で使うときの Claude Code の設定を持つ。
-- **置くもの / 置かないもの**：
-  - プラグインは `extraKnownMarketplaces` と `enabledPlugins` で宣言する（[契約](../reference/contract.md#plugins)）。
-  - `permissions`（既定のモードと、確認せずに使えるツールの一覧）は、人が対話で使うときの設定。対話での
-    使い方は[手順](../guides/devcontainer.md#permissions)にある。
-- **関係**：control-plane がプラグインの宣言を読む（[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
-- **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：プラグインの
-  宣言は control-plane との契約で、使う側も読める決まった場所に置く。
 
 ### `.vscode/settings.json`
 

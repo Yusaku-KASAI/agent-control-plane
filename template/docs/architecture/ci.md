@@ -1,7 +1,8 @@
 # CI
 
-PR と main への push ごとに、devcontainer のイメージの中で `make check` と同じ検査を行う
-（[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。ターゲットが守る検査の決まりは[契約](../reference/contract.md#checks)にある。
+PR と main への push のたびと、毎週の定期実行で、devcontainer のイメージの中で `make check` と同じ検査を行う
+（[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
+Makefile の `check-<関心>` のように `make` で実行する単位を、make のルール（以下、ルール）と呼ぶ。
 
 ## 構成
 
@@ -17,7 +18,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 - 検査の中身は Makefile の `check-<関心>` にだけあり、Dockerfile のステージと CI のジョブはそれを呼ぶ
   （[ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。
-- 関心ごとに、Makefile のターゲット、Dockerfile のステージ、CI のジョブが同じ名前で一つずつ並ぶ。
+- 関心ごとに、Makefile のルール、Dockerfile のステージ、CI のジョブが同じ名前で一つずつ並ぶ。
 - ターゲットにほかのイメージ（アプリをデプロイするためのイメージなど）があれば、そのビルドも CI のジョブにする。
 - CI のジョブの結果は `check` ジョブにまとまる。
 
@@ -27,9 +28,9 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 - **責務**：検査の中身を関心ごとの `check-<関心>` として定義し、`check` で束ねる。
 - **置くもの / 置かないもの**：`check-target`（devcontainer のスクリプトの shellcheck と VS Code の設定の比較）、
-  `check-docs`、ターゲットの関心ごとの `check-<関心>`。手元の作業用のターゲットも置いてよいが、`check` には含めない。
-- **関係**：人も CI も同じターゲットを実行する。`check-target` と `check-docs` はどのターゲットでも共通
-  （[契約](../reference/contract.md#files)）。
+  `check-docs`、ターゲットの関心ごとの `check-<関心>`。手元の作業用のルールも置いてよいが、`check` には含めない。
+- **関係**：人も CI も同じルールを実行する。`check-target` と `check-docs` はどのターゲットでも共通
+  （[ファイルの分類](../overview.md#files)）。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：検査のコマンドはここにだけ書き、
   Dockerfile と CI は `make` で呼ぶ。
   [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：関心ごとに分け、読むファイルの範囲を区切る。
@@ -59,9 +60,9 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
   - 毎週の定期実行では、選んだ検査のステージだけキャッシュを使わない。キャッシュが当たると、新しく公開された
     脆弱性を拾えないため。
   - `check` ジョブは前のジョブの結果にかかわらず必ず動き、すべて成功していなければ失敗する。前のジョブの失敗で
-    飛ばされたジョブは成功と数えられてしまうため。必須のチェックはこれだけ（[契約](../reference/contract.md#checks)）。
+    飛ばされたジョブは成功と数えられてしまうため。必須のチェックはこれだけ（[ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。
   - 検査のコマンドは置かない。
-- **関係**：ターゲットごとに埋めるのは、行列のジョブと、キャッシュを使わない検査（[契約](../reference/contract.md#files)）。
+- **関係**：ターゲットごとに埋めるのは、行列のジョブと、キャッシュを使わない検査（[ファイルの分類](../overview.md#files)）。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：ruleset が知るのは
   `check` だけなので、ジョブを足しても ruleset は変えない。
   [Docs as Code](../../../platform/plugins/principles/docs/reference/patterns.md#docs-as-code)：文書もコードと同じ PR の検査を通す。
@@ -69,4 +70,4 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 ### `tools/check-docs.py`
 
 - **責務**：文書の形式のうち機械で確かめられるものを確かめる。中身は conventions の[文書の体系](../../../platform/plugins/conventions/docs/architecture/documentation.md)の構成要素の説明にある。
-- **関係**：`make check-docs` が実行する。どのターゲットでも共通（[契約](../reference/contract.md#files)）。
+- **関係**：`make check-docs` が実行する。どのターゲットでも共通（[ファイルの分類](../overview.md#files)）。
