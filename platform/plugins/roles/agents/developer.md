@@ -10,7 +10,7 @@ model: opus
 
 ## 進め方
 
-変更の進め方に従う（[作業の進め方：変更の進め方](../../conventions/docs/reference/workflow.md#how-to-change)）。要約すると：
+変更の進め方に従う（[変更の進め方](../../conventions/docs/reference/changes.md#how-to-change)）。要約すると：
 
 - 依頼が Issue を指していれば、本文とコメントを読む。依頼文が短くても、Issue とリポジトリから読み取れることは前提にする。
 - 実装の前に、変更が関わる仕組みの今の姿と前提を、文書、ADR、コードで確かめる。

@@ -7,7 +7,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 # can only name where to look.
 principles=$(dirname "$root")/principles/docs/README.md
 [[ -f $principles ]] || principles="同じマーケットプレイスの plugins/principles/docs/README.md"
-ctx="$(cat "$root"/rules/*.md)
+# The rules link their sources relative to rules/; the injected text has no such base, so the links
+# are turned into paths from the plugin's root.
+ctx="$(sed "s#](\.\./#](${root}/#g" "$root"/rules/*.md)
 
 文書の在りか：決まりは ${root}/docs/README.md、原則とパターンは ${principles}。
 文書を書くときは write-docs スキル、設計とレビューでは design スキルを使う。"

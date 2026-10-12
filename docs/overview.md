@@ -68,7 +68,7 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 | 項目 | 親 | 置き場所 | 前提にする | 持つもの | 届く先 |
 | --- | --- | --- | --- | --- | --- |
 | principles | | `../platform/plugins/principles/` | | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） |
-| conventions | | `../platform/plugins/conventions/` | principles | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
+| conventions | | `../platform/plugins/conventions/` | principles | このプロジェクト群の決まり（文書、変更と課題、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
 | 契約 | | | principles, conventions | 区切りの間の約束 | 契約の両側 |
 | エージェントの用語集 | 契約 | `../platform/docs/reference/glossary.md` | | エージェントとハーネスの言葉 | |
 | ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集 | control-plane がエージェントに渡すもの | |

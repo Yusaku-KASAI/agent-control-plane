@@ -1,7 +1,7 @@
 # Issue のラベル
 
 このリポジトリの Issue に付ける、どこを変えるかのラベル。Issue の扱い方は conventions の
-[作業の進め方](../../platform/plugins/conventions/docs/reference/workflow.md "案内")にある。
+[課題の扱い方](../../platform/plugins/conventions/docs/reference/issues.md "案内")にある。
 
 | ラベル | 変えるもの |
 | --- | --- |

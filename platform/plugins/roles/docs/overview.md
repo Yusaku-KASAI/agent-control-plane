@@ -23,7 +23,7 @@ roles/
 - **置くもの / 置かないもの**：developer に固有の振る舞い（届け方、報告）と、使う決まりの選び出し（変更の進め方、書き方、
   スキル）、使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）。選び出した決まりは要約だけを書き、
   出典（conventions の定義）を示す。決まりを新しく足さない。ハーネスの事実とターゲット固有の事実は置かない。
-- **関係**：conventions の作業の進め方と書き方、ハーネスの契約、conventions の design スキル、github スキル、harness スキルを
+- **関係**：conventions の変更の扱い方と書き方、ハーネスの契約、conventions の design スキル、github スキル、harness スキルを
   前提にする。
 - **当てはめた原則・パターン**：[一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)：役割ごとの指示は決まりの写しで、出典を示す。
   [関心の分離](../../principles/docs/reference/principles.md#soc)：事実は契約とターゲットの CLAUDE.md に任せる。
