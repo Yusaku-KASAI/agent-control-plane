@@ -12,8 +12,17 @@ platform は、ターゲットをまたいで使うエージェントの能力�
 platform/
   .claude-plugin/marketplace.json   マーケットプレイス acp-platform
   plugins/                          プラグイン（architecture/plugins.md）
-  docs/                             すべてのエージェントに届く文書（README.md が一覧）
+    principles/                     どこでも通用する原則とパターン（別の区切り）
+    conventions/                    このプロジェクト群の決まり（別の区切り）
+    harness/ roles/ github/ …       エージェントの能力（platform の区切り）
+  docs/                             platform 自身の文書（README.md が一覧）
 ```
+
+`platform/` というディレクトリは、platform という区切りであると同時に、principles と conventions という別の区切りを
+エージェントに届ける入れ物も兼ねる。ほかのターゲットのエージェントに届くのはマーケットプレイスの中だけなので、
+すべての区切りが前提にする principles と conventions もここにプラグインとして置く。区切りとしては platform に属さず、
+platform を前提にしない（区切りの一覧は conventions の[文書の体系](../plugins/conventions/docs/architecture/documentation.md)）。
+`docs/` に書くのは platform 自身のことだけで、原則やこのプロジェクト群の決まりは、それぞれのプラグインの `docs/` に書く。
 
 ## 届き方
 

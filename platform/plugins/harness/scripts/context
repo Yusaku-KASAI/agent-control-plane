@@ -14,6 +14,7 @@ fi
 jq -n --arg event "$1" --arg ctx "# ハーネス
 
 ${how}
-渡されるもの（環境変数、作業領域、認証情報）とその制約は ${docs}/reference/harness.md、言葉の意味は ${docs}/reference/glossary.md にある。
+渡されるもの（環境変数、作業領域、認証情報）とその制約は ${docs}/reference/harness.md にある。platform の文書の一覧（用語集、
+プラグインの構成など）は ${docs}/README.md。
 認証、push、マウント、環境変数などで詰まったら、harness スキルで切り分ける。" \
   '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'

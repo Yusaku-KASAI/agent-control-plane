@@ -4,10 +4,12 @@
 
 ## ホストの準備
 
-ターゲットのリポジトリと、platform のマーケットプレイス `agent-platform` を、ホストの同じディレクトリに並べる。
-ターゲットは `/workspace/agent-platform` で platform を宣言し、devcontainer でもエージェントのコンテナでもその場所に
-見える。切り出すまでは、並べたディレクトリに相対パスのシンボリックリンクを置いて agent-control-plane の `platform/` を
-指す（`ln -s agent-control-plane/platform agent-platform`）。
+ターゲットと platform のマーケットプレイスを、[ターゲットの契約の配置](../reference/contract.md#host)のとおりに並べる。
+切り出すまでは、ターゲットを並べたディレクトリで次を実行して、agent-control-plane の `platform/` を指すリンクを置く。
+
+```bash
+ln -s agent-control-plane/platform agent-platform
+```
 
 ## ビルド、起動、停止
 

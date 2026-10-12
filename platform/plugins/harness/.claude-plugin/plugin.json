@@ -1,6 +1,6 @@
 {
   "name": "harness",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Tell agents how they are run and where the harness contract is",
   "author": {
     "name": "Yusaku KASAI"
