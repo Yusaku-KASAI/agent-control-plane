@@ -1,6 +1,6 @@
 {
   "name": "conventions",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "How repositories in this project family write documents, design changes and work",
   "author": {
     "name": "Yusaku KASAI"
