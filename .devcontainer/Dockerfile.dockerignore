@@ -7,3 +7,5 @@
 .devcontainer/.env
 acp.yaml
 bin
+CLAUDE.local.md
+**/CLAUDE.local.md

@@ -24,13 +24,15 @@ MAP_ANCHOR = re.compile(r'<a id="map-[a-z0-9-]+"></a>')
 MAP_COLUMNS = ["項目", "親", "置き場所", "前提にする"]
 FENCE = re.compile(r"^ {0,3}(```|~~~).*?^ {0,3}\1", re.M | re.S)
 WHOLE = "全体"
+# Files the OS leaves in directories; they are not documents.
+IGNORED_ENTRIES = {".DS_Store"}
 
 
 def tracked_markdown():
     try:
-        out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.md"],
+        out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.md"],
                              capture_output=True, text=True, check=True).stdout
-        return [p for p in out.split() if os.path.exists(p)]
+        return sorted(p for p in out.split("\0") if p and os.path.exists(p))
     except (OSError, subprocess.CalledProcessError):
         # The CI build context has no .git; it holds only what the dockerignore lets in.
         paths = []
@@ -59,6 +61,15 @@ def links(text):
     for m in list(INLINE_LINK.finditer(text)) + list(LINK_DEFINITION.finditer(text)):
         target, fragment, double, single = m.groups()
         yield target, fragment or "", double or single or ""
+
+
+def repo_root():
+    try:
+        return subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        # Without .git (the CI build context), the script still sits in tools/ of the repository.
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def is_external(target):
@@ -94,6 +105,9 @@ def anchors(path):
 def check_links(path, errors):
     for target, fragment, _ in links(read(path)):
         if is_external(target):
+            continue
+        if target.startswith("/"):
+            errors.append(f"{path}: absolute link {target}; link with a relative path")
             continue
         resolved = resolve(path, target).rstrip("/")
         if not os.path.exists(resolved):
@@ -187,7 +201,7 @@ def docs_roots(paths):
 def check_docs_dirs(paths, errors):
     for root in docs_roots(paths):
         for entry in sorted(os.listdir(root)):
-            if entry not in DOCS_LAYOUT:
+            if entry not in DOCS_LAYOUT and entry not in IGNORED_ENTRIES:
                 errors.append(f"{root}/{entry}: not part of the docs layout ({', '.join(sorted(DOCS_LAYOUT))})")
         index = os.path.join(root, "README.md")
         linked = {resolve(index, t).rstrip("/") for t, _, _ in links(read(index)) if not is_external(t)}
@@ -215,10 +229,21 @@ def check_components(path, errors):
 
 
 # Documents read at every start, and how many lines (without blank lines and frontmatter) each may hold.
+def in_plugin_dir(path, name):
+    """Whether the path is directly in the given directory of a plugin (a directory with .claude-plugin/plugin.json)."""
+    directory = os.path.dirname(path)
+    return (os.path.basename(directory) == name
+            and os.path.isfile(os.path.join(os.path.dirname(directory), ".claude-plugin", "plugin.json")))
+
+
+def in_project_agents(path):
+    return path.split(os.sep)[-3:-1] == [".claude", "agents"]
+
+
 ALWAYS_READ = [
     (lambda p: p == "CLAUDE.md", 60, "file"),
-    (lambda p: os.sep + "plugins" + os.sep in os.sep + p and os.path.basename(os.path.dirname(p)) == "rules", 40, "directory"),
-    (lambda p: os.sep + "plugins" + os.sep in os.sep + p and os.path.basename(os.path.dirname(p)) == "agents", 50, "file"),
+    (lambda p: in_plugin_dir(p, "rules"), 40, "directory"),
+    (lambda p: in_plugin_dir(p, "agents") or in_project_agents(p), 50, "file"),
 ]
 
 
@@ -409,6 +434,7 @@ def print_map(m):
 
 
 def main():
+    os.chdir(repo_root())
     errors = []
     paths = tracked_markdown()
     m = read_map(paths, errors)
