@@ -5,18 +5,11 @@ description: 状態によって振る舞いが変わる処理、消す・上書�
 
 # 設計の観点
 
-次のパターンを、作るときは順に当てはめ、レビューでは当てはまっていないところを指摘する。各パターンの形とよくある
-失敗は、principles の文書（SessionStart で示された principles の `docs/README.md` と同じ `docs/`）の
-`reference/patterns.md` にある。
+変更を設計するときと、差分をレビューするときに使う。どの変更にどのパターンを当てはめるかは
+[変更とパターン](../../docs/reference/changes.md#patterns)、レビューでの指摘の仕方は
+[レビュー](../../docs/reference/changes.md#review)にある。
 
-| 当てはまる変更 | パターン |
-| --- | --- |
-| 状態によって振る舞いが変わる | 状態を軸で洗い出す（`#state-axes`）、事実と判定を分ける（`#facts-and-judgement`） |
-| 消す、上書きする、作り直す | 失われうるものを先に挙げる（`#loss-first`） |
-| 人が実行する移行や運用の手順を含む | 手順を実装と突き合わせる（`#verify-procedures`） |
-| どの変更も | 一つの目的の小さな変更（`#small-change`） |
-
-## レビューで指摘するとき
-
-- どのパターンのどの点が守られていないかを、パターンの名前で書く。
-- 抜けている状態や失われうるものは、具体的な組み合わせ（どの軸のどの値か）で示す。
+1. 変更の種類を見て、[変更とパターン](../../docs/reference/changes.md#patterns)の表から当てはまるパターンを選ぶ。
+2. 各パターンの形とよくある失敗を、principles のパターンの一覧（SessionStart で示された principles の `docs/README.md` と
+   同じ `docs/` の `reference/patterns.md`）で確かめる。
+3. 作るときはその形に沿って設計し、レビューでは守られていない点を、パターンの名前と具体的な組み合わせで指摘する。

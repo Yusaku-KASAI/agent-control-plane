@@ -71,8 +71,8 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 | conventions | | `../platform/plugins/conventions/` | principles | このプロジェクト群の決まり（文書、変更と課題、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
 | 契約 | | | principles, conventions | 区切りの間の約束 | 契約の両側 |
 | エージェントの用語集 | 契約 | `../platform/docs/reference/glossary.md` | | エージェントとハーネスの言葉 | |
-| ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集 | control-plane がエージェントに渡すもの | |
-| ターゲットの契約 | 契約 | `../template/docs/reference/contract.md` | エージェントの用語集, ハーネスの契約 | ターゲットが用意するもの | |
+| ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集, ターゲットの契約 | control-plane がエージェントに渡すもの | |
+| ターゲットの契約 | 契約 | `../template/docs/reference/contract.md` | エージェントの用語集 | ターゲットが用意するもの | |
 | platform | | `../platform/` | principles, conventions, 契約 | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
 | target-template | | `../template/` | principles, conventions, 契約, platform | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
 | control-plane | | `../README.md`, `../CLAUDE.md`, `./` | principles, conventions, 契約, platform, target-template | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |

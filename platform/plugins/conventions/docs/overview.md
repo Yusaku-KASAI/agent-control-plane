@@ -5,7 +5,7 @@
 conventions は principles を前提にする。conventions を有効にするリポジトリは、principles も有効にする。
 
 conventions は、決まりの**定義**と、それをエージェントに**届ける形**に分かれる。届ける形は定義を前提にし、
-定義は届ける形を知らない。
+定義は届ける形を前提にしない。
 
 ```
 conventions/
@@ -16,9 +16,8 @@ conventions/
   skills/          届け方：必要なときに読む手順と観点（write-docs、design）
 ```
 
-- 届ける形は、定義を要約したり選び出したりするだけで、新しい決まりを足さない。どの定義によるかを示す。届け方の
-  種類と使い分けは[文書の体系](architecture/documentation.md#delivery "案内")にある。
-- 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を知らない。
+- 届け方が定義とどう関わるか（写しであること、出典、例外）は[文書の体系](architecture/documentation.md#delivery "案内")にある。
+- 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
 - 文書の決まりのうち機械で確かめられるものは、各リポジトリに置く `tools/check-docs.py` が確かめる。
 
 ## 構成要素
@@ -53,7 +52,7 @@ conventions/
 ### 共通のルール（`rules/`）
 
 - **責務**：いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる（届け方）。
-- **置くもの / 置かないもの**：定義の要約だけ。各項目に出典（定義の文書へのリンク）を付ける。新しい決まりは置かない。
+- **置くもの / 置かないもの**：定義の要約だけ（届け方の決まりに沿う）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
   [仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
 
