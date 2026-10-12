@@ -2,6 +2,8 @@
 
 ## 構成
 
+conventions は principles を前提にする。conventions を有効にするリポジトリは、principles も有効にする。
+
 ```
 conventions/
   rules/          常に読み込む決まり（コメント、コミット、PR と、文書の決まりの要約）

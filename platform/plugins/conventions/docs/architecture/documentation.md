@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md)にある。
 
@@ -27,8 +27,25 @@
   [共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)になる。
 - 共有の核のほかに区切りをまたぐのは、契約だけ。契約は使う側から読める場所に置き、作る側はそれに合わせて作り
   （[使う側に届く契約](../../../principles/docs/reference/patterns.md#published-language)）、実装との一致は[契約の試験](../../../principles/docs/reference/patterns.md#contract-test)で確かめる。
-- どんな区切りがあり、どこにあって、どれが何を前提にするか（区切りの一覧）は、全体の設計を持つリポジトリの
-  `overview.md` に書く。
+
+<a id="map"></a>
+
+### 項目の階層と関係
+
+- 区切りと、その中の部品（プラグイン、話題の文書など）は、入れ子の項目として表す（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
+  何段あってもよい。同じ親の下の項目は、同じ種類と粒度にし、重ならず親を尽くす（[兄弟をそろえる](../../../principles/docs/reference/principles.md#siblings)）。
+- 区切りの間の契約は、作る側にも使う側にも属さない独立した項目として扱い、両側がそれを前提にする
+  （[依存関係の逆転](../../../principles/docs/reference/principles.md#dip)）。置き場所は使う側から読める所にする。置き場所の親と、関係の上での親は
+  違ってよい。
+- 項目の間の関係は種類で分ける（[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。依存の向きの決まりは「前提にする」
+  関係にだけ当てる。索引（`docs/README.md`）から各文書へのリンクと、ADR（判断の理由）へのリンクは案内で、依存ではない。
+  前提にされる側から前提にする側の在りかを示したいときは、リンクにせず文章で書く。
+- 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
+  変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
+  下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。
+- 地図（どんな項目があり、どの項目がどれを前提にするか）は階層ごとに書く。最上位の地図は全体の設計を持つリポジトリの
+  `overview.md` に、各項目の中の地図はその項目の `overview.md`（なければ構成を書いた文書）に置く。項目が多いときは
+  [設計構造行列](../../../principles/docs/reference/patterns.md#dsm)で表す。
 
 ### 文書の根と器
 
