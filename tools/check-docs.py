@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
 
 STATUSES = {"accepted", "superseded"}
 DOCS_LAYOUT = {"README.md", "overview.md", "architecture", "guides", "reference", "adr"}
@@ -32,7 +33,7 @@ def tracked_markdown():
 
 
 def strip_code(text):
-    return FENCE.sub("", re.sub(r"`[^`\n]*`", "", text))
+    return re.sub(r"`[^`\n]*`", "", FENCE.sub("", text))
 
 
 def anchors(path):
@@ -152,13 +153,136 @@ def check_components(path, errors):
             errors.append(f"{path}: component '{heading.group(1)}' has no 責務")
 
 
+MAP_ANCHOR = '<a id="map-table"></a>'
+
+
+class Map:
+    """The items of the repository, as declared in the map table: name -> (parent, paths, prerequisites)."""
+
+    def __init__(self, path, items):
+        self.path = path
+        self.items = items
+        self.order = list(items)
+
+    def item_of(self, file):
+        best, length = None, -1
+        for name, (_, paths, _) in self.items.items():
+            for p in paths:
+                if (file == p or (p.endswith("/") and file.startswith(p))) and len(p) > length:
+                    best, length = name, len(p)
+        return best
+
+    def ancestors(self, name):
+        chain = []
+        while name is not None:
+            chain.append(name)
+            name = self.items[name][0]
+        return chain
+
+    def closure(self, name):
+        seen, todo = set(), list(self.items[name][2])
+        while todo:
+            n = todo.pop()
+            if n not in seen:
+                seen.add(n)
+                todo.extend(self.items[n][2])
+        return seen
+
+
+def read_map(paths, errors):
+    found = [p for p in paths if MAP_ANCHOR in strip_code(open(p, encoding="utf-8").read())]
+    if not found:
+        return None
+    if len(found) > 1:
+        errors.append(f"more than one map table: {', '.join(found)}")
+    path = found[0]
+    text = FENCE.sub("", open(path, encoding="utf-8").read())
+    rows = []
+    for line in text[text.index(MAP_ANCHOR):].splitlines()[1:]:
+        if line.startswith("|"):
+            rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+        elif rows:
+            break
+    items = {}
+    for cells in rows[2:]:
+        if len(cells) != 4:
+            errors.append(f"{path}: map row needs 4 columns: {cells}")
+            continue
+        name, parent, place, deps = cells
+        if name in items:
+            errors.append(f"{path}: item {name} declared twice")
+        items[name] = (parent or None, re.findall(r"`([^`]+)`", place), [d.strip() for d in deps.split(",") if d.strip()])
+    m = Map(path, items)
+    for name, (parent, _, deps) in items.items():
+        if parent is not None and parent not in items:
+            errors.append(f"{path}: item {name} has unknown parent {parent}")
+        for d in deps:
+            if d not in items or items[d][0] != parent:
+                errors.append(f"{path}: item {name} may only rely on its siblings, not {d}")
+    for name in items:
+        if all(d in items for d in m.closure(name)) and name in m.closure(name):
+            errors.append(f"{path}: item {name} relies on itself through a cycle")
+    return m
+
+
+def check_map(m, paths, errors):
+    for path in paths:
+        if m.item_of(path) is None:
+            errors.append(f"{path}: not in any item of the map ({m.path})")
+    for path in paths:
+        source = m.item_of(path)
+        # An index only shows where documents are; it does not rely on them.
+        if source is None or (os.path.basename(path) == "README.md" and os.path.basename(os.path.dirname(path)) == "docs"):
+            continue
+        for target, _ in LINK.findall(strip_code(open(path, encoding="utf-8").read())):
+            if not target or re.match(r"[a-z][a-z0-9+.-]*:", target):
+                continue
+            resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
+            # Decision records give reasons; linking to them does not rely on them.
+            if "adr" in resolved.split(os.sep)[:-1]:
+                continue
+            dest = m.item_of(resolved)
+            if dest is None or dest == source:
+                continue
+            a, b = m.ancestors(source), m.ancestors(dest)
+            if dest in a or source in b:
+                continue
+            common = next(x for x in a if x in b) if set(a) & set(b) else None
+            a_side = a[a.index(common) - 1] if common else a[-1]
+            b_side = b[b.index(common) - 1] if common else b[-1]
+            if b_side not in m.closure(a_side):
+                errors.append(f"{path}: relies on {target}, but {a_side} does not rely on {b_side} in the map")
+
+
+def print_map(m):
+    def width(text):
+        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+    names = m.order
+    label = {n: "  " * (len(m.ancestors(n)) - 1) + n for n in names}
+    w = max(width(label[n]) for n in names)
+    print(" " * w + " | " + " ".join(f"{i:>2}" for i in range(1, len(names) + 1)))
+    for i, n in enumerate(names, 1):
+        marks = ["●" if c in m.items[n][2] else ("·" if c == n else " ") for c in names]
+        cells = " ".join((" " * (2 - width(x))) + x for x in marks)
+        print(label[n] + " " * (w - width(label[n])) + " | " + cells + f"  {i}")
+
 def main():
     errors = []
     paths = tracked_markdown()
+    m = read_map(paths, errors)
+    if "--map" in sys.argv[1:]:
+        if m is None:
+            print("no map table", file=sys.stderr)
+            return 1
+        print_map(m)
+        return 0
     for path in paths:
         check_links(path, open(path, encoding="utf-8").read(), errors)
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
+    if m is not None:
+        check_map(m, paths, errors)
     for e in errors:
         print(e, file=sys.stderr)
     return 1 if errors else 0

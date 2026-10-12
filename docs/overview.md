@@ -60,30 +60,18 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 ### 地図
 
 このプロジェクト群の知識を、入れ子の項目に分ける。決まりは conventions の
-[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)。ここは最上位の地図で、各項目の中の地図は
-その項目の文書にある。切り出すまでは、各ターゲットを除く項目がこのリポジトリに同居する。
+[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)。切り出すまでは、各ターゲットを除く
+項目がこのリポジトリに同居する。
 
-| 項目 | 持つもの | 届く先 | 置き場所 | 中の地図 |
-| --- | --- | --- | --- | --- |
-| principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） | `platform/plugins/principles/` | [README](../platform/plugins/principles/docs/README.md) |
-| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント | `platform/plugins/conventions/` | [overview](../platform/plugins/conventions/docs/overview.md) |
-| 契約 | 区切りの間の約束：エージェントとハーネスの用語集、ハーネスの契約（control-plane がエージェントに渡すもの）、ターゲットの契約（ターゲットが用意するもの） | 契約の両側 | 使う側から読める所：用語集とハーネスの契約は `platform/docs/reference/`、ターゲットの契約は `template/docs/reference/` | 下の「契約の中」 |
-| platform | エージェントの能力（ロール、スキル、hook） | すべてのエージェント | `platform/` のほかの部分 | [plugins](../platform/docs/architecture/plugins.md) |
-| target-template | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） | `template/docs/` と、ルートの環境のファイル | [overview](../template/docs/overview.md) |
-| control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 | `cmd/`、`internal/`、`compose.yaml`、`Dockerfile`、`docs/` など | [README](README.md) |
-| 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント | 各リポジトリ | 各リポジトリの CLAUDE.md |
-
-前提の向き（行の項目が列の項目を前提にする。●は前提にしてよい）：
-
-| | principles | conventions | 契約 | platform | target-template | control-plane | 各ターゲット |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| principles | | | | | | | |
-| conventions | ● | | | | | | |
-| 契約 | ● | ● | | | | | |
-| platform | ● | ● | ● | | | | |
-| target-template | ● | ● | ● | ● | | | |
-| control-plane | ● | ● | ● | ● | ● | | |
-| 各ターゲット | ● | ● | ● | ● | ● | | |
+| 項目 | 持つもの | 届く先 |
+| --- | --- | --- |
+| principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） |
+| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
+| 契約 | 区切りの間の約束：エージェントとハーネスの用語集、ハーネスの契約（control-plane がエージェントに渡すもの）、ターゲットの契約（ターゲットが用意するもの） | 契約の両側 |
+| platform | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
+| target-template | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
+| control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |
+| 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント |
 
 - principles と conventions は、ほかのすべての項目が前提にしてよい共有の核。
 - 契約は、作る側（control-plane）にも使う側（platform のプラグイン、エージェント、各ターゲット）にも属さない。両側が
@@ -91,31 +79,37 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 - 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
   マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
 
-<a id="contracts"></a>
+<a id="map-table"></a>
 
-#### 契約の中
+#### 項目と前提の向き
 
-| | 用語集 | ハーネスの契約 | ターゲットの契約 |
+項目ごとの親、置き場所、前提にする兄弟（同じ親の下の項目）。`make check-docs` がこの表を読み、文書のリンクが向きに
+反していないかと、循環がないかを確かめる（[形式](../platform/plugins/conventions/docs/reference/formats.md#map)）。
+設計構造行列は `python3 tools/check-docs.py --map` で出す。
+
+| 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| 用語集 | | | |
-| ハーネスの契約 | ● | | |
-| ターゲットの契約 | ● | ● | |
-
-文書は、用語集が [platform/docs/reference/glossary.md](../platform/docs/reference/glossary.md)、ハーネスの契約が
-[platform/docs/reference/harness.md](../platform/docs/reference/harness.md)、ターゲットの契約が
-[template/docs/reference/contract.md](../template/docs/reference/contract.md)。
-
-<a id="inside"></a>
-
-#### 各項目の中
-
-| 項目 | 中の項目と前提の向き |
-| --- | --- |
-| principles | パターン → 原則 |
-| conventions | rules、hook、スキル → 文書の体系と形式（[overview](../platform/plugins/conventions/docs/overview.md)） |
-| platform | roles → harness、conventions のスキル、github、slack。harness、github、slack、bell はほかのプラグインを前提にしない（[plugins](../platform/docs/architecture/plugins.md)） |
-| target-template | 検査（CI）→ devcontainer。Claude Code の設定は devcontainer の一部（[overview](../template/docs/overview.md)） |
-| control-plane | アプリ（`docs/architecture/app/`）→ コード（`docs/architecture/codebase/`）。手順と参照 → 解説 |
+| principles | | `platform/plugins/principles/` | |
+| 原則 | principles | `platform/plugins/principles/docs/reference/principles.md` | |
+| パターン | principles | `platform/plugins/principles/docs/reference/patterns.md` | 原則 |
+| conventions | | `platform/plugins/conventions/` | principles |
+| 契約 | | | principles, conventions |
+| 用語集 | 契約 | `platform/docs/reference/glossary.md` | |
+| ハーネスの契約 | 契約 | `platform/docs/reference/harness.md` | 用語集 |
+| ターゲットの契約 | 契約 | `template/docs/reference/contract.md` | 用語集, ハーネスの契約 |
+| platform | | `platform/` | principles, conventions, 契約 |
+| harness | platform | `platform/plugins/harness/` | |
+| github | platform | `platform/plugins/github/` | |
+| slack | platform | `platform/plugins/slack/` | |
+| roles | platform | `platform/plugins/roles/` | harness, github, slack |
+| bell | platform | `platform/plugins/bell/` | |
+| target-template | | `template/` | principles, conventions, 契約, platform |
+| devcontainer | target-template | `template/docs/architecture/devcontainer.md`, `template/docs/guides/devcontainer.md` | |
+| CI | target-template | `template/docs/architecture/ci.md` | devcontainer |
+| control-plane | | `README.md`, `CLAUDE.md`, `docs/` | principles, conventions, 契約, platform, target-template |
+| コード | control-plane | `docs/architecture/codebase/` | |
+| アプリ | control-plane | `docs/architecture/app/` | コード |
+| 各ターゲット | | | principles, conventions, 契約, platform, target-template |
 
 ## 目指す姿
 
