@@ -1,6 +1,6 @@
 {
   "name": "acp-platform",
-  "description": "Agent roles, skills and hooks with the harness contract, plus design principles and conventions for any repository",
+  "description": "Agent roles, skills and hooks, plus the harness contract, design principles and conventions they build on",
   "owner": {
     "name": "Yusaku KASAI"
   },

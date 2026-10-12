@@ -33,8 +33,8 @@ services:
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history
-      # The API token is deliberately not passed: it would let this container start agents that
-      # hold GitHub credentials.
+      # Reaches the control plane as the target contract specifies. The API token is deliberately
+      # not passed: it would let this container start agents that hold GitHub credentials.
       - ACP_SERVER=http://control-plane:8787
 
 volumes:
@@ -43,6 +43,7 @@ volumes:
   go-build:
 
 networks:
+  # The control plane's network, per the target contract; init-host.sh creates it.
   default:
     name: agent-control-plane-net
     external: true

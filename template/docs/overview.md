@@ -1,14 +1,52 @@
 # ターゲットの環境の全体像
 
-[ターゲット](../../platform/docs/reference/glossary.md)に共通の環境の構成。control-plane は、ターゲットのイメージで
-エージェントのコンテナを作り、ターゲットが宣言したプラグインを読み込ませる。
+[ターゲット](../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
+ものは[ターゲットの契約](reference/contract.md)が定め、ここにあるファイルはそれを満たす。
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
-| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md) |
-| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/devcontainer.md](architecture/devcontainer.md) |
-| CLAUDE.md | エージェントの入口。どの節を持つか | [reference/contract.md](reference/contract.md) |
-| 検査 | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md) |
-| 契約 | ターゲットが用意するものと、ファイルの分類（共通 / 埋める / 固有） | [reference/contract.md](reference/contract.md) |
+| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "案内")、[guides/devcontainer.md](guides/devcontainer.md "案内") |
+| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "案内") |
+| CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md "案内") |
 
-control-plane がコンテナに渡すものは、platform の[ハーネスの契約](../../platform/docs/reference/harness.md)にある。
+<a id="files"></a>
+
+## ファイルの分類
+
+ターゲットの環境を作るファイルは、target-template と比べて次の 3 つに分かれる。
+
+| 分類 | 意味 |
+| --- | --- |
+| 共通 | どのターゲットでも同じ。ターゲットで変えない。変えるときは target-template とすべてのターゲットで変える |
+| 埋める | 形は共通で、ターゲットごとの部分を持つ。共通の部分は変えず、決まった場所だけを埋める |
+| 固有 | ターゲットだけのもの |
+
+| ファイル | 分類 | ターゲットごとの部分 |
+| --- | --- | --- |
+| `.devcontainer/docker-entrypoint.sh`、`init-host.sh`、`tmux.conf`、`check-vscode-settings.py` | 共通 | — |
+| `tools/check-docs.py` | 共通 | — |
+| `.devcontainer/Dockerfile` | 埋める | ツールチェーンのステージ（`base` の次）と `check-<関心>` のステージ。`base` と `check-base`、`check-target`、`check-docs` は共通 |
+| `.claude/settings.json` | 埋める | 使うプラグインの宣言（`extraKnownMarketplaces`、`enabledPlugins`）と、対話のときの権限（`permissions`） |
+| `.devcontainer/compose.yaml` | 埋める | ビルドするステージの名前と、ツールチェーンのキャッシュのボリューム |
+| `.devcontainer/devcontainer.json`、`.vscode/settings.json` | 埋める | ツールチェーンの拡張機能とその設定 |
+| `.devcontainer/Dockerfile.dockerignore` | 埋める | ツールチェーンが作るものの除外 |
+| `.devcontainer/.env.example` | 埋める | リポジトリ名を含む値 |
+| `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査 |
+| `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` と `check-docs` は共通 |
+| `.gitignore` | 埋める | `.devcontainer/.env` の行は共通、ほかはターゲットごと |
+| `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](reference/contract.md#claudemd)にある） |
+| それ以外（アプリのコード、文書、ADR） | 固有 | — |
+
+共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。
+
+<a id="map-target-template"></a>
+
+## 地図
+
+target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map)）。
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
+| devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
+| Claude Code の設定 | target-template | `architecture/claude-code.md` | |
+| CI | target-template | `architecture/ci.md` | devcontainer |

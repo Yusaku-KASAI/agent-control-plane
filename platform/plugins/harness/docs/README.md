@@ -1,7 +1,7 @@
 # harness
 
-エージェントに、自分がどう動かされているかと、ハーネスの契約の在りかを伝えるプラグイン。契約そのものは platform の
-[ハーネスの契約](../../../docs/reference/harness.md)にある。
+harness プラグインの文書の一覧。責務とほかのプラグインとの関係は、
+platform の[プラグイン](../../../docs/architecture/plugins.md)にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |

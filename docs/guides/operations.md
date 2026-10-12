@@ -43,8 +43,8 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 ### 4. 起動
 
-`compose.yaml` は外部のネットワーク `agent-control-plane-net` を使う。このリポジトリの
-[ホストの準備](../../template/docs/guides/devcontainer.md#host)で実行する `.devcontainer/init-host.sh` が作る。
+`compose.yaml` は外部のネットワーク `agent-control-plane-net`（[ターゲットの契約](../../template/docs/reference/contract.md#control-plane)）を使う。
+このリポジトリの devcontainer の[ビルド](../../template/docs/guides/devcontainer.md)の前に実行する `.devcontainer/init-host.sh` が作る。
 
 ```bash
 docker compose up -d --build

@@ -10,13 +10,13 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 ## 公開と運用
 
-公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md)。
+公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md "案内")。
 
 ## 守る互換
 
 互換を守る相手がいない。理想の形に向けてなら、記録や設定の形式、API、コマンドを破壊的に変えてよい。今あるデータや
-設定の扱いは ADR に書く。ただし platform（ハーネスの契約、用語集、プラグイン）、principles と conventions、
-target-template（ターゲットの契約、共通のファイル）を変えるときは、それを使うほかのターゲットも直す。
+設定の扱いは ADR に書く。ただし契約（用語集、ハーネスの契約、ターゲットの契約）、platform（プラグイン）、
+principles と conventions、target-template（共通のファイル）を変えるときは、それを使うほかのターゲットも直す。
 
 ## 参照先
 
@@ -34,7 +34,7 @@ target-template（ターゲットの契約、共通のファイル）を変え�
 ## 共通のルール
 
 コメントとドキュメントの書き方など、どのターゲットでも同じルールは、`.claude/settings.json` で有効にしている
-platform の conventions プラグインが、セッションとサブエージェントの始めに読み込ませる。
+conventions プラグイン（acp-platform マーケットプレイスで配る）が、セッションとサブエージェントの始めに読み込ませる。
 
 ## 他のリポジトリ
 

@@ -1,9 +1,9 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
-[文書を書く](../../skills/write-docs/SKILL.md)にある。
+[文書を書く](../../skills/write-docs/SKILL.md "案内")にある。
 
 ## 構成
 
@@ -21,7 +21,7 @@
 ### 区切りと依存の向き
 
 - 知識は、使う人（誰が読めるか）と持ち主が同じものを一つの区切りにまとめる（[境界づけられた文脈](../../../principles/docs/reference/principles.md#bounded-context)）。
-  区切りは、リポジトリか、リポジトリの中で独立して配る単位（プラグインなど）に当て、それぞれが自分の文書の根を持つ。
+  区切りは最上位の項目で、それぞれが自分の文書の根を持つ。
 - 依存は一方向にだけ向ける（[依存の向き](../../../principles/docs/reference/principles.md#dependency-rule)）。principles は何も前提にせず、
   conventions は principles だけを前提にする。この二つは、ほかのすべての区切りが前提にしてよい
   [共有の核](../../../principles/docs/reference/patterns.md#shared-kernel)になる。
@@ -34,18 +34,23 @@
 
 - 区切りと、その中の部品（プラグイン、話題の文書など）は、入れ子の項目として表す（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
   何段あってもよい。同じ親の下の項目は、同じ種類と粒度にし、重ならず親を尽くす（[兄弟をそろえる](../../../principles/docs/reference/principles.md#siblings)）。
+- 含む関係（親子）は依存ではない。子を持つ項目が直接持つ文書（`overview.md`、索引、全体の解説）は、子と並ぶ「全体」として
+  扱う。子は全体（全体の構成や共通の考え方）を前提にしてよく、全体は子を前提にしない（子への道は案内にする）。全体には
+  全体についての事実だけを書き、子の細部を書き写さない（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)、
+  [依存関係の逆転](../../../principles/docs/reference/principles.md#dip)）。
 - 区切りの間の契約は、作る側にも使う側にも属さない独立した項目として扱い、両側がそれを前提にする
   （[依存関係の逆転](../../../principles/docs/reference/principles.md#dip)）。置き場所は使う側から読める所にする。置き場所の親と、関係の上での親は
   違ってよい。
-- 項目の間の関係は種類で分ける（[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。依存の向きの決まりは「前提にする」
-  関係にだけ当てる。索引（`docs/README.md`）から各文書へのリンクと、ADR（判断の理由）へのリンクは案内で、依存ではない。
-  前提にされる側から前提にする側の在りかを示したいときは、リンクにせず文章で書く。
+- 項目の間の関係は種類で分け、依存の向きの決まりは「前提にする」関係にだけ当てる
+  （[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。在りかを示すだけのリンクは案内で、どう見分けてどう書くかは
+  [形式](../reference/formats.md#links)にある。
 - 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
   変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
   下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。
-- 地図（どんな項目があり、どの項目がどれを前提にするか）は階層ごとに書く。最上位の地図は全体の設計を持つリポジトリの
-  `overview.md` に、各項目の中の地図はその項目の `overview.md`（なければ構成を書いた文書）に置く。項目が多いときは
-  [設計構造行列](../../../principles/docs/reference/patterns.md#dsm)で表す。
+- 地図（どんな項目があり、どの項目がどれを前提にするか）は、階層ごとにその持ち主が書く。最上位の地図は全体の設計を
+  持つリポジトリの `overview.md` に、各項目の中の地図はその項目の `overview.md` に置き、上の階層の地図は中の項目を書かずに
+  委ねる。書き方は[形式](../reference/formats.md#map)にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
+  地図からは[設計構造行列](../../../principles/docs/reference/patterns.md#dsm)を出せる。
 
 ### 文書の根と器
 
@@ -126,8 +131,8 @@ conventions：
 
 ## 構成要素
 
-器の構成要素（各文書の根にある）と、体系を作る部品（principles と conventions のプラグイン、各リポジトリの
-`tools/check-docs.py`）。
+器の構成要素（各文書の根にある）と、体系を作る conventions の部品と、各リポジトリの `tools/check-docs.py`。principles の
+部品は [principles の全体像](../../../principles/docs/overview.md "案内")にある。
 
 ### `README.md`
 
@@ -189,21 +194,6 @@ conventions：
 - **当てはめた原則・パターン**：[判断の記録](../../../principles/docs/reference/patterns.md#adr)、[メタデータ](../../../principles/docs/reference/patterns.md#metadata)：
   状態と参照を frontmatter に持たせて検査する。
 
-### 原則の一覧（principles の `docs/reference/principles.md`）
-
-- **責務**：何を大事にするかを、原則・何のため・一般的な当てはめ方・よくある違反で一か所に置く。
-- **置くもの / 置かないもの**：どの粒度にも当てはまる一般的なことだけ。このプロジェクトのどこで使うかは置かない。
-- **関係**：パターンと構成要素の説明から指される。ほかを指さない。
-- **当てはめた原則・パターン**：[依存の向き](../../../principles/docs/reference/principles.md#dependency-rule)：いちばん内側で、何も前提にしない。
-  [SSOT](../../../principles/docs/reference/principles.md#ssot)：定義はここだけ。
-
-### パターンの一覧（principles の `docs/reference/patterns.md`）
-
-- **責務**：よくある問題への解き方を、解く問題・形・使いどころ・よくある失敗・拠り所の原則で一か所に置く。
-- **置くもの / 置かないもの**：一般的な形だけ。このプロジェクトのどこで使うかは置かない。
-- **関係**：原則を拠り所として指す。構成要素の説明と design スキルから指される。
-- **当てはめた原則・パターン**：[依存の向き](../../../principles/docs/reference/principles.md#dependency-rule)：原則だけを前提にする。
-
 ### 文書の体系（`docs/architecture/documentation.md`、この文書）
 
 - **責務**：このプロジェクト群の文書をどう分け、どこに何を書くかの解説。
@@ -248,11 +238,6 @@ conventions：
 - **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
-
-### principles スキル（principles の `skills/principles/`）
-
-- **責務**：原則とパターンの一覧を、要るときに引けるようにする。
-- **置くもの / 置かないもの**：一覧の在りかと引き方だけ。原則とパターンの中身は置かない。
 
 ### design スキル（`skills/design/`）
 

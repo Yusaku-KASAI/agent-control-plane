@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-11
 amends: [3, 4, "../../../../docs/adr/0004-common-rules-via-session-start-hook.md"]
+amended_by: [8]
 ---
 
 # 0005. どこでも通用する知識とこのプロジェクト群の決まりを、platform の製品の話から分け、それぞれプラグインにする

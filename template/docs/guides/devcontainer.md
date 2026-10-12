@@ -5,7 +5,8 @@
 ## ホストの準備
 
 ターゲットと platform のマーケットプレイスを、[ターゲットの契約の配置](../reference/contract.md#host)のとおりに並べる。
-切り出すまでは、ターゲットを並べたディレクトリで次を実行して、agent-control-plane の `platform/` を指すリンクを置く。
+platform のマーケットプレイスは agent-control-plane の `platform/` が兼ねるので、ターゲットを並べたディレクトリで
+次を実行して、それを指すリンクを置く。
 
 ```bash
 ln -s agent-control-plane/platform agent-platform

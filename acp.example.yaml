@@ -10,9 +10,11 @@ sessions:
   # Where each session's workspace and record live. Must be outside every target repository.
   root: /home/you/projects/acp-sessions
   # Close an agent's container after this long with no turn, queued prompt or background task.
+  # Default: 15m.
   idle_timeout: 15m
   # Remove a session unused for this long, unless it has a reason to be kept, and tell its thread.
   # What is removed and what keeps a session: docs/architecture/app/sessions.md#cleaner.
+  # Default: 720h (30 days).
   retention: 720h
 
 # Short-lived credentials handed to agent containers, per session. Agent containers mount their

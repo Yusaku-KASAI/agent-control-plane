@@ -16,7 +16,7 @@
 | エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの振る舞いは platform で共有し、ターゲット固有の事実はターゲットに置く | [app 0002](adr/app/0002-agent-is-target-times-role.md)、[target 0003](../template/docs/adr/0003-roles-as-claude-code-agents.md) |
 | 共通の能力は platform に | ターゲットをまたいで使うもの（ロール、共通のルール、プラグイン、スキル、hook、コマンド）は platform に置き、ターゲットはそれを宣言して使う | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](adr/app/0017-long-lived-session-process.md)、[app 0020](adr/app/0020-slack-requests-by-reference.md) |
-| 知識は届く先で区切る | 知識は、使う人と持ち主ごとの区切りに分け、区切りの間は共有の核（principles、conventions）と契約だけでつなぐ（[区切り](#contexts)） | [conventions 0002](../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)、[0003](../platform/plugins/conventions/docs/adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../platform/plugins/conventions/docs/adr/0005-principles-and-conventions-plugins.md) |
+| 知識は届く先で区切る | 知識は、使う人と持ち主ごとの区切りに分け、区切りの間は共有の核（principles、conventions）と契約だけでつなぐ（[地図](#map)） | [conventions 0002](../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)、[0003](../platform/plugins/conventions/docs/adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../platform/plugins/conventions/docs/adr/0005-principles-and-conventions-plugins.md) |
 
 ### 安全
 
@@ -55,75 +55,54 @@ control-plane（acp serve）──── Docker のプロキシ（許可した A
 GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 ```
 
-<a id="contexts"></a>
+<a id="map"></a>
 
 ### 地図
 
-このプロジェクト群の知識を、入れ子の項目に分ける。決まりは conventions の
-[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)。ここは最上位の地図で、各項目の中の地図は
-その項目の文書にある。切り出すまでは、各ターゲットを除く項目がこのリポジトリに同居する。
+このプロジェクト群の知識を、入れ子の項目に分ける。分け方と表の書き方は conventions の
+[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)と[形式](../platform/plugins/conventions/docs/reference/formats.md#map)にある。ここは最上位の地図で、
+各項目の中の地図はその項目の文書にある。各ターゲットを除く項目は、このリポジトリに同居する。
 
-| 項目 | 持つもの | 届く先 | 置き場所 | 中の地図 |
-| --- | --- | --- | --- | --- |
-| principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） | `platform/plugins/principles/` | [README](../platform/plugins/principles/docs/README.md) |
-| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント | `platform/plugins/conventions/` | [overview](../platform/plugins/conventions/docs/overview.md) |
-| 契約 | 区切りの間の約束：エージェントとハーネスの用語集、ハーネスの契約（control-plane がエージェントに渡すもの）、ターゲットの契約（ターゲットが用意するもの） | 契約の両側 | 使う側から読める所：用語集とハーネスの契約は `platform/docs/reference/`、ターゲットの契約は `template/docs/reference/` | 下の「契約の中」 |
-| platform | エージェントの能力（ロール、スキル、hook） | すべてのエージェント | `platform/` のほかの部分 | [plugins](../platform/docs/architecture/plugins.md) |
-| target-template | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） | `template/docs/` と、ルートの環境のファイル | [overview](../template/docs/overview.md) |
-| control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 | `cmd/`、`internal/`、`compose.yaml`、`Dockerfile`、`docs/` など | [README](README.md) |
-| 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント | 各リポジトリ | 各リポジトリの CLAUDE.md |
+<a id="map-top"></a>
 
-前提の向き（行の項目が列の項目を前提にする。●は前提にしてよい）：
+| 項目 | 親 | 置き場所 | 前提にする | 持つもの | 届く先 |
+| --- | --- | --- | --- | --- | --- |
+| principles | | `../platform/plugins/principles/` | | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） |
+| conventions | | `../platform/plugins/conventions/` | principles | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
+| 契約 | | | principles, conventions | 区切りの間の約束 | 契約の両側 |
+| エージェントの用語集 | 契約 | `../platform/docs/reference/glossary.md` | | エージェントとハーネスの言葉 | |
+| ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集 | control-plane がエージェントに渡すもの | |
+| ターゲットの契約 | 契約 | `../template/docs/reference/contract.md` | エージェントの用語集, ハーネスの契約 | ターゲットが用意するもの | |
+| platform | | `../platform/` | principles, conventions, 契約 | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
+| target-template | | `../template/` | principles, conventions, 契約, platform | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
+| control-plane | | `../README.md`, `../CLAUDE.md`, `./` | principles, conventions, 契約, platform, target-template | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |
+| 各ターゲット | | | principles, conventions, 契約, platform, target-template | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント |
 
-| | principles | conventions | 契約 | platform | target-template | control-plane | 各ターゲット |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| principles | | | | | | | |
-| conventions | ● | | | | | | |
-| 契約 | ● | ● | | | | | |
-| platform | ● | ● | ● | | | | |
-| target-template | ● | ● | ● | ● | | | |
-| control-plane | ● | ● | ● | ● | ● | | |
-| 各ターゲット | ● | ● | ● | ● | ● | | |
+- 契約と各ターゲットは、置き場所を持たない。契約は中の項目の集まりで、各ターゲットはこのリポジトリの外にある。
+- principles、conventions、ハーネスの契約、エージェントの用語集は、ほかのターゲットのエージェントに届くよう
+  マーケットプレイス（`platform/`）の中に置くが、platform には属さない。ターゲットの契約は `template/` の中に置くが、
+  target-template には属さない。
+- 設計構造行列は `python3 tools/check-docs.py --map` で出す。
 
-- principles と conventions は、ほかのすべての項目が前提にしてよい共有の核。
-- 契約は、作る側（control-plane）にも使う側（platform のプラグイン、エージェント、各ターゲット）にも属さない。両側が
-  契約を前提にし、互いの中身は前提にしない（依存関係の逆転）。契約が多くから前提にされるので、変わりにくく小さく保つ。
-- 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
-  マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
+<a id="map-control-plane"></a>
 
-<a id="contracts"></a>
+#### control-plane の中
 
-#### 契約の中
+子に属さない文書（この文書、索引、[Issue のラベル](reference/issues.md "案内")など）は、control-plane の全体。
 
-| | 用語集 | ハーネスの契約 | ターゲットの契約 |
+| 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| 用語集 | | | |
-| ハーネスの契約 | ● | | |
-| ターゲットの契約 | ● | ● | |
-
-文書は、用語集が [platform/docs/reference/glossary.md](../platform/docs/reference/glossary.md)、ハーネスの契約が
-[platform/docs/reference/harness.md](../platform/docs/reference/harness.md)、ターゲットの契約が
-[template/docs/reference/contract.md](../template/docs/reference/contract.md)。
-
-<a id="inside"></a>
-
-#### 各項目の中
-
-| 項目 | 中の項目と前提の向き |
-| --- | --- |
-| principles | パターン → 原則 |
-| conventions | rules、hook、スキル → 文書の体系と形式（[overview](../platform/plugins/conventions/docs/overview.md)） |
-| platform | roles → harness、conventions のスキル、github、slack。harness、github、slack、bell はほかのプラグインを前提にしない（[plugins](../platform/docs/architecture/plugins.md)） |
-| target-template | 検査（CI）→ devcontainer。Claude Code の設定は devcontainer の一部（[overview](../template/docs/overview.md)） |
-| control-plane | アプリ（`docs/architecture/app/`）→ コード（`docs/architecture/codebase/`）。手順と参照 → 解説 |
+| コードベース | control-plane | `architecture/codebase/`, `reference/coding.md`, `adr/codebase/` | |
+| アプリ | control-plane | `architecture/app/`, `reference/usage.md`, `guides/operations.md`, `adr/app/` | コードベース |
 
 ## 目指す姿
 
 - このリポジトリに同居する control-plane、platform、target-template を、それぞれのリポジトリ（agent-control-plane、
   agent-platform、agent-target-template）に分ける。ターゲットはテンプレートから作り、platform のロール、共通のルール、
   プラグインと、ベースイメージを使う。
-- ターゲットは、エージェントが起動する環境（イメージ、設定、プラグイン、CLAUDE.md。control-plane と合わせて
-  [ハーネス](../platform/docs/reference/glossary.md)になる）と、作業するリポジトリ（0 個以上）の組になる。コードを
+- ターゲットは、エージェントが起動する環境（イメージ、設定、プラグインの宣言、CLAUDE.md）と、作業するリポジトリ
+  （0 個以上）の組になる。イメージとプラグインは、それを起動する control-plane か devcontainer と合わせて
+  [ハーネス](../platform/docs/reference/glossary.md)になる。コードを
   持たない雑務や壁打ちは、作業するリポジトリが 0 個のターゲットで受ける。
 - エージェントはロールで役割を分け（developer、guide、reviewer、pm など）、必要なら Bot 同士で依頼し合う。
 - Slack からでも手元の CLI からでも、同じセッションに依頼し、途中経過を見られる。
