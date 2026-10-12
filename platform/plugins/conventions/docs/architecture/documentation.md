@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md "案内")にある。
 
@@ -94,21 +94,32 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 コード中のコメント、コミットメッセージ、PR に何を書くかは、共通のルール（conventions の `rules/`）にある。道筋と
 予定は Issue に置き、文書には書かない（[作業の進め方](../reference/workflow.md)）。
 
+<a id="rewrite"></a>
+
 ### 書き換え
 
 決まりを守るためなら、文書とコメントは破壊的に変えてよい。散らばった説明をまとめ直す、置き場所を移す、
 ディレクトリ構成を変えることも含む。
 
-### 決まりの強さ
+<a id="delivery"></a>
 
-決まりは、強いものから次の 3 つで守らせ、できるだけ強い方に寄せる（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
-なぜそう決めたかは ADR にある。
+### 定義と届け方
 
-| 強さ | 仕組み |
-| --- | --- |
-| 検査 | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
-| 常に読み込む決まり | conventions の `rules/`（hook が読み込ませる） |
-| 必要なときに読む指針 | この文書、[形式](../reference/formats.md)、write-docs と design のスキル |
+決まりは、一か所で定義し、効き方の違う形でエージェントや人に届ける（[一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)）。
+
+- **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まり（conventions の `docs/`：書き方、
+  作業の進め方、文書の体系、形式、用語集）、区切りの間の契約。同じ決まりを二か所で定義しない。
+- **届け方**：定義を、効く形に写したもの。新しい決まりを足さず、どの定義によるかを示す。定義を変えたら、写しも直す。
+
+届け方は、強いものから次のとおり。守らせたいことは、できるだけ強い形で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
+
+| 届け方 | 効き方 | 例 |
+| --- | --- | --- |
+| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
+| いつも読み込む要約 | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
+| 役割ごとの選び出し | その役割で動くときの前提になる | 役割ごとの指示（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
+| 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design） |
+| 定義の文書そのもの | 読みに行ったとき | conventions と principles の文書 |
 
 ### 体系を作る部品
 
@@ -202,6 +213,10 @@ conventions：
 - **関係**：原則とパターンを指す。形式と手順を指す。共通のルールから指される。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の解説。
 
+### 書き方（`docs/reference/writing.md`）
+
+- **責務**：コード中のコメント、コミットメッセージ、PR に何を書くかを定義する。
+
 ### 形式（`docs/reference/formats.md`）
 
 - **責務**：構成要素の説明、ADR、リンクの形を決める。
@@ -227,9 +242,8 @@ conventions：
 
 ### 共通のルール（`rules/`）
 
-- **責務**：いつも守らせたいことを、セッションとサブエージェントの始めに読み込ませる。
-- **置くもの / 置かないもの**：コメント、コミット、PR に何を書くか（ここが持ち主）と、文書の決まりの短い要約。要約には
-  どの原則や手順の要約かを書き、定義は原則とこの文書に任せる。
+- **責務**：いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる（届け方）。
+- **置くもの / 置かないもの**：定義の要約だけ。各項目に出典（定義の文書へのリンク）を付ける。新しい決まりは置かない。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
   [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
 

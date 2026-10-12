@@ -8,7 +8,8 @@
 | [overview.md](overview.md) | 解説 | このプラグインの構成と、エージェントへの届け方 |
 | [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：設計を記述する 3 層、区切りと依存の向き、各リポジトリの器、体系を作る部品 |
 | [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：構成要素の説明、ADR、リンク |
-| [reference/workflow.md](reference/workflow.md) | 参照 | 作業の進め方：PR と Issue |
+| [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR |
+| [reference/workflow.md](reference/workflow.md) | 参照 | 作業の進め方：変更（変更の進め方を含む）と課題 |
 | [reference/glossary.md](reference/glossary.md) | 参照 | 文書と作業の言葉 |
 | [adr/](adr/) | 判断 | 文書の体系と作業の進め方の判断 |
 
