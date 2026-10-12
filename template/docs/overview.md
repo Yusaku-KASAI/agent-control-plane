@@ -5,10 +5,10 @@
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
-| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md) |
-| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/devcontainer.md](architecture/devcontainer.md) |
+| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "案内") |
+| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/devcontainer.md](architecture/devcontainer.md "案内") |
 | CLAUDE.md | エージェントの入口。どの節を持つか | [reference/contract.md](reference/contract.md) |
-| 検査 | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md) |
+| 検査 | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md "案内") |
 | 契約 | ターゲットが用意するものと、ファイルの分類（共通 / 埋める / 固有） | [reference/contract.md](reference/contract.md) |
 
 control-plane がコンテナに渡すものは、platform の[ハーネスの契約](../../platform/docs/reference/harness.md)にある。
@@ -21,5 +21,5 @@ target-template の中の項目と前提の向き（[形式](../../platform/plug
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| devcontainer | target-template | `template/docs/architecture/devcontainer.md`, `template/docs/guides/devcontainer.md` | |
-| CI | target-template | `template/docs/architecture/ci.md` | devcontainer |
+| devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
+| CI | target-template | `architecture/ci.md` | devcontainer |

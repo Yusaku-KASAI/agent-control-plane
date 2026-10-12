@@ -59,58 +59,41 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 
 ### 地図
 
-このプロジェクト群の知識を、入れ子の項目に分ける。決まりは conventions の
-[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)。切り出すまでは、各ターゲットを除く
-項目がこのリポジトリに同居する。
-
-| 項目 | 持つもの | 届く先 |
-| --- | --- | --- |
-| principles | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） |
-| conventions | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
-| 契約 | 区切りの間の約束：エージェントとハーネスの用語集、ハーネスの契約（control-plane がエージェントに渡すもの）、ターゲットの契約（ターゲットが用意するもの） | 契約の両側 |
-| platform | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
-| target-template | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
-| control-plane | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |
-| 各ターゲット | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント |
-
-- principles と conventions は、ほかのすべての項目が前提にしてよい共有の核。
-- 契約は、作る側（control-plane）にも使う側（platform のプラグイン、エージェント、各ターゲット）にも属さない。両側が
-  契約を前提にし、互いの中身は前提にしない（依存関係の逆転）。契約が多くから前提にされるので、変わりにくく小さく保つ。
-- 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
-  マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
+このプロジェクト群の知識を、入れ子の項目に分ける。分け方と表の書き方は conventions の
+[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map)と[形式](../platform/plugins/conventions/docs/reference/formats.md#map)にある。ここは最上位の地図で、
+各項目の中の地図はその項目の文書にある。各ターゲットを除く項目は、このリポジトリに同居する。
 
 <a id="map-top"></a>
 
-#### 項目と前提の向き
+| 項目 | 親 | 置き場所 | 前提にする | 持つもの | 届く先 |
+| --- | --- | --- | --- | --- | --- |
+| principles | | `../platform/plugins/principles/` | | どこでも通用する原則とパターン | どこでも（プラグインとして入れる） |
+| conventions | | `../platform/plugins/conventions/` | principles | このプロジェクト群の決まり（文書の体系と形式、作業の進め方、書き方、設計の観点） | このプロジェクト群のすべてのリポジトリとエージェント |
+| 契約 | | | principles, conventions | 区切りの間の約束 | 契約の両側 |
+| エージェントの用語集 | 契約 | `../platform/docs/reference/glossary.md` | | エージェントとハーネスの言葉 | |
+| ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集 | control-plane がエージェントに渡すもの | |
+| ターゲットの契約 | 契約 | `../template/docs/reference/contract.md` | エージェントの用語集, ハーネスの契約 | ターゲットが用意するもの | |
+| platform | | `../platform/` | principles, conventions, 契約 | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
+| target-template | | `../template/` | principles, conventions, 契約, platform | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
+| control-plane | | `../README.md`, `../CLAUDE.md`, `./` | principles, conventions, 契約, platform, target-template | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |
+| 各ターゲット | | | principles, conventions, 契約, platform, target-template | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント |
 
-最上位の項目の親、置き場所、前提にする兄弟。各項目の中の項目は、その項目の文書の地図にある。契約は自分の置き場所を
-持たないので、その中の項目もここに書く。`make check-docs` がすべての地図を読み、文書のリンクが向きに反していないかと、
-循環がないかを確かめる（[形式](../platform/plugins/conventions/docs/reference/formats.md#map)）。設計構造行列は `python3 tools/check-docs.py --map` で出す。
-
-| 項目 | 親 | 置き場所 | 前提にする |
-| --- | --- | --- | --- |
-| principles | | `platform/plugins/principles/` | |
-| conventions | | `platform/plugins/conventions/` | principles |
-| 契約 | | | principles, conventions |
-| 用語集 | 契約 | `platform/docs/reference/glossary.md` | |
-| ハーネスの契約 | 契約 | `platform/docs/reference/harness.md` | 用語集 |
-| ターゲットの契約 | 契約 | `template/docs/reference/contract.md` | 用語集, ハーネスの契約 |
-| platform | | `platform/` | principles, conventions, 契約 |
-| target-template | | `template/` | principles, conventions, 契約, platform |
-| control-plane | | `README.md`, `CLAUDE.md`, `docs/` | principles, conventions, 契約, platform, target-template |
-| 各ターゲット | | | principles, conventions, 契約, platform, target-template |
-
-各項目の中の地図：principles は [overview](../platform/plugins/principles/docs/overview.md)、platform は
-[overview](../platform/docs/overview.md)、target-template は [overview](../template/docs/overview.md)、control-plane は下の表。
+- 契約は、自分の置き場所を持たない項目の集まりなので、その中の項目もここに書く。各ターゲットは、このリポジトリの
+  外にあるので置き場所を持たない。
+- 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
+  マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
+- 設計構造行列は `python3 tools/check-docs.py --map` で出す。
 
 <a id="map-control-plane"></a>
 
 #### control-plane の中
 
+この文書と索引は、control-plane の全体の文書。
+
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| コード | control-plane | `docs/architecture/codebase/` | |
-| アプリ | control-plane | `docs/architecture/app/` | コード |
+| コードベース | control-plane | `architecture/codebase/`, `reference/coding.md`, `adr/codebase/` | |
+| アプリ | control-plane | `architecture/app/`, `reference/usage.md`, `guides/operations.md`, `adr/app/` | コードベース |
 
 ## 目指す姿
 

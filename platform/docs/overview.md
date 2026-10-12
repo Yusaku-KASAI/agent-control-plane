@@ -49,8 +49,8 @@ platform の中の項目と前提の向き（[形式](../plugins/conventions/doc
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| harness | platform | `platform/plugins/harness/` | |
-| github | platform | `platform/plugins/github/` | |
-| slack | platform | `platform/plugins/slack/` | |
-| roles | platform | `platform/plugins/roles/` | harness, github, slack |
-| bell | platform | `platform/plugins/bell/` | |
+| harness | platform | `../plugins/harness/` | |
+| github | platform | `../plugins/github/` | |
+| slack | platform | `../plugins/slack/` | |
+| roles | platform | `../plugins/roles/` | harness, github |
+| bell | platform | `../plugins/bell/` | |

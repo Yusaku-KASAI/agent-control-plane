@@ -6,11 +6,30 @@
 問題への形にしたもの。パターンは原則を拠り所にし、原則はパターンを知らない。エージェントは principles スキルから
 引く。
 
+## 構成要素
+
+### 原則の一覧（`reference/principles.md`）
+
+- **責務**：何を大事にするかを、原則・何のため・一般的な当てはめ方・よくある違反で一か所に置く。
+- **置くもの / 置かないもの**：どの粒度にも当てはまる一般的なことだけ。どこで使うかは置かない。
+- **関係**：パターンと構成要素の説明から指される。ほかを指さない。
+
+### パターンの一覧（`reference/patterns.md`）
+
+- **責務**：よくある問題への解き方を、解く問題・形・使いどころ・よくある失敗・拠り所の原則で一か所に置く。
+- **置くもの / 置かないもの**：一般的な形だけ。どこで使うかは置かない。
+- **関係**：原則を拠り所として指す。構成要素の説明から指される。
+
+### principles スキル（`skills/principles/`）
+
+- **責務**：原則とパターンの一覧を、要るときに引けるようにする。
+- **置くもの / 置かないもの**：一覧の在りかと引き方だけ。原則とパターンの中身は置かない。
+
 <a id="map-principles"></a>
 
 ## 地図
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| 原則 | principles | `platform/plugins/principles/docs/reference/principles.md` | |
-| パターン | principles | `platform/plugins/principles/docs/reference/patterns.md` | 原則 |
+| 原則 | principles | `reference/principles.md` | |
+| パターン | principles | `reference/patterns.md` | 原則 |

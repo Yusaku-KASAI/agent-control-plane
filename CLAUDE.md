@@ -10,7 +10,7 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 ## 公開と運用
 
-公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md)。
+公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md "案内")。
 
 ## 守る互換
 
