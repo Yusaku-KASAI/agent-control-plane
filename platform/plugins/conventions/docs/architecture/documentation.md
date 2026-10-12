@@ -43,10 +43,10 @@
 - 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
   変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
   下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。
-- 地図（どんな項目があり、どの項目がどれを前提にするか）は、全体の設計を持つリポジトリが、すべての階層の項目を
-  [形式](../reference/formats.md#map)の表一つにまとめて宣言する（入れ子は親で表す）。`check-docs` が文書のリンクと照らし、
-  表からは[設計構造行列](../../../principles/docs/reference/patterns.md#dsm)を出せる。各項目の `overview.md` には、その中の
-  構成を解説として書く。
+- 地図（どんな項目があり、どの項目がどれを前提にするか）は、階層ごとにその持ち主が書く。最上位の地図は全体の設計を
+  持つリポジトリの `overview.md` に、各項目の中の地図はその項目の `overview.md` に置く。上の階層の地図は、中の項目を
+  書かずに委ねる。書き方は[形式](../reference/formats.md#map)にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
+  地図からは[設計構造行列](../../../principles/docs/reference/patterns.md#dsm)を出せる。
 
 ### 文書の根と器
 

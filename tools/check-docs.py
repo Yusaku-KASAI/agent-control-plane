@@ -153,20 +153,28 @@ def check_components(path, errors):
             errors.append(f"{path}: component '{heading.group(1)}' has no 責務")
 
 
-MAP_ANCHOR = '<a id="map-table"></a>'
+MAP_ANCHOR = re.compile(r'<a id="map-[a-z0-9-]+"></a>')
 
 
 class Map:
-    """The items of the repository, as declared in the map table: name -> (parent, paths, prerequisites)."""
+    """The items of the repository, gathered from every map table: name -> (parent, paths, prerequisites, table)."""
 
-    def __init__(self, path, items):
-        self.path = path
+    def __init__(self, items):
         self.items = items
-        self.order = list(items)
+        self.order = []
+
+        def visit(parent):
+            for name, item in items.items():
+                if item[0] == parent:
+                    self.order.append(name)
+                    visit(name)
+
+        visit(None)
+        self.path = next((t for _, _, _, t in items.values()), "")
 
     def item_of(self, file):
         best, length = None, -1
-        for name, (_, paths, _) in self.items.items():
+        for name, (_, paths, _, _) in self.items.items():
             for p in paths:
                 if (file == p or (p.endswith("/") and file.startswith(p))) and len(p) > length:
                     best, length = name, len(p)
@@ -174,7 +182,7 @@ class Map:
 
     def ancestors(self, name):
         chain = []
-        while name is not None:
+        while name is not None and name in self.items:
             chain.append(name)
             name = self.items[name][0]
         return chain
@@ -183,45 +191,65 @@ class Map:
         seen, todo = set(), list(self.items[name][2])
         while todo:
             n = todo.pop()
-            if n not in seen:
+            if n not in seen and n in self.items:
                 seen.add(n)
                 todo.extend(self.items[n][2])
         return seen
 
 
-def read_map(paths, errors):
-    found = [p for p in paths if MAP_ANCHOR in strip_code(open(p, encoding="utf-8").read())]
-    if not found:
-        return None
-    if len(found) > 1:
-        errors.append(f"more than one map table: {', '.join(found)}")
-    path = found[0]
+def map_tables(path):
+    """The rows of each map table in a file: a table follows an <a id="map-..."> anchor."""
     text = FENCE.sub("", open(path, encoding="utf-8").read())
-    rows = []
-    for line in text[text.index(MAP_ANCHOR):].splitlines()[1:]:
-        if line.startswith("|"):
-            rows.append([c.strip() for c in line.strip().strip("|").split("|")])
-        elif rows:
-            break
+    tables = []
+    for anchor in MAP_ANCHOR.finditer(text):
+        rows = []
+        for line in text[anchor.end():].splitlines()[1:]:
+            if line.startswith("|"):
+                rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+            elif rows:
+                break
+        tables.append(rows[2:])
+    return tables
+
+
+def read_map(paths, errors):
     items = {}
-    for cells in rows[2:]:
-        if len(cells) != 4:
-            errors.append(f"{path}: map row needs 4 columns: {cells}")
-            continue
-        name, parent, place, deps = cells
-        if name in items:
-            errors.append(f"{path}: item {name} declared twice")
-        items[name] = (parent or None, re.findall(r"`([^`]+)`", place), [d.strip() for d in deps.split(",") if d.strip()])
-    m = Map(path, items)
-    for name, (parent, _, deps) in items.items():
+    for path in paths:
+        for rows in map_tables(path):
+            for cells in rows:
+                if len(cells) != 4:
+                    errors.append(f"{path}: map row needs 4 columns: {cells}")
+                    continue
+                name, parent, place, deps = cells
+                if name in items:
+                    errors.append(f"{path}: item {name} is already declared in {items[name][3]}")
+                    continue
+                items[name] = (parent or None, re.findall(r"`([^`]+)`", place),
+                               [d.strip() for d in deps.split(",") if d.strip()], path)
+    if not items:
+        return None
+    m = Map(items)
+    roots = sorted({t for parent, _, _, t in items.values() if parent is None})
+    if len(roots) != 1:
+        errors.append(f"top-level items must be declared in exactly one table, found in: {', '.join(roots) or 'none'}")
+    for name, (parent, _, deps, table) in items.items():
         if parent is not None and parent not in items:
-            errors.append(f"{path}: item {name} has unknown parent {parent}")
+            errors.append(f"{table}: item {name} has unknown parent {parent}")
+            continue
+        # The children of an item are mapped in the item's own documents; an item without a place of
+        # its own has its children mapped where it is declared.
+        if parent is not None:
+            owner_paths = items[parent][1]
+            if owner_paths and m.item_of(table) != parent:
+                errors.append(f"{table}: item {name} belongs in a map in {parent}'s own documents")
+            if not owner_paths and table != items[parent][3]:
+                errors.append(f"{table}: item {name} belongs in the map that declares {parent}")
         for d in deps:
             if d not in items or items[d][0] != parent:
-                errors.append(f"{path}: item {name} may only rely on its siblings, not {d}")
+                errors.append(f"{table}: item {name} may only rely on its siblings, not {d}")
     for name in items:
-        if all(d in items for d in m.closure(name)) and name in m.closure(name):
-            errors.append(f"{path}: item {name} relies on itself through a cycle")
+        if name in m.closure(name):
+            errors.append(f"{items[name][3]}: item {name} relies on itself through a cycle")
     return m
 
 

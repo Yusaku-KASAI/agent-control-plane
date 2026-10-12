@@ -40,3 +40,17 @@ platform を前提にしない。
 各プラグインの責務と、プラグインの間の関係は [architecture/plugins.md](architecture/plugins.md) にある。
 プラグインには、どのターゲットでも通用する内容だけを書く。プラグインの検査（`claude plugin validate ./platform` と、
 `bin/` と `scripts/` の `shellcheck`）は `make check-platform` で行う。
+
+<a id="map-platform"></a>
+
+## 地図
+
+platform の中の項目と前提の向き（[形式](../plugins/conventions/docs/reference/formats.md#map)）。
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
+| harness | platform | `platform/plugins/harness/` | |
+| github | platform | `platform/plugins/github/` | |
+| slack | platform | `platform/plugins/slack/` | |
+| roles | platform | `platform/plugins/roles/` | harness, github, slack |
+| bell | platform | `platform/plugins/bell/` | |

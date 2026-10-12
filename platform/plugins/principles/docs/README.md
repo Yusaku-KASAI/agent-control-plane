@@ -5,6 +5,7 @@
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
+| [overview.md](overview.md) | 解説 | 構成と、原則とパターンの関係 |
 | [reference/principles.md](reference/principles.md) | 参照 | 原則：何を大事にするか |
 | [reference/patterns.md](reference/patterns.md) | 参照 | パターン：よくある問題への解き方と、よくある失敗 |
 

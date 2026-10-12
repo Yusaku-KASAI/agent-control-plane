@@ -79,37 +79,38 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 - 置き場所と関係は分けて考える。principles、conventions、契約の一部は、ほかのターゲットのエージェントに届くよう
   マーケットプレイス（`platform/`）の中に置くが、関係の上では platform に属さない。
 
-<a id="map-table"></a>
+<a id="map-top"></a>
 
 #### 項目と前提の向き
 
-項目ごとの親、置き場所、前提にする兄弟（同じ親の下の項目）。`make check-docs` がこの表を読み、文書のリンクが向きに
-反していないかと、循環がないかを確かめる（[形式](../platform/plugins/conventions/docs/reference/formats.md#map)）。
-設計構造行列は `python3 tools/check-docs.py --map` で出す。
+最上位の項目の親、置き場所、前提にする兄弟。各項目の中の項目は、その項目の文書の地図にある。契約は自分の置き場所を
+持たないので、その中の項目もここに書く。`make check-docs` がすべての地図を読み、文書のリンクが向きに反していないかと、
+循環がないかを確かめる（[形式](../platform/plugins/conventions/docs/reference/formats.md#map)）。設計構造行列は `python3 tools/check-docs.py --map` で出す。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
 | principles | | `platform/plugins/principles/` | |
-| 原則 | principles | `platform/plugins/principles/docs/reference/principles.md` | |
-| パターン | principles | `platform/plugins/principles/docs/reference/patterns.md` | 原則 |
 | conventions | | `platform/plugins/conventions/` | principles |
 | 契約 | | | principles, conventions |
 | 用語集 | 契約 | `platform/docs/reference/glossary.md` | |
 | ハーネスの契約 | 契約 | `platform/docs/reference/harness.md` | 用語集 |
 | ターゲットの契約 | 契約 | `template/docs/reference/contract.md` | 用語集, ハーネスの契約 |
 | platform | | `platform/` | principles, conventions, 契約 |
-| harness | platform | `platform/plugins/harness/` | |
-| github | platform | `platform/plugins/github/` | |
-| slack | platform | `platform/plugins/slack/` | |
-| roles | platform | `platform/plugins/roles/` | harness, github, slack |
-| bell | platform | `platform/plugins/bell/` | |
 | target-template | | `template/` | principles, conventions, 契約, platform |
-| devcontainer | target-template | `template/docs/architecture/devcontainer.md`, `template/docs/guides/devcontainer.md` | |
-| CI | target-template | `template/docs/architecture/ci.md` | devcontainer |
 | control-plane | | `README.md`, `CLAUDE.md`, `docs/` | principles, conventions, 契約, platform, target-template |
+| 各ターゲット | | | principles, conventions, 契約, platform, target-template |
+
+各項目の中の地図：principles は [overview](../platform/plugins/principles/docs/overview.md)、platform は
+[overview](../platform/docs/overview.md)、target-template は [overview](../template/docs/overview.md)、control-plane は下の表。
+
+<a id="map-control-plane"></a>
+
+#### control-plane の中
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
 | コード | control-plane | `docs/architecture/codebase/` | |
 | アプリ | control-plane | `docs/architecture/app/` | コード |
-| 各ターゲット | | | principles, conventions, 契約, platform, target-template |
 
 ## 目指す姿
 

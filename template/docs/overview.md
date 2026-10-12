@@ -12,3 +12,14 @@
 | 契約 | ターゲットが用意するものと、ファイルの分類（共通 / 埋める / 固有） | [reference/contract.md](reference/contract.md) |
 
 control-plane がコンテナに渡すものは、platform の[ハーネスの契約](../../platform/docs/reference/harness.md)にある。
+
+<a id="map-target-template"></a>
+
+## 地図
+
+target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map)）。
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
+| devcontainer | target-template | `template/docs/architecture/devcontainer.md`, `template/docs/guides/devcontainer.md` | |
+| CI | target-template | `template/docs/architecture/ci.md` | devcontainer |
