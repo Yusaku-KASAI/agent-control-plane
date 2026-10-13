@@ -22,6 +22,7 @@
 
 | 観点 | 探すもの | 拠り所 |
 | --- | --- | --- |
+| 別の形 | そもそも別の形の方がよくないか。目的に立ち返った手段、より単純な形、一つ上の層や大きな枠組みから見た置き場所や分け方 | [前提を問い直す](../../../principles/docs/reference/principles.md#double-loop) |
 | 依頼との一致 | 依頼や Issue の目的を満たしているか。目的の外の変更が混ざっていないか | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 正しさ | 壊れる場面（状態の組み合わせ、失敗や再起動の途中、同時に動くとき、すでにあるデータや設定） | [変更とパターン](changes.md#patterns) |
 | 設計 | 責務の分け方、依存の向き、地図や構成要素の説明との食い違い | [設計の原則](../../../principles/docs/reference/principles.md)と[設計のパターン](../../../principles/docs/reference/patterns.md) |
@@ -75,4 +76,4 @@
    だけ。直しは一つの目的ごとの PR にし、本文に全体のレビューによる直しであることを書く。今は直さないものは
    Issue に積む。
 7. **仕組みに戻す**：検査で見つけられたはずの指摘には、検査を足す。同じ種類の指摘が続く決まりは、決まりの書き方か
-   届け方を見直す。
+   届け方を見直す（[前提を問い直す](../../../principles/docs/reference/principles.md#double-loop)）。
