@@ -21,8 +21,13 @@ usage:
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
                                       first after an hour, "none (...)" when no check run appears
   prctl unreviewed                    the range not yet reviewed, and its commits and files
-  prctl review <commit> <findings-file|->
-                                      record the review of the range up to <commit> as a PR review
+  prctl review [--pr <number>] <commit> <findings-file|->
+                                      record the review of the range up to <commit> as a PR review;
+                                      with --pr, of another's PR, over the whole PR up to <commit>
+  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
+  prctl worktree default              the same for the head of the default branch (to review the whole)
+  prctl worktree remove pr <number>|default
+                                      remove that worktree
   prctl hook post-tool-use            Claude Code hook: remind after a push leaves the PR behind
   prctl hook stop                     Claude Code hook: keep the turn going while the PR is behind
 USAGE
@@ -110,6 +115,79 @@ settles() {
       ;;
     *) return 1 ;;
   esac
+}
+
+# wt_path <name>: where the worktree for reading <name> (pr-<number> or default) lives. The same path
+# every time, so that a later shell can find and remove it. It is named after the main work tree,
+# so that it is the same from inside any worktree.
+wt_path() { echo "${TMPDIR:-/tmp}/prctl-$(basename "$(main_tree)")-$1"; }
+
+# main_tree: the main work tree, wherever in its worktrees this runs.
+main_tree() { dirname "$(git rev-parse --path-format=absolute --git-common-dir)"; }
+
+# is_worktree <path>: whether <path> is a worktree of this repository.
+# Git may keep the path with its links resolved (/tmp on macOS), so both spellings are tried.
+is_worktree() {
+  git worktree list --porcelain | grep -qxF -e "worktree $1" -e "worktree $(realpath "$1")"
+}
+
+# Reading another's PR, or the default branch, happens in a worktree of its own: the work tree's
+# HEAD stays where it is, so neither the hooks meant for a PR's author nor the session's cleanup
+# take it for this session's work.
+cmd_worktree() {
+  local kind=$1 number=${2:-} name commit pr base path from
+  # From the main work tree: the worktree to be made again may be where this runs.
+  cd "$(main_tree)"
+  git worktree prune
+  case $kind in
+    pr)
+      [[ $number =~ ^[0-9]+$ ]] || usage
+      name=pr-$number
+      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName) || die "no PR #$number"
+      base=$(jq -r .baseRefName <<<"$pr")
+      git fetch -q origin "+refs/pull/$number/head:refs/prctl/$name" "+refs/heads/$base:refs/remotes/origin/$base"
+      commit=$(git rev-parse "refs/prctl/$name")
+      ;;
+    default)
+      [[ -z $number ]] || usage
+      name=default
+      base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || die "could not read the default branch"
+      git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base"
+      commit=$(git rev-parse "refs/remotes/origin/$base")
+      ;;
+    *) usage ;;
+  esac
+  path=$(wt_path "$name")
+  if [[ -e $path ]]; then
+    is_worktree "$path" || die "$path is not a worktree of this repository; move it away"
+    git worktree remove --force "$path"
+  fi
+  git worktree add -q --detach "$path" "$commit"
+  echo "path: $path"
+  echo "head: $commit"
+  if [[ $kind == pr ]]; then
+    from=$(git merge-base "origin/$base" "$commit")
+    echo "range: $from..$commit (git -C $path diff $from $commit)"
+    echo "after reviewing it: prctl review --pr $number $commit <findings>"
+  fi
+  echo "when done: prctl worktree remove $kind${number:+ $number}"
+}
+
+cmd_worktree_remove() {
+  local kind=$1 number=${2:-} name path
+  case $kind in
+    pr) [[ $number =~ ^[0-9]+$ ]] || usage; name=pr-$number ;;
+    default) [[ -z $number ]] || usage; name=default ;;
+    *) usage ;;
+  esac
+  path=$(wt_path "$name")
+  # From the main work tree: the worktree may be where this runs.
+  cd "$(main_tree)"
+  if [[ -e $path ]]; then
+    git worktree remove --force "$path" || die "could not remove $path"
+  fi
+  git worktree prune
+  [[ $kind != pr ]] || git update-ref -d "refs/prctl/$name" 2>/dev/null || true
 }
 
 # How cmd_ci --wait polls, in seconds: how often, how long for a check run to appear after the push,
@@ -228,22 +306,30 @@ cmd_unreviewed() {
 }
 
 cmd_review() {
-  local commit findings b pr head from num
-  commit=$(git rev-parse --verify --quiet "$1^{commit}") || die "no commit $1"
-  findings=$(read_input "$2")
+  local number=$1 commit findings b pr head from base
+  commit=$(git rev-parse --verify --quiet "$2^{commit}") || die "no commit $2; fetch the PR head first"
+  findings=$(read_input "$3")
   [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
-  b=$(branch) || die "not on a branch"
-  pr=$(open_pr "$b")
-  [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
-  head=$(pr_head "$pr")
-  git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
-  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
-  if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
-    die "${commit:0:12} is not after the last reviewed ${from:0:12}"
+  if [[ -n $number ]]; then
+    # Another's PR: read by number, and reviewed whole, from where it left its base.
+    pr=$(gh pr view "$number" --json number,url,headRefOid,baseRefName,body) || die "no PR #$number"
+    head=$(pr_head "$pr")
+    git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
+    base=$(jq -r .baseRefName <<<"$pr")
+    from=$(git merge-base "origin/$base" "$commit") || die "no origin/$base here; fetch it first"
+  else
+    b=$(branch) || die "not on a branch"
+    pr=$(open_pr "$b")
+    [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
+    head=$(pr_head "$pr")
+    git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
+    from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+    if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
+      die "${commit:0:12} is not after the last reviewed ${from:0:12}"
+    fi
   fi
-  num=$(jq -r .number <<<"$pr")
-  gh api -X POST "repos/{owner}/{repo}/pulls/$num/reviews" --jq .html_url -f event=COMMENT -f commit_id="$commit" \
-    -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
+  gh api -X POST "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" --jq .html_url -f event=COMMENT \
+    -f commit_id="$commit" -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
 }
 
 cmd_create() {
@@ -375,7 +461,15 @@ case "${1:-}" in
     [[ $# -eq 1 || ( $# -eq 2 && $2 == --wait ) ]] || usage
     cmd_ci "${2:-}"
     ;;
-  review) [[ $# -eq 3 ]] || usage; cmd_review "$2" "$3" ;;
+  review)
+    if [[ ${2:-} == --pr ]]; then
+      [[ $# -eq 5 ]] || usage
+      cmd_review "$3" "$4" "$5"
+    else
+      [[ $# -eq 3 ]] || usage
+      cmd_review "" "$2" "$3"
+    fi
+    ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
   update)
     shift
@@ -387,6 +481,12 @@ case "${1:-}" in
     fi
     [[ $# -eq 1 || $# -eq 2 ]] || usage
     cmd_update "$title" "$1" "${2:-}"
+    ;;
+  worktree)
+    case ${2:-} in
+      remove) [[ $# -ge 3 && $# -le 4 ]] || usage; cmd_worktree_remove "$3" "${4:-}" ;;
+      *) [[ $# -ge 2 && $# -le 3 ]] || usage; cmd_worktree "$2" "${3:-}" ;;
+    esac
     ;;
   hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
   *) usage ;;

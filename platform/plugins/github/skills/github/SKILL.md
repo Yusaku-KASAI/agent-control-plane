@@ -39,6 +39,24 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
   コメントに書く（直しがなければ PR のコメント）。
 
+## ほかの人の PR と既定のブランチを読む
+
+ほかの人の PR や、既定のブランチの今の姿は、`prctl worktree` が作る一時的な worktree で、detached のまま読む。
+作業領域の HEAD を動かすと、作者に向けた hook（本文、レビュー、CI）が自分のターンで働き、残ったときはセッションの
+片付けも妨げる。
+
+```bash
+prctl worktree pr <番号>                 # PR の head を取り出す。置き場所、範囲、差分の見方、次のコマンドを出す
+prctl review --pr <番号> <見た head> -     # 標準入力の指摘を、PR 全体のレビューとして残す
+prctl worktree remove pr <番号>          # 終えたら消す
+prctl worktree default                  # 既定のブランチの head を取り出す（全体のレビュー）
+prctl worktree remove default
+```
+
+- 依頼の内容と意図は `gh pr view <番号>` の本文から読む。閉じる Issue は本文の `Closes #<番号>`。
+- 検査は、取り出した worktree の中で回す。
+- レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
+
 ## コミットと履歴
 
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
