@@ -157,3 +157,6 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   `acp stop` が使う（[依頼の仕方](../../reference/usage.md "案内")）。
 - **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：要求、応答、
   エラーの形を `types.go` に定め、サーバーとクライアントがそれを共有する。
+  [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`ACP_API_TOKEN` がなければ起動せず、トークンが合わない要求はすべて断る。
+  [外から入る値を信用しない](../../../platform/plugins/principles/docs/reference/principles.md#untrusted-input)：要求の本文とパスのセッション ID は、決まった形
+  （`domain.ParseSessionID`）かを確かめてから使う。

@@ -98,6 +98,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：判定は usecase に
   置き、ここは Docker の操作と事実（プロセスの出力）だけを扱う。
   [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：コンテナの形は `containerSpec` にだけある。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントのコンテナには Docker ソケットも特権も渡さず、認証情報はその
+  セッションの分だけを読み取り専用でマウントする。
 
 ### `internal/adapter/docker`（`process.go`）
 
