@@ -29,7 +29,7 @@ case $args in
     [[ ! -f $dir/fail ]] || exit 1
     jq -r "${@: -1}" "$dir/reviews.json"
     ;;
-  *"/check-runs "*)
+  *"/check-runs"*)
     [[ ! -f $dir/fail-checks ]] || exit 1
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
@@ -85,27 +85,50 @@ check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the hea
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
 
-# checks <status conclusion>...: the head's check runs.
+# checks <status/conclusion>...: the head's check runs, named c0, c1, ...
 checks() {
-  local runs=() i=0
-  for r in "$@"; do runs+=("{\"name\": \"c$i\", \"status\": \"${r% *}\", \"conclusion\": \"${r#* }\"}"); i=$((i + 1)); done
-  echo "{\"check_runs\": [$(IFS=,; echo "${runs[*]}")]}" >"$state/checks.json"
+  local i=0 r
+  for r in "$@"; do
+    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" \
+      '{name: $n, status: $s, conclusion: (if $c == "" then null else $c end), details_url: "https://ci.invalid/\($n)"}'
+    i=$((i + 1))
+  done | jq -s '{check_runs: .}' >"$state/checks.json"
 }
 settled() { cat "$(git rev-parse --git-path prctl-settled)" 2>/dev/null || true; }
-checks "in_progress null" "completed success"
+
+# The CI of the head, each case: check runs | the state prctl ci gives | whether stop stops | settled.
+while IFS='|' read -r runs want stops settles; do
+  # shellcheck disable=SC2086 # the runs are words
+  checks $runs
+  out=$(stop_hook)
+  check "ci [$runs] is $want" "$("$prctl" ci | sed -n 2p)" "$want"
+  if [[ $stops == yes ]]; then check "ci [$runs] stops the turn" "$out" "CI failed on ${c2:0:12}"
+  else check "ci [$runs] lets the turn end" "[$out]" "[]"; fi
+  if [[ $settles == yes ]]; then check "ci [$runs] settles the head" "$(settled)" "$c2"
+  else check "ci [$runs] leaves the head unsettled" "[$(settled)]" "[]"; fi
+done <<'CASES'
+completed/success completed/neutral completed/skipped|passed|no|yes
+completed/failure completed/success|failed|yes|no
+completed/timed_out|failed|yes|no
+completed/failure in_progress/|failed|yes|no
+in_progress/ completed/success|pending|no|no
+completed/action_required completed/success|action_required|no|no
+completed/cancelled completed/success|incomplete|no|no
+completed/stale|incomplete|no|no
+CASES
+
+checks completed/failure completed/success completed/timed_out
+check "failures are listed with their URLs" "$(stop_hook)" "c0 https://ci.invalid/c0; c2 https://ci.invalid/c2."
+check "the post-tool-use hook leaves CI out" \
+  "[$(rm -f "$(git rev-parse --git-path prctl-notified)"; jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)]" "[]"
+checks
+check "no check run is none" "$("$prctl" ci | sed -n 2p)" "none"
 out=$(stop_hook)
-check "running CI does not stop the turn" "[$out]" "[]"
-check "running CI leaves the head unsettled" "[$(settled)]" "[]"
-check "status shows running CI" "$("$prctl" status)" "ci:        pending"
-checks "completed failure" "completed success"
-check "failed CI stops the turn" "$(stop_hook)" "CI failed on ${c2:0:12} of PR #1: c0"
-checks "completed success" "completed skipped"
-out=$(stop_hook)
-check "passed CI lets the turn end" "[$out]" "[]"
-check "passed CI settles the head" "$(settled)" "$c2"
+check "no check run and no workflow settle the head" "$(settled)" "$c2"
 touch "$state/fail-checks"
 out=$(stop_hook)
 check "checks that cannot be read are left out" "[$out]" "[]"
+check "checks that cannot be read leave the head unsettled" "[$(settled)]" "[]"
 rm "$state/fail-checks"
 echo '{"check_runs": []}' >"$state/checks.json"
 
