@@ -2,8 +2,8 @@
 # Keeps the pull request of the current branch describing what the branch contains, and its diff
 # reviewed. Needs git, gh and jq.
 #
-# The PR body carries a hidden marker with the head it describes, and each review comment one with
-# the head it reviewed, so whether both are current is read from GitHub and survives across
+# The PR body carries a hidden marker with the head it describes, and each review is a GitHub review
+# of the commit it covers, so whether both are current is read from GitHub and survives across
 # sessions and containers.
 set -euo pipefail
 
@@ -18,7 +18,8 @@ usage:
                                       since the last update; the comment is required when there is
                                       such a push, and not posted when there is none
   prctl unreviewed                    the range not yet reviewed, and its commits and files
-  prctl review <findings-file|->      record the review of that range as a PR comment
+  prctl review <commit> <findings-file|->
+                                      record the review of the range up to <commit> as a PR review
   prctl hook post-tool-use            Claude Code hook: remind after a push leaves the PR behind
   prctl hook stop                     Claude Code hook: keep the turn going while the PR is behind
 USAGE
@@ -26,7 +27,6 @@ USAGE
 }
 
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
-readonly review_re='<!-- prctl: reviewed=([0-9a-f]{40}) -->'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -45,24 +45,34 @@ described() {
   if [[ $(jq -r .body <<<"$1") =~ $marker_re ]]; then echo "${BASH_REMATCH[1]}"; fi
 }
 
-# reviewed <pr-number>: the head the latest review comment covers, or nothing.
+# reviewed <pr> <head>: of the commits the PR's reviews cover, the latest one in the history of
+# <head>, or nothing. Any submitted review counts, whoever wrote it.
 reviewed() {
-  local bodies
-  bodies=$(gh api --paginate "repos/{owner}/{repo}/issues/$1/comments" --jq '.[].body') || return 1
-  { grep -oE "$review_re" <<<"$bodies" || true; } | tail -n 1 | sed -E "s/$review_re/\1/"
+  local pr=$1 head=$2 ids id best="" n most=-1
+  ids=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" \
+    --jq '.[] | select(.state != "PENDING") | .commit_id') || return 1
+  while read -r id; do
+    if [[ -z $id ]] || ! git merge-base --is-ancestor "$id" "$head" 2>/dev/null; then continue; fi
+    n=$(git rev-list --count "$id")
+    if ((n > most)); then best=$id most=$n; fi
+  done < <(sort -u <<<"$ids")
+  echo "$best"
 }
 
-# review_base <pr> <head>: where the unreviewed range starts: the last reviewed head when it is
-# still in the history, else where the branch left the base.
+# review_base <pr> <head>: where the unreviewed range starts: the last reviewed commit, else where
+# the branch left the base.
 review_base() {
-  local pr=$1 head=$2 rev base
-  rev=$(reviewed "$(jq -r .number <<<"$pr")")
-  if [[ -n $rev ]] && git merge-base --is-ancestor "$rev" "$head" 2>/dev/null; then
-    echo "$rev"
-  else
-    base=$(jq -r .baseRefName <<<"$pr")
-    git merge-base "origin/$base" "$head"
-  fi
+  local pr=$1 head=$2 rev
+  rev=$(reviewed "$pr" "$head") || return 1
+  if [[ -n $rev ]]; then echo "$rev"; else git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head"; fi
+}
+
+# pr_head <pr>: the PR's head, provided this clone has it.
+pr_head() {
+  local head
+  head=$(jq -r .headRefOid <<<"$1")
+  git cat-file -e "$head^{commit}" 2>/dev/null || die "this clone does not have the PR head ${head:0:12}; fetch first"
+  echo "$head"
 }
 
 read_input() { if [[ $1 == - ]]; then cat; else cat -- "$1"; fi; }
@@ -93,7 +103,9 @@ cmd_status() {
   echo "head:      $head"
   echo "described: ${desc:-nothing (no marker; prctl update writes one)}"
   if [[ $desc == "$head" ]]; then echo "body is current"; else echo "body is stale"; fi
-  if [[ $(reviewed "$(jq -r .number <<<"$pr")") == "$head" ]]; then echo "diff is reviewed"; else echo "diff is not reviewed up to the head"; fi
+  if git cat-file -e "$head^{commit}" 2>/dev/null; then
+    if [[ $(reviewed "$pr" "$head") == "$head" ]]; then echo "diff is reviewed"; else echo "diff is not reviewed up to the head"; fi
+  fi
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
 }
 
@@ -116,32 +128,42 @@ cmd_since() {
 }
 
 cmd_unreviewed() {
-  local b pr head from
+  local b pr head from base
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
-  head=$(jq -r .headRefOid <<<"$pr")
-  from=$(review_base "$pr" "$head")
+  head=$(pr_head "$pr")
+  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
   [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
-  echo "range: $from..$head (git diff $from $head)"
-  git log --format='%h %s' "$from..$head"
-  git diff --stat "$from" "$head"
+  base=$(jq -r .baseRefName <<<"$pr")
+  echo "range: $from..$head"
+  echo "after reviewing it: prctl review $head <findings>"
+  # Commits merged in from the base are not this branch's change.
+  git log --format='%h %s' "$from..$head" "^origin/$base"
+  if [[ -n $(git rev-list --merges "$from..$head" "^origin/$base") ]]; then
+    echo "the range merges the base; review the commits above rather than git diff $from $head"
+  else
+    git diff --stat "$from" "$head"
+  fi
 }
 
 cmd_review() {
-  local findings b head pr num from
-  findings=$(read_input "$1")
+  local commit findings b pr head from num
+  commit=$(git rev-parse --verify --quiet "$1^{commit}") || die "no commit $1"
+  findings=$(read_input "$2")
+  [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
   b=$(branch) || die "not on a branch"
-  head=$(pushed_head "$b")
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
-  [[ $(jq -r .headRefOid <<<"$pr") == "$head" ]] || die "GitHub has not caught up with the push yet; retry"
+  head=$(pr_head "$pr")
+  git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
+  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+  if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
+    die "${commit:0:12} is not after the last reviewed ${from:0:12}"
+  fi
   num=$(jq -r .number <<<"$pr")
-  from=$(review_base "$pr" "$head")
-  [[ $from != "$head" ]] || die "the head is already reviewed"
-  gh api "repos/{owner}/{repo}/issues/$num/comments" --jq .html_url \
-    -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n\n<!-- prctl: reviewed=%s -->\n' \
-      "${from:0:12}" "${head:0:12}" "$findings" "$head")"
+  gh api -X POST "repos/{owner}/{repo}/pulls/$num/reviews" --jq .html_url -f event=COMMENT -f commit_id="$commit" \
+    -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
 }
 
 cmd_create() {
@@ -185,14 +207,16 @@ body_message() {
 }
 
 review_message() {
-  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Have a subagent review the range from prctl unreviewed, answer its findings, and record them with prctl review <findings> (see the review skill)."' <<<"$1"
+  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
 }
 
 # pending_message <pr> <head>: what the PR still needs for this head, or nothing.
+# Fails when the reviews cannot be read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 msgs=()
+  local pr=$1 head=$2 rev msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
-  [[ $(reviewed "$(jq -r .number <<<"$pr")") == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
+  rev=$(reviewed "$pr" "$head") || return 1
+  [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
   [[ ${#msgs[@]} -eq 0 ]] || printf '%s ' "${msgs[@]}"
 }
 
@@ -255,7 +279,7 @@ case "${1:-}" in
   status) [[ $# -eq 1 ]] || usage; cmd_status ;;
   since) [[ $# -eq 1 ]] || usage; cmd_since ;;
   unreviewed) [[ $# -eq 1 ]] || usage; cmd_unreviewed ;;
-  review) [[ $# -eq 2 ]] || usage; cmd_review "$2" ;;
+  review) [[ $# -eq 3 ]] || usage; cmd_review "$2" "$3" ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
   update)
     shift

@@ -5,17 +5,17 @@ description: GitHub で PR を作る・更新するとき、push したとき、
 
 # GitHub で作業する
 
-PR の本文の作成と更新と、差分のレビューの記録は `prctl` で行う。本文と、レビューを残すコメントには、どの head まで
-説明したか・レビューしたかの印が隠して入る。hook が push の直後とターンの終わりに、本文が古いままか、レビューが
-今の head に追いついていないかを確かめる。
+PR の本文の作成と更新と、差分のレビューの記録は `prctl` で行う。本文には、どの head まで説明したかの印が隠して入り、
+レビューは見た最後のコミットに付けた PR のレビューになる。hook が push の直後とターンの終わりに、本文が古いままか、
+レビューが今の head に追いついていないかを確かめる。
 
 ```bash
-prctl status                              # このブランチの PR と、本文が今の head を説明しているか
+prctl status                              # このブランチの PR と、本文とレビューが今の head に追いついているか
 prctl since                               # 前に本文を書いてから push したコミット（コメントの材料）
 prctl create "<タイトル>" body.md            # push 済みのブランチの PR を作る
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
-prctl unreviewed                          # まだレビューしていない範囲（前回レビューした head から今の head まで）
-prctl review findings.md                  # その範囲のレビューの結果を PR のコメントに残す
+prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
+prctl review <コミット> findings.md          # そのコミットまでのレビューの結果を、PR のレビューとして残す
 ```
 
 ## 本文とコメント
@@ -31,10 +31,13 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 ## 差分のレビュー
 
-自分の変更は、PR を作る前と push のたびに、サブエージェントにレビューさせる（review スキル）。PR を作る前の
-レビューは、`prctl create` のあとに `prctl review` で残す。push したら `prctl unreviewed` の範囲をレビューさせ、
-指摘に答えてから残す。`findings.md` には、指摘とそれぞれへの答え（直したコミットか、直さない理由）を書く
-（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+自分の変更は、コミットしてから、PR を作る前と push のたびに、サブエージェントにレビューさせる（review スキル）。
+`prctl review` には、サブエージェントが見た最後のコミットと、その指摘を渡す。そのあとに直したコミットは、次の
+`prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+
+- PR を作る前のレビューは、`prctl create` のあとに残す。指摘への答えは PR の本文に書く。
+- push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
+  コメントに書く。
 
 ## コミットと履歴
 
@@ -60,4 +63,5 @@ gh run view <run ID> --log-failed                               # 失敗した�
 - 引数なしの `gh pr view` は upstream から PR を探すので、別のブランチの PR を返すことがある。番号を指定するか
   `prctl status` を使う。
 - 本文を `gh pr edit` や `gh pr create` で直接書くと、印が消えて古い扱いになる。`prctl` を使う。
-- 履歴を書き換えて、前回レビューした head が今の履歴になくなると、ブランチ全体がまだレビューしていない範囲になる。
+- 履歴を書き換えて、レビューしたコミットが今の履歴になくなると、ブランチ全体がまだレビューしていない範囲になる。
+- 人やほかのエージェントが PR に付けたレビューも、そのコミットまでレビューした扱いになる。
