@@ -11,8 +11,8 @@ description: PR の差分をレビューするとき、リポジトリ全体（�
 
 1. 依頼の内容、変更の意図、差分を集める。自分が変更した差分なら、自分では見ずにサブエージェントに渡す。
    渡すのはこの三つだけにする（[差分のレビュー](../../docs/reference/reviews.md#diff)）。
-2. 差分と、それが前提にする所、それを前提にする所を読み、関わる観点を選ぶ（[観点](../../docs/reference/reviews.md#perspectives)）。
-   正しさの観点では design スキルを、設計の観点では principles スキルを使う。
+2. 差分と、それが前提にする所、それを前提にする所を読み、関わる観点を選んで、その拠り所に照らして読む
+   （[観点](../../docs/reference/reviews.md#perspectives)）。
 3. 指摘を決まった形で書く（[指摘](../../docs/reference/reviews.md#findings)）。
 4. 自分の変更のレビューなら、見た範囲と指摘を PR のレビューとして残し、指摘に答える
    （[差分のレビュー](../../docs/reference/reviews.md#diff)）。ほかの人の PR のレビューなら、PR 全体を見て、
