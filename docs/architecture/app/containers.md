@@ -67,6 +67,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **関係**：許可の一覧にない API はプロキシが拒むので、runner が使う Docker API とこの一覧は一致している。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：control-plane が
   できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)、[拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：通すのは使う API だけで、
+  一覧にないものはすべて拒む。
 
 <a id="runner"></a>
 
@@ -96,6 +98,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：判定は usecase に
   置き、ここは Docker の操作と事実（プロセスの出力）だけを扱う。
   [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：コンテナの形は `containerSpec` にだけある。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントのコンテナには Docker ソケットも特権も渡さない。渡す認証情報は
+  [認証情報](credentials.md "案内")にある。
 
 ### `internal/adapter/docker`（`process.go`）
 

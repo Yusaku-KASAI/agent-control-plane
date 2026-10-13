@@ -93,6 +93,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **関係**：スレッドからセッション ID を決め、なければ作るよう `Dispatcher` に頼む。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：返事の手段は
   `ChatResponder` で、Slack 以外の受け方も同じユースケースを使える（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。
+  [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`allowed_users` に載っている人の依頼だけを受け、ほかはすべて断る。
 
 ### 依頼の順番（`usecase.Dispatcher` のワーカー）
 
@@ -156,3 +157,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   `acp stop` が使う（[依頼の仕方](../../reference/usage.md "案内")）。
 - **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：要求、応答、
   エラーの形を `types.go` に定め、サーバーとクライアントがそれを共有する。
+  [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`ACP_API_TOKEN` がなければ起動せず、`/healthz` のほかは、トークンが
+  合わない要求をすべて断る。
+  [外から入る値を信用しない](../../../platform/plugins/principles/docs/reference/principles.md#untrusted-input)：要求の本文は知らないフィールドを拒み、大きさを限って読む。
+  セッション ID は決まった形（`domain.ParseSessionID`）かを確かめてから使う。

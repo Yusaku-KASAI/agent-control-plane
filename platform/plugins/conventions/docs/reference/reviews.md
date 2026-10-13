@@ -26,7 +26,7 @@
 | 依頼との一致 | 依頼や Issue の目的を満たしているか。目的の外の変更が混ざっていないか | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 正しさ | 壊れる場面（状態の組み合わせ、失敗や再起動の途中、同時に動くとき、すでにあるデータや設定） | [変更とパターン](changes.md#patterns) |
 | 設計 | 責務の分け方、依存の向き、地図や構成要素の説明との食い違い | [設計の原則](../../../principles/docs/reference/principles.md)と[設計のパターン](../../../principles/docs/reference/patterns.md) |
-| セキュリティ | 秘密の扱い、渡す権限の広さ、外から入る値の確かめ方 | そのリポジトリの契約と ADR |
+| セキュリティ | 秘密の扱い、渡す権限の広さ、許可の既定、守りの重ね方、外から入る値（エージェントが読む内容を含む）の確かめ方 | [守り方の原則](../../../principles/docs/reference/principles.md#security)と、そのリポジトリの契約と ADR |
 | 文書とコメント | 今の姿だけか、一か所か、言葉が用語集どおりか、変更に合わせて直っているか | [書き方](writing.md)、[文書の体系](../architecture/documentation.md)、[文書の形式](formats.md) |
 | 検査 | 変更を確かめる検査があるか。機械で確かめられるのに、人が読むことに頼っていないか | [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms) |
 
