@@ -30,8 +30,8 @@ PR のレビューコメントへの返し方は github スキルにある。
 
 1. **範囲と観点を決める**：地図は `python3 tools/check-docs.py --map` で一覧できる。各項目の置き場所（範囲にする
    ファイル）は、その項目を宣言する地図の表にある。前回の報告は
-   `gh issue list --state all --search '"の全体のレビュー" in:title'` で探し、範囲を本文で確かめる（タイトルの
-   言葉を含む、報告ではない Issue も出る）。重点にする前回からの決まりの変更は、principles と conventions の履歴が
+   `gh issue list --state all --search '"の全体のレビュー" in:title'` で探し、報告であることと範囲を本文で確かめる
+   （タイトルの言葉を含む、報告ではない Issue も出る）。重点にする前回からの決まりの変更は、principles と conventions の履歴が
    前回の報告の head と同じリポジトリにあれば、その head からの `git log` で見る。なければ重点は足さない。
 2. **検査を回す**：`make check`。
 3. **範囲ごとに読む**：範囲ごとにサブエージェントを分ける。各サブエージェントには、範囲、観点、指摘の形
