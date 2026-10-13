@@ -5,14 +5,17 @@ description: GitHub で PR を作る・更新するとき、push したとき、
 
 # GitHub で作業する
 
-PR の本文の作成と更新は `prctl` で行う。本文には、どの head まで説明したかの印が隠して入り、hook が push の
-直後とターンの終わりに、本文が古いままになっていないかを確かめる。
+PR の本文の作成と更新と、差分のレビューの記録は `prctl` で行う。本文と、レビューを残すコメントには、どの head まで
+説明したか・レビューしたかの印が隠して入る。hook が push の直後とターンの終わりに、本文が古いままか、レビューが
+今の head に追いついていないかを確かめる。
 
 ```bash
 prctl status                              # このブランチの PR と、本文が今の head を説明しているか
 prctl since                               # 前に本文を書いてから push したコミット（コメントの材料）
 prctl create "<タイトル>" body.md            # push 済みのブランチの PR を作る
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
+prctl unreviewed                          # まだレビューしていない範囲（前回レビューした head から今の head まで）
+prctl review findings.md                  # その範囲のレビューの結果を PR のコメントに残す
 ```
 
 ## 本文とコメント
@@ -25,6 +28,13 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 書き換えとコメントの2つを `prctl update` で行い、範囲が変わったときはタイトルも `--title` で直す。コメントの理由は
 書いた本人しか知らないので、`prctl since` の出す事実に理由を足して書く。
 - 確かめていないこと、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
+
+## 差分のレビュー
+
+自分の変更は、PR を作る前と push のたびに、サブエージェントにレビューさせる（review スキル）。PR を作る前の
+レビューは、`prctl create` のあとに `prctl review` で残す。push したら `prctl unreviewed` の範囲をレビューさせ、
+指摘に答えてから残す。`findings.md` には、指摘とそれぞれへの答え（直したコミットか、直さない理由）を書く
+（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 ## コミットと履歴
 
@@ -50,3 +60,4 @@ gh run view <run ID> --log-failed                               # 失敗した�
 - 引数なしの `gh pr view` は upstream から PR を探すので、別のブランチの PR を返すことがある。番号を指定するか
   `prctl status` を使う。
 - 本文を `gh pr edit` や `gh pr create` で直接書くと、印が消えて古い扱いになる。`prctl` を使う。
+- 履歴を書き換えて、前回レビューした head が今の履歴になくなると、ブランチ全体がまだレビューしていない範囲になる。

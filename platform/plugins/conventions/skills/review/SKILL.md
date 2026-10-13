@@ -14,6 +14,8 @@ description: PR の差分をレビューするとき、リポジトリ全体（�
 2. 差分と、それが前提にする所、それを前提にする所を読み、関わる観点を選ぶ（[観点](../../docs/reference/reviews.md#perspectives)）。
    正しさの観点では design スキルを、設計の観点では principles スキルを使う。
 3. 指摘を決まった形で書く（[指摘](../../docs/reference/reviews.md#findings)）。
+4. 自分の変更のレビューなら、指摘に答えてから、見た範囲と、指摘とそれぞれへの答えを PR のコメントに残す
+   （[差分のレビュー](../../docs/reference/reviews.md#diff)）。残し方は github スキルにある。
 
 ## 指摘に答える
 
