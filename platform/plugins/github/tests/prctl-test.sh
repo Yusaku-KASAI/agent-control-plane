@@ -84,10 +84,12 @@ c3=$(commit three)
 git push -q
 set_pr "$c3"
 check "a new push needs its own review" "$("$prctl" unreviewed)" "range: $c2..$c3"
-# A lone line comment (a review without a body) and a dismissed review do not count.
-jq '. + [{state: "COMMENTED", commit_id: "'"$c3"'", body: ""}, {state: "DISMISSED", commit_id: "'"$c3"'", body: "x"}]' \
+# A review without a body (a lone line comment or a reply; empty or null) and a dismissed review
+# do not count.
+jq '. + [{state: "COMMENTED", commit_id: "'"$c3"'", body: ""}, {state: "COMMENTED", commit_id: "'"$c3"'", body: null},
+  {state: "DISMISSED", commit_id: "'"$c3"'", body: "x"}]' \
   "$state/reviews.json" >"$state/r" && mv "$state/r" "$state/reviews.json"
-check "line comments and dismissed reviews do not count" "$("$prctl" unreviewed)" "range: $c2..$c3"
+check "reviews without a body and dismissed reviews do not count" "$("$prctl" unreviewed)" "range: $c2..$c3"
 check "post-tool-use reminds of the review" \
   "$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)" "not reviewed up to ${c3:0:12}"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
