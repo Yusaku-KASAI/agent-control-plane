@@ -22,27 +22,32 @@ conventions/
 
 ## 構成要素
 
-### 書き方（`docs/reference/writing.md`）
-
-- **責務**：コード中のコメント、コミットメッセージ、PR に何を書くかを定義する。
-
-### 形式（`docs/reference/formats.md`）
-
-- **責務**：構成要素の説明、ADR、リンクの形を決める。
-- **関係**：check-docs.py がこの形を確かめる。
-- **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
-
-### 文書を書く（`skills/write-docs/`）
-
-- **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → 確かめる）。
-- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
+定義、届け方、文書の検査の順に並べる。
 
 ### 用語集（`docs/reference/glossary.md`）
 
-- **責務**：文書、変更と課題の決まりの言葉（区切り、文書の種類、構成要素の説明など）を一か所で定める。ほかの言葉は、
+- **責務**：文書、変更と課題の決まりの言葉（区切り、文書の種類、定義と届け方など）を一か所で定める。ほかの言葉は、
   それを使う区切りの用語集にある。
 - **当てはめた原則・パターン**：[ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)、
   [共有の核](../../principles/docs/reference/patterns.md#shared-kernel)。
+
+### 文書の体系（`docs/architecture/documentation.md`）
+
+- **責務**：このプロジェクト群の文書をどう分け、どこに何を書くか、決まりをどう定義して届けるかを解説する。
+- **置くもの / 置かないもの**：設計を記述する層、区切りと依存の向き、項目の階層と地図、文書の根と器、文書の種類、
+  定義と届け方と、器の構成要素の説明。形の細部は形式に、書く手順は文書を書くに、理由は ADR に置く。
+- **関係**：用語集を前提にする。原則とパターンを指す。
+- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の解説。
+
+### 形式（`docs/reference/formats.md`）
+
+- **責務**：文書の根、構成要素の説明、ADR、リンク、量の上限、地図の形を決める。
+- **関係**：check-docs.py がこの形を確かめる。
+- **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
+
+### 書き方（`docs/reference/writing.md`）
+
+- **責務**：コード中のコメント、コミットメッセージ、PR に何を書くかを定義する。
 
 ### 変更の扱い方と課題の扱い方（`docs/reference/changes.md`、`issues.md`）
 
@@ -51,16 +56,23 @@ conventions/
 
 ### 共通のルール（`rules/`）
 
-- **責務**：いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる（届け方）。
-- **置くもの / 置かないもの**：定義の要約だけ（届け方の決まりに沿う）。
+- **責務**：いつも読み込む要約。いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる。
+- **置くもの / 置かないもの**：定義の写しだけ（届け方の決まりに沿う）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
   [仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
 
 ### hook（`hooks/`、`scripts/context`）
 
 - **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる。
-- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。
+- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
+  相対リンクは、読み込ませるときに絶対パスに書き換える。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
+
+### 文書を書く（`skills/write-docs/`）
+
+- **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → リンク → 地図 → 量 → 確かめる）。
+- **置くもの / 置かないもの**：定義の写しだけ。各手順に出典を付ける。
+- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
 
 ### design スキル（`skills/design/`）
 
@@ -89,5 +101,5 @@ conventions の中の項目と前提の向き（[形式](reference/formats.md#ma
 | 文書 | 定義 | `architecture/documentation.md`, `reference/formats.md` | 用語集 |
 | 変更と課題 | 定義 | `reference/writing.md`, `reference/changes.md`, `reference/issues.md` | 用語集, 文書 |
 | 届け方 | conventions | | 定義 |
-| ルール | 届け方 | `../rules/` | |
+| 共通のルール | 届け方 | `../rules/` | |
 | スキル | 届け方 | `../skills/` | |

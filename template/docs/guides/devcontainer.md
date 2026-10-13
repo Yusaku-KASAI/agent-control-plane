@@ -5,12 +5,6 @@
 ## ホストの準備
 
 ターゲットと platform のマーケットプレイスを、[ターゲットの契約の配置](../reference/contract.md#host)のとおりに並べる。
-platform のマーケットプレイスは agent-control-plane の `platform/` が兼ねるので、ターゲットを並べたディレクトリで
-次を実行して、それを指すリンクを置く。
-
-```bash
-ln -s agent-control-plane/platform agent-platform
-```
 
 ## ビルド、起動、停止
 
@@ -52,4 +46,4 @@ claude --dangerously-skip-permissions
 Claude Code のフルスクリーン表示は、マウスで選択して離すと自動でコピーする。止めるには `/config` の Copy on select を
 オフにする（設定は Claude Code の設定ディレクトリに残る）。そのあとは選択中に `Ctrl+C` か `Ctrl+Shift+C` でコピーする。
 
-仕組みは [architecture/devcontainer.md](../architecture/devcontainer.md) にある。
+仕組みは [architecture/devcontainer.md](../architecture/devcontainer.md "案内") にある。

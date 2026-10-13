@@ -12,7 +12,8 @@ services:
         TZ: ${TZ:-UTC}
         HOST_UID: ${HOST_UID:?run .devcontainer/init-host.sh}
         HOST_GID: ${HOST_GID:?run .devcontainer/init-host.sh}
-    # Agents run this image too.
+    # A fixed name, so that the control plane's config can run agents from this image
+    # (agents[].target.image).
     image: ${REPO_NAME}-devcontainer
     working_dir: /workspace/${REPO_NAME}
     volumes:
@@ -23,7 +24,7 @@ services:
       - ${DEV_STATE_DIR:?run .devcontainer/init-host.sh}/claude:/home/node/.claude
       - ${DEV_STATE_DIR}/gh:/home/node/.config/gh
       - ${DEV_STATE_DIR}/history:/commandhistory
-      # VS Code's server, its extensions and chat history, kept across container rebuilds.
+      # A volume, so that VS Code's server, its extensions and chat history survive container rebuilds.
       - vscode-server:/home/node/.vscode-server
       # Caches only: losing them costs a download.
       - go-mod:/home/node/go/pkg/mod

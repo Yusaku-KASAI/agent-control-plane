@@ -21,7 +21,7 @@ services:
       - acp-credentials:/var/lib/acp/credentials
       # Each agent's Claude Code config directory (history, auto memory), apart from the dev container's.
       - acp-claude:/var/lib/acp/claude
-      # State only the control plane reads, such as rotating Slack refresh tokens.
+      # State only the control plane reads and writes (state_dir in acp.yaml), such as rotating Slack tokens.
       - acp-state:/var/lib/acp/state
     ports:
       - "127.0.0.1:8787:8787"

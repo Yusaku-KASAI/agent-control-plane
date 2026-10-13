@@ -1,7 +1,7 @@
 # agent-control-plane
 
 Claude Code エージェントをコンテナで隔離して実行し、Slack などから呼び出すための制御基盤（Go）。
-このリポジトリ自身もエージェントが開発するターゲットの一つであり、platform と target-template の抽出元になる。
+このリポジトリ自身もエージェントが開発するターゲットの一つで、platform（`platform/`）と target-template（`template/`）も同居する。
 
 ## 使われ方
 
