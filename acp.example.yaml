@@ -95,3 +95,22 @@ agents:
       rotation:
         client_id: "2345678901.2345678901"
         client_secret_path: /home/you/acp-secrets/control-plane-guide.slack-client-secret
+
+  # Reviews pull requests and the whole repository without changing them; leaves pull request reviews
+  # (comments only) and issues.
+  - name: control-plane-reviewer
+    role: reviewer
+    target:
+      path: /home/you/projects/agent-control-plane
+      image: agent-control-plane-devcontainer
+    # Permissions for a reviewer: Contents read-only; Pull requests and Issues read and write (to leave
+    # reviews and file reports); Actions, Checks and Commit statuses read-only (to read CI results).
+    github:
+      app_id: 345678
+      installation_id: 34567890
+      private_key_path: /home/you/acp-secrets/control-plane-reviewer.private-key.pem
+    # Optional, as for any agent; without it the reviewer is asked through `acp run`.
+    slack:
+      app_token_path: /home/you/acp-secrets/control-plane-reviewer.slack-app-token
+      bot_token_path: /home/you/acp-secrets/control-plane-reviewer.slack-bot-token
+      allowed_users: [U0123456789]

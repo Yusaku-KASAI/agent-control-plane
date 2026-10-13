@@ -228,7 +228,7 @@ func TestLoad_Example(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acp.example.yaml does not load: %v", err)
 	}
-	if len(cfg.SlackApps) != 2 || len(cfg.GitHubApps) != 2 {
-		t.Errorf("example has %d Slack apps and %d GitHub apps, want 2 each", len(cfg.SlackApps), len(cfg.GitHubApps))
+	if len(cfg.SlackApps) != 3 || len(cfg.GitHubApps) != 3 {
+		t.Errorf("example has %d Slack apps and %d GitHub apps, want 3 each", len(cfg.SlackApps), len(cfg.GitHubApps))
 	}
 }

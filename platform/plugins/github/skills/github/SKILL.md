@@ -39,6 +39,23 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
   コメントに書く（直しがなければ PR のコメント）。
 
+## ほかの人の PR をレビューする
+
+PR のブランチを checkout せず、head を detached で読む。ブランチにすると、作者に向けた hook（本文、レビュー、CI）が
+自分のターンで働く。
+
+```bash
+gh pr view <番号> --json title,body,headRefOid,baseRefName,closingIssuesReferences   # 依頼の内容と意図
+gh api 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.body != "") | .commit_id'   # レビュー済みのコミット
+git fetch origin "pull/<番号>/head" && git checkout --detach FETCH_HEAD                         # 読んで、検査を回す
+gh api -X POST 'repos/{owner}/{repo}/pulls/<番号>/reviews' -f event=COMMENT \
+  -f commit_id=<見た head> -F body=@review.md                                                  # 結果を残す
+```
+
+- 範囲は、レビュー済みのコミットのうち head の履歴にある最後のものから head まで。ないときは PR 全体。
+- レビューは COMMENT だけにする。承認（APPROVE）も変更の要求（REQUEST_CHANGES）もしない。マージを決めるのは人。
+- 終えたら、自分の作業のブランチに戻る（`git checkout -`）。
+
 ## コミットと履歴
 
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
