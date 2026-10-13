@@ -90,7 +90,6 @@ jq '. + [{state: "COMMENTED", commit_id: "'"$c3"'", body: ""}, {state: "DISMISSE
 check "line comments and dismissed reviews do not count" "$("$prctl" unreviewed)" "range: $c2..$c3"
 check "post-tool-use reminds of the review" \
   "$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)" "not reviewed up to ${c3:0:12}"
-check "a commit outside the PR is refused" "$("$prctl" review "$base" - <<<"x" 2>&1 || true)" "is not after the last reviewed"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
 check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
 

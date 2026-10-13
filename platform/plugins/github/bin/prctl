@@ -52,7 +52,7 @@ reviewed() {
   local pr=$1 head=$2 ids id best="" n most=-1
   ids=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" \
     --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
-      | select(.body != "") | .commit_id') || return 1
+      | select((.body // "") != "") | .commit_id') || return 1
   while read -r id; do
     if [[ -z $id ]] || ! git merge-base --is-ancestor "$id" "$head" 2>/dev/null; then continue; fi
     n=$(git rev-list --count "$id")
