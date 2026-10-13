@@ -118,8 +118,13 @@ settles() {
 }
 
 # wt_path <name>: where the worktree for reading <name> (pr-<number> or default) lives. The same path
-# every time, so that a later shell can find and remove it.
-wt_path() { echo "${TMPDIR:-/tmp}/prctl-$(basename "$(git rev-parse --show-toplevel)")-$1"; }
+# every time, so that a later shell can find and remove it. It is named after the main work tree,
+# so that it is the same from inside any worktree.
+wt_path() {
+  local main
+  main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+  echo "${TMPDIR:-/tmp}/prctl-$(basename "$main")-$1"
+}
 
 # Reading another's PR, or the default branch, happens in a worktree of its own: the work tree's
 # HEAD stays where it is, so neither the hooks meant for a PR's author nor the session's cleanup
@@ -137,6 +142,7 @@ cmd_worktree() {
       commit=$(git rev-parse "refs/prctl/$name")
       ;;
     default)
+      [[ -z $number ]] || usage
       name=default
       base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || die "could not read the default branch"
       git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base"
@@ -145,7 +151,9 @@ cmd_worktree() {
     *) usage ;;
   esac
   path=$(wt_path "$name")
-  [[ ! -e $path ]] || git worktree remove --force "$path"
+  if [[ -e $path ]]; then
+    git worktree remove --force "$path" 2>/dev/null || die "$path is not a worktree of this repository; move it away"
+  fi
   git worktree add -q --detach "$path" "$commit"
   echo "path: $path"
   echo "head: $commit"
@@ -158,13 +166,18 @@ cmd_worktree() {
 }
 
 cmd_worktree_remove() {
-  local kind=$1 number=${2:-} name
+  local kind=$1 number=${2:-} name path
   case $kind in
     pr) [[ $number =~ ^[0-9]+$ ]] || usage; name=pr-$number ;;
-    default) name=default ;;
+    default) [[ -z $number ]] || usage; name=default ;;
     *) usage ;;
   esac
-  git worktree remove --force "$(wt_path "$name")" 2>/dev/null || true
+  path=$(wt_path "$name")
+  # From the main work tree: the worktree may be where this runs.
+  cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+  if [[ -e $path ]]; then
+    git worktree remove --force "$path" || die "could not remove $path"
+  fi
   git worktree prune
   [[ $kind != pr ]] || git update-ref -d "refs/prctl/$name" 2>/dev/null || true
 }

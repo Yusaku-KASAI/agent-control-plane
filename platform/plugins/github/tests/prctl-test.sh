@@ -235,10 +235,12 @@ git push -q
 git push -q origin "$c7:refs/pull/1/head"
 set_pr "$c7"
 check "a new commit is not reviewed yet" "$("$prctl" unreviewed)" "range: $c6..$c7"
+git checkout -q main
+before=$(git symbolic-ref HEAD; git rev-parse HEAD)
 out=$("$prctl" worktree pr 1)
 wt=$(sed -n 's/^path: //p' <<<"$out")
 check "the PR is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$c7"
-check "the worktree leaves the work tree's HEAD" "$(git rev-parse HEAD)" "$c7"
+check "the worktree leaves the work tree's HEAD" "$(git symbolic-ref HEAD; git rev-parse HEAD)" "$before"
 [[ -z $(git -C "$wt" symbolic-ref -q HEAD) ]] || { echo "FAIL the worktree is on a branch"; failures=$((failures + 1)); }
 from=$(git merge-base origin/main "$c7")
 check "the range of another's PR is the whole PR" "$out" "range: $from..$c7"
@@ -248,13 +250,15 @@ check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
   "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
-"$prctl" worktree remove pr 1
-[[ ! -e $wt ]] || { echo "FAIL the worktree is left"; failures=$((failures + 1)); }
+(cd "$wt" || exit; "$prctl" worktree remove pr 1)
+[[ ! -e $wt ]] || { echo "FAIL the worktree is left after a remove from inside it"; failures=$((failures + 1)); }
 check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
 out=$("$prctl" worktree default)
 wt=$(sed -n 's/^path: //p' <<<"$out")
 check "the default branch is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$(git rev-parse origin/main)"
 "$prctl" worktree remove default
 [[ ! -e $wt ]] || { echo "FAIL the default worktree is left"; failures=$((failures + 1)); }
+check "a stray argument is refused" "$("$prctl" worktree default 5 2>&1 || true)" "usage:"
+git checkout -q feature
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
