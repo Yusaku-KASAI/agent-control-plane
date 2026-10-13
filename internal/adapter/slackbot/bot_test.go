@@ -1,6 +1,7 @@
 package slackbot
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -109,5 +110,29 @@ func TestStatusViewRender(t *testing.T) {
 	}
 	if outcomeOf(usecase.TurnResult{Error: true}) != failed || outcomeOf(usecase.TurnResult{Error: true, UsageLimited: true}) != usageLimited {
 		t.Error("a turn that ended on an error is not shown as failed")
+	}
+}
+
+func TestAgentTurnNotice(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess"}
+	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
+	steps := []struct {
+		name  string
+		event usecase.SessionEvent
+		want  string
+	}{
+		{"a request stops at the limit", usecase.SessionEvent{Result: limit}, ""},
+		{"the agent's own turn at the same limit", usecase.SessionEvent{AgentStarted: true, Result: limit}, ""},
+		{"a turn passes", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "ok"}}, ""},
+		{"the agent's own turn at the limit again", usecase.SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
+		{"the agent's own turn on another error", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
+	}
+	for _, st := range steps {
+		st.event.Kind = usecase.SessionTurnFinished
+		text, ok := b.agentTurnNotice(s, st.event)
+		if ok != (st.want != "") || !strings.Contains(text, st.want) {
+			t.Errorf("%s: notice = %q, %v; want one containing %q", st.name, text, ok, st.want)
+		}
 	}
 }

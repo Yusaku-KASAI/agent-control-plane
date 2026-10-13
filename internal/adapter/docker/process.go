@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
@@ -111,9 +112,14 @@ type streamEvent struct {
 	Result  string `json:"result"`
 	// IsError marks a result whose turn ended on an error, such as a refused API request.
 	IsError bool `json:"is_error"`
+	// APIError is the typed kind of the API error that ended the turn, on a result.
+	APIError string `json:"api_error"`
 	// RateLimitInfo is set on rate_limit_event, which reports a change in the account's usage limit.
 	RateLimitInfo *struct {
-		Status string `json:"status"`
+		Status         string `json:"status"`
+		IsUsingOverage bool   `json:"isUsingOverage"`
+		// ResetsAt is in Unix seconds.
+		ResetsAt int64 `json:"resetsAt"`
 	} `json:"rate_limit_info"`
 	Tasks []struct {
 		TaskID string `json:"task_id"`
@@ -137,7 +143,7 @@ type contentBlock struct {
 }
 
 // processEvent translates a stream-json line. limited tells whether the last rate_limit_event
-// said requests are refused.
+// said requests are refused, for a result that does not name its API error.
 func (e streamEvent) processEvent(limited bool) (usecase.ProcessEvent, bool) {
 	switch {
 	case e.Type == "system" && e.Subtype == "init":
@@ -160,7 +166,8 @@ func (e streamEvent) processEvent(limited bool) (usecase.ProcessEvent, bool) {
 		case e.Subtype == "error_during_execution":
 			r.Interrupted = true
 		case e.IsError || strings.HasPrefix(e.Subtype, "error"):
-			r.Error, r.UsageLimited = true, limited
+			r.Error = true
+			r.UsageLimited = e.APIError == "usage_limit_reached" || (e.APIError == "" && limited)
 		}
 		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: r}, true
 	}
@@ -227,21 +234,36 @@ func (p *process) read() {
 	}()
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	var limited bool
+	var limit rateLimit
 	for scanner.Scan() {
 		var e streamEvent
 		if json.Unmarshal(scanner.Bytes(), &e) != nil {
 			continue
 		}
 		if e.Type == "rate_limit_event" && e.RateLimitInfo != nil {
-			limited = e.RateLimitInfo.Status == "rejected"
+			limit = rateLimit{
+				refused:  e.RateLimitInfo.Status == "rejected" && !e.RateLimitInfo.IsUsingOverage,
+				resetsAt: e.RateLimitInfo.ResetsAt,
+			}
 		}
-		if pe, ok := e.processEvent(limited); ok {
+		if pe, ok := e.processEvent(limit.refusing(time.Now())); ok {
 			p.events <- pe
 		}
 	}
 	_ = stdout.CloseWithError(errors.New("stopped reading"))
 	p.err = p.exitError(scanner.Err())
+}
+
+// rateLimit is what the last rate_limit_event said about the account's usage limit.
+type rateLimit struct {
+	refused  bool
+	resetsAt int64
+}
+
+// refusing tells whether the limit still refuses requests at now; a refusal is stale once its
+// reset time has passed.
+func (l rateLimit) refusing(now time.Time) bool {
+	return l.refused && (l.resetsAt == 0 || now.Unix() < l.resetsAt)
 }
 
 func (p *process) exitError(readErr error) error {

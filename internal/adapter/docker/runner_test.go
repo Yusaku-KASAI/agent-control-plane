@@ -295,15 +295,29 @@ func TestRunner_Start(t *testing.T) {
 	if e := receive(t, proc.Events()); !e.Result.Error || e.Result.UsageLimited || e.Result.Output != "API Error: 500" {
 		t.Errorf("event = %+v, want an error result", e)
 	}
-	api.emit(1, `{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1791954000,"rateLimitType":"five_hour"}}`+"\n")
-	api.emit(1, `{"type":"result","subtype":"success","is_error":true,"result":"You've hit your session limit"}`+"\n")
-	if e := receive(t, proc.Events()); !e.Result.Error || !e.Result.UsageLimited {
-		t.Errorf("event = %+v, want a result stopped at the usage limit", e)
+	results := []struct {
+		name  string
+		lines []string
+		want  bool
+	}{
+		{"typed as a usage limit", []string{`{"type":"result","subtype":"success","is_error":true,"api_error":"usage_limit_reached","result":"You've hit your session limit"}`}, true},
+		{"refused by the limit", []string{`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":4102444800,"rateLimitType":"five_hour"}}`,
+			`{"type":"result","subtype":"success","is_error":true,"result":"You've hit your session limit"}`}, true},
+		{"typed as another error while refused", []string{`{"type":"result","subtype":"success","is_error":true,"api_error":"no_response","result":"API Error"}`}, false},
+		{"over the limit on overage", []string{`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","isUsingOverage":true,"resetsAt":4102444800}}`,
+			`{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}`}, false},
+		{"refusal past its reset", []string{`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1700000000}}`,
+			`{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}`}, false},
+		{"allowed again", []string{`{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}`,
+			`{"type":"result","subtype":"error_max_turns","is_error":true,"result":""}`}, false},
 	}
-	api.emit(1, `{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}`+"\n")
-	api.emit(1, `{"type":"result","subtype":"error_max_turns","is_error":true,"result":""}`+"\n")
-	if e := receive(t, proc.Events()); !e.Result.Error || e.Result.UsageLimited {
-		t.Errorf("event = %+v, want an error result after the limit reset", e)
+	for _, r := range results {
+		for _, line := range r.lines {
+			api.emit(1, line+"\n")
+		}
+		if e := receive(t, proc.Events()); !e.Result.Error || e.Result.UsageLimited != r.want {
+			t.Errorf("%s: event = %+v, want an error with usage limited %v", r.name, e, r.want)
+		}
 	}
 
 	api.exit(1)

@@ -31,8 +31,10 @@ type Bot struct {
 	webToken string
 	webAPI   *slack.Client
 
-	statusMu   sync.Mutex
-	status     map[domain.SessionID]*statusMessage
+	statusMu sync.Mutex
+	status   map[domain.SessionID]*statusMessage
+	// limited holds the sessions whose last turn stopped at the usage limit.
+	limited    map[domain.SessionID]bool
 	byStatusTS map[string]domain.SessionID
 	mentions   *seenMessages
 	// writes tracks messages written outside a request, such as status updates.
@@ -52,6 +54,7 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		log:       log.With("agent", agent),
 
 		status:     make(map[domain.SessionID]*statusMessage),
+		limited:    make(map[domain.SessionID]bool),
 		byStatusTS: make(map[string]domain.SessionID),
 		mentions:   newSeenMessages(time.Hour),
 	}

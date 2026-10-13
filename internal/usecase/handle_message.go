@@ -91,7 +91,7 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 }
 
 // TurnErrorText tells that the agent ended a turn on an error, quoting the agent's message, which
-// for a usage limit says when the limit resets.
+// for a usage limit says when the limit resets in the agent container's time zone.
 func TurnErrorText(message string, usageLimited bool) string {
 	text := "⚠️ エラーでターンが終わりました。"
 	if usageLimited {

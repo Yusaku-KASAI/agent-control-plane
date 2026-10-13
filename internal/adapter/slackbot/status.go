@@ -119,14 +119,38 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		m.apply(e.Status)
 		b.refresh(m)
 	}
+	if e.Kind == usecase.SessionTurnFinished {
+		if text, ok := b.agentTurnNotice(s, e); ok {
+			b.postAsync(s, text)
+			return
+		}
+	}
 	switch {
 	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && e.Result.Error:
-		b.postAsync(s, usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited))
+		// A repeat of the usage limit already told; the status message shows it.
 	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "":
 		b.postAsync(s, e.Result.Output)
 	case e.Kind == usecase.SessionAbandoned:
 		b.postAsync(s, abandonedText(e.Status))
 	}
+}
+
+// agentTurnNotice tells what to post for a turn that ended on an error. It also remembers whether
+// the session stopped at the usage limit: once told, the agent's own turns refused by the same
+// limit, one for each background task that ends, only show in the status message.
+func (b *Bot) agentTurnNotice(s domain.Session, e usecase.SessionEvent) (string, bool) {
+	b.statusMu.Lock()
+	told := b.limited[s.ID]
+	if e.Result.UsageLimited {
+		b.limited[s.ID] = true
+	} else {
+		delete(b.limited, s.ID)
+	}
+	b.statusMu.Unlock()
+	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
+		return "", false
+	}
+	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
 }
 
 func abandonedText(st usecase.SessionStatus) string {
