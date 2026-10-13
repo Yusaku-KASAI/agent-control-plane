@@ -120,10 +120,15 @@ settles() {
 # wt_path <name>: where the worktree for reading <name> (pr-<number> or default) lives. The same path
 # every time, so that a later shell can find and remove it. It is named after the main work tree,
 # so that it is the same from inside any worktree.
-wt_path() {
-  local main
-  main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-  echo "${TMPDIR:-/tmp}/prctl-$(basename "$main")-$1"
+wt_path() { echo "${TMPDIR:-/tmp}/prctl-$(basename "$(main_tree)")-$1"; }
+
+# main_tree: the main work tree, wherever in its worktrees this runs.
+main_tree() { dirname "$(git rev-parse --path-format=absolute --git-common-dir)"; }
+
+# is_worktree <path>: whether <path> is a worktree of this repository.
+# Git may keep the path with its links resolved (/tmp on macOS), so both spellings are tried.
+is_worktree() {
+  git worktree list --porcelain | grep -qxF -e "worktree $1" -e "worktree $(realpath "$1")"
 }
 
 # Reading another's PR, or the default branch, happens in a worktree of its own: the work tree's
@@ -131,6 +136,8 @@ wt_path() {
 # take it for this session's work.
 cmd_worktree() {
   local kind=$1 number=${2:-} name commit pr base path from
+  # From the main work tree: the worktree to be made again may be where this runs.
+  cd "$(main_tree)"
   git worktree prune
   case $kind in
     pr)
@@ -152,7 +159,8 @@ cmd_worktree() {
   esac
   path=$(wt_path "$name")
   if [[ -e $path ]]; then
-    git worktree remove --force "$path" 2>/dev/null || die "$path is not a worktree of this repository; move it away"
+    is_worktree "$path" || die "$path is not a worktree of this repository; move it away"
+    git worktree remove --force "$path"
   fi
   git worktree add -q --detach "$path" "$commit"
   echo "path: $path"
@@ -174,7 +182,7 @@ cmd_worktree_remove() {
   esac
   path=$(wt_path "$name")
   # From the main work tree: the worktree may be where this runs.
-  cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+  cd "$(main_tree)"
   if [[ -e $path ]]; then
     git worktree remove --force "$path" || die "could not remove $path"
   fi

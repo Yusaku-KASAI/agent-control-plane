@@ -250,6 +250,8 @@ check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
   "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+out=$(cd "$wt" || exit; "$prctl" worktree pr 1)
+check "the worktree is made again from inside it" "$(git -C "$wt" rev-parse HEAD)" "$c7"
 (cd "$wt" || exit; "$prctl" worktree remove pr 1)
 [[ ! -e $wt ]] || { echo "FAIL the worktree is left after a remove from inside it"; failures=$((failures + 1)); }
 check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
@@ -258,6 +260,9 @@ wt=$(sed -n 's/^path: //p' <<<"$out")
 check "the default branch is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$(git rev-parse origin/main)"
 "$prctl" worktree remove default
 [[ ! -e $wt ]] || { echo "FAIL the default worktree is left"; failures=$((failures + 1)); }
+mkdir -p "$wt"
+check "a stranger at the worktree's path is not removed" "$("$prctl" worktree default 2>&1 || true)" "is not a worktree of this repository"
+rmdir "$wt"
 check "a stray argument is refused" "$("$prctl" worktree default 5 2>&1 || true)" "usage:"
 git checkout -q feature
 
