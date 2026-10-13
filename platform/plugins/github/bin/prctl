@@ -117,7 +117,7 @@ settles() {
 readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeout=${PRCTL_CI_TIMEOUT:-3600}
 
 cmd_ci() {
-  local wait=$1 b pr head state="" first waited=0 errors=0
+  local wait=$1 b pr head state="" first errors=0 start=$SECONDS
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
@@ -133,13 +133,12 @@ cmd_ci() {
     first=${state%%$'\n'*}
     if [[ -z $wait ]] || settles "$head" "$state"; then break; fi
     case $first in
-      pending) ((waited < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
-      none) ((waited < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;
+      pending) ((SECONDS - start < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
+      none) ((SECONDS - start < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;
       "") ;;
       *) break ;;
     esac
     sleep "$ci_poll"
-    waited=$((waited + ci_poll))
   done
   echo "head: $head"
   echo "$state"
