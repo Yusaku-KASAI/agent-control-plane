@@ -192,10 +192,6 @@ func (b *Bot) releaseHeld(s domain.Session, m *statusMessage) {
 	}
 	b.releasesMu.Lock()
 	defer b.releasesMu.Unlock()
-	if b.closing {
-		release()
-		return
-	}
 	var timer *time.Timer
 	timer = time.AfterFunc(b.heldGrace, func() {
 		b.releasesMu.Lock()
@@ -214,7 +210,6 @@ func (b *Bot) releaseHeld(s domain.Session, m *statusMessage) {
 func (b *Bot) releaseAll() {
 	b.releasesMu.Lock()
 	defer b.releasesMu.Unlock()
-	b.closing = true
 	for timer, release := range b.releases {
 		timer.Stop()
 		release()

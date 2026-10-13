@@ -45,7 +45,6 @@ type Bot struct {
 	// releases holds the held answers waiting out heldGrace; Wait posts them at once.
 	releasesMu sync.Mutex
 	releases   map[*time.Timer]func()
-	closing    bool
 }
 
 // TokenSource supplies the current bot token, which may rotate.
@@ -114,6 +113,8 @@ func (b *Bot) Run(ctx context.Context) error {
 }
 
 // Wait waits for the messages the bot is still writing outside requests.
+// Wait posts the held answers still waiting out their grace, then waits for every write outside
+// a request. Call it after the dispatcher is closed, so that no session event comes afterwards.
 func (b *Bot) Wait() {
 	b.releaseAll()
 	b.writes.Wait()

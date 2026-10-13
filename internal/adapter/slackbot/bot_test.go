@@ -233,21 +233,34 @@ func TestObserveAgentAnswers(t *testing.T) {
 	}
 }
 
-func TestReleaseAllPostsHeldAnswers(t *testing.T) {
-	b, posts := recordingBot(t)
-	b.heldGrace = time.Hour
+func TestWaitPostsHeldAnswers(t *testing.T) {
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true,
-		Result: usecase.TurnResult{Output: "最後の結果"}, Status: usecase.SessionStatus{BackgroundTasks: 1}})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionUpdated})
-
-	b.releaseAll()
-	if got := posts(); !slices.Equal(got, []string{"最後の結果"}) {
-		t.Errorf("posted %q on shutdown, want the held answer", got)
+	held := []usecase.SessionEvent{
+		{Kind: usecase.SessionTurnStarted},
+		{Kind: usecase.SessionTurnStarted, AgentStarted: true},
+		{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "最後の結果"},
+			Status: usecase.SessionStatus{BackgroundTasks: 1}},
 	}
-	if n := b.pendingReleases(); n != 0 {
-		t.Errorf("%d releases still pending", n)
+	for _, tc := range []struct {
+		name   string
+		events []usecase.SessionEvent
+		want   []string
+	}{
+		{"the tasks have run out", append(slices.Clone(held), usecase.SessionEvent{Kind: usecase.SessionUpdated}),
+			[]string{"最後の結果"}},
+		{"the control plane cuts the tasks short", append(slices.Clone(held),
+			usecase.SessionEvent{Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}},
+			usecase.SessionEvent{Kind: usecase.SessionUpdated}),
+			[]string{usecase.ShutdownNotice}},
+	} {
+		b, posts := recordingBot(t)
+		b.heldGrace = time.Hour
+		for _, e := range tc.events {
+			b.observe(s, e)
+		}
+		b.Wait()
+		if got := posts(); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: posted %q on shutdown, want %q", tc.name, got, tc.want)
+		}
 	}
 }
