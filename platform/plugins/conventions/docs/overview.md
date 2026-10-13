@@ -9,11 +9,11 @@ conventions は、決まりの**定義**と、それをエージェントに**�
 
 ```
 conventions/
-  docs/            定義：文書（文書の体系、形式）、変更と課題（書き方、変更の扱い方、課題の扱い方）、用語集
+  docs/            定義：文書（文書の体系、形式）、変更と課題（書き方、変更の扱い方、課題の扱い方）、レビュー、用語集
                    （README.md が一覧）
   rules/           届け方：いつも守ることの要約。各項目に出典（定義）を書く
   hooks/、scripts/ 届け方：rules と、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる
-  skills/          届け方：必要なときに読む手順と観点（write-docs、design）
+  skills/          届け方：必要なときに読む手順と観点（write-docs、design、review）
 ```
 
 - 届け方が定義とどう関わるか（写しであること、出典、例外）は[文書の体系](architecture/documentation.md#delivery "案内")にある。
@@ -54,6 +54,14 @@ conventions/
 - **責務**：変更（PR）と課題（Issue）の扱い方。文書に置かない道筋と予定の置き場所を決める。
 - **当てはめた原則・パターン**：[今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)。
 
+### レビューの扱い方（`docs/reference/reviews.md`）
+
+- **責務**：レビューの種類（差分、全体）、観点、指摘の書き方と答え方、全体のレビューの手順を定義する。
+- **関係**：正しさの観点は変更の扱い方の「変更とパターン」を、文書の観点は文書の体系と形式を前提にする。
+- **当てはめた原則・パターン**：[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)、
+  [観点を分けて読む](../../principles/docs/reference/patterns.md#perspective-based)、
+  [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)。
+
 ### 共通のルール（[`rules/common.md`](../rules/common.md "案内")）
 
 - **責務**：いつも読み込む要約。いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる。
@@ -76,9 +84,13 @@ conventions/
 
 ### design スキル（[`skills/design/`](../skills/design/SKILL.md "案内")）
 
-- **責務**：どの変更にどのパターンを当てはめるかと、レビューでの指摘の仕方。
+- **責務**：どの変更にどのパターンを当てはめるかを、設計するときとレビューの正しさの観点として届ける。
 - **置くもの / 置かないもの**：パターンの定義は置かず、パターンの一覧を指す。
 - **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
+
+### review スキル（[`skills/review/`](../skills/review/SKILL.md "案内")）
+
+- **責務**：差分のレビューと全体のレビューの手順を、レビューの扱い方を出典にして届ける。
 
 ### 文書の検査（`tools/check-docs.py`）
 
@@ -100,6 +112,7 @@ conventions の中の項目と前提の向き（[形式](reference/formats.md#ma
 | 用語集 | 定義 | `reference/glossary.md` | |
 | 文書 | 定義 | `architecture/documentation.md`, `reference/formats.md` | 用語集 |
 | 変更と課題 | 定義 | `reference/writing.md`, `reference/changes.md`, `reference/issues.md` | 用語集, 文書 |
+| レビュー | 定義 | `reference/reviews.md` | 用語集, 文書, 変更と課題 |
 | 届け方 | conventions | | 定義 |
 | 共通のルール | 届け方 | `../rules/` | |
 | スキル | 届け方 | `../skills/` | |
