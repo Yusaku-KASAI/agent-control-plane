@@ -10,7 +10,7 @@ set -euo pipefail
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  prctl status                        the open PR of this branch and whether its body is current
+  prctl status                        the open PR of this branch, and whether its body and review are current
   prctl since                         commits pushed since the body was last written
   prctl create <title> <body-file|->  open a PR for the pushed branch
   prctl update [--title <title>] <body-file|-> [<comment-file>]
@@ -46,11 +46,13 @@ described() {
 }
 
 # reviewed <pr> <head>: of the commits the PR's reviews cover, the latest one in the history of
-# <head>, or nothing. Any submitted review counts, whoever wrote it.
+# <head>, or nothing. A submitted review with a body counts, whoever wrote it; a lone line comment
+# or a reply is also a review on GitHub, but has no body.
 reviewed() {
   local pr=$1 head=$2 ids id best="" n most=-1
   ids=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" \
-    --jq '.[] | select(.state != "PENDING") | .commit_id') || return 1
+    --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
+      | select(.body != "") | .commit_id') || return 1
   while read -r id; do
     if [[ -z $id ]] || ! git merge-base --is-ancestor "$id" "$head" 2>/dev/null; then continue; fi
     n=$(git rev-list --count "$id")
@@ -93,7 +95,7 @@ pushed_head() {
 }
 
 cmd_status() {
-  local b pr head desc
+  local b pr head desc rev
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || { echo "no open PR for $b"; return; }
@@ -104,7 +106,9 @@ cmd_status() {
   echo "described: ${desc:-nothing (no marker; prctl update writes one)}"
   if [[ $desc == "$head" ]]; then echo "body is current"; else echo "body is stale"; fi
   if git cat-file -e "$head^{commit}" 2>/dev/null; then
-    if [[ $(reviewed "$pr" "$head") == "$head" ]]; then echo "diff is reviewed"; else echo "diff is not reviewed up to the head"; fi
+    if ! rev=$(reviewed "$pr" "$head"); then echo "could not read the reviews"
+    elif [[ $rev == "$head" ]]; then echo "diff is reviewed"
+    else echo "diff is not reviewed up to the head"; fi
   fi
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
 }

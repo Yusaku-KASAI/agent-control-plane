@@ -20,7 +20,7 @@ case $args in
   *" -X POST "*"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
     commit=$(sed -E 's/.* commit_id=([0-9a-f]+) .*/\1/' <<<"$args")
-    jq --arg c "$commit" '. + [{state: "COMMENTED", commit_id: $c}]' "$dir/reviews.json" >"$dir/r.tmp"
+    jq --arg c "$commit" '. + [{state: "COMMENTED", commit_id: $c, body: "review"}]' "$dir/reviews.json" >"$dir/r.tmp"
     mv "$dir/r.tmp" "$dir/reviews.json"
     echo "https://example.invalid/review"
     ;;
@@ -77,13 +77,36 @@ check "a commit before the last review is refused" "$("$prctl" review "$base" - 
 
 "$prctl" review "$c2" - <<<"指摘なし" >/dev/null
 check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the head"
-check "stop lets the turn end" "$(stop_hook)" ""
-[[ -z $(stop_hook) ]] || { echo "FAIL stop printed something"; failures=$((failures + 1)); }
+out=$(stop_hook)
+check "stop lets the turn end" "[$out]" "[]"
 
 c3=$(commit three)
 git push -q
 set_pr "$c3"
 check "a new push needs its own review" "$("$prctl" unreviewed)" "range: $c2..$c3"
+# A lone line comment (a review without a body) and a dismissed review do not count.
+jq '. + [{state: "COMMENTED", commit_id: "'"$c3"'", body: ""}, {state: "DISMISSED", commit_id: "'"$c3"'", body: "x"}]' \
+  "$state/reviews.json" >"$state/r" && mv "$state/r" "$state/reviews.json"
+check "line comments and dismissed reviews do not count" "$("$prctl" unreviewed)" "range: $c2..$c3"
+check "post-tool-use reminds of the review" \
+  "$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)" "not reviewed up to ${c3:0:12}"
+check "a commit outside the PR is refused" "$("$prctl" review "$base" - <<<"x" 2>&1 || true)" "is not after the last reviewed"
+other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
+check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+
+# Commits merged in from the base are not part of the range.
+git checkout -q main
+echo side >side && git add side && git commit -q -m main-side
+git push -q origin main
+git checkout -q feature
+git merge -q --no-edit main
+c5=$(git rev-parse HEAD)
+git push -q
+set_pr "$c5"
+out=$("$prctl" unreviewed)
+check "a merge of the base is pointed out" "$out" "the range merges the base"
+[[ $out != *"main-side"* ]] || { echo "FAIL the base's commit is in the range"; failures=$((failures + 1)); }
+check "the range keeps the branch's commits" "$out" "three"
 
 # History rewritten past every review: the whole branch is unreviewed again.
 git reset -q --hard "$base"
