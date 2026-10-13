@@ -17,6 +17,7 @@ const (
 	stopReaction = "no_entry_sign"
 	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
 	refreshInterval = 5 * time.Second
+	heldAnswerGrace = 15 * time.Second
 )
 
 type outcome int
@@ -88,28 +89,54 @@ type statusMessage struct {
 	ts       string
 	updating bool
 	wake     chan struct{}
-	// held is the answer of the agent's own turn that ended while background work remained.
-	held string
+	// held is the answer of the agent's own turn that ended while background work remained;
+	// heldGen numbers it, so that a release meant for an earlier answer does not post a later one.
+	held    string
+	heldGen int
 }
 
 func (m *statusMessage) hold(text string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.held = text
+	m.heldGen++
+}
+
+// heldGeneration is the number of the held answer, or 0 when nothing is held.
+func (m *statusMessage) heldGeneration() int {
+	if m == nil {
+		return 0
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.held == "" {
+		return 0
+	}
+	return m.heldGen
+}
+
+// takeHeld returns the held answer and forgets it, if it is still the one numbered gen.
+func (m *statusMessage) takeHeld(gen int) string {
+	if m == nil || gen == 0 {
+		return ""
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.heldGen != gen {
+		return ""
+	}
+	text := m.held
+	m.held = ""
+	return text
+}
+
+func (m *statusMessage) dropHeld() {
 	if m == nil {
 		return
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.held = text
-}
-
-func (m *statusMessage) takeHeld() string {
-	if m == nil {
-		return ""
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	text := m.held
 	m.held = ""
-	return text
 }
 
 func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
@@ -135,17 +162,34 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted:
 		switch agentAnswer(e) {
 		case postAnswer:
-			b.postAsync(s, e.Result.Output)
+			b.post(s, e.Result.Output)
 		case holdAnswer:
+			if m == nil {
+				b.post(s, e.Result.Output)
+				break
+			}
 			m.hold(e.Result.Output)
 		}
 	case e.Kind == usecase.SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
-		if text := m.takeHeld(); text != "" {
-			b.postAsync(s, text)
-		}
+		b.releaseHeld(s, m)
 	case e.Kind == usecase.SessionAbandoned:
-		b.postAsync(s, abandonedText(e.Status))
+		// The notice replaces the held answer, which spoke of work that is now cut short.
+		m.takeHeld(m.heldGeneration())
+		b.post(s, abandonedText(e.Status))
 	}
+}
+
+// releaseHeld posts the held answer unless the agent starts another turn within the grace.
+func (b *Bot) releaseHeld(s domain.Session, m *statusMessage) {
+	gen := m.heldGeneration()
+	if gen == 0 {
+		return
+	}
+	time.AfterFunc(b.heldGrace, func() {
+		if text := m.takeHeld(gen); text != "" {
+			b.post(s, text)
+		}
+	})
 }
 
 // statusFor returns the status message that follows the turn starting now. A turn the agent
@@ -154,12 +198,14 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage {
 	b.statusMu.Lock()
 	defer b.statusMu.Unlock()
-	if m := b.status[s.ID]; m != nil && e.AgentStarted {
-		m.mu.Lock()
-		m.view.outcome, m.view.finishedAt = running, time.Time{}
-		m.held = ""
-		m.mu.Unlock()
-		return m
+	prev := b.status[s.ID]
+	// A held answer is dropped once any turn starts; that turn's answer says what remains.
+	prev.dropHeld()
+	if prev != nil && e.AgentStarted {
+		prev.mu.Lock()
+		prev.view.outcome, prev.view.finishedAt = running, time.Time{}
+		prev.mu.Unlock()
+		return prev
 	}
 	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
 	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}

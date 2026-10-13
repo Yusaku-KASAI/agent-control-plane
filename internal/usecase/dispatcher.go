@@ -562,13 +562,16 @@ func (w *worker) stopProcess(cause error) {
 	defer cancel()
 	_ = w.proc.Close(ctx)
 	w.proc = nil
-	wasRunning := w.running
+	wasRunning, hadBackground := w.running, len(w.background) > 0
 	w.running, w.background = false, nil
 	if cause == nil {
 		return
 	}
-	if wasRunning {
+	switch {
+	case wasRunning:
 		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: len(w.current) == 0})
+	case hadBackground:
+		w.observe(SessionEvent{Kind: SessionUpdated})
 	}
 	for _, r := range w.current {
 		r.reply <- w.reply(TurnResult{}, cause)

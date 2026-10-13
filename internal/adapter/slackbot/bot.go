@@ -37,6 +37,11 @@ type Bot struct {
 	mentions   *seenMessages
 	// writes tracks messages written outside a request, such as status updates.
 	writes sync.WaitGroup
+	// post writes outside a request; tests replace it.
+	post func(s domain.Session, text string)
+	// heldGrace is how long a held answer waits for the agent's next turn after background work
+	// runs out, since the agent may report the end of its tasks before it starts that turn.
+	heldGrace time.Duration
 }
 
 // TokenSource supplies the current bot token, which may rotate.
@@ -54,7 +59,9 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		status:     make(map[domain.SessionID]*statusMessage),
 		byStatusTS: make(map[string]domain.SessionID),
 		mentions:   newSeenMessages(time.Hour),
+		heldGrace:  heldAnswerGrace,
 	}
+	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, policy, b)
 	return b
 }
