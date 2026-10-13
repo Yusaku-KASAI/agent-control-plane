@@ -54,7 +54,7 @@ conventions/
 - **責務**：変更（PR）と課題（Issue）の扱い方。文書に置かない道筋と予定の置き場所を決める。
 - **当てはめた原則・パターン**：[今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)。
 
-### 共通のルール（`rules/`）
+### 共通のルール（[`rules/common.md`](../rules/common.md "案内")）
 
 - **責務**：いつも読み込む要約。いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる。
 - **置くもの / 置かないもの**：定義の写しだけ（届け方の決まりに沿う）。
@@ -68,13 +68,13 @@ conventions/
   相対リンクは、読み込ませるときに絶対パスに書き換える。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
-### 文書を書く（`skills/write-docs/`）
+### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "案内")）
 
 - **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → リンク → 地図 → 量 → 確かめる）。
 - **置くもの / 置かないもの**：定義の写しだけ。各手順に出典を付ける。
 - **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
 
-### design スキル（`skills/design/`）
+### design スキル（[`skills/design/`](../skills/design/SKILL.md "案内")）
 
 - **責務**：どの変更にどのパターンを当てはめるかと、レビューでの指摘の仕方。
 - **置くもの / 置かないもの**：パターンの定義は置かず、パターンの一覧を指す。
