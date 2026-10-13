@@ -113,7 +113,7 @@ func TestStatusViewRender(t *testing.T) {
 	}
 }
 
-func TestAgentTurnNotice(t *testing.T) {
+func TestAgentTurnText(t *testing.T) {
 	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess"}
 	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
@@ -124,13 +124,15 @@ func TestAgentTurnNotice(t *testing.T) {
 	}{
 		{"a request stops at the limit", usecase.SessionEvent{Result: limit}, ""},
 		{"the agent's own turn at the same limit", usecase.SessionEvent{AgentStarted: true, Result: limit}, ""},
-		{"a turn passes", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "ok"}}, ""},
+		{"a turn passes", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "ok"}}, "ok"},
 		{"the agent's own turn at the limit again", usecase.SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
 		{"the agent's own turn on another error", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
+		{"the agent's own turn failing with the process", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Failed: true}}, ""},
+		{"the agent's own turn answering", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "結果"}}, "結果"},
 	}
 	for _, st := range steps {
 		st.event.Kind = usecase.SessionTurnFinished
-		text, ok := b.agentTurnNotice(s, st.event)
+		text, ok := b.agentTurnText(s, st.event)
 		if ok != (st.want != "") || !strings.Contains(text, st.want) {
 			t.Errorf("%s: notice = %q, %v; want one containing %q", st.name, text, ok, st.want)
 		}

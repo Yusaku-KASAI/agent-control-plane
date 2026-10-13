@@ -119,26 +119,21 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		m.apply(e.Status)
 		b.refresh(m)
 	}
-	if e.Kind == usecase.SessionTurnFinished {
-		if text, ok := b.agentTurnNotice(s, e); ok {
+	switch e.Kind {
+	case usecase.SessionTurnFinished:
+		if text, ok := b.agentTurnText(s, e); ok {
 			b.postAsync(s, text)
-			return
 		}
-	}
-	switch {
-	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && e.Result.Error:
-		// A repeat of the usage limit already told; the status message shows it.
-	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "":
-		b.postAsync(s, e.Result.Output)
-	case e.Kind == usecase.SessionAbandoned:
+	case usecase.SessionAbandoned:
 		b.postAsync(s, abandonedText(e.Status))
 	}
 }
 
-// agentTurnNotice tells what to post for a turn that ended on an error. It also remembers whether
-// the session stopped at the usage limit: once told, the agent's own turns refused by the same
-// limit, one for each background task that ends, only show in the status message.
-func (b *Bot) agentTurnNotice(s domain.Session, e usecase.SessionEvent) (string, bool) {
+// agentTurnText tells what to post when a turn ends: for a turn the agent started by itself, its
+// answer or the error it ended on. It also remembers whether the session stopped at the usage
+// limit: once told, the agent's own turns refused while the limit lasts, one for each background
+// task that ends, only show in the status message.
+func (b *Bot) agentTurnText(s domain.Session, e usecase.SessionEvent) (string, bool) {
 	b.statusMu.Lock()
 	told := b.limited[s.ID]
 	if e.Result.UsageLimited {
@@ -147,10 +142,14 @@ func (b *Bot) agentTurnNotice(s domain.Session, e usecase.SessionEvent) (string,
 		delete(b.limited, s.ID)
 	}
 	b.statusMu.Unlock()
-	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
+	switch {
+	case !e.AgentStarted, e.Result.Failed, e.Result.UsageLimited && told:
 		return "", false
+	case e.Result.Error:
+		return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
+	default:
+		return e.Result.Output, strings.TrimSpace(e.Result.Output) != ""
 	}
-	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
 }
 
 func abandonedText(st usecase.SessionStatus) string {
