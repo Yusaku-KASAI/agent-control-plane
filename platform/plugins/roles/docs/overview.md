@@ -17,7 +17,7 @@ roles/
 
 ## 構成要素
 
-### `agents/developer.md`
+### [`agents/developer.md`](../agents/developer.md "案内")
 
 - **責務**：依頼された変更をターゲットのリポジトリに実装し、PR にして届ける。
 - **置くもの / 置かないもの**：developer に固有の振る舞い（PR にすること、報告）と、使う決まりの選び出し（変更の進め方、書き方、
@@ -28,7 +28,7 @@ roles/
 - **当てはめた原則・パターン**：[一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)：役割ごとの指示は決まりの写しで、出典を示す。
   [関心の分離](../../principles/docs/reference/principles.md#soc)：事実は契約とターゲットの CLAUDE.md に任せる。
 
-### `agents/guide.md`
+### [`agents/guide.md`](../agents/guide.md "案内")
 
 - **責務**：ターゲットのリポジトリの仕組みや使い方についての質問に、ファイルを変更せずに答える。
 - **置くもの / 置かないもの**：答え方と、しないこと。developer と同じく、ハーネスの事実とターゲット固有の事実は置かない。

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Checks the Markdown files in the repository against the conventions plugin's docs/reference/formats.md
-and docs/architecture/documentation.md: links and anchors, ADR frontmatter and cross-references, the layout
-of each docs/ directory and its index, component descriptions in architecture docs, and the maps of items
-with the prerequisite directions between them. With --map, prints the maps as a design structure matrix."""
+and docs/architecture/documentation.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
+frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
+in architecture docs, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix."""
 
 import os
 import re
@@ -419,6 +419,38 @@ def check_map(m, paths, errors):
                               " (a link that only shows where something is takes the title \"案内\")")
 
 
+# Where people and agents start reading: every document must be reachable by links from each of them.
+ENTRIES = ["README.md", "CLAUDE.md"]
+
+
+def reachable(start, paths):
+    """The documents reached by following links from start. A link to a directory reaches every document in it."""
+    seen, stack = set(), [start]
+    while stack:
+        path = stack.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        for target, _, _ in links(read(path)):
+            if is_external(target) or target.startswith("/"):
+                continue
+            resolved = resolve(path, target).rstrip("/")
+            if os.path.isdir(resolved):
+                stack += [p for p in paths if p.startswith(resolved + os.sep) or resolved == "."]
+            elif resolved in paths:
+                stack.append(resolved)
+    return seen
+
+
+def check_reachable(paths, errors):
+    found = set(paths)
+    for entry in ENTRIES:
+        if entry not in found:
+            continue
+        for path in sorted(found - reachable(entry, found) - set(ENTRIES)):
+            errors.append(f"{path}: not reachable by links from {entry}")
+
+
 def print_map(m):
     def width(text):
         return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
@@ -449,6 +481,7 @@ def main():
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
     check_sizes(paths, errors)
+    check_reachable(paths, errors)
     if m is not None:
         check_map(m, paths, errors)
     for e in errors:

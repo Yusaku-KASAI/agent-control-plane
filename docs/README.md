@@ -2,7 +2,9 @@
 
 このリポジトリ（control-plane）の文書の一覧。分け方は conventions の[文書の体系](../platform/plugins/conventions/docs/architecture/documentation.md)にある。
 platform と target-template の文書は、それぞれ [platform/docs/README.md](../platform/docs/README.md) と
-[template/docs/README.md](../template/docs/README.md) にある。
+[template/docs/README.md](../template/docs/README.md) に、原則とパターン、共通の決まりの文書は
+[principles](../platform/plugins/principles/docs/README.md) と [conventions](../platform/plugins/conventions/docs/README.md) の
+`docs/README.md` にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
