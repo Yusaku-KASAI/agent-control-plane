@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Keeps the pull request of the current branch describing what the branch contains. Needs git, gh
-# and jq.
+# Keeps the pull request of the current branch describing what the branch contains, and its diff
+# reviewed. Needs git, gh and jq.
 #
-# The PR body carries a hidden marker with the head it describes, so whether the description is
-# current is read from GitHub and survives across sessions and containers.
+# The PR body carries a hidden marker with the head it describes, and each review is a GitHub review
+# of the commit it covers, so whether both are current is read from GitHub and survives across
+# sessions and containers.
 set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  prctl status                        the open PR of this branch and whether its body is current
+  prctl status                        the open PR of this branch, and whether its body and review are current
   prctl since                         commits pushed since the body was last written
   prctl create <title> <body-file|->  open a PR for the pushed branch
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
                                       such a push, and not posted when there is none
-  prctl hook post-tool-use            Claude Code hook: remind after a push makes the PR stale
-  prctl hook stop                     Claude Code hook: keep the turn going while the PR is stale
+  prctl unreviewed                    the range not yet reviewed, and its commits and files
+  prctl review <commit> <findings-file|->
+                                      record the review of the range up to <commit> as a PR review
+  prctl hook post-tool-use            Claude Code hook: remind after a push leaves the PR behind
+  prctl hook stop                     Claude Code hook: keep the turn going while the PR is behind
 USAGE
   exit 2
 }
@@ -41,6 +45,38 @@ described() {
   if [[ $(jq -r .body <<<"$1") =~ $marker_re ]]; then echo "${BASH_REMATCH[1]}"; fi
 }
 
+# reviewed <pr> <head>: of the commits the PR's reviews cover, the latest one in the history of
+# <head>, or nothing. A submitted review with a body counts, whoever wrote it; a lone line comment
+# or a reply is also a review on GitHub, but has no body.
+reviewed() {
+  local pr=$1 head=$2 ids id best="" n most=-1
+  ids=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" \
+    --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
+      | select((.body // "") != "") | .commit_id') || return 1
+  while read -r id; do
+    if [[ -z $id ]] || ! git merge-base --is-ancestor "$id" "$head" 2>/dev/null; then continue; fi
+    n=$(git rev-list --count "$id")
+    if ((n > most)); then best=$id most=$n; fi
+  done < <(sort -u <<<"$ids")
+  echo "$best"
+}
+
+# review_base <pr> <head>: where the unreviewed range starts: the last reviewed commit, else where
+# the branch left the base.
+review_base() {
+  local pr=$1 head=$2 rev
+  rev=$(reviewed "$pr" "$head") || return 1
+  if [[ -n $rev ]]; then echo "$rev"; else git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head"; fi
+}
+
+# pr_head <pr>: the PR's head, provided this clone has it.
+pr_head() {
+  local head
+  head=$(jq -r .headRefOid <<<"$1")
+  git cat-file -e "$head^{commit}" 2>/dev/null || die "this clone does not have the PR head ${head:0:12}; fetch first"
+  echo "$head"
+}
+
 read_input() { if [[ $1 == - ]]; then cat; else cat -- "$1"; fi; }
 
 with_marker() {
@@ -59,7 +95,7 @@ pushed_head() {
 }
 
 cmd_status() {
-  local b pr head desc
+  local b pr head desc rev
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || { echo "no open PR for $b"; return; }
@@ -69,6 +105,11 @@ cmd_status() {
   echo "head:      $head"
   echo "described: ${desc:-nothing (no marker; prctl update writes one)}"
   if [[ $desc == "$head" ]]; then echo "body is current"; else echo "body is stale"; fi
+  if git cat-file -e "$head^{commit}" 2>/dev/null; then
+    if ! rev=$(reviewed "$pr" "$head"); then echo "could not read the reviews"
+    elif [[ $rev == "$head" ]]; then echo "diff is reviewed"
+    else echo "diff is not reviewed up to the head"; fi
+  fi
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
 }
 
@@ -88,6 +129,45 @@ cmd_since() {
     echo "history was rewritten since ${desc:0:12}; explain the rewrite in the comment"
     git log --format='%h %s' "origin/$(jq -r .baseRefName <<<"$pr")..$head"
   fi
+}
+
+cmd_unreviewed() {
+  local b pr head from base
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  head=$(pr_head "$pr")
+  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+  [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
+  base=$(jq -r .baseRefName <<<"$pr")
+  echo "range: $from..$head"
+  echo "after reviewing it: prctl review $head <findings>"
+  # Commits merged in from the base are not this branch's change.
+  git log --format='%h %s' "$from..$head" "^origin/$base"
+  if [[ -n $(git rev-list --merges "$from..$head" "^origin/$base") ]]; then
+    echo "the range merges the base; review the commits above rather than git diff $from $head"
+  else
+    git diff --stat "$from" "$head"
+  fi
+}
+
+cmd_review() {
+  local commit findings b pr head from num
+  commit=$(git rev-parse --verify --quiet "$1^{commit}") || die "no commit $1"
+  findings=$(read_input "$2")
+  [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
+  head=$(pr_head "$pr")
+  git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
+  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+  if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
+    die "${commit:0:12} is not after the last reviewed ${from:0:12}"
+  fi
+  num=$(jq -r .number <<<"$pr")
+  gh api -X POST "repos/{owner}/{repo}/pulls/$num/reviews" --jq .html_url -f event=COMMENT -f commit_id="$commit" \
+    -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
 }
 
 cmd_create() {
@@ -124,16 +204,30 @@ cmd_update() {
   gh api -X PATCH "repos/{owner}/{repo}/pulls/$num" "${fields[@]}" --jq .html_url
 }
 
-stale_message() {
+body_message() {
   local pr=$1 head=$2 desc
   desc=$(described "$pr")
   jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" 'if $desc == "" then "The body of PR #\(.number) was not written by prctl. Rewrite it with prctl update <body>; no comment is needed (see the github skill)." else "PR #\(.number) now has head \($head) but its body describes \($desc). Rewrite the body to describe the branch as it is now (and the title if the scope changed), and comment on what this push changed and why: prctl since, then prctl update [--title <title>] <body> <comment> (see the github skill)." end' <<<"$pr"
 }
 
+review_message() {
+  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
+}
+
+# pending_message <pr> <head>: what the PR still needs for this head, or nothing.
+# Fails when the reviews cannot be read, so that a hook says nothing rather than something wrong.
+pending_message() {
+  local pr=$1 head=$2 rev msgs=()
+  [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
+  rev=$(reviewed "$pr" "$head") || return 1
+  [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
+  [[ ${#msgs[@]} -eq 0 ]] || printf '%s ' "${msgs[@]}"
+}
+
 # Hooks never fail the tool call or the turn on their own errors: a missing PR, gh or network is
 # a normal state for them.
 hook_post_tool_use() {
-  local b remote state pr
+  local b remote state pr msg
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
   [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
@@ -143,29 +237,32 @@ hook_post_tool_use() {
   [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   echo "$remote" >"$state"
   pr=$(open_pr "$b" 2>/dev/null) || return 0
-  [[ -n $pr && $(described "$pr") != "$remote" ]] || return 0
-  jq -n --arg ctx "$(stale_message "$pr" "$remote")" \
+  [[ -n $pr ]] || return 0
+  msg=$(pending_message "$pr" "$remote") || return 0
+  [[ -n $msg ]] || return 0
+  jq -n --arg ctx "$msg" \
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
-# Only a head pushed from this working tree counts, and a head once seen described is not asked
-# about again, so most turns end without calling GitHub.
+# Only a head pushed from this working tree counts, and a head once seen described and reviewed is
+# not asked about again, so most turns end without calling GitHub.
 hook_stop() {
-  local input=$1 b remote state pr
+  local input=$1 b remote state pr msg
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
   [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
-  state=$(git rev-parse --git-path prctl-described)
+  state=$(git rev-parse --git-path prctl-settled)
   [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   pr=$(open_pr "$b" 2>/dev/null) || return 0
   [[ -n $pr ]] || return 0
-  if [[ $(described "$pr") == "$remote" ]]; then
+  msg=$(pending_message "$pr" "$remote") || return 0
+  if [[ -z $msg ]]; then
     echo "$remote" >"$state"
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.
-  jq -n --arg reason "$(stale_message "$pr" "$remote") Then end with your full answer to the request again, not only this update." \
+  jq -n --arg reason "${msg}Then end with your full answer to the request again, not only this update." \
     '{decision: "block", reason: $reason}'
 }
 
@@ -185,6 +282,8 @@ cmd_hook() {
 case "${1:-}" in
   status) [[ $# -eq 1 ]] || usage; cmd_status ;;
   since) [[ $# -eq 1 ]] || usage; cmd_since ;;
+  unreviewed) [[ $# -eq 1 ]] || usage; cmd_unreviewed ;;
+  review) [[ $# -eq 3 ]] || usage; cmd_review "$2" "$3" ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
   update)
     shift
