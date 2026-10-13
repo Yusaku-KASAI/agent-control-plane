@@ -30,7 +30,8 @@ principles と conventions、target-template（共通のファイル）を変え
 
 ## 言語
 
-ドキュメントとコミットメッセージは日本語、コード中のコメントは英語。
+依頼への回答（ターンの途中の発言も含む）、ドキュメント、コミットメッセージは日本語、コード中のコメントは英語。
+回答の言語は `.claude/settings.json` の `language` でも Claude Code に渡す。
 
 ## 共通のルール
 

@@ -28,7 +28,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 
 <a id="plugins"></a>
 
-## プラグインとロール
+## プラグイン、ロール、Claude Code の設定
 
 - 使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
   （[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
@@ -36,6 +36,8 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
   - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
+- `.claude/settings.json` の `language` に、CLAUDE.md の言語の節で決めた回答の言語を書く。Claude Code はこれを毎回の
+  指示として渡す。決まりは CLAUDE.md にあり、ここはそれを届ける。
 - ロールは Claude Code のカスタムエージェントとして定義する（[ADR 0003](../adr/0003-roles-as-claude-code-agents.md)）。
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
   定義が見つからないロールで起動すると、エージェントはエラーで終了する。
@@ -73,7 +75,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 | 守る互換 | 壊してはいけないもの（公開した URL やデータの形式、API など）と、破壊的に変えてよい範囲 |
 | 参照先 | 索引（`docs/README.md`）と全体の解説（`docs/overview.md`、あれば）へのリンクと、それぞれ何があるか |
 | 作業の完了条件 | `make check` など、変更後に通すもの |
-| 言語 | ドキュメント、コミットメッセージ、コード中のコメントの言語 |
+| 言語 | 依頼への回答、ドキュメント、コミットメッセージ、コード中のコメントの言語 |
 | 共通のルール | conventions プラグインが読み込ませること（文面は下のとおり） |
 
 共通のルールの節の文面：
