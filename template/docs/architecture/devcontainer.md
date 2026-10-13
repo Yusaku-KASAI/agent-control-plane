@@ -75,8 +75,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ものを変えても前の層のキャッシュが当たる。
   [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが動く `node` には sudo を与えず、コンテナの前提（entrypoint など）を
   変えられないようにする。
-  [多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：コンテナの中の制限は、中で何でもできる
-  エージェントが外せるので、守りの層に数えない。外への通信を絞るなら、コンテナの外に置く。
+  [多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：コンテナの中で組む通信の制限（ファイアウォール）
+  は、中で何でもできるエージェントが外せる前提で、守りの層に数えない。外への通信を絞るなら、コンテナの外に置く。
 
 ### Dockerfile のツールチェーンのステージ（`base` を元にするもの）
 
