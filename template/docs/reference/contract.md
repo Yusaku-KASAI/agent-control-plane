@@ -28,7 +28,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 
 <a id="plugins"></a>
 
-## プラグインとロール
+## プラグイン、ロール、Claude Code の設定
 
 - 使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
   （[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
