@@ -1,6 +1,7 @@
 package slackbot
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -101,5 +102,51 @@ func TestStatusViewRender(t *testing.T) {
 	got = finished.render(start.Add(time.Hour))
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
+	}
+}
+
+func TestStatusForAgentStartedTurn(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	start := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+
+	if m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true}); m == nil {
+		t.Fatal("an agent-started turn without an earlier status message got none")
+	}
+	requested := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, Status: usecase.SessionStatus{TurnStartedAt: start}})
+	requested.view.outcome, requested.view.finishedAt = done, start.Add(time.Minute)
+
+	resumed := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true, Status: usecase.SessionStatus{TurnStartedAt: start.Add(time.Hour)}})
+	if resumed != requested {
+		t.Fatal("an agent-started turn posted a new status message instead of taking over the request's")
+	}
+	if resumed.view.outcome != running || !resumed.view.finishedAt.IsZero() || !resumed.view.startedAt.Equal(start) {
+		t.Errorf("taken-over status = %+v, want running since the request started", resumed.view)
+	}
+
+	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next == requested {
+		t.Error("a requested turn reused the earlier status message")
+	}
+}
+
+func TestPostsAgentAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		result     usecase.TurnResult
+		background int
+		want       bool
+	}{
+		{"done, no background", usecase.TurnResult{Output: "結果"}, 0, true},
+		{"done, background remains", usecase.TurnResult{Output: "待ちます"}, 1, false},
+		{"done, empty", usecase.TurnResult{Output: " \n"}, 0, false},
+		{"interrupted, background remains", usecase.TurnResult{Output: "止めました", Interrupted: true}, 1, true},
+		{"interrupted, empty", usecase.TurnResult{Interrupted: true}, 0, false},
+		{"failed", usecase.TurnResult{Failed: true}, 0, false},
+	} {
+		e := usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: tc.result,
+			Status: usecase.SessionStatus{BackgroundTasks: tc.background}}
+		if got := postsAgentAnswer(e); got != tc.want {
+			t.Errorf("%s: postsAgentAnswer = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

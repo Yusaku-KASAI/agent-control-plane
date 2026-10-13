@@ -684,6 +684,9 @@ func TestDispatcher_AgentStartedTurn(t *testing.T) {
 	if got := e.observer.agentTurns()[0].Output; got != "build passed" {
 		t.Errorf("observer got %q", got)
 	}
+	if started := e.observer.of(usecase.SessionTurnStarted); len(started) < 2 || started[0].AgentStarted || !started[1].AgentStarted {
+		t.Errorf("observed turn starts %+v, want the request's and then the agent's own", started)
+	}
 
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("ok")

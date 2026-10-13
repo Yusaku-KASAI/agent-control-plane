@@ -93,12 +93,8 @@ type statusMessage struct {
 func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 	switch e.Kind {
 	case usecase.SessionTurnStarted:
-		m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
-		m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}
+		m := b.statusFor(s, e)
 		m.apply(e.Status)
-		b.statusMu.Lock()
-		b.status[s.ID] = m
-		b.statusMu.Unlock()
 		b.refresh(m)
 	case usecase.SessionTurnUpdated, usecase.SessionUpdated, usecase.SessionTurnFinished:
 		b.statusMu.Lock()
@@ -117,10 +113,43 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		b.refresh(m)
 	}
 	switch {
-	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "":
+	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && postsAgentAnswer(e):
 		b.postAsync(s, e.Result.Output)
 	case e.Kind == usecase.SessionAbandoned:
 		b.postAsync(s, abandonedText(e.Status))
+	}
+}
+
+// statusFor returns the status message that follows the turn starting now. A turn the agent
+// starts by itself continues the work of the last request, so it takes over that request's
+// message instead of posting a new one each time background work ends.
+func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage {
+	b.statusMu.Lock()
+	defer b.statusMu.Unlock()
+	if m := b.status[s.ID]; m != nil && e.AgentStarted {
+		m.mu.Lock()
+		m.view.outcome, m.view.finishedAt = running, time.Time{}
+		m.mu.Unlock()
+		return m
+	}
+	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
+	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}
+	b.status[s.ID] = m
+	return m
+}
+
+// postsAgentAnswer tells whether the answer of a turn the agent started by itself goes to the
+// thread. While background work remains, the agent will start another turn, and its answer
+// would mostly say that it is waiting; the turn after the last background task ends says the
+// rest.
+func postsAgentAnswer(e usecase.SessionEvent) bool {
+	switch {
+	case e.Result.Failed, strings.TrimSpace(e.Result.Output) == "":
+		return false
+	case e.Result.Interrupted:
+		return true
+	default:
+		return e.Status.BackgroundTasks == 0
 	}
 }
 
