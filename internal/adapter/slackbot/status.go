@@ -88,21 +88,40 @@ type statusMessage struct {
 	ts       string
 	updating bool
 	wake     chan struct{}
+	// held is the answer of the agent's own turn that ended while background work remained.
+	held string
+}
+
+func (m *statusMessage) hold(text string) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.held = text
+}
+
+func (m *statusMessage) takeHeld() string {
+	if m == nil {
+		return ""
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	text := m.held
+	m.held = ""
+	return text
 }
 
 func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
-	switch e.Kind {
-	case usecase.SessionTurnStarted:
-		m := b.statusFor(s, e)
-		m.apply(e.Status)
-		b.refresh(m)
-	case usecase.SessionTurnUpdated, usecase.SessionUpdated, usecase.SessionTurnFinished:
+	var m *statusMessage
+	if e.Kind == usecase.SessionTurnStarted {
+		m = b.statusFor(s, e)
+	} else {
 		b.statusMu.Lock()
-		m := b.status[s.ID]
+		m = b.status[s.ID]
 		b.statusMu.Unlock()
-		if m == nil {
-			return
-		}
+	}
+	if m != nil && e.Kind != usecase.SessionAbandoned {
 		m.mu.Lock()
 		if e.Kind == usecase.SessionTurnFinished {
 			m.view.finishedAt = time.Now()
@@ -113,8 +132,17 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		b.refresh(m)
 	}
 	switch {
-	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && postsAgentAnswer(e):
-		b.postAsync(s, e.Result.Output)
+	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted:
+		switch agentAnswer(e) {
+		case postAnswer:
+			b.postAsync(s, e.Result.Output)
+		case holdAnswer:
+			m.hold(e.Result.Output)
+		}
+	case e.Kind == usecase.SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
+		if text := m.takeHeld(); text != "" {
+			b.postAsync(s, text)
+		}
 	case e.Kind == usecase.SessionAbandoned:
 		b.postAsync(s, abandonedText(e.Status))
 	}
@@ -129,6 +157,7 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	if m := b.status[s.ID]; m != nil && e.AgentStarted {
 		m.mu.Lock()
 		m.view.outcome, m.view.finishedAt = running, time.Time{}
+		m.held = ""
 		m.mu.Unlock()
 		return m
 	}
@@ -138,18 +167,27 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	return m
 }
 
-// postsAgentAnswer tells whether the answer of a turn the agent started by itself goes to the
-// thread. While background work remains, the agent will start another turn, and its answer
-// would mostly say that it is waiting; the turn after the last background task ends says the
-// rest.
-func postsAgentAnswer(e usecase.SessionEvent) bool {
+type answerAction int
+
+const (
+	dropAnswer answerAction = iota
+	postAnswer
+	// holdAnswer keeps the answer until the background work ends without starting another turn.
+	holdAnswer
+)
+
+// agentAnswer decides what becomes of the answer of a turn the agent started by itself. While
+// background work remains, the agent will start another turn, and its answer would mostly say
+// that it is waiting; the turn after the last background task ends says the rest. A stopped
+// turn is answered at once, since no turn follows it.
+func agentAnswer(e usecase.SessionEvent) answerAction {
 	switch {
 	case e.Result.Failed, strings.TrimSpace(e.Result.Output) == "":
-		return false
-	case e.Result.Interrupted:
-		return true
+		return dropAnswer
+	case e.Result.Interrupted, e.Status.BackgroundTasks == 0:
+		return postAnswer
 	default:
-		return e.Status.BackgroundTasks == 0
+		return holdAnswer
 	}
 }
 

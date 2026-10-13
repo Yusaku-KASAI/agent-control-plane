@@ -129,24 +129,42 @@ func TestStatusForAgentStartedTurn(t *testing.T) {
 	}
 }
 
-func TestPostsAgentAnswer(t *testing.T) {
+func TestAgentAnswer(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		result     usecase.TurnResult
 		background int
-		want       bool
+		want       answerAction
 	}{
-		{"done, no background", usecase.TurnResult{Output: "結果"}, 0, true},
-		{"done, background remains", usecase.TurnResult{Output: "待ちます"}, 1, false},
-		{"done, empty", usecase.TurnResult{Output: " \n"}, 0, false},
-		{"interrupted, background remains", usecase.TurnResult{Output: "止めました", Interrupted: true}, 1, true},
-		{"interrupted, empty", usecase.TurnResult{Interrupted: true}, 0, false},
-		{"failed", usecase.TurnResult{Failed: true}, 0, false},
+		{"done, no background", usecase.TurnResult{Output: "結果"}, 0, postAnswer},
+		{"done, background remains", usecase.TurnResult{Output: "待ちます"}, 1, holdAnswer},
+		{"done, empty", usecase.TurnResult{Output: " \n"}, 0, dropAnswer},
+		{"interrupted, background remains", usecase.TurnResult{Output: "止めました", Interrupted: true}, 1, postAnswer},
+		{"interrupted, empty", usecase.TurnResult{Interrupted: true}, 0, dropAnswer},
+		{"failed", usecase.TurnResult{Failed: true}, 0, dropAnswer},
 	} {
 		e := usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: tc.result,
 			Status: usecase.SessionStatus{BackgroundTasks: tc.background}}
-		if got := postsAgentAnswer(e); got != tc.want {
-			t.Errorf("%s: postsAgentAnswer = %v, want %v", tc.name, got, tc.want)
+		if got := agentAnswer(e); got != tc.want {
+			t.Errorf("%s: agentAnswer = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestHeldAnswer(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	m.hold("CI を待ちます")
+	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	if got := m.takeHeld(); got != "" {
+		t.Errorf("held answer %q survived the next turn of the agent", got)
+	}
+	m.hold("CI が通りました")
+	if got := m.takeHeld(); got != "CI が通りました" {
+		t.Errorf("takeHeld() = %q", got)
+	}
+	if got := m.takeHeld(); got != "" {
+		t.Errorf("takeHeld() again = %q, want it taken once", got)
 	}
 }
