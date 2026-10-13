@@ -7,7 +7,8 @@
 その作業のスキルにある。
 
 - 何かを決めるときは、まず一般に良いとされる確立した原則やパターンを探して沿い、その名前を挙げる
-  （[原則：確立した考え方に拠る](../../principles/docs/reference/principles.md#established)）。
+  （[原則：確立した考え方に拠る](../../principles/docs/reference/principles.md#established)）。今の形や頼まれた手段も、目的、
+  より単純な形、より大きな枠組みから問い直す（[原則：前提を問い直す](../../principles/docs/reference/principles.md#double-loop)）。
 - コードは自己説明的に書き、コメントはコードで表しきれない制約や理由だけにする。構成、方針、使い方は文書に書く
   （[書き方：コメント](../docs/reference/writing.md#comments)）。
 - 変更の理由と経緯はコミットメッセージと PR に書き、コードと文書には今の姿だけを書く

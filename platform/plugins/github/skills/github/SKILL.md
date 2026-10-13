@@ -42,7 +42,7 @@ gh pr checks <番号>                                              # CI の結�
 gh run view <run ID> --log-failed                               # 失敗したジョブのログ
 ```
 
-- 指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する（[レビュー](../../../conventions/docs/reference/changes.md#review)）。
+- 指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す（[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
 
 ## 注意
