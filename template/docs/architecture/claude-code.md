@@ -5,8 +5,8 @@
 ## 構成
 
 一つのファイルが、二つの使われ方の設定を持つ。プラグインの宣言と回答の言語（`language`）は、control-plane 経由
-でも devcontainer で直接でも読まれる。`permissions` は人が対話で使うときのためのもので、control-plane 経由では権限の確認なしで動く
-（[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")）。
+でも devcontainer で直接でも読まれる。`permissions` は人が対話で使うときのためのもので、control-plane 経由では
+権限の確認なしで動く（[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")）。
 
 ## 構成要素
 
