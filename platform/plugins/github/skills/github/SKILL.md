@@ -41,20 +41,20 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 ## ほかの人の PR をレビューする
 
-PR のブランチを checkout せず、head を detached で読む。ブランチにすると、作者に向けた hook（本文、レビュー、CI）が
-自分のターンで働く。
+PR 全体を、一時的な worktree で detached のまま読む。作業領域の HEAD を動かすと、作者に向けた hook（本文、レビュー、
+CI）が自分のターンで働き、残ったときはセッションの片付けも妨げる。
 
 ```bash
-gh pr view <番号> --json title,body,headRefOid,baseRefName,closingIssuesReferences   # 依頼の内容と意図
-gh api 'repos/{owner}/{repo}/pulls/<番号>/reviews' --jq '.[] | select(.body != "") | .commit_id'   # レビュー済みのコミット
-git fetch origin "pull/<番号>/head" && git checkout --detach FETCH_HEAD                         # 読んで、検査を回す
-gh api -X POST 'repos/{owner}/{repo}/pulls/<番号>/reviews' -f event=COMMENT \
-  -f commit_id=<見た head> -F body=@review.md                                                  # 結果を残す
+gh pr view <番号> --json title,body,headRefOid,baseRefName      # 依頼の内容と意図（閉じる Issue は本文の Closes #<番号>）
+git fetch origin "pull/<番号>/head" "<向き先のブランチ>"
+dir=$(mktemp -d) && git worktree add --detach "$dir" FETCH_HEAD # ここで読み、検査を回す
+prctl review --pr <番号> <見た head> review.md                    # 結果を、PR 全体のレビューとして残す
+git worktree remove --force "$dir"                              # 終えたら消す
 ```
 
-- 範囲は、レビュー済みのコミットのうち head の履歴にある最後のものから head まで。ないときは PR 全体。
-- レビューは COMMENT だけにする。承認（APPROVE）も変更の要求（REQUEST_CHANGES）もしない。マージを決めるのは人。
-- 終えたら、自分の作業のブランチに戻る（`git checkout -`）。
+- `review.md` は作業領域の外（`$dir` の外の一時ディレクトリ）に書くか、`-` で標準入力から渡す。作業領域に残すと、
+  セッションの片付けが作業ツリーの変更として扱う。
+- レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
 
 ## コミットと履歴
 

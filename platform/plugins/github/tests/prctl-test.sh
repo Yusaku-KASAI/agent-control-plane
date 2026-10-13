@@ -18,6 +18,7 @@ dir=$FAKE_GH
 args=" $* "
 case $args in
   *" pr list "*) [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0 ;;
+  *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" -X POST "*"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
     commit=$(sed -E 's/.* commit_id=([0-9a-f]+) .*/\1/' <<<"$args")
@@ -224,5 +225,18 @@ rm -f "$(git rev-parse --git-path prctl-settled)"
 out=$(jq -n --arg cwd "$PWD/sub" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
 check "no check run yet with a workflow leaves the head unsettled" "[$(settled)]" "[]"
 check "wait reports when no check run appears" "$(PRCTL_CI_APPEAR=0 "$prctl" ci --wait | sed -n 2p)" "no check run appeared"
+
+# A reviewer reads another's PR in a detached worktree and reviews it whole.
+c7=$(commit seven)
+git push -q
+set_pr "$c7"
+check "a new commit is not reviewed yet" "$("$prctl" unreviewed)" "range: $c6..$c7"
+git worktree add -q --detach "$tmp/wt" "$c7"
+out=$(cd "$tmp/wt" && "$prctl" review --pr 1 "$c7" - <<<"指摘なし")
+check "a review of another's PR is recorded" "$out" "https://example.invalid/review"
+check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
+check "a commit outside another's PR is refused" \
+  "$(cd "$tmp/wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+git worktree remove "$tmp/wt"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
