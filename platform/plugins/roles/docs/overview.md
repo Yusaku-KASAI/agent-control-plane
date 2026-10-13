@@ -42,7 +42,7 @@ roles/
 - **置くもの / 置かないもの**：差分と全体のどちらをするかの見分け方、しないこと（変更、承認、変更の要求）、結果の残し方、
   報告。レビューの決まりは要約だけを書き、出典（conventions のレビューの扱い方）を示す。
 - **関係**：conventions のレビューの扱い方と review スキル、design スキル、principles スキル、github スキルの
-  「ほかの人の PR をレビューする」を前提にする。guide と分け、書き込める権限（PR のレビューと Issue）は reviewer
+  「ほかの人の PR と既定のブランチを読む」を前提にする。guide と分け、書き込める権限（PR のレビューと Issue）は reviewer
   だけが持つ（[ADR 0007](../../../docs/adr/0007-reviewer-role.md)）。
 - **当てはめた原則・パターン**：[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)：変更した
   エージェントとは別のエージェントがレビューする。[単一責任](../../principles/docs/reference/principles.md#srp)：答えることと

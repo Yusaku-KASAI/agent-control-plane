@@ -39,21 +39,22 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
   コメントに書く（直しがなければ PR のコメント）。
 
-## ほかの人の PR をレビューする
+## ほかの人の PR と既定のブランチを読む
 
-PR 全体を、一時的な worktree で detached のまま読む。作業領域の HEAD を動かすと、作者に向けた hook（本文、レビュー、
-CI）が自分のターンで働き、残ったときはセッションの片付けも妨げる。
+ほかの人の PR や、既定のブランチの今の姿は、`prctl worktree` が作る一時的な worktree で、detached のまま読む。
+作業領域の HEAD を動かすと、作者に向けた hook（本文、レビュー、CI）が自分のターンで働き、残ったときはセッションの
+片付けも妨げる。
 
 ```bash
-gh pr view <番号> --json title,body,headRefOid,baseRefName      # 依頼の内容と意図（閉じる Issue は本文の Closes #<番号>）
-git fetch origin "pull/<番号>/head" "<向き先のブランチ>"
-dir=$(mktemp -d) && git worktree add --detach "$dir" FETCH_HEAD # ここで読み、検査を回す
-prctl review --pr <番号> <見た head> review.md                    # 結果を、PR 全体のレビューとして残す
-git worktree remove --force "$dir"                              # 終えたら消す
+prctl worktree pr <番号>                 # PR の head を取り出す。置き場所、範囲、差分の見方、次のコマンドを出す
+prctl review --pr <番号> <見た head> -     # 標準入力の指摘を、PR 全体のレビューとして残す
+prctl worktree remove pr <番号>          # 終えたら消す
+prctl worktree default                  # 既定のブランチの head を取り出す（全体のレビュー）
+prctl worktree remove default
 ```
 
-- `review.md` は作業領域の外（`$dir` の外の一時ディレクトリ）に書くか、`-` で標準入力から渡す。作業領域に残すと、
-  セッションの片付けが作業ツリーの変更として扱う。
+- 依頼の内容と意図は `gh pr view <番号>` の本文から読む。閉じる Issue は本文の `Closes #<番号>`。
+- 検査は、取り出した worktree の中で回す。
 - レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
 
 ## コミットと履歴

@@ -24,6 +24,10 @@ usage:
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
                                       with --pr, of another's PR, over the whole PR up to <commit>
+  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
+  prctl worktree default              the same for the head of the default branch (to review the whole)
+  prctl worktree remove pr <number>|default
+                                      remove that worktree
   prctl hook post-tool-use            Claude Code hook: remind after a push leaves the PR behind
   prctl hook stop                     Claude Code hook: keep the turn going while the PR is behind
 USAGE
@@ -111,6 +115,58 @@ settles() {
       ;;
     *) return 1 ;;
   esac
+}
+
+# wt_path <name>: where the worktree for reading <name> (pr-<number> or default) lives. The same path
+# every time, so that a later shell can find and remove it.
+wt_path() { echo "${TMPDIR:-/tmp}/prctl-$(basename "$(git rev-parse --show-toplevel)")-$1"; }
+
+# Reading another's PR, or the default branch, happens in a worktree of its own: the work tree's
+# HEAD stays where it is, so neither the hooks meant for a PR's author nor the session's cleanup
+# take it for this session's work.
+cmd_worktree() {
+  local kind=$1 number=${2:-} name commit pr base path from
+  git worktree prune
+  case $kind in
+    pr)
+      [[ $number =~ ^[0-9]+$ ]] || usage
+      name=pr-$number
+      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName) || die "no PR #$number"
+      base=$(jq -r .baseRefName <<<"$pr")
+      git fetch -q origin "+refs/pull/$number/head:refs/prctl/$name" "+refs/heads/$base:refs/remotes/origin/$base"
+      commit=$(git rev-parse "refs/prctl/$name")
+      ;;
+    default)
+      name=default
+      base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || die "could not read the default branch"
+      git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base"
+      commit=$(git rev-parse "refs/remotes/origin/$base")
+      ;;
+    *) usage ;;
+  esac
+  path=$(wt_path "$name")
+  [[ ! -e $path ]] || git worktree remove --force "$path"
+  git worktree add -q --detach "$path" "$commit"
+  echo "path: $path"
+  echo "head: $commit"
+  if [[ $kind == pr ]]; then
+    from=$(git merge-base "origin/$base" "$commit")
+    echo "range: $from..$commit (git -C $path diff $from $commit)"
+    echo "after reviewing it: prctl review --pr $number $commit <findings>"
+  fi
+  echo "when done: prctl worktree remove $kind${number:+ $number}"
+}
+
+cmd_worktree_remove() {
+  local kind=$1 number=${2:-} name
+  case $kind in
+    pr) [[ $number =~ ^[0-9]+$ ]] || usage; name=pr-$number ;;
+    default) name=default ;;
+    *) usage ;;
+  esac
+  git worktree remove --force "$(wt_path "$name")" 2>/dev/null || true
+  git worktree prune
+  [[ $kind != pr ]] || git update-ref -d "refs/prctl/$name" 2>/dev/null || true
 }
 
 # How cmd_ci --wait polls, in seconds: how often, how long for a check run to appear after the push,
@@ -404,6 +460,12 @@ case "${1:-}" in
     fi
     [[ $# -eq 1 || $# -eq 2 ]] || usage
     cmd_update "$title" "$1" "${2:-}"
+    ;;
+  worktree)
+    case ${2:-} in
+      remove) [[ $# -ge 3 && $# -le 4 ]] || usage; cmd_worktree_remove "$3" "${4:-}" ;;
+      *) [[ $# -ge 2 && $# -le 3 ]] || usage; cmd_worktree "$2" "${3:-}" ;;
+    esac
     ;;
   hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
   *) usage ;;

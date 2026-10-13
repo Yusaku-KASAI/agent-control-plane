@@ -19,9 +19,11 @@ args=" $* "
 case $args in
   *" pr list "*) [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0 ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
+  *" repo view "*) echo main ;;
   *" -X POST "*"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
     commit=$(sed -E 's/.* commit_id=([0-9a-f]+) .*/\1/' <<<"$args")
+    for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-body"; done
     jq --arg c "$commit" '. + [{state: "COMMENTED", commit_id: $c, body: "review"}]' "$dir/reviews.json" >"$dir/r.tmp"
     mv "$dir/r.tmp" "$dir/reviews.json"
     echo "https://example.invalid/review"
@@ -226,17 +228,33 @@ out=$(jq -n --arg cwd "$PWD/sub" '{cwd: $cwd, stop_hook_active: false}' | "$prct
 check "no check run yet with a workflow leaves the head unsettled" "[$(settled)]" "[]"
 check "wait reports when no check run appears" "$(PRCTL_CI_APPEAR=0 "$prctl" ci --wait | sed -n 2p)" "no check run appeared"
 
-# A reviewer reads another's PR in a detached worktree and reviews it whole.
+# A reviewer reads another's PR in a worktree of its own and reviews it whole, whatever was
+# reviewed before.
 c7=$(commit seven)
 git push -q
+git push -q origin "$c7:refs/pull/1/head"
 set_pr "$c7"
 check "a new commit is not reviewed yet" "$("$prctl" unreviewed)" "range: $c6..$c7"
-git worktree add -q --detach "$tmp/wt" "$c7"
-out=$(cd "$tmp/wt" && "$prctl" review --pr 1 "$c7" - <<<"指摘なし")
-check "a review of another's PR is recorded" "$out" "https://example.invalid/review"
+out=$("$prctl" worktree pr 1)
+wt=$(sed -n 's/^path: //p' <<<"$out")
+check "the PR is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$c7"
+check "the worktree leaves the work tree's HEAD" "$(git rev-parse HEAD)" "$c7"
+[[ -z $(git -C "$wt" symbolic-ref -q HEAD) ]] || { echo "FAIL the worktree is on a branch"; failures=$((failures + 1)); }
+from=$(git merge-base origin/main "$c7")
+check "the range of another's PR is the whole PR" "$out" "range: $from..$c7"
+check "a review of another's PR is recorded" \
+  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$c7" - <<<"指摘なし")" "https://example.invalid/review"
+check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")" "（${from:0:12}...${c7:0:12}）"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
-  "$(cd "$tmp/wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
-git worktree remove "$tmp/wt"
+  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+"$prctl" worktree remove pr 1
+[[ ! -e $wt ]] || { echo "FAIL the worktree is left"; failures=$((failures + 1)); }
+check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
+out=$("$prctl" worktree default)
+wt=$(sed -n 's/^path: //p' <<<"$out")
+check "the default branch is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$(git rev-parse origin/main)"
+"$prctl" worktree remove default
+[[ ! -e $wt ]] || { echo "FAIL the default worktree is left"; failures=$((failures + 1)); }
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
