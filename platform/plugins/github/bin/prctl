@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Keeps the pull request of the current branch describing what the branch contains, and its diff
-# reviewed. Needs git, gh and jq.
+# Keeps the pull request of the current branch describing what the branch contains, its diff
+# reviewed, and its CI not failing. Needs git, gh and jq.
 #
 # The PR body carries a hidden marker with the head it describes, and each review is a GitHub review
 # of the commit it covers, so whether both are current is read from GitHub and survives across
@@ -10,13 +10,16 @@ set -euo pipefail
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  prctl status                        the open PR of this branch, and whether its body and review are current
+  prctl status                        the open PR of this branch, whether its body and review are
+                                      current, and its CI on the head
   prctl since                         commits pushed since the body was last written
   prctl create <title> <body-file|->  open a PR for the pushed branch
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
                                       such a push, and not posted when there is none
+  prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
+                                      first after an hour, "none (...)" when no check run appears
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review
@@ -69,6 +72,78 @@ review_base() {
   if [[ -n $rev ]]; then echo "$rev"; else git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head"; fi
 }
 
+# ci <head>: the head's CI. The first line is the state, which the first matching rule gives:
+#   failed           a check run failed or timed out: something to fix
+#   pending          a check run has not finished
+#   action_required  a check run waits for a person
+#   incomplete       a check run was cancelled or went stale: nothing was confirmed
+#   passed           every check run succeeded, was neutral or was skipped
+#   none             there is no check run (yet)
+# The lines after it are "<name> <url>" of the check runs that gave the state. Only the latest run
+# of each check is asked for (filter=latest). Fails when the checks cannot be read.
+ci() {
+  local runs
+  runs=$(gh api --paginate "repos/{owner}/{repo}/commits/$1/check-runs?filter=latest&per_page=100" \
+    --jq '.check_runs[] | [.status, (.conclusion // ""), .name, (.details_url // .html_url // "")] | @tsv') || return 1
+  [[ -n $runs ]] || { echo none; return; }
+  jq -Rrn '[inputs | split("\t") | {status: .[0], conclusion: .[1], name: .[2], url: .[3]}]
+    | def pick(f): map(select(f) | [.name, .url] | map(select(. != "")) | join(" "));
+      if any(.conclusion == "failure" or .conclusion == "timed_out") then
+        ["failed"] + pick(.conclusion == "failure" or .conclusion == "timed_out")
+      elif any(.status != "completed") then ["pending"] + pick(.status != "completed")
+      elif any(.conclusion == "action_required") then ["action_required"] + pick(.conclusion == "action_required")
+      elif all(.conclusion == "success" or .conclusion == "neutral" or .conclusion == "skipped") then ["passed"]
+      else ["incomplete"] + pick(.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")
+      end | .[]' <<<"$runs"
+}
+
+# settles <head> <ci>: whether nothing more can come of the head's CI: it passed, or the head has
+# no workflow to run. Not knowing (the head is not in this clone) does not settle.
+settles() {
+  local workflows
+  case ${2%%$'\n'*} in
+    passed) return 0 ;;
+    none)
+      # --full-tree: the path is from the top of the repository, wherever this runs.
+      workflows=$(git ls-tree --full-tree "$1" .github/workflows/ 2>/dev/null) || return 1
+      [[ -z $workflows ]]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# How cmd_ci --wait polls, in seconds: how often, how long for a check run to appear after the push,
+# and how long in all. The environment can change them (the tests do).
+readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeout=${PRCTL_CI_TIMEOUT:-3600}
+
+cmd_ci() {
+  local wait=$1 b pr head state="" first errors=0 start=$SECONDS
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  head=$(jq -r .headRefOid <<<"$pr")
+  while :; do
+    if state=$(ci "$head"); then
+      errors=0
+    else
+      # While waiting, a passing network or API error is waited out too.
+      errors=$((errors + 1))
+      if [[ -z $wait ]] || ((errors >= 3)); then die "could not read the checks"; fi
+    fi
+    first=${state%%$'\n'*}
+    if [[ -z $wait ]] || settles "$head" "$state"; then break; fi
+    case $first in
+      pending) ((SECONDS - start < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
+      none) ((SECONDS - start < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;
+      "") ;;
+      *) break ;;
+    esac
+    sleep "$ci_poll"
+  done
+  echo "head: $head"
+  echo "$state"
+}
+
 # pr_head <pr>: the PR's head, provided this clone has it.
 pr_head() {
   local head
@@ -110,6 +185,7 @@ cmd_status() {
     elif [[ $rev == "$head" ]]; then echo "diff is reviewed"
     else echo "diff is not reviewed up to the head"; fi
   fi
+  echo "ci:        $( (ci "$head" || echo "could not read the checks") | paste -sd ' ' -)"
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
 }
 
@@ -214,13 +290,22 @@ review_message() {
   jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
 }
 
-# pending_message <pr> <head>: what the PR still needs for this head, or nothing.
-# Fails when the reviews cannot be read, so that a hook says nothing rather than something wrong.
+ci_message() {
+  jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it (see the github skill)."' <<<"$1"
+}
+
+# pending_message <pr> <head> [<ci>]: what the PR still needs for this head, or nothing. Of the CI,
+# only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
+# read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 rev msgs=()
+  local pr=$1 head=$2 state=${3:-} rev failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
   rev=$(reviewed "$pr" "$head") || return 1
   [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
+  if [[ ${state%%$'\n'*} == failed ]]; then
+    failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
+    msgs+=("$(ci_message "$pr" "$head" "$failed")")
+  fi
   [[ ${#msgs[@]} -eq 0 ]] || printf '%s ' "${msgs[@]}"
 }
 
@@ -244,10 +329,10 @@ hook_post_tool_use() {
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
-# Only a head pushed from this working tree counts, and a head once seen described and reviewed is
-# not asked about again, so most turns end without calling GitHub.
+# Only a head pushed from this working tree counts, and a head once seen described, reviewed and
+# passing CI is not asked about again, so most turns end without calling GitHub.
 hook_stop() {
-  local input=$1 b remote state pr msg
+  local input=$1 b remote state pr checks msg
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
@@ -256,9 +341,12 @@ hook_stop() {
   [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   pr=$(open_pr "$b" 2>/dev/null) || return 0
   [[ -n $pr ]] || return 0
-  msg=$(pending_message "$pr" "$remote") || return 0
+  # Checks that cannot be read are left out, and keep the head unsettled.
+  checks=$(ci "$remote" 2>/dev/null) || checks=""
+  msg=$(pending_message "$pr" "$remote" "$checks") || return 0
   if [[ -z $msg ]]; then
-    echo "$remote" >"$state"
+    # A head is settled only once nothing more can come of its CI; until then, later turns look again.
+    ! settles "$remote" "$checks" || echo "$remote" >"$state"
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.
@@ -283,6 +371,10 @@ case "${1:-}" in
   status) [[ $# -eq 1 ]] || usage; cmd_status ;;
   since) [[ $# -eq 1 ]] || usage; cmd_since ;;
   unreviewed) [[ $# -eq 1 ]] || usage; cmd_unreviewed ;;
+  ci)
+    [[ $# -eq 1 || ( $# -eq 2 && $2 == --wait ) ]] || usage
+    cmd_ci "${2:-}"
+    ;;
   review) [[ $# -eq 3 ]] || usage; cmd_review "$2" "$3" ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
   update)
