@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Keeps the pull request of the current branch describing what the branch contains, and its diff
-# reviewed. Needs git, gh and jq.
+# Keeps the pull request of the current branch describing what the branch contains, its diff
+# reviewed, and its CI not failing. Needs git, gh and jq.
 #
 # The PR body carries a hidden marker with the head it describes, and each review is a GitHub review
 # of the commit it covers, so whether both are current is read from GitHub and survives across
@@ -10,7 +10,8 @@ set -euo pipefail
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  prctl status                        the open PR of this branch, and whether its body and review are current
+  prctl status                        the open PR of this branch, whether its body and review are
+                                      current, and its CI on the head
   prctl since                         commits pushed since the body was last written
   prctl create <title> <body-file|->  open a PR for the pushed branch
   prctl update [--title <title>] <body-file|-> [<comment-file>]
@@ -69,6 +70,19 @@ review_base() {
   if [[ -n $rev ]]; then echo "$rev"; else git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head"; fi
 }
 
+# ci <head>: the head's CI as "failed <names>", "pending", "passed", or "none" when no check has
+# started yet. Fails when the checks cannot be read.
+ci() {
+  local runs failed
+  runs=$(gh api --paginate "repos/{owner}/{repo}/commits/$1/check-runs" \
+    --jq '.check_runs[] | "\(.status) \(.conclusion) \(.name)"') || return 1
+  failed=$(awk '$1 == "completed" && ($2 == "failure" || $2 == "timed_out" || $2 == "action_required") { $1 = $2 = ""; sub(/^ +/, ""); print }' <<<"$runs" | paste -sd, -)
+  if [[ -n $failed ]]; then echo "failed $failed"
+  elif [[ -z $runs ]]; then echo none
+  elif grep -qv '^completed ' <<<"$runs"; then echo pending
+  else echo passed; fi
+}
+
 # pr_head <pr>: the PR's head, provided this clone has it.
 pr_head() {
   local head
@@ -110,6 +124,7 @@ cmd_status() {
     elif [[ $rev == "$head" ]]; then echo "diff is reviewed"
     else echo "diff is not reviewed up to the head"; fi
   fi
+  echo "ci:        $(ci "$head" || echo "could not read the checks")"
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
 }
 
@@ -214,13 +229,20 @@ review_message() {
   jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
 }
 
-# pending_message <pr> <head>: what the PR still needs for this head, or nothing.
-# Fails when the reviews cannot be read, so that a hook says nothing rather than something wrong.
+ci_message() {
+  jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed), find the cause, and fix it (see the github skill)."' <<<"$1"
+}
+
+# pending_message <pr> <head>: what the PR still needs for this head, or nothing. CI still running
+# needs nothing: nobody waits for it. Fails when the reviews cannot be read, so that a hook says
+# nothing rather than something wrong; checks that cannot be read are left out.
 pending_message() {
-  local pr=$1 head=$2 rev msgs=()
+  local pr=$1 head=$2 rev state msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
   rev=$(reviewed "$pr" "$head") || return 1
   [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
+  state=$(ci "$head") || state=""
+  [[ $state != failed\ * ]] || msgs+=("$(ci_message "$pr" "$head" "${state#failed }")")
   [[ ${#msgs[@]} -eq 0 ]] || printf '%s ' "${msgs[@]}"
 }
 
@@ -244,8 +266,8 @@ hook_post_tool_use() {
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
-# Only a head pushed from this working tree counts, and a head once seen described and reviewed is
-# not asked about again, so most turns end without calling GitHub.
+# Only a head pushed from this working tree counts, and a head once seen described, reviewed and
+# passing CI is not asked about again, so most turns end without calling GitHub.
 hook_stop() {
   local input=$1 b remote state pr msg
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
@@ -258,7 +280,8 @@ hook_stop() {
   [[ -n $pr ]] || return 0
   msg=$(pending_message "$pr" "$remote") || return 0
   if [[ -z $msg ]]; then
-    echo "$remote" >"$state"
+    # A head is settled only once its CI has finished; until then, later turns look again.
+    [[ $(ci "$remote" 2>/dev/null) != passed ]] || echo "$remote" >"$state"
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.

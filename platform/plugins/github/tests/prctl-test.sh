@@ -10,6 +10,7 @@ trap 'rm -rf "$tmp"' EXIT
 state=$tmp/gh
 mkdir -p "$state" "$tmp/bin"
 echo '[]' >"$state/reviews.json"
+echo '{"check_runs": []}' >"$state/checks.json"
 cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -27,6 +28,10 @@ case $args in
   *"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
     jq -r "${@: -1}" "$dir/reviews.json"
+    ;;
+  *"/check-runs "*)
+    [[ ! -f $dir/fail-checks ]] || exit 1
+    jq -r "${@: -1}" "$dir/checks.json"
     ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
@@ -79,6 +84,30 @@ check "a commit before the last review is refused" "$("$prctl" review "$base" - 
 check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the head"
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
+
+# checks <status conclusion>...: the head's check runs.
+checks() {
+  local runs=() i=0
+  for r in "$@"; do runs+=("{\"name\": \"c$i\", \"status\": \"${r% *}\", \"conclusion\": \"${r#* }\"}"); i=$((i + 1)); done
+  echo "{\"check_runs\": [$(IFS=,; echo "${runs[*]}")]}" >"$state/checks.json"
+}
+settled() { cat "$(git rev-parse --git-path prctl-settled)" 2>/dev/null || true; }
+checks "in_progress null" "completed success"
+out=$(stop_hook)
+check "running CI does not stop the turn" "[$out]" "[]"
+check "running CI leaves the head unsettled" "[$(settled)]" "[]"
+check "status shows running CI" "$("$prctl" status)" "ci:        pending"
+checks "completed failure" "completed success"
+check "failed CI stops the turn" "$(stop_hook)" "CI failed on ${c2:0:12} of PR #1: c0"
+checks "completed success" "completed skipped"
+out=$(stop_hook)
+check "passed CI lets the turn end" "[$out]" "[]"
+check "passed CI settles the head" "$(settled)" "$c2"
+touch "$state/fail-checks"
+out=$(stop_hook)
+check "checks that cannot be read are left out" "[$out]" "[]"
+rm "$state/fail-checks"
+echo '{"check_runs": []}' >"$state/checks.json"
 
 c3=$(commit three)
 git push -q
