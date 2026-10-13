@@ -128,7 +128,7 @@ func TestAgentTurnText(t *testing.T) {
 		{"the agent's own turn at the limit again", usecase.SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
 		{"the agent's own turn on another error", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
 		{"the agent's own turn failing with the process", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Failed: true}}, ""},
-		{"the agent's own turn answering", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "結果"}}, "結果"},
+		{"the agent's own turn answering with blanks", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: " \n"}}, ""},
 	}
 	for _, st := range steps {
 		st.event.Kind = usecase.SessionTurnFinished
