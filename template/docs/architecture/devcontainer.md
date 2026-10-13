@@ -73,6 +73,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   リポジトリやホストを知らない。後段がこれに足す。
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくいものから層を重ね、変わりやすい
   ものを変えても前の層のキャッシュが当たる。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが動く `node` には sudo を与えず、コンテナの前提（entrypoint など）を
+  変えられないようにする。
 
 ### Dockerfile のツールチェーンのステージ（`base` を元にするもの）
 

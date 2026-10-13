@@ -6,7 +6,8 @@ control-plane が認証情報を発行し、エージェントのコンテナに
 
 ## 構成
 
-安全はコンテナの隔離と、ロールに合わせて絞った短命の認証情報で守る（[ADR 0003](../../adr/app/0003-isolation-as-the-guardrail.md)）。
+安全はコンテナの隔離と、ロールに合わせて絞った短命の認証情報で守る（[ADR 0003](../../adr/app/0003-isolation-as-the-guardrail.md)、
+[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)）。
 認証情報は外部サービスごとの発行元が別々に作り、一つにまとめてから使う。
 
 ```

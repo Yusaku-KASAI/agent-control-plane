@@ -67,6 +67,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **関係**：許可の一覧にない API はプロキシが拒むので、runner が使う Docker API とこの一覧は一致している。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：control-plane が
   できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)、[拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：通すのは使う API だけで、
+  一覧にないものはすべて拒む。
 
 <a id="runner"></a>
 
