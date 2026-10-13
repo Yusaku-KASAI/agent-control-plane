@@ -31,6 +31,13 @@ case $args in
     ;;
   *"/check-runs"*)
     [[ ! -f $dir/fail-checks ]] || exit 1
+    if [[ -f $dir/fail-checks-once ]]; then rm "$dir/fail-checks-once"; exit 1; fi
+    # A sequence of answers, one per call, the last one repeated: seq/1.json, seq/2.json, ...
+    if [[ -d $dir/seq ]]; then
+      next=$(find "$dir/seq" -name '*.json' | sort -V | head -n 1)
+      cp "$next" "$dir/checks.json"
+      [[ $(find "$dir/seq" -name '*.json' | wc -l) -eq 1 ]] || rm "$next"
+    fi
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
@@ -130,6 +137,31 @@ out=$(stop_hook)
 check "checks that cannot be read are left out" "[$out]" "[]"
 check "checks that cannot be read leave the head unsettled" "[$(settled)]" "[]"
 rm "$state/fail-checks"
+
+# prctl ci --wait follows the CI until it has finished.
+export PRCTL_CI_POLL=0
+# sequence <runs>...: the answers to come, one call each.
+sequence() {
+  local i=1 runs
+  rm -rf "$state/seq" && mkdir "$state/seq"
+  for runs in "$@"; do
+    # shellcheck disable=SC2086 # the runs are words
+    checks $runs
+    mv "$state/checks.json" "$state/seq/$i.json"
+    i=$((i + 1))
+  done
+}
+sequence "in_progress/" "in_progress/ completed/success" "completed/success completed/success"
+check "wait follows the CI to its end" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+sequence "in_progress/" "completed/failure"
+check "wait ends at a failure" "$("$prctl" ci --wait | sed -n 2p)" "failed"
+sequence "in_progress/" "completed/success"
+touch "$state/fail-checks-once"
+check "wait outlasts a passing read error" "$("$prctl" ci --wait 2>&1 | sed -n 2p)" "passed"
+sequence "in_progress/"
+check "wait gives up at the timeout" "$(PRCTL_CI_TIMEOUT=0 "$prctl" ci --wait | sed -n 2p)" "timeout"
+rm -rf "$state/seq"
+
 echo '{"check_runs": []}' >"$state/checks.json"
 
 c3=$(commit three)
@@ -175,5 +207,19 @@ check "stop is silent when reviews cannot be read" "$out|$rc" "|0"
 [[ -z $out ]] || { echo "FAIL stop printed: $out"; failures=$((failures + 1)); }
 check "unreviewed fails when reviews cannot be read" "$("$prctl" unreviewed 2>&1 || true)" "could not read the reviews"
 rm "$state/fail"
+
+# With a workflow in the head, no check run yet is not settled, wherever prctl runs from.
+mkdir -p .github/workflows sub
+echo "on: pull_request" >.github/workflows/ci.yml
+echo x >sub/file
+git add .github sub && git commit -q -m workflow && git push -q
+c6=$(git rev-parse HEAD)
+set_pr "$c6"
+"$prctl" review "$c6" - <<<"指摘なし" >/dev/null
+checks
+rm -f "$(git rev-parse --git-path prctl-settled)"
+out=$(jq -n --arg cwd "$PWD/sub" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
+check "no check run yet with a workflow leaves the head unsettled" "[$(settled)]" "[]"
+check "wait reports when no check run appears" "$(PRCTL_CI_APPEAR=0 "$prctl" ci --wait | sed -n 2p)" "no check run appeared"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

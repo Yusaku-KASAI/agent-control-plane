@@ -60,7 +60,7 @@ gh run view <run ID> --log-failed                               # 失敗した�
 - push の前に手元で `make check` を通し、push のあとは CI を待たずに進む（[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
   - control-plane 経由で動くとき（[ハーネスの契約の動き方](../../../../docs/reference/harness.md "案内")）は、push のあと
     `prctl ci --wait` をバックグラウンドで実行してから、ターンを終える。CI が終わると自分で始めるターンになるので、
-    失敗していれば直し、結果を報告する。
+    失敗していれば直し、結果を報告する。`timeout` や「no check run appeared」で終わったら、そのことを報告する。
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。

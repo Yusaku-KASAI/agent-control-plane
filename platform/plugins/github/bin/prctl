@@ -18,7 +18,8 @@ usage:
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
                                       such a push, and not posted when there is none
-  prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished (up to an hour)
+  prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
+                                      first after an hour, "none (...)" when no check run appears
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review
@@ -79,15 +80,14 @@ review_base() {
 #   passed           every check run succeeded, was neutral or was skipped
 #   none             there is no check run (yet)
 # The lines after it are "<name> <url>" of the check runs that gave the state. Only the latest run
-# of each check counts (filter=latest), so a rerun replaces the run it repeats. Fails when the
-# checks cannot be read.
+# of each check is asked for (filter=latest). Fails when the checks cannot be read.
 ci() {
   local runs
   runs=$(gh api --paginate "repos/{owner}/{repo}/commits/$1/check-runs?filter=latest&per_page=100" \
     --jq '.check_runs[] | [.status, (.conclusion // ""), .name, (.details_url // .html_url // "")] | @tsv') || return 1
   [[ -n $runs ]] || { echo none; return; }
   jq -Rrn '[inputs | split("\t") | {status: .[0], conclusion: .[1], name: .[2], url: .[3]}]
-    | def pick(f): map(select(f) | "\(.name) \(.url)");
+    | def pick(f): map(select(f) | [.name, .url] | map(select(. != "")) | join(" "));
       if any(.conclusion == "failure" or .conclusion == "timed_out") then
         ["failed"] + pick(.conclusion == "failure" or .conclusion == "timed_out")
       elif any(.status != "completed") then ["pending"] + pick(.status != "completed")
@@ -98,28 +98,48 @@ ci() {
 }
 
 # settles <head> <ci>: whether nothing more can come of the head's CI: it passed, or the head has
-# no workflow to run.
+# no workflow to run. Not knowing (the head is not in this clone) does not settle.
 settles() {
+  local workflows
   case ${2%%$'\n'*} in
     passed) return 0 ;;
-    none) [[ -z $(git ls-tree "$1" .github/workflows/ 2>/dev/null) ]] ;;
+    none)
+      # --full-tree: the path is from the top of the repository, wherever this runs.
+      workflows=$(git ls-tree --full-tree "$1" .github/workflows/ 2>/dev/null) || return 1
+      [[ -z $workflows ]]
+      ;;
     *) return 1 ;;
   esac
 }
 
+# How cmd_ci --wait polls, in seconds: how often, how long for a check run to appear after the push,
+# and how long in all. The environment can change them (the tests do).
+readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeout=${PRCTL_CI_TIMEOUT:-3600}
+
 cmd_ci() {
-  local wait=$1 b pr head state waited=0
+  local wait=$1 b pr head state="" first waited=0 errors=0
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
   head=$(jq -r .headRefOid <<<"$pr")
   while :; do
-    state=$(ci "$head") || die "could not read the checks"
-    # A check run appears a moment after the push, so "none" is waited out while workflows exist.
-    if [[ -z $wait ]] || settles "$head" "$state" || ((waited >= 3600)); then break; fi
-    [[ ${state%%$'\n'*} == pending || ${state%%$'\n'*} == none ]] || break
-    sleep 20
-    waited=$((waited + 20))
+    if state=$(ci "$head"); then
+      errors=0
+    else
+      # While waiting, a passing network or API error is waited out too.
+      errors=$((errors + 1))
+      if [[ -z $wait ]] || ((errors >= 3)); then die "could not read the checks"; fi
+    fi
+    first=${state%%$'\n'*}
+    if [[ -z $wait ]] || settles "$head" "$state"; then break; fi
+    case $first in
+      pending) ((waited < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
+      none) ((waited < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;
+      "") ;;
+      *) break ;;
+    esac
+    sleep "$ci_poll"
+    waited=$((waited + ci_poll))
   done
   echo "head: $head"
   echo "$state"
@@ -284,7 +304,7 @@ pending_message() {
   rev=$(reviewed "$pr" "$head") || return 1
   [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
   if [[ ${state%%$'\n'*} == failed ]]; then
-    failed=$(tail -n +2 <<<"$state" | paste -sd ';' - | sed 's/;/; /g')
+    failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
     msgs+=("$(ci_message "$pr" "$head" "$failed")")
   fi
   [[ ${#msgs[@]} -eq 0 ]] || printf '%s ' "${msgs[@]}"
