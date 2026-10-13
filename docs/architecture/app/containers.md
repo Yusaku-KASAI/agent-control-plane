@@ -109,6 +109,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     `stop_task`。
   - 読む：標準出力の行を、ターンの始まり（`system/init`）、終わり（`result`）、バックグラウンドの処理の変化、依頼の
     取り込み（`--replay-user-messages` で返る依頼）、今していること（最後のツール呼び出しかテキスト）の出来事にする。
+    ターンの終わりは、`subtype` が `error_during_execution` なら中断、`is_error` が立つか `subtype` が `error` で
+    始まればエラーとし、最後に受けた `rate_limit_event` が `rejected` のままならエラーを使用上限によるものとする
+    （[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。
     標準エラーは最後の 8 KiB を持ち、異常終了の理由に添える。
   - `UpdateCredentials` と `SetCoAuthors`：セッションの認証情報のディレクトリのファイルを書き換える。
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを

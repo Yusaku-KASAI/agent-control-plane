@@ -276,7 +276,8 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 		return
 	}
 	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
-		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID, "output", e.Result.Output)
+		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID,
+			"output", e.Result.Output, "error", e.Result.Error, "usage_limited", e.Result.UsageLimited)
 	}
 }
 

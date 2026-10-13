@@ -291,6 +291,21 @@ func TestRunner_Start(t *testing.T) {
 		t.Errorf("event = %+v, want an interrupted result", e)
 	}
 
+	api.emit(1, `{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}`+"\n")
+	if e := receive(t, proc.Events()); !e.Result.Error || e.Result.UsageLimited || e.Result.Output != "API Error: 500" {
+		t.Errorf("event = %+v, want an error result", e)
+	}
+	api.emit(1, `{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1791954000,"rateLimitType":"five_hour"}}`+"\n")
+	api.emit(1, `{"type":"result","subtype":"success","is_error":true,"result":"You've hit your session limit"}`+"\n")
+	if e := receive(t, proc.Events()); !e.Result.Error || !e.Result.UsageLimited {
+		t.Errorf("event = %+v, want a result stopped at the usage limit", e)
+	}
+	api.emit(1, `{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}`+"\n")
+	api.emit(1, `{"type":"result","subtype":"error_max_turns","is_error":true,"result":""}`+"\n")
+	if e := receive(t, proc.Events()); !e.Result.Error || e.Result.UsageLimited {
+		t.Errorf("event = %+v, want an error result after the limit reset", e)
+	}
+
 	api.exit(1)
 	if _, ok := <-proc.Events(); ok {
 		t.Fatal("Events is still open after the process exited")

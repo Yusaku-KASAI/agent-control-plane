@@ -143,6 +143,11 @@ type TurnResult struct {
 	Interrupted bool
 	// Failed is set when the process ended before the turn did.
 	Failed bool
+	// Error is set when the agent ended the turn on an error; Output is then the agent's message
+	// about it.
+	Error bool
+	// UsageLimited is set with Error when the account's usage limit refused the turn's requests.
+	UsageLimited bool
 }
 
 type EventKind int

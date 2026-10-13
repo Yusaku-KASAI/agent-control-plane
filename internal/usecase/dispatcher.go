@@ -38,6 +38,9 @@ type RunAgentInput struct {
 type RunAgentOutput struct {
 	Output      string
 	Interrupted bool
+	// Error and UsageLimited are those of TurnResult.
+	Error        bool
+	UsageLimited bool
 	// Shared is set when an earlier request got the same turn's output, so it need not be repeated.
 	Shared bool
 	// Session is set whenever it exists, even if the turn then failed.
@@ -120,7 +123,10 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 		if r.err != nil {
 			return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent.Name, r.err)
 		}
-		return RunAgentOutput{Output: r.result.Output, Interrupted: r.result.Interrupted, Shared: r.shared, Session: r.session}, nil
+		return RunAgentOutput{
+			Output: r.result.Output, Interrupted: r.result.Interrupted, Error: r.result.Error, UsageLimited: r.result.UsageLimited,
+			Shared: r.shared, Session: r.session,
+		}, nil
 	case <-ctx.Done():
 		return RunAgentOutput{Session: session}, ctx.Err()
 	}

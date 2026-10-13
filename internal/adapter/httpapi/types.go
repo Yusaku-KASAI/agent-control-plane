@@ -17,6 +17,10 @@ type TurnResponse struct {
 	WorkspacePath string `json:"workspace_path"`
 	Output        string `json:"output"`
 	Interrupted   bool   `json:"interrupted,omitempty"`
+	// Error is set when the agent ended the turn on an error; Output is then its message.
+	Error bool `json:"error,omitempty"`
+	// UsageLimited is set with Error when the account's usage limit stopped the turn.
+	UsageLimited bool `json:"usage_limited,omitempty"`
 }
 
 type StopRequest struct {

@@ -109,7 +109,13 @@ type streamEvent struct {
 	Type    string `json:"type"`
 	Subtype string `json:"subtype"`
 	Result  string `json:"result"`
-	Tasks   []struct {
+	// IsError marks a result whose turn ended on an error, such as a refused API request.
+	IsError bool `json:"is_error"`
+	// RateLimitInfo is set on rate_limit_event, which reports a change in the account's usage limit.
+	RateLimitInfo *struct {
+		Status string `json:"status"`
+	} `json:"rate_limit_info"`
+	Tasks []struct {
 		TaskID string `json:"task_id"`
 	} `json:"tasks"`
 	// ParentToolUseID is set on messages from subagents.
@@ -130,7 +136,9 @@ type contentBlock struct {
 	Input json.RawMessage `json:"input"`
 }
 
-func (e streamEvent) processEvent() (usecase.ProcessEvent, bool) {
+// processEvent translates a stream-json line. limited tells whether the last rate_limit_event
+// said requests are refused.
+func (e streamEvent) processEvent(limited bool) (usecase.ProcessEvent, bool) {
 	switch {
 	case e.Type == "system" && e.Subtype == "init":
 		return usecase.ProcessEvent{Kind: usecase.EventTurnStarted}, true
@@ -147,10 +155,14 @@ func (e streamEvent) processEvent() (usecase.ProcessEvent, bool) {
 			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a}, true
 		}
 	case e.Type == "result":
-		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{
-			Output:      e.Result,
-			Interrupted: e.Subtype == "error_during_execution",
-		}}, true
+		r := usecase.TurnResult{Output: e.Result}
+		switch {
+		case e.Subtype == "error_during_execution":
+			r.Interrupted = true
+		case e.IsError || strings.HasPrefix(e.Subtype, "error"):
+			r.Error, r.UsageLimited = true, limited
+		}
+		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: r}, true
 	}
 	return usecase.ProcessEvent{}, false
 }
@@ -215,12 +227,16 @@ func (p *process) read() {
 	}()
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	var limited bool
 	for scanner.Scan() {
 		var e streamEvent
 		if json.Unmarshal(scanner.Bytes(), &e) != nil {
 			continue
 		}
-		if pe, ok := e.processEvent(); ok {
+		if e.Type == "rate_limit_event" && e.RateLimitInfo != nil {
+			limited = e.RateLimitInfo.Status == "rejected"
+		}
+		if pe, ok := e.processEvent(limited); ok {
 			p.events <- pe
 		}
 	}

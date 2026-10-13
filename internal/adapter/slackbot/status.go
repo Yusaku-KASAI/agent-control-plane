@@ -26,6 +26,7 @@ const (
 	done
 	interrupted
 	failed
+	usageLimited
 )
 
 // statusView is what a status message shows.
@@ -53,6 +54,8 @@ func (v statusView) render(now time.Time) string {
 		fmt.Fprintf(&b, "⏹ **中断**（%s）\n", elapsed(v.startedAt, v.finishedAt))
 	case failed:
 		fmt.Fprintf(&b, "⚠️ **失敗**（%s）\n", elapsed(v.startedAt, v.finishedAt))
+	case usageLimited:
+		fmt.Fprintf(&b, "⚠️ **使用上限で停止**（%s）\n", elapsed(v.startedAt, v.finishedAt))
 	}
 	if v.queued > 0 {
 		fmt.Fprintf(&b, "待っている依頼：%d 件\n", v.queued)
@@ -117,6 +120,8 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		b.refresh(m)
 	}
 	switch {
+	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && e.Result.Error:
+		b.postAsync(s, usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited))
 	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted && !e.Result.Failed && strings.TrimSpace(e.Result.Output) != "":
 		b.postAsync(s, e.Result.Output)
 	case e.Kind == usecase.SessionAbandoned:
@@ -142,7 +147,9 @@ func (b *Bot) postAsync(s domain.Session, text string) {
 
 func outcomeOf(r usecase.TurnResult) outcome {
 	switch {
-	case r.Failed:
+	case r.UsageLimited:
+		return usageLimited
+	case r.Failed, r.Error:
 		return failed
 	case r.Interrupted:
 		return interrupted

@@ -102,4 +102,12 @@ func TestStatusViewRender(t *testing.T) {
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
 	}
+
+	limited := statusView{session: "sess", startedAt: start, finishedAt: start, outcome: usageLimited}
+	if got := limited.render(start); !strings.Contains(got, "使用上限で停止") {
+		t.Errorf("usage-limited render:\n%s", got)
+	}
+	if outcomeOf(usecase.TurnResult{Error: true}) != failed || outcomeOf(usecase.TurnResult{Error: true, UsageLimited: true}) != usageLimited {
+		t.Error("a turn that ended on an error is not shown as failed")
+	}
 }

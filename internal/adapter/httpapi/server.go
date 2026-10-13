@@ -78,6 +78,8 @@ func (s *server) postTurn(w http.ResponseWriter, r *http.Request) {
 		WorkspacePath: out.Session.Workspace.Path,
 		Output:        out.Output,
 		Interrupted:   out.Interrupted,
+		Error:         out.Error,
+		UsageLimited:  out.UsageLimited,
 	})
 }
 

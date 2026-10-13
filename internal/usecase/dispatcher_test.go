@@ -844,3 +844,17 @@ func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	p.finish("done")
 	wait(t, done)
 }
+
+func TestDispatcher_TurnEndedOnError(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	run := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "fix it"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.accept(0)
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{
+		Output: "You've hit your session limit", Error: true, UsageLimited: true,
+	}}
+	if o := wait(t, run); o.err != nil || !o.out.Error || !o.out.UsageLimited || o.out.Output != "You've hit your session limit" {
+		t.Errorf("turn = %+v, %v; want the usage limit passed on", o.out, o.err)
+	}
+}
