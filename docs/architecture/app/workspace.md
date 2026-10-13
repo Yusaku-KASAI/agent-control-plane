@@ -2,9 +2,9 @@
 
 セッションごとの作業領域の作り方と、セッションのブランチ、片付けのために作業領域と GitHub から読む事実。
 作業領域とセッションのブランチの意味は[用語集](../../../platform/docs/reference/glossary.md)、エージェントから
-見た作業領域とブランチ、コミットの決まりは[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
-セッション全体は[セッション](sessions.md)、作業領域をマウントするコンテナは[コンテナ](containers.md)、
-GitHub App のトークンは[認証情報](credentials.md)にある。
+見た作業領域とブランチ、コミットの決まりは[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
+セッション全体は[セッション](sessions.md "案内")、作業領域をマウントするコンテナは[コンテナ](containers.md "案内")、
+GitHub App のトークンは[認証情報](credentials.md "案内")にある。
 
 ## 構成
 
@@ -25,8 +25,8 @@ GitHub のブランチと PR
 - 作業領域は、セッションを作るときに一度だけ作り、片付けまで消さない（[ADR 0010](../../adr/app/0010-per-session-cloned-workspace.md)）。
   コンテナにはこの作業領域だけをマウントする。
 - エージェントはセッションのブランチで作業し、push して PR を作る。別の PR に分けるときのブランチの切り方は
-  [ハーネスの契約](../../../platform/docs/reference/harness.md)にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
-- 片付けは、作業領域と GitHub から事実を読み、[片付け](sessions.md#cleaner)が判定する。作業領域を作るときに
+  [ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
+- 片付けは、作業領域と GitHub から事実を読み、[片付け](sessions.md#cleaner "案内")が判定する。作業領域を作るときに
   残す `refs/acp/target` と reflog の設定は、その事実を読むためのもの
   （[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）。
 
@@ -35,7 +35,7 @@ GitHub のブランチと PR
 ### 事実と判定
 
 作業領域と GitHub を読むアダプターは、事実（どのブランチに push したか、どのコミットがどこに入っているか）だけを
-返す。残すか消すかは[片付け](sessions.md#cleaner)の 1 か所が決める。アダプターの側では、どのブランチが
+返す。残すか消すかは[片付け](sessions.md#cleaner "案内")の 1 か所が決める。アダプターの側では、どのブランチが
 セッションのものかも、どのコミットが失われるかも決めない。
 
 ## 構成要素
@@ -56,7 +56,7 @@ GitHub のブランチと PR
      （[ADR 0013](../../adr/app/0013-session-branch-from-remote-default.md)）。
   5. [commit-msg フック](#commit-msg)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
-  （ロックを持ったまま）。トークンは[認証情報](credentials.md)の発行したもの。
+  （ロックを持ったまま）。トークンは[認証情報](credentials.md "案内")の発行したもの。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
   ここに閉じ、usecase は作業領域のパスだけを受け取る。
 
@@ -80,7 +80,7 @@ GitHub のブランチと PR
 - **置くもの / 置かないもの**：名前は `acp/<ID の先頭8文字>`。セッションが作ったブランチは、その名前か、それに
   `-` で始まる名前を続けたもの。セッションはほかのブランチ（別のセッションの PR のブランチなど）にも push する
   ことがあり、それは名前ではなく[作業領域の状態](#state)の push の記録で分かる。
-- **関係**：名前は `ACP_SESSION_BRANCH` でエージェントに渡す（[コンテナ](containers.md)）。片付けは、セッションが
+- **関係**：名前は `ACP_SESSION_BRANCH` でエージェントに渡す（[コンテナ](containers.md "案内")）。片付けは、セッションが
   作ったブランチだけをリモートから消す。
 - **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：名前の決まりはここだけに置き、
   作るとき、渡すとき、片付けるときは同じ関数を使う。
@@ -93,8 +93,8 @@ GitHub のブランチと PR
 - **置くもの / 置かないもの**：フックは `ACP_CO_AUTHORS_FILE` の一覧を 1 行ずつ読み、同じ行がなければトレーラーを
   足す。作業領域の `.git/hooks/` にだけ置くので、コミットされない。一覧を書くのは control-plane で、ターンに
   取り込まれた依頼の依頼者を、設定にある git の名前とメールアドレスで書く。
-- **関係**：一覧のファイルは認証情報のディレクトリにある（[認証情報](credentials.md)）。書き換えるのは
-  [ワーカー](sessions.md#worker)が依頼をターンに取り込んだとき。
+- **関係**：一覧のファイルは認証情報のディレクトリにある（[認証情報](credentials.md "案内")）。書き換えるのは
+  [ワーカー](sessions.md#worker "案内")が依頼をターンに取り込んだとき。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：エージェントへの
   指示ではなくフックで足す。
 
@@ -114,7 +114,7 @@ GitHub のブランチと PR
   | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
   | detached HEAD | ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
-- **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner)。
+- **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner "案内")。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 
@@ -134,6 +134,6 @@ GitHub のブランチと PR
   - GitHub App のトークンがないか、`origin` が GitHub でなければ、`List` と `Inspect` は何も返さず、`Remove` は
     何もしない。
 - **関係**：usecase の `SessionBranches` を実装する。トークンはエージェントの GitHub App のもの
-  （[認証情報](credentials.md)）。
+  （[認証情報](credentials.md "案内")）。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：GitHub の API の
   形はここに閉じ、usecase には `BranchFacts` だけを返す。どのブランチを消すかは決めない（[事実と判定](#facts)）。

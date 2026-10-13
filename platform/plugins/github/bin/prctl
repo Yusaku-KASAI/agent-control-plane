@@ -127,7 +127,7 @@ cmd_update() {
 stale_message() {
   local pr=$1 head=$2 desc
   desc=$(described "$pr")
-  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" 'if $desc == "" then "The body of PR #\(.number) was not written by prctl. Rewrite it with prctl update <body>; no comment is needed (see the github skill)." else "PR #\(.number) now has head \($head) but its body describes \($desc). Rewrite the title and body to describe the branch as it is now, and comment on what this push changed and why: prctl since, then prctl update [--title <title>] <body> <comment> (see the github skill)." end' <<<"$pr"
+  jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" 'if $desc == "" then "The body of PR #\(.number) was not written by prctl. Rewrite it with prctl update <body>; no comment is needed (see the github skill)." else "PR #\(.number) now has head \($head) but its body describes \($desc). Rewrite the body to describe the branch as it is now (and the title if the scope changed), and comment on what this push changed and why: prctl since, then prctl update [--title <title>] <body> <comment> (see the github skill)." end' <<<"$pr"
 }
 
 # Hooks never fail the tool call or the turn on their own errors: a missing PR, gh or network is
@@ -165,7 +165,7 @@ hook_stop() {
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.
-  jq -n --arg reason "$(stale_message "$pr" "$remote") Then end with your full answer to the request again (what was asked, what you changed and why, what you checked, the PR), not only this update." \
+  jq -n --arg reason "$(stale_message "$pr" "$remote") Then end with your full answer to the request again, not only this update." \
     '{decision: "block", reason: $reason}'
 }
 

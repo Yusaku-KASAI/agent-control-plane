@@ -2,7 +2,7 @@
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
 [ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md) にある。
-原則は[設計の原則](../../../principles/docs/reference/principles.md)、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md)、形は[文書の形式](../reference/formats.md)、書くときの手順は
+原則は[設計の原則](../../../principles/docs/reference/principles.md "案内")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "案内")、形は[文書の形式](../reference/formats.md "案内")、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md "案内")にある。
 
 ## 構成
@@ -11,12 +11,14 @@
 
 | 層 | 書くもの | 置き場所 |
 | --- | --- | --- |
-| 原則とパターン | 原則（何を大事にするか）と、それを特定の問題への形にしたパターン（どう組むか）。一般的な当てはめ方とよくある失敗まで書き、どこで使うかは書かない | principles プラグインの [principles.md](../../../principles/docs/reference/principles.md) と [patterns.md](../../../principles/docs/reference/patterns.md) |
+| 原則とパターン | 原則（何を大事にするか）と、それを特定の問題への形にしたパターン（どう組むか）。一般的な当てはめ方とよくある失敗まで書き、どこで使うかは書かない | principles プラグインの [principles.md](../../../principles/docs/reference/principles.md "案内") と [patterns.md](../../../principles/docs/reference/patterns.md "案内") |
 | アーキテクチャ | その区切りで採った全体の構成と、部分の間の関係 | 文書の根の `overview.md` と、`architecture/` の各文書の冒頭 |
 | 構成要素の説明 | 層、ディレクトリ、ファイルごとの責務と関係、当てはめた原則・パターン | `architecture/` の各文書。[形式](../reference/formats.md#component)に沿う |
 
 構成要素の説明から原則やパターンへリンクし、それがそこでどう効いているかを書く。一つの原則やパターンは多くの
 構成要素に、一つの構成要素は多くの原則やパターンに当てはまる。
+
+<a id="contexts"></a>
 
 ### 区切りと依存の向き
 
@@ -43,14 +45,16 @@
   違ってよい。
 - 項目の間の関係は種類で分け、依存の向きの決まりは「前提にする」関係にだけ当てる
   （[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。在りかを示すだけのリンクは案内で、どう見分けてどう書くかは
-  [形式](../reference/formats.md#links)にある。
+  [形式](../reference/formats.md#links "案内")にある。
 - 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
   変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
   下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。
 - 地図（どんな項目があり、どの項目がどれを前提にするか）は、階層ごとにその持ち主が書く。最上位の地図は全体の設計を
   持つリポジトリの `overview.md` に、各項目の中の地図はその項目の `overview.md` に置き、上の階層の地図は中の項目を書かずに
-  委ねる。書き方は[形式](../reference/formats.md#map)にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
+  委ねる。書き方は[形式](../reference/formats.md#map "案内")にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
   地図からは[設計構造行列](../../../principles/docs/reference/patterns.md#dsm)を出せる。
+
+<a id="roots"></a>
 
 ### 文書の根と器
 
@@ -91,7 +95,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 ### 文書の外
 
-コード中のコメント、コミットメッセージ、PR に何を書くかは、共通のルール（conventions の `rules/`）にある。道筋と
+コード中のコメント、コミットメッセージ、PR に何を書くかは[書き方](../reference/writing.md "案内")にある。道筋と
 予定は Issue に置き、文書には書かない（[課題の扱い方](../reference/issues.md "案内")）。
 
 <a id="rewrite"></a>
@@ -110,22 +114,23 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 - **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まり（conventions の `docs/`：書き方、
   変更と課題の扱い方、文書の体系、形式、用語集）、区切りの間の契約。同じ決まりを二か所で定義しない。
 - **届け方**：定義を、効く形に写したもの。新しい決まりを足さず、どの定義によるかを示す。定義を変えたら、写しも直す。
+  例外として、役割ごとの指示は役割に固有の振る舞いを、スキルはそのプラグインの道具の使い方を、自分で持ってよい。
+- リポジトリの決まり（CLAUDE.md）が conventions の定義と食い違うときは、リポジトリの決まりに従う。
 
-届け方は、強いものから次のとおり。守らせたいことは、できるだけ強い形で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
+定義がエージェントや人に効く形は、強いものから次のとおり。最後の行のほかが届け方で、最後の行は写しではなく、
+定義の文書を読みに行くこと。守らせたいことは、できるだけ強い形で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
 
-| 届け方 | 効き方 | 例 |
+| 形 | 効き方 | 例 |
 | --- | --- | --- |
-| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md)の各節の「検査」） |
+| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md "案内")の各節の「検査」） |
 | いつも読み込む要約 | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
-| 役割ごとの選び出し | その役割で動くときの前提になる | 役割ごとの指示（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
+| 役割ごとの指示 | その役割で動くときの前提になる | プラグインの `agents/` の文書（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
 | 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design） |
-| 定義の文書そのもの | 読みに行ったとき | conventions と principles の文書 |
+| 定義の文書そのもの | 読みに行ったとき | principles と conventions の文書、契約 |
 
 - **いつも読み込む要約**は、毎回すべての作業の前に読まれるので、載せるものを絞る。載せるのは、ほぼすべての作業に
   関わり、破られやすく、検査で守れない決まりだけ。特定の作業（文書を書く、変更する）にだけ要る決まりは、その作業の
   スキルや役割ごとの指示で届ける。
-- **スキル**は、定義の写し（手順と観点）であり、新しい決まりを持たない。ただし、そのプラグインが持つ道具の使い方
-  （コマンドの使い方など）は、そのスキル自身が持ち主になってよい。
 - 写しの各項目には、出典（定義の文書へのリンク）を付ける。
 - いつも読み込むものと役割ごとの指示は、[形式](../reference/formats.md#size "案内")の量の上限の中に収める
   （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
@@ -137,16 +142,17 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 ### `README.md`
 
-- **責務**：人の入口。何のリポジトリかと、`docs/README.md` への道を示す。
-- **置くもの / 置かないもの**：数行の説明と、よく使う 2〜3 の文書へのリンク。文書の一覧は置かない。
+- **責務**：人の入口。何のリポジトリかと、索引（`docs/README.md`）と全体の解説（`docs/overview.md`、あれば）への道を示す。
+- **置くもの / 置かないもの**：数行の説明、索引と全体の解説へのリンク、よく使う手順へのリンク（1〜2 本まで）。文書の
+  一覧は置かない。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：最初に要るものだけ。
   [入口と唯一の一覧](../../../principles/docs/reference/patterns.md#single-index)：一覧は `docs/README.md` にだけ置く。
 
 ### `CLAUDE.md`
 
 - **責務**：エージェントの入口。常に読み込まれる。
-- **置くもの / 置かないもの**：エージェントがいつも知っておくべき前提（プロダクトの前提、完了条件、言語など）と、
-  `docs/README.md` への道。詳細は置かず、文書へのリンクにする。
+- **置くもの / 置かないもの**：エージェントがいつも知っておくべき前提（プロダクトの前提、完了条件、言語など）と、索引
+  （`docs/README.md`）と全体の解説（`docs/overview.md`、あれば）への道。詳細は置かず、文書へのリンクにする。
 - **関係**：どの節を持つかは、リポジトリが従う契約で決める。
 - **当てはめた原則・パターン**：[段階的な開示](../../../principles/docs/reference/principles.md#progressive-disclosure)：常に読み込まれるので前提と行き先
   だけ。[スキーマを先に](../../../principles/docs/reference/principles.md#schema-first)：節を決めて揃える。
@@ -194,11 +200,3 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 - **置くもの / 置かないもの**：[形式](../reference/formats.md#adr)に沿う。今の姿のまとめは置かない。
 - **当てはめた原則・パターン**：[判断の記録](../../../principles/docs/reference/patterns.md#adr)、[メタデータ](../../../principles/docs/reference/patterns.md#metadata)：
   状態と参照を frontmatter に持たせて検査する。
-
-### 文書の体系（`docs/architecture/documentation.md`、この文書）
-
-- **責務**：このプロジェクト群の文書をどう分け、どこに何を書くかの解説。
-- **置くもの / 置かないもの**：区切り、各リポジトリの器と、体系を作る部品の構成要素の説明。形の細部は形式に、
-  書く手順は文書を書くに、理由は ADR に置く。
-- **関係**：原則とパターンを指す。形式と手順を指す。共通のルールから指される。
-- **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の解説。

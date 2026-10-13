@@ -1,7 +1,7 @@
 # ターゲットの契約
 
 ターゲットが用意するもの。control-plane と platform はこれを前提にする（[conventions ADR 0002](../../../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。
-control-plane がコンテナに渡すものは、逆向きの契約として[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
+control-plane がコンテナに渡すものは、逆向きの契約として[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
 
 <a id="image"></a>
 
@@ -10,7 +10,8 @@ control-plane がコンテナに渡すものは、逆向きの契約として[�
 control-plane は、ターゲットのイメージ（ターゲットの devcontainer のイメージ）でエージェントの
 コンテナを作る。イメージは次を満たす（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
 
-- イメージのユーザーが root でなく、作業ディレクトリ（リポジトリのマウント先）に書き込める。
+- イメージのユーザーは root でない `node` で、ホームは `/home/node`。作業ディレクトリ（リポジトリのマウント先）に書き込める。
+  管理者の権限（sudo）を持たない。
 - `claude`、`git`、`gh` が入っている。
 - 引数に渡したコマンド（`claude ...`）をそのまま実行できる。entrypoint があれば、準備を済ませたあと引数のコマンドを
   `exec` する。
@@ -33,7 +34,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   （[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
   - `directory` のマーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
-  - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md)にある。
+  - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
 - ロールは Claude Code のカスタムエージェントとして定義する（[ADR 0003](../adr/0003-roles-as-claude-code-agents.md)）。
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
@@ -45,7 +46,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 ## 検査
 
 - `make check` が、そのターゲットの検査をすべて行う。エージェントは変更のあとにこれを通す（CLAUDE.md の作業の完了条件）。
-- `make check` は `make check-docs` を含む。`check-docs` が確かめるものは conventions の[文書の形式](../../../platform/plugins/conventions/docs/reference/formats.md)の各節にある。
+- `make check` は `make check-docs` を含む。`check-docs` が確かめるものは conventions の[文書の形式](../../../platform/plugins/conventions/docs/reference/formats.md "案内")の各節にある。
 
 <a id="control-plane"></a>
 
@@ -70,7 +71,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 | 使われ方 | 誰が、どこで、どう使うか |
 | 公開と運用 | どこに、どう公開・配布しているか（本番の環境、デプロイの仕方）。手元の動かし方は文書へのリンク |
 | 守る互換 | 壊してはいけないもの（公開した URL やデータの形式、API など）と、破壊的に変えてよい範囲 |
-| 参照先 | 文書の入口へのリンクと、それぞれ何があるか |
+| 参照先 | 索引（`docs/README.md`）と全体の解説（`docs/overview.md`、あれば）へのリンクと、それぞれ何があるか |
 | 作業の完了条件 | `make check` など、変更後に通すもの |
 | 言語 | ドキュメント、コミットメッセージ、コード中のコメントの言語 |
 | 共通のルール | conventions プラグインが読み込ませること（文面は下のとおり） |

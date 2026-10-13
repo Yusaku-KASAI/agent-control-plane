@@ -1,6 +1,6 @@
 # ハーネスの契約
 
-エージェントが動く環境と、そこで渡されるもの。control-plane はこの契約に合わせて作り、エージェントとプラグインは
+エージェントが動く環境と、そこで渡されるもの。control-plane と、ターゲットの devcontainer はこの契約に合わせて作り、エージェントとプラグインは
 これを前提にしてよい（[ADR 0002](../../plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。言葉は[用語集](glossary.md)のとおり。
 
 ## 動き方
@@ -10,7 +10,8 @@
 | control-plane 経由 | 環境変数 `ACP_SESSION_BRANCH` がある | 端末にいない。依頼は Slack か CLI から届き、ターンの最後の回答が依頼者に届く |
 | devcontainer で直接 | `ACP_SESSION_BRANCH` がない | 端末にいて、対話できる |
 
-どちらもターゲットのイメージで、非 root のユーザー `node` として動く。sudo はないので、使える道具はイメージに
+どちらもターゲットのイメージで、[ターゲットの契約](../../../template/docs/reference/contract.md#image)のユーザー（`node`）として動く。
+管理者の権限を前提にしないので、使える道具はイメージに
 入っているものだけ。
 
 ## control-plane 経由で渡されるもの
@@ -39,8 +40,8 @@
 
 - 作業ディレクトリ `/workspace/<名前>` は、このセッションのためにターゲットを clone した作業領域。`<名前>` は
   ホストでのターゲットのディレクトリ名。`origin` はターゲットのリモートを指す。
-- セッションのブランチ `ACP_SESSION_BRANCH` は、GitHub App があればリモートの既定のブランチから、なければ
-  ターゲットの今の HEAD から切られている。別の PR に分けるときは、リモートの既定のブランチから
+- セッションのブランチ `ACP_SESSION_BRANCH` は、GitHub App があり、ターゲットに `origin` があればリモートの既定の
+  ブランチから、そうでなければターゲットの今の HEAD から切られている。別の PR に分けるときは、リモートの既定のブランチから
   `$ACP_SESSION_BRANCH-<内容>` を切る。
 - `/workspace` のほかのリポジトリは見えない。例外はプラグインのマーケットプレイスで、ターゲットの隣にある
   マーケットプレイスは、ターゲットが宣言したパスに読み取り専用で見える。ターゲット自身の中にあるマーケットプレイス
@@ -78,5 +79,5 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 ## devcontainer で直接動くとき
 
 - 認証情報は、人が devcontainer の中で用意したもの（`gh auth login` など）。
-- `/workspace` には、ホストで並べたリポジトリが読み取り専用で見える。書けるのは自分のリポジトリだけ。
+- `/workspace` には、ホストで並べたリポジトリ（[ターゲットの契約のホストでの配置](../../../template/docs/reference/contract.md#host)）が見える。
 - ブランチや PR の進め方は、ターゲットの決まり（CLAUDE.md）と人の指示に従う。

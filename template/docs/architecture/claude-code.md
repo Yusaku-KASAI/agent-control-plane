@@ -19,5 +19,5 @@
     使い方は devcontainer の[手順](../guides/devcontainer.md#permissions "案内")にある。
 - **関係**：プラグインの宣言は[ターゲットの契約](../reference/contract.md#plugins)の一部で、control-plane も
   エージェントもこれを読む（[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
-- **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：プラグインの
-  宣言は control-plane との契約で、使う側も読める決まった場所に置く。
+- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：プラグインの
+  宣言の形と置き場所はターゲットの契約が先に決め、このファイルはそれに合わせる。

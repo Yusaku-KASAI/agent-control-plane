@@ -1,4 +1,5 @@
-# Control plane config. Copy to acp.yaml (gitignored) and point ACP_CONFIG in .env at it.
+# Control plane config. Copy to acp.yaml in this directory (gitignored) and set ACP_CONFIG in .env to its
+# host path.
 #
 # Paths are host paths: the control plane container mounts them at the same place.
 #   /home/you/projects/...     under ACP_HOST_ROOT  (targets, sessions)
@@ -23,7 +24,8 @@ credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
 
-# State only the control plane reads and writes, such as rotating Slack refresh tokens.
+# State only the control plane reads and writes, such as rotating Slack tokens. Matches the acp-state
+# volume in compose.yaml.
 state_dir: /var/lib/acp/state
 
 claude:

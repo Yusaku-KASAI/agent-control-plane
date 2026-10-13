@@ -8,9 +8,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 principles=$(dirname "$root")/principles/docs/README.md
 [[ -f $principles ]] || principles="同じマーケットプレイスの plugins/principles/docs/README.md"
 # The rules link their sources relative to rules/; the injected text has no such base, so the links
-# are turned into paths from the plugin's root.
-ctx="$(sed "s#](\.\./#](${root}/#g" "$root"/rules/*.md)
+# are turned into paths (../../ first, as it reaches the plugins beside this one).
+plugins=$(dirname "$root")
+ctx="$(sed -e "s#](\.\./\.\./#](${plugins}/#g" -e "s#](\.\./#](${root}/#g" "$root"/rules/*.md)
 
-文書の在りか：決まりは ${root}/docs/README.md、原則とパターンは ${principles}。
-文書を書くときは write-docs スキル、設計とレビューでは design スキルを使う。"
+文書の在りか：決まりは ${root}/docs/README.md、原則とパターンは ${principles}。"
 jq -n --arg event "$1" --arg ctx "$ctx" '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'

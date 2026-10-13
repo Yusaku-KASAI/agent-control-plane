@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | `.devcontainer/docker-entrypoint.sh`、`init-host.sh`、`tmux.conf`、`check-vscode-settings.py` | 共通 | — |
 | `tools/check-docs.py` | 共通 | — |
-| `.devcontainer/Dockerfile` | 埋める | ツールチェーンのステージ（`base` の次）と `check-<関心>` のステージ。`base` と `check-base`、`check-target`、`check-docs` は共通 |
+| `.devcontainer/Dockerfile` | 埋める | ツールチェーンのステージ（`base` を元にするもの）の中身と、それが使うステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）、`check-base` が元にするステージの名前、`check-<関心>` のステージ。`uv-source`、`base`、ツールチェーンのステージのうちホストに依存する値を足す部分、`check-base`、`check-target`、`check-docs` は共通 |
 | `.claude/settings.json` | 埋める | 使うプラグインの宣言（`extraKnownMarketplaces`、`enabledPlugins`）と、対話のときの権限（`permissions`） |
 | `.devcontainer/compose.yaml` | 埋める | ビルドするステージの名前と、ツールチェーンのキャッシュのボリューム |
 | `.devcontainer/devcontainer.json`、`.vscode/settings.json` | 埋める | ツールチェーンの拡張機能とその設定 |
@@ -43,7 +43,7 @@
 
 ## 地図
 
-target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map)）。
+target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map "案内")）。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |

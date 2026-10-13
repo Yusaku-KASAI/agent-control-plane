@@ -7,8 +7,8 @@
 | --- | --- |
 | control-plane | エージェントのコンテナを起動し、依頼を届け、認証情報を渡して更新するアプリケーション（agent-control-plane） |
 | platform | エージェントの能力（ロール、スキル、hook）を持つ区切り。Claude Code のプラグインのマーケットプレイス `acp-platform` に入れて配る |
-| マーケットプレイス | プラグインをまとめて配る単位。`acp-platform` は、platform のプラグインに加えて principles と conventions も配る。ディレクトリは `platform/`、ターゲットの隣では `agent-platform` という名前で置く |
-| ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。devcontainer（イメージ）、`.claude/settings.json`、CLAUDE.md を持つ |
+| マーケットプレイス | プラグインをまとめて配る単位。`acp-platform` は、platform のプラグインに加えて principles と conventions も配る |
+| ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。何を用意するかはターゲットの契約が定める |
 | target-template | ターゲットに共通の環境のファイルと、その説明を持つひな形 |
 | ハーネス | エージェントを動かす仕組みの全体：ターゲットのイメージ、プラグイン、それを起動する control-plane か devcontainer。何が渡されるかは[ハーネスの契約](harness.md "案内")が定める |
 | ロール | エージェントの役割（developer、guide など）。Claude Code のカスタムエージェントとして定義される |

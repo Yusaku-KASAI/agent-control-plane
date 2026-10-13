@@ -1,7 +1,7 @@
 # control-plane の構成
 
 control-plane のプロセス `acp serve` の中にある構成要素と、依頼がそれらをどう流れるか。コードの層と依存の向きは
-[コードの構成](../codebase/layers.md)に、依頼の入口と知らせの中身は[依頼と知らせ](requests.md)にある。
+[コードの構成](../codebase/layers.md "案内")に、依頼の入口と知らせの中身は[依頼と知らせ](requests.md "案内")にある。
 
 ## 構成
 
@@ -32,7 +32,7 @@ usecase.SessionCleaner（起動時と定期的に）
   （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。
 - **アダプター**はポートを一つの技術で実装する。どのポートをどれで満たすかは `cmd/acp/serve.go` が決める。
 - **知らせ**は、依頼への返事なら入口が返し、依頼のないところで起きたことは `sessionObserver` が Bot に渡す
-  （[依頼と知らせ](requests.md)）。
+  （[依頼と知らせ](requests.md "案内")）。
 
 ポートと、それを満たすもの：
 
@@ -50,24 +50,7 @@ usecase.SessionCleaner（起動時と定期的に）
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
 
-<a id="where"></a>
-
-### 構成要素の在りか
-
-ほかの部品は、それを扱う文書に構成要素として書いてある。
-
-| 部品 | 文書 |
-| --- | --- |
-| `internal/adapter/slackbot` | [依頼と知らせ](requests.md) |
-| `internal/adapter/httpapi` | [依頼と知らせ](requests.md#http-api) |
-| `internal/usecase/handle_message.go` | [依頼と知らせ](requests.md) |
-| `internal/usecase/dispatcher.go` | ワーカーは[セッション](sessions.md#worker)、依頼の順番と停止・再起動は[依頼と知らせ](requests.md)、認証情報の更新は[認証情報](credentials.md) |
-| `internal/usecase/clean_sessions.go` | [セッション](sessions.md#cleaner) |
-| `internal/adapter/filesession` | [セッション](sessions.md#record) |
-| `internal/adapter/gitworkspace` | [作業領域とブランチ](workspace.md) |
-| `internal/adapter/docker`、`compose.yaml`、`Dockerfile` | [コンテナ](containers.md) |
-| `internal/adapter/githubapp`、`internal/adapter/slackauth`、`internal/adapter/claudeauth`、`cmd/acp/slackauth.go` | [認証情報](credentials.md)。`githubapp` のブランチの読み書きは[作業領域とブランチ](workspace.md#github-branches) |
-| `serve.go` の `sessionObserver` と `credentialIssuers` | [依頼と知らせ](requests.md)と[認証情報](credentials.md) |
+ほかの部品は、それを扱う文書に構成要素として書いてある（文書の一覧は[docs/README.md](../../README.md "案内")）。
 
 ## 構成要素
 
@@ -81,19 +64,20 @@ usecase.SessionCleaner（起動時と定期的に）
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
 - **関係**：すべてのパッケージに依存してよい。起動は、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付けを動かす。停止の順番は
-  [依頼と知らせ](requests.md#shutdown)にある。
+  [依頼と知らせ](requests.md#shutdown "案内")にある。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
-  部品を組み立てる場所で、ここだけが全部を知る。ユースケースはアダプターを知らない（層は[コードの構成](../codebase/layers.md)）。
+  部品を組み立てる場所で、ここだけが全部を知る。ユースケースはアダプターを知らない（層は[コードの構成](../codebase/layers.md "案内")）。
 
 ### `cmd/acp`（`main.go`、`run.go`）
 
 - **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。
-- **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md)にある。
+- **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md "案内")にある。
 
 ### `internal/usecase/ports.go`
 
 - **責務**：ユースケースが外部に求めるインターフェースと、それに渡す値の型。
-- **置くもの / 置かないもの**：どのポートをここに置くかは[コードの構成](../codebase/layers.md)の `internal/usecase` にある。
+- **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）だけは
+  ここに置かず、それを使う `handle_message.go` に置く（上の表）。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   中心が外側に要るものをポートとして決め、アダプターはここに合わせて作る。
 
@@ -102,7 +86,7 @@ usecase.SessionCleaner（起動時と定期的に）
 - **責務**：設定ファイル（`acp.yaml`）を読み、検証して、エージェントの一覧、依頼者の許可、依頼者とコミットの
   作者の対応を返す。
 - **置くもの / 置かないもの**：ファイルの形、既定値、読むときの検証。設定の項目の説明は
-  [acp.example.yaml](../../../acp.example.yaml) に置く。
+  [acp.example.yaml](../../../acp.example.yaml "案内") に置く。
 - **関係**：`AgentRegistry`、`AccessPolicy`、`People` を満たす。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：知らない項目や
   相対パスは、起動の前に読むところで弾く。
