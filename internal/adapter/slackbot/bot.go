@@ -42,6 +42,10 @@ type Bot struct {
 	// heldGrace is how long a held answer waits for the agent's next turn after background work
 	// runs out, since the agent may report the end of its tasks before it starts that turn.
 	heldGrace time.Duration
+	// releases holds the held answers waiting out heldGrace; Wait posts them at once.
+	releasesMu sync.Mutex
+	releases   map[*time.Timer]func()
+	closing    bool
 }
 
 // TokenSource supplies the current bot token, which may rotate.
@@ -60,6 +64,7 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		byStatusTS: make(map[string]domain.SessionID),
 		mentions:   newSeenMessages(time.Hour),
 		heldGrace:  heldAnswerGrace,
+		releases:   make(map[*time.Timer]func()),
 	}
 	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, policy, b)
@@ -110,6 +115,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // Wait waits for the messages the bot is still writing outside requests.
 func (b *Bot) Wait() {
+	b.releaseAll()
 	b.writes.Wait()
 }
 

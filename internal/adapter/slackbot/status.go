@@ -174,7 +174,7 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		b.releaseHeld(s, m)
 	case e.Kind == usecase.SessionAbandoned:
 		// The notice replaces the held answer, which spoke of work that is now cut short.
-		m.takeHeld(m.heldGeneration())
+		m.dropHeld()
 		b.post(s, abandonedText(e.Status))
 	}
 }
@@ -185,11 +185,48 @@ func (b *Bot) releaseHeld(s domain.Session, m *statusMessage) {
 	if gen == 0 {
 		return
 	}
-	time.AfterFunc(b.heldGrace, func() {
+	release := func() {
 		if text := m.takeHeld(gen); text != "" {
 			b.post(s, text)
 		}
+	}
+	b.releasesMu.Lock()
+	defer b.releasesMu.Unlock()
+	if b.closing {
+		release()
+		return
+	}
+	var timer *time.Timer
+	timer = time.AfterFunc(b.heldGrace, func() {
+		b.releasesMu.Lock()
+		defer b.releasesMu.Unlock()
+		// Posting under the lock registers the write before Wait can start waiting for writes.
+		if _, ok := b.releases[timer]; ok {
+			delete(b.releases, timer)
+			release()
+		}
 	})
+	b.releases[timer] = release
+}
+
+// releaseAll posts the held answers still waiting out the grace, so that a shutdown does not
+// lose the agent's last answer.
+func (b *Bot) releaseAll() {
+	b.releasesMu.Lock()
+	defer b.releasesMu.Unlock()
+	b.closing = true
+	for timer, release := range b.releases {
+		timer.Stop()
+		release()
+	}
+	clear(b.releases)
+}
+
+// pendingReleases is the number of held answers waiting out the grace.
+func (b *Bot) pendingReleases() int {
+	b.releasesMu.Lock()
+	defer b.releasesMu.Unlock()
+	return len(b.releases)
 }
 
 // statusFor returns the status message that follows the turn starting now. A turn the agent

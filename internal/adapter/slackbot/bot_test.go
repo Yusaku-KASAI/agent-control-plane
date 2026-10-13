@@ -209,6 +209,12 @@ func TestObserveAgentAnswers(t *testing.T) {
 		{"a request comes while an answer is held",
 			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(false), updated(0)},
 			nil},
+		{"a release meant for an earlier answer",
+			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1)},
+			nil},
+		{"a later answer released in its own time",
+			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1), updated(0)},
+			[]string{"B"}},
 		{"the control plane stops while an answer is held",
 			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), {Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
 			[]string{usecase.ShutdownNotice}},
@@ -217,9 +223,31 @@ func TestObserveAgentAnswers(t *testing.T) {
 		for _, e := range tc.events {
 			b.observe(s, e)
 		}
-		time.Sleep(10 * b.heldGrace)
+		deadline := time.Now().Add(5 * time.Second)
+		for b.pendingReleases() > 0 && time.Now().Before(deadline) {
+			time.Sleep(b.heldGrace)
+		}
 		if got := posts(); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: posted %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestReleaseAllPostsHeldAnswers(t *testing.T) {
+	b, posts := recordingBot(t)
+	b.heldGrace = time.Hour
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true,
+		Result: usecase.TurnResult{Output: "最後の結果"}, Status: usecase.SessionStatus{BackgroundTasks: 1}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionUpdated})
+
+	b.releaseAll()
+	if got := posts(); !slices.Equal(got, []string{"最後の結果"}) {
+		t.Errorf("posted %q on shutdown, want the held answer", got)
+	}
+	if n := b.pendingReleases(); n != 0 {
+		t.Errorf("%d releases still pending", n)
 	}
 }
