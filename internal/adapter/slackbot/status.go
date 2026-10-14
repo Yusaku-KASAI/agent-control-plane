@@ -173,15 +173,12 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 	}
 	switch {
 	case e.Kind == usecase.SessionTurnFinished:
-		notice, noticed := b.errorNotice(s, e)
+		notice := b.errorNotice(s, e)
 		switch {
 		case e.Result.Error || e.Result.Failed:
 			// A turn that ended on an error or a failure says nothing of the work before it, so the
 			// held answer is posted too. One message keeps them in order, and the notice goes first
 			// so that a long answer cut to the message limit cannot cut it off.
-			if !noticed {
-				notice = ""
-			}
 			if text := joinPosts(notice, m.takeHeld(m.heldGeneration())); text != "" {
 				b.post(s, text)
 			}
@@ -218,7 +215,7 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 // it is posted at once, even while background work remains. It also remembers whether the session
 // stopped at the usage limit: once told, the agent's own turns refused while the limit lasts, one
 // for each background task that ends, only show in the status message.
-func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) (string, bool) {
+func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) string {
 	b.statusMu.Lock()
 	told := b.limited[s.ID]
 	if e.Result.UsageLimited {
@@ -228,9 +225,9 @@ func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) (string, boo
 	}
 	b.statusMu.Unlock()
 	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
-		return "", false
+		return ""
 	}
-	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
+	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited)
 }
 
 // joinPosts puts texts that must appear in order into one message.

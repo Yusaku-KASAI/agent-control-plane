@@ -136,9 +136,9 @@ func TestErrorNotice(t *testing.T) {
 	}
 	for _, st := range steps {
 		st.event.Kind = usecase.SessionTurnFinished
-		text, ok := b.errorNotice(s, st.event)
-		if ok != (st.want != "") || !strings.Contains(text, st.want) {
-			t.Errorf("%s: notice = %q, %v; want one containing %q", st.name, text, ok, st.want)
+		text := b.errorNotice(s, st.event)
+		if (text != "") != (st.want != "") || !strings.Contains(text, st.want) {
+			t.Errorf("%s: notice = %q; want one containing %q", st.name, text, st.want)
 		}
 	}
 }
