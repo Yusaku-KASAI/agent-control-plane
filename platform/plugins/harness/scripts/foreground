@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# PreToolUse hook. Under the control plane, the last answer of each turn is posted, so a turn that
+# ends while a subagent works in the background posts an answer that only says it is waiting, and
+# the subagent's end starts another turn. Subagents therefore run in the foreground there.
+set -euo pipefail
+
+input=$(cat)
+[[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
+case $(jq -r .tool_name <<<"$input") in
+  Agent | Task)
+    jq '{hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      updatedInput: (.tool_input + {run_in_background: false})
+    }}' <<<"$input"
+    ;;
+  SendMessage)
+    # Continuing a subagent with SendMessage always runs it in the background.
+    jq -n '{hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "control-plane 経由では、サブエージェントはフォアグラウンドで動かす（ハーネスの契約）。SendMessage で続けるとバックグラウンドで動くので、続きは Agent で新しく頼む。"
+    }}'
+    ;;
+esac

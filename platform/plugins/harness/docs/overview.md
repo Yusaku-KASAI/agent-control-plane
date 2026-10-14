@@ -4,8 +4,10 @@
 
 ```
 harness/
-  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を呼ぶ
+  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground を呼ぶ
   scripts/context      動き方の要約と、ハーネスの契約と platform の文書の一覧の在りかを返す
+  scripts/foreground   control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす
+  tests/               scripts/foreground の試験
   skills/harness/      詰まったときに、どこの問題かを切り分ける手順
 ```
 
@@ -26,6 +28,15 @@ harness/
 - **当てはめた原則・パターン**：[使う側に届く契約](../../principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
   エージェントにも、契約の在りかを届ける。[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読み込まれるので、
   中身ではなく行き先を渡す。
+
+### `scripts/foreground`
+
+- **責務**：control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす（[ADR 0008](../../../docs/adr/0008-subagents-in-foreground-under-control-plane.md)）。
+- **置くもの / 置かないもの**：Agent の呼び出しの `run_in_background` を `false` にし、サブエージェントに続きを頼む
+  `SendMessage` を断る。devcontainer で直接動くときと、ほかのツール（バックグラウンドの Bash など）には何もしない。
+- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：依頼への回答が一度で済むことを、
+  エージェントへの指示ではなく hook で守る。
 
 ### `skills/harness/`
 
