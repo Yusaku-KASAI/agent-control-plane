@@ -509,6 +509,38 @@ func TestDispatcher_InjectedPromptTakenIntoNextTurn(t *testing.T) {
 	}
 }
 
+// A resumed session first reports the background tasks its previous process left, in a turn of
+// the agent's own that runs before the sent prompt is taken in.
+func TestDispatcher_AgentTurnBeforeSentPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+
+	p.hold()
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.startTurn()
+	p.finish("noted the stopped tasks")
+	p.startTurn()
+	p.accept(1)
+	p.finish("two")
+	if o := wait(t, second); o.err != nil || o.out.Output != "two" || o.out.Shared {
+		t.Fatalf("second = %+v, %v; want the answer of the turn that took the prompt in", o.out, o.err)
+	}
+	if got := e.observer.agentTurns(); len(got) != 0 {
+		t.Errorf("observer got agent turns %+v, want none", got)
+	}
+	if started := e.observer.of(usecase.SessionTurnStarted); len(started) != 2 || started[1].AgentStarted {
+		t.Errorf("observed turn starts %+v, want one for each request", started)
+	}
+	if finished := e.observer.of(usecase.SessionTurnFinished); len(finished) != 2 {
+		t.Errorf("observed %d finished turns, want one for each request", len(finished))
+	}
+}
+
 func TestDispatcher_StopRunningTurn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
