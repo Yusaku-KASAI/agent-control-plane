@@ -368,7 +368,7 @@ func (w *worker) handle(e ProcessEvent) {
 	switch e.Kind {
 	case EventTurnStarted:
 		if !w.running {
-			w.startTurn()
+			w.startTurn(true)
 		}
 	case EventTurnFinished:
 		w.finishTurn(e.Result)
@@ -385,7 +385,7 @@ func (w *worker) handle(e ProcessEvent) {
 			delete(w.sent, e.PromptID)
 			w.current = append(w.current, r)
 			if !w.running {
-				w.startTurn()
+				w.startTurn(false)
 			}
 			w.creditRequesters()
 		}
@@ -418,7 +418,7 @@ func (w *worker) sendNext() {
 			w.stopProcess(nil)
 			continue
 		}
-		w.startTurn()
+		w.startTurn(false)
 		return
 	}
 }
@@ -435,9 +435,9 @@ func (w *worker) send(r request) error {
 	return nil
 }
 
-func (w *worker) startTurn() {
+func (w *worker) startTurn(agentStarted bool) {
 	w.running, w.startedAt, w.activity = true, time.Now(), ""
-	w.observe(SessionEvent{Kind: SessionTurnStarted})
+	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }
 
 func (w *worker) notifyStatus() {
@@ -511,7 +511,7 @@ func (w *worker) finishTurn(res TurnResult) {
 	w.current = nil
 	if len(w.sent) > 0 {
 		// The agent holds prompts it will take into its next turn.
-		w.startTurn()
+		w.startTurn(false)
 	}
 }
 
@@ -568,13 +568,16 @@ func (w *worker) stopProcess(cause error) {
 	defer cancel()
 	_ = w.proc.Close(ctx)
 	w.proc = nil
-	wasRunning := w.running
+	wasRunning, hadBackground := w.running, len(w.background) > 0
 	w.running, w.background = false, nil
 	if cause == nil {
 		return
 	}
-	if wasRunning {
+	switch {
+	case wasRunning:
 		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: len(w.current) == 0})
+	case hadBackground:
+		w.observe(SessionEvent{Kind: SessionUpdated})
 	}
 	for _, r := range w.current {
 		r.reply <- w.reply(TurnResult{}, cause)
