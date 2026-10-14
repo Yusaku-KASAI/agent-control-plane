@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-03
 amends: [17]
-amended_by: [28]
+amended_by: [28, 30]
 ---
 
 # 0019. チャットでは状態メッセージで進み具合を見せ、記号で流し込みと停止を指示する
