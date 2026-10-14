@@ -174,21 +174,17 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 	switch {
 	case e.Kind == usecase.SessionTurnFinished:
 		notice, noticed := b.errorNotice(s, e)
-		if !e.AgentStarted {
+		switch {
+		case e.Result.Error || e.Result.Failed:
+			// A turn that ended on an error or a failure says nothing of the work before it, so the
+			// held answer is posted, in one message with the notice to keep them in order.
+			held := m.takeHeld(m.heldGeneration())
+			if text := joinPosts(held, notice); noticed || held != "" {
+				b.post(s, text)
+			}
+		case !e.AgentStarted:
 			// The reply to the request that joined the turn answers it.
 			m.dropHeld()
-			break
-		}
-		switch {
-		case noticed:
-			// A turn that ended on an error says nothing of the work before it, so the held answer
-			// goes first.
-			b.postHeld(s, m)
-			b.post(s, notice)
-		case e.Result.Error:
-			// A repeat of the usage limit already told; the status message shows it.
-		case e.Result.Failed:
-			b.postHeld(s, m)
 		default:
 			switch agentAnswer(e) {
 			case postAnswer:
@@ -201,7 +197,11 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 				}
 				m.hold(e.Result.Output)
 			case dropAnswer:
-				if e.Status.BackgroundTasks == 0 {
+				switch {
+				case e.Result.Interrupted:
+					// A stopped turn cuts short the work the held answer spoke of.
+					m.dropHeld()
+				case e.Status.BackgroundTasks == 0:
 					b.releaseHeld(s, m)
 				}
 			}
@@ -234,11 +234,15 @@ func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) (string, boo
 	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
 }
 
-// postHeld posts the held answer at once.
-func (b *Bot) postHeld(s domain.Session, m *statusMessage) {
-	if text := m.takeHeld(m.heldGeneration()); text != "" {
-		b.post(s, text)
+// joinPosts puts texts that must appear in order into one message.
+func joinPosts(texts ...string) string {
+	var parts []string
+	for _, t := range texts {
+		if strings.TrimSpace(t) != "" {
+			parts = append(parts, t)
+		}
 	}
+	return strings.Join(parts, "\n\n---\n\n")
 }
 
 // releaseHeld posts the held answer unless the agent starts another turn within the grace.
