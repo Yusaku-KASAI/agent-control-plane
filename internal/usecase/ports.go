@@ -187,9 +187,11 @@ const (
 type SessionEvent struct {
 	Kind   SessionEventKind
 	Status SessionStatus
-	// Result and AgentStarted are set for SessionTurnFinished. No request waits for a turn the
-	// agent started by itself, so its result reaches people only through the observer.
-	Result       TurnResult
+	// Result is set for SessionTurnFinished.
+	Result TurnResult
+	// AgentStarted is set for SessionTurnStarted when the agent starts the turn by itself, and for
+	// SessionTurnFinished when no request waits for the turn's result, which then reaches people
+	// only through the observer. A prompt injected into the agent's own turn makes the two differ.
 	AgentStarted bool
 }
 

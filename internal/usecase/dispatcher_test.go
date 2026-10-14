@@ -684,6 +684,9 @@ func TestDispatcher_AgentStartedTurn(t *testing.T) {
 	if got := e.observer.agentTurns()[0].Output; got != "build passed" {
 		t.Errorf("observer got %q", got)
 	}
+	if started := e.observer.of(usecase.SessionTurnStarted); len(started) < 2 || started[0].AgentStarted || !started[1].AgentStarted {
+		t.Errorf("observed turn starts %+v, want the request's and then the agent's own", started)
+	}
 
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("ok")
@@ -843,4 +846,21 @@ func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	}
 	p.finish("done")
 	wait(t, done)
+}
+
+func TestDispatcher_ProcessExitsWithBackgroundTasks(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("b1")
+	p.finish("building")
+	wait(t, first)
+
+	p.err = errors.New("exit status 1")
+	close(p.events)
+	eventually(t, func() bool {
+		updates := e.observer.of(usecase.SessionUpdated)
+		return len(updates) > 0 && updates[len(updates)-1].Status.BackgroundTasks == 0
+	})
 }

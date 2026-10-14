@@ -1,7 +1,12 @@
 package slackbot
 
 import (
+	"context"
+	"errors"
+	"log/slog"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -101,5 +106,161 @@ func TestStatusViewRender(t *testing.T) {
 	got = finished.render(start.Add(time.Hour))
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
+	}
+}
+
+func TestStatusForAgentStartedTurn(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	start := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+
+	if m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true}); m == nil {
+		t.Fatal("an agent-started turn without an earlier status message got none")
+	}
+	requested := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, Status: usecase.SessionStatus{TurnStartedAt: start}})
+	requested.view.outcome, requested.view.finishedAt = done, start.Add(time.Minute)
+
+	resumed := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true, Status: usecase.SessionStatus{TurnStartedAt: start.Add(time.Hour)}})
+	if resumed != requested {
+		t.Fatal("an agent-started turn posted a new status message instead of taking over the request's")
+	}
+	if resumed.view.outcome != running || !resumed.view.finishedAt.IsZero() || !resumed.view.startedAt.Equal(start) {
+		t.Errorf("taken-over status = %+v, want running since the request started", resumed.view)
+	}
+
+	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next == requested {
+		t.Error("a requested turn reused the earlier status message")
+	}
+}
+
+func TestAgentAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		result     usecase.TurnResult
+		background int
+		want       answerAction
+	}{
+		{"done, no background", usecase.TurnResult{Output: "結果"}, 0, postAnswer},
+		{"done, background remains", usecase.TurnResult{Output: "待ちます"}, 1, holdAnswer},
+		{"done, empty", usecase.TurnResult{Output: " \n"}, 0, dropAnswer},
+		{"interrupted, background remains", usecase.TurnResult{Output: "止めました", Interrupted: true}, 1, postAnswer},
+		{"interrupted, empty", usecase.TurnResult{Interrupted: true}, 0, dropAnswer},
+		{"failed", usecase.TurnResult{Failed: true}, 0, dropAnswer},
+	} {
+		e := usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: tc.result,
+			Status: usecase.SessionStatus{BackgroundTasks: tc.background}}
+		if got := agentAnswer(e); got != tc.want {
+			t.Errorf("%s: agentAnswer = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+type failingTokens struct{}
+
+func (failingTokens) Token(context.Context) (string, error) {
+	return "", errors.New("no token in tests")
+}
+
+// recordingBot is a Bot whose posts outside requests are recorded instead of sent.
+func recordingBot(t *testing.T) (*Bot, func() []string) {
+	t.Helper()
+	b := New("dev", "", failingTokens{}, nil, nil, slog.New(slog.DiscardHandler))
+	b.heldGrace = 20 * time.Millisecond
+	var mu sync.Mutex
+	var posts []string
+	b.post = func(_ domain.Session, text string) {
+		mu.Lock()
+		defer mu.Unlock()
+		posts = append(posts, text)
+	}
+	return b, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(posts)
+	}
+}
+
+func TestObserveAgentAnswers(t *testing.T) {
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	started := func(agent bool) usecase.SessionEvent {
+		return usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: agent, Status: usecase.SessionStatus{Running: true}}
+	}
+	finished := func(output string, background int) usecase.SessionEvent {
+		return usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true,
+			Result: usecase.TurnResult{Output: output}, Status: usecase.SessionStatus{BackgroundTasks: background}}
+	}
+	updated := func(background int) usecase.SessionEvent {
+		return usecase.SessionEvent{Kind: usecase.SessionUpdated, Status: usecase.SessionStatus{BackgroundTasks: background}}
+	}
+	for _, tc := range []struct {
+		name   string
+		events []usecase.SessionEvent
+		want   []string
+	}{
+		{"the next turn starts after the tasks run out",
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true), finished("終わりました", 0)},
+			[]string{"終わりました"}},
+		{"the next turn starts before the tasks run out",
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(true), updated(0), finished("終わりました", 0)},
+			[]string{"終わりました"}},
+		{"the tasks run out without a turn",
+			[]usecase.SessionEvent{started(false), started(true), finished("最後の結果", 1), updated(1), updated(0)},
+			[]string{"最後の結果"}},
+		{"a request comes while an answer is held",
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(false), updated(0)},
+			nil},
+		{"a release meant for an earlier answer",
+			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1)},
+			nil},
+		{"a later answer released in its own time",
+			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1), updated(0)},
+			[]string{"B"}},
+		{"the control plane stops while an answer is held",
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), {Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
+			[]string{usecase.ShutdownNotice}},
+	} {
+		b, posts := recordingBot(t)
+		for _, e := range tc.events {
+			b.observe(s, e)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for b.pendingReleases() > 0 && time.Now().Before(deadline) {
+			time.Sleep(b.heldGrace)
+		}
+		if got := posts(); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: posted %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestWaitPostsHeldAnswers(t *testing.T) {
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	held := []usecase.SessionEvent{
+		{Kind: usecase.SessionTurnStarted},
+		{Kind: usecase.SessionTurnStarted, AgentStarted: true},
+		{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "最後の結果"},
+			Status: usecase.SessionStatus{BackgroundTasks: 1}},
+	}
+	for _, tc := range []struct {
+		name   string
+		events []usecase.SessionEvent
+		want   []string
+	}{
+		{"the tasks have run out", append(slices.Clone(held), usecase.SessionEvent{Kind: usecase.SessionUpdated}),
+			[]string{"最後の結果"}},
+		{"the control plane cuts the tasks short", append(slices.Clone(held),
+			usecase.SessionEvent{Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}},
+			usecase.SessionEvent{Kind: usecase.SessionUpdated}),
+			[]string{usecase.ShutdownNotice}},
+	} {
+		b, posts := recordingBot(t)
+		b.heldGrace = time.Hour
+		for _, e := range tc.events {
+			b.observe(s, e)
+		}
+		b.Wait()
+		if got := posts(); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: posted %q on shutdown, want %q", tc.name, got, tc.want)
+		}
 	}
 }
