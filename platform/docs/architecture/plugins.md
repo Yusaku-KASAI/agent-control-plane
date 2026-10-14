@@ -24,7 +24,7 @@ plugins/
 ### `harness`
 
 - **責務**：エージェントに、どう動かされているかと、ハーネスの契約と platform の文書の一覧の在りかを伝え、詰まったときの
-  切り分けを助ける。
+  切り分けを助ける。control-plane 経由のときは、サブエージェントをフォアグラウンドで動かす（[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。
 - **置くもの / 置かないもの**：短い案内と、切り分けの手順。契約の中身は[ハーネスの契約](../reference/harness.md)に置く。
 - **関係**：ほかのプラグインを前提にしない。roles が前提にする。中の構成は [harness の文書](../../plugins/harness/docs/README.md "案内")。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
