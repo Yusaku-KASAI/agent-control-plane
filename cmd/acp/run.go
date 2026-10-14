@@ -40,6 +40,14 @@ func runTurn(ctx context.Context, args []string, getenv func(string) string, std
 		fmt.Fprintln(stderr, "acp: the turn was interrupted")
 	}
 	fmt.Fprint(stdout, resp.Output)
+	switch {
+	case resp.UsageLimited:
+		fmt.Fprintln(stderr, "acp: the turn stopped at the usage limit")
+		return 1
+	case resp.Error:
+		fmt.Fprintln(stderr, "acp: the turn ended on an error")
+		return 1
+	}
 	return 0
 }
 

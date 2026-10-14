@@ -84,8 +84,23 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, text))
 	case out.Shared:
 		return errors.Join(ackErr, u.responder.MarkAnsweredTogether(ctx, msg))
+	case out.Error:
+		return errors.Join(ackErr, u.responder.Reply(ctx, msg, TurnErrorText(out.Output, out.UsageLimited)))
 	}
 	return errors.Join(ackErr, u.responder.Reply(ctx, msg, out.Output))
+}
+
+// TurnErrorText tells that the agent ended a turn on an error, quoting the agent's message, which
+// for a usage limit says when the limit resets in the agent container's time zone.
+func TurnErrorText(message string, usageLimited bool) string {
+	text := "⚠️ エラーでターンが終わりました。"
+	if usageLimited {
+		text = "⚠️ 使用上限に当たり、エージェントが止まりました。上限が戻ったあとに、もう一度依頼すると続きから進めます。"
+	}
+	if message = strings.TrimSpace(message); message != "" {
+		text += "\n\n> " + strings.ReplaceAll(message, "\n", "\n> ")
+	}
+	return text
 }
 
 // ShutdownNotice tells the requester that a restart cut the work short and how to go on.

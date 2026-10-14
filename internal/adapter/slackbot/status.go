@@ -27,6 +27,7 @@ const (
 	done
 	interrupted
 	failed
+	usageLimited
 )
 
 // statusView is what a status message shows.
@@ -54,6 +55,8 @@ func (v statusView) render(now time.Time) string {
 		fmt.Fprintf(&b, "⏹ **中断**（%s）\n", elapsed(v.startedAt, v.finishedAt))
 	case failed:
 		fmt.Fprintf(&b, "⚠️ **失敗**（%s）\n", elapsed(v.startedAt, v.finishedAt))
+	case usageLimited:
+		fmt.Fprintf(&b, "⚠️ **使用上限で停止**（%s）\n", elapsed(v.startedAt, v.finishedAt))
 	}
 	if v.queued > 0 {
 		fmt.Fprintf(&b, "待っている依頼：%d 件\n", v.queued)
@@ -130,6 +133,16 @@ func (m *statusMessage) takeHeld(gen int) string {
 	return text
 }
 
+// cancelRelease keeps the held answer but stops a release already scheduled for it.
+func (m *statusMessage) cancelRelease() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.heldGen++
+}
+
 func (m *statusMessage) dropHeld() {
 	if m == nil {
 		return
@@ -159,16 +172,35 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		b.refresh(m)
 	}
 	switch {
-	case e.Kind == usecase.SessionTurnFinished && e.AgentStarted:
-		switch agentAnswer(e) {
-		case postAnswer:
-			b.post(s, e.Result.Output)
-		case holdAnswer:
-			if m == nil {
-				b.post(s, e.Result.Output)
-				break
+	case e.Kind == usecase.SessionTurnFinished:
+		notice := b.errorNotice(s, e)
+		switch {
+		case e.Result.Error || e.Result.Failed:
+			// A turn that ended on an error or a failure says nothing of the work before it, so the
+			// held answer is posted too. One message keeps them in order, and the notice goes first
+			// so that a long answer cut to the message limit cannot cut it off.
+			if text := joinPosts(notice, m.takeHeld(m.heldGeneration())); text != "" {
+				b.post(s, text)
 			}
-			m.hold(e.Result.Output)
+		case !e.AgentStarted:
+			// The reply to the request that joined the turn answers it.
+			m.dropHeld()
+		default:
+			switch agentAnswer(e) {
+			case postAnswer:
+				m.dropHeld()
+				b.post(s, e.Result.Output)
+			case holdAnswer:
+				if m == nil {
+					b.post(s, e.Result.Output)
+					break
+				}
+				m.hold(e.Result.Output)
+			case dropAnswer:
+				if e.Status.BackgroundTasks == 0 {
+					b.releaseHeld(s, m)
+				}
+			}
 		}
 	case e.Kind == usecase.SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
 		b.releaseHeld(s, m)
@@ -177,6 +209,36 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		m.dropHeld()
 		b.post(s, abandonedText(e.Status))
 	}
+}
+
+// errorNotice tells what to post for a turn the agent started by itself that ended on an error;
+// it is posted at once, even while background work remains. It also remembers whether the session
+// stopped at the usage limit: once told, the agent's own turns refused while the limit lasts, one
+// for each background task that ends, only show in the status message.
+func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) string {
+	b.statusMu.Lock()
+	told := b.limited[s.ID]
+	if e.Result.UsageLimited {
+		b.limited[s.ID] = true
+	} else {
+		delete(b.limited, s.ID)
+	}
+	b.statusMu.Unlock()
+	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
+		return ""
+	}
+	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited)
+}
+
+// joinPosts puts texts that must appear in order into one message.
+func joinPosts(texts ...string) string {
+	var parts []string
+	for _, t := range texts {
+		if strings.TrimSpace(t) != "" {
+			parts = append(parts, t)
+		}
+	}
+	return strings.Join(parts, "\n\n---\n\n")
 }
 
 // releaseHeld posts the held answer unless the agent starts another turn within the grace.
@@ -231,14 +293,16 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	b.statusMu.Lock()
 	defer b.statusMu.Unlock()
 	prev := b.status[s.ID]
-	// A held answer is dropped once any turn starts; that turn's answer says what remains.
-	prev.dropHeld()
 	if prev != nil && e.AgentStarted {
+		// The agent's own turn decides at its end whether the held answer still matters.
+		prev.cancelRelease()
 		prev.mu.Lock()
 		prev.view.outcome, prev.view.finishedAt = running, time.Time{}
 		prev.mu.Unlock()
 		return prev
 	}
+	// A request's turn answers it whatever happened before, so the held answer is dropped.
+	prev.dropHeld()
 	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
 	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}
 	b.status[s.ID] = m
@@ -287,7 +351,9 @@ func (b *Bot) postAsync(s domain.Session, text string) {
 
 func outcomeOf(r usecase.TurnResult) outcome {
 	switch {
-	case r.Failed:
+	case r.UsageLimited:
+		return usageLimited
+	case r.Failed, r.Error:
 		return failed
 	case r.Interrupted:
 		return interrupted

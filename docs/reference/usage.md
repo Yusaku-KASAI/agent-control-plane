@@ -23,5 +23,6 @@ acp stop --agent <name> --session <id> [--server <url>]
 - サーバーの URL は `--server`、`ACP_SERVER`、`http://127.0.0.1:8787` の順で決まる。API トークンは
   `ACP_API_TOKEN` から読む。
 - `--session` を省くと新しいセッションを始め、`--session <id>` を付けるとそのセッションの続きを依頼する。
-  結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。
+  結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。エージェントがエラー（使用上限を含む）で
+  ターンを終えたときは、そう stderr に書き、終了コード 1 で終わる。
 - `--inject` を付けると、実行中のターンに流し込む。`acp stop` は、Slack の `:no_entry_sign:` と同じくセッションを止める。

@@ -107,6 +107,40 @@ func TestStatusViewRender(t *testing.T) {
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
 	}
+
+	limited := statusView{session: "sess", startedAt: start, finishedAt: start, outcome: usageLimited}
+	if got := limited.render(start); !strings.Contains(got, "使用上限で停止") {
+		t.Errorf("usage-limited render:\n%s", got)
+	}
+	if outcomeOf(usecase.TurnResult{Error: true}) != failed || outcomeOf(usecase.TurnResult{Error: true, UsageLimited: true}) != usageLimited {
+		t.Error("a turn that ended on an error is not shown as failed")
+	}
+}
+
+func TestErrorNotice(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess"}
+	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
+	steps := []struct {
+		name  string
+		event usecase.SessionEvent
+		want  string
+	}{
+		{"a request stops at the limit", usecase.SessionEvent{Result: limit}, ""},
+		{"the agent's own turn at the same limit", usecase.SessionEvent{AgentStarted: true, Result: limit}, ""},
+		{"a turn passes", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "ok"}}, ""},
+		{"the agent's own turn at the limit again", usecase.SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
+		{"the agent's own turn on another error", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
+		{"the agent's own turn failing with the process", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Failed: true}}, ""},
+		{"the agent's own turn answering with blanks", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: " \n"}}, ""},
+	}
+	for _, st := range steps {
+		st.event.Kind = usecase.SessionTurnFinished
+		text := b.errorNotice(s, st.event)
+		if (text != "") != (st.want != "") || !strings.Contains(text, st.want) {
+			t.Errorf("%s: notice = %q; want one containing %q", st.name, text, st.want)
+		}
+	}
 }
 
 func TestStatusForAgentStartedTurn(t *testing.T) {
@@ -201,7 +235,8 @@ func TestObserveAgentAnswers(t *testing.T) {
 			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true), finished("終わりました", 0)},
 			[]string{"終わりました"}},
 		{"the next turn starts before the tasks run out",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(true), updated(0), finished("終わりました", 0)},
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(true),
+				{Kind: usecase.SessionTurnUpdated, Status: usecase.SessionStatus{Running: true}}, finished("終わりました", 0)},
 			[]string{"終わりました"}},
 		{"the tasks run out without a turn",
 			[]usecase.SessionEvent{started(false), started(true), finished("最後の結果", 1), updated(1), updated(0)},
@@ -215,6 +250,36 @@ func TestObserveAgentAnswers(t *testing.T) {
 		{"a later answer released in its own time",
 			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1), updated(0)},
 			[]string{"B"}},
+		{"an error while background work remains",
+			[]usecase.SessionEvent{started(false), started(true), {Kind: usecase.SessionTurnFinished, AgentStarted: true,
+				Result: usecase.TurnResult{Output: "API Error", Error: true}, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
+			[]string{usecase.TurnErrorText("API Error", false)}},
+		{"the next turn stops at the usage limit",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
+				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
+			[]string{usecase.TurnErrorText("limit", true) + "\n\n---\n\nPR を作りました"}},
+		{"a turn with a request joined stops at the usage limit",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
+				{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
+			[]string{"PR を作りました"}},
+		{"the next turn is stopped",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true),
+				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Interrupted: true}}, updated(0)},
+			[]string{"PR を作りました"}},
+		{"the next turn ends without an answer while tasks remain",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true), finished("", 1), updated(0)},
+			[]string{"PR を作りました"}},
+		{"the next turn fails with the process",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
+				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}}},
+			[]string{"PR を作りました"}},
+		{"the next turn ends without an answer",
+			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true), finished("", 0)},
+			[]string{"PR を作りました"}},
+		{"a request joins the next turn",
+			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true),
+				{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "答え"}}, updated(0)},
+			nil},
 		{"the control plane stops while an answer is held",
 			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), {Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
 			[]string{usecase.ShutdownNotice}},

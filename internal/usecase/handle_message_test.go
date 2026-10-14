@@ -174,3 +174,30 @@ func TestHandleMessage_AnsweredTogether(t *testing.T) {
 		t.Errorf("together = %v, replies = %q; want a mark and no repeated reply", responder.together, responder.replies)
 	}
 }
+
+func TestHandleMessage_TurnEndedOnError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		out  usecase.RunAgentOutput
+		want []string
+	}{
+		{"usage limit", usecase.RunAgentOutput{Output: "You've hit your session limit · resets 2pm (Asia/Tokyo)", Error: true, UsageLimited: true},
+			[]string{"使用上限", "もう一度依頼", "> You've hit your session limit · resets 2pm (Asia/Tokyo)"}},
+		{"other error", usecase.RunAgentOutput{Output: "API Error: 500\nretry later", Error: true},
+			[]string{"エラーでターンが終わりました", "> API Error: 500\n> retry later"}},
+	} {
+		responder := &fakeResponder{}
+		turns := &fakeTurns{out: tc.out}
+		if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+			t.Fatalf("%s: Execute() error = %v", tc.name, err)
+		}
+		if len(responder.replies) != 1 {
+			t.Fatalf("%s: replies = %q, want one", tc.name, responder.replies)
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(responder.replies[0], w) {
+				t.Errorf("%s: reply lacks %q:\n%s", tc.name, w, responder.replies[0])
+			}
+		}
+	}
+}
