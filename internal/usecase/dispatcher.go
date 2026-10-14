@@ -300,13 +300,14 @@ type worker struct {
 
 	proc Process
 	// running is true from a prompt or a turn start until the turn's result; current may be
-	// empty when the agent started the turn by itself, which agentStarted tells.
-	running      bool
-	agentStarted bool
-	startedAt    time.Time
-	activity     string
-	background   []string
-	queue        []request
+	// empty when the agent started the turn by itself. forPrompts tells that the running turn was
+	// started for sent prompts rather than by the agent.
+	running    bool
+	forPrompts bool
+	startedAt  time.Time
+	activity   string
+	background []string
+	queue      []request
 	// sent holds prompts the agent has not taken in yet, by prompt ID; current holds those taken
 	// into the running turn.
 	sent    map[string]request
@@ -437,7 +438,7 @@ func (w *worker) send(r request) error {
 }
 
 func (w *worker) startTurn(agentStarted bool) {
-	w.running, w.agentStarted, w.startedAt, w.activity = true, agentStarted, time.Now(), ""
+	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
 	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }
 
@@ -498,10 +499,12 @@ func (w *worker) finishTurn(res TurnResult) {
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
-	if !w.agentStarted && len(w.current) == 0 && len(w.sent) > 0 {
+	if w.forPrompts && len(w.current) == 0 && len(w.sent) > 0 {
 		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
 		// resumed session does to report the background tasks its previous process left. The
 		// requests' turn is still to come and its answer replaces this one, so it keeps running.
+		w.activity = ""
+		w.notifyStatus()
 		return
 	}
 	w.running = false

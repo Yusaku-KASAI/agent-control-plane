@@ -510,34 +510,71 @@ func TestDispatcher_InjectedPromptTakenIntoNextTurn(t *testing.T) {
 }
 
 // A resumed session first reports the background tasks its previous process left, in a turn of
-// the agent's own that runs before the sent prompt is taken in.
+// the agent's own that runs before the sent prompt is taken in. The request's turn hides it,
+// errors included, since the request's own answer replaces it.
 func TestDispatcher_AgentTurnBeforeSentPrompt(t *testing.T) {
+	for name, early := range map[string]usecase.TurnResult{
+		"answered":      {Output: "noted the stopped tasks"},
+		"usage limited": {Output: "You've hit your session limit", Error: true, UsageLimited: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, usecase.DispatcherOptions{})
+			first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+			p := e.runner.next(t)
+			eventually(t, func() bool { return len(p.sent()) == 1 })
+			p.finish("one")
+			wait(t, first)
+
+			p.hold()
+			second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second"})
+			eventually(t, func() bool { return len(p.sent()) == 2 })
+			p.startTurn()
+			p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: early}
+			p.startTurn()
+			p.accept(1)
+			p.finish("two")
+			if o := wait(t, second); o.err != nil || o.out.Output != "two" || o.out.Shared {
+				t.Fatalf("second = %+v, %v; want the answer of the turn that took the prompt in", o.out, o.err)
+			}
+			if got := e.observer.agentTurns(); len(got) != 0 {
+				t.Errorf("observer got agent turns %+v, want none", got)
+			}
+			if started := e.observer.of(usecase.SessionTurnStarted); len(started) != 2 || started[1].AgentStarted {
+				t.Errorf("observed turn starts %+v, want one for each request", started)
+			}
+			if finished := e.observer.of(usecase.SessionTurnFinished); len(finished) != 2 {
+				t.Errorf("observed %d finished turns, want one for each request", len(finished))
+			}
+		})
+	}
+}
+
+// A prompt injected into the agent's own turn but left for the next turn does not hide that
+// turn: it was shown as the agent's, and the request's turn starts after it.
+func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
-	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
-	p.finish("one")
+	p.finish("building in the background")
 	wait(t, first)
 
-	p.hold()
-	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second"})
-	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.startTurn()
-	p.finish("noted the stopped tasks")
+	p.hold()
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finish("build passed")
+	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
+
 	p.startTurn()
 	p.accept(1)
-	p.finish("two")
-	if o := wait(t, second); o.err != nil || o.out.Output != "two" || o.out.Shared {
-		t.Fatalf("second = %+v, %v; want the answer of the turn that took the prompt in", o.out, o.err)
+	p.finish("go1.27")
+	if o := wait(t, steer); o.err != nil || o.out.Output != "go1.27" {
+		t.Fatalf("injected = %+v, %v", o.out, o.err)
 	}
-	if got := e.observer.agentTurns(); len(got) != 0 {
-		t.Errorf("observer got agent turns %+v, want none", got)
-	}
-	if started := e.observer.of(usecase.SessionTurnStarted); len(started) != 2 || started[1].AgentStarted {
-		t.Errorf("observed turn starts %+v, want one for each request", started)
-	}
-	if finished := e.observer.of(usecase.SessionTurnFinished); len(finished) != 2 {
-		t.Errorf("observed %d finished turns, want one for each request", len(finished))
+	started := e.observer.of(usecase.SessionTurnStarted)
+	if len(started) != 3 || started[0].AgentStarted || !started[1].AgentStarted || started[2].AgentStarted {
+		t.Errorf("observed turn starts %+v, want the request's, the agent's and the injected request's", started)
 	}
 }
 
