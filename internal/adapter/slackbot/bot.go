@@ -40,7 +40,7 @@ type Bot struct {
 	// post writes outside a request; tests replace it.
 	post func(s domain.Session, text string)
 	// heldGrace is how long a held answer waits for the agent's next turn after background work
-	// runs out, since the agent may report the end of its tasks before it starts that turn.
+	// runs out, since the agent reports the end of its tasks shortly before it starts that turn.
 	heldGrace time.Duration
 	// releases holds the held answers waiting out heldGrace; Wait posts them at once.
 	releasesMu sync.Mutex
