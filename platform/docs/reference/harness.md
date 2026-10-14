@@ -22,9 +22,11 @@
 - Slack からの依頼では、プロンプトは依頼のメッセージの場所だけを指す。本文とスレッドは、エージェントが Slack から読む。
 - ターンの最後の回答は control-plane がスレッドに投稿する（長い回答は途中で省かれるので、長い結果は PR やファイルに
   置く）。自分で投稿しない。依頼に答えるターンの回答は、バックグラウンドの処理が残っていても投稿される。
-- サブエージェント（Agent）はフォアグラウンドで動く。harness プラグインの hook が `run_in_background` を外し、
-  サブエージェントに続きを頼む `SendMessage` を断る（[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。
-  続きは Agent で新しく頼む。
+- サブエージェント（Agent）は、harness プラグインの hook がフォアグラウンドで動かす
+  （[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。hook は、Agent の呼び出しの `run_in_background` を
+  `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
+  サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` があると、
+  バックグラウンドで動くので、そういう定義は使わない。
 - バックグラウンドの処理が終わって自分で始めたターンの回答は、ターンの終わりにほかのバックグラウンドの処理が
   残っていれば、すぐには投稿されない。投稿されるのは次の場合。
   - 次のターンが始まらずに処理が尽きたとき。

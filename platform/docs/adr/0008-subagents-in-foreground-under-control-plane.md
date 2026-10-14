@@ -22,7 +22,9 @@ Claude Code はサブエージェント（Agent）を、指定がなければバ
 
 - harness プラグインに PreToolUse の hook を置く。control-plane 経由のときは、次のようにする。
   - Agent の呼び出しは、`run_in_background` を `false` にしてから通す。
-  - `SendMessage` は断る。続きを頼むときは、Agent で新しく頼む。
+  - `isolation: remote` の Agent は、必ずバックグラウンドで動くので断る。
+  - `SendMessage` は、宛先によらず断る。hook は宛先がサブエージェントかを見分けられず、control-plane のコンテナには
+    ほかの宛先がない。続きを頼むときは、Agent で新しく頼む。
 - devcontainer で直接動くときは、何もしない。人が端末で見ていて、ターンの回答が投稿されることはない。
 - バックグラウンドの Bash（CI の待ち合わせなど）は変えない。
 
@@ -32,6 +34,8 @@ Claude Code はサブエージェント（Agent）を、指定がなければバ
 - **control-plane が、依頼に答えるターンの回答も、バックグラウンドの処理が残る間は持っておく**：開発用サーバーの
   ように終わらない処理が残ると、依頼に答えないままになる。CI をバックグラウンドで待つ間に、依頼者に途中の結果を
   返せなくなる（ADR 0006）。control-plane の判断でもあり、ほかのターゲットにも及ぶ。
+- **環境変数 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` でバックグラウンドの処理を止める**：Bash のバックグラウンドの
+  実行も止まり、CI をバックグラウンドで待つ仕組み（ADR 0006）が使えなくなる。
 - **バックグラウンドのサブエージェントが動いている間は、Stop hook がターンを終えさせない**：エージェントは待つ手段を
   持たず、見張りの処理を回して待つことになる（Issue #110 の 2 つ目の問題）。hook は動いているサブエージェントを
   知る手段も持たない。
@@ -44,7 +48,11 @@ Claude Code はサブエージェント（Agent）を、指定がなければバ
 - サブエージェントが動いている間、エージェントはほかの作業をできない。一つのメッセージで複数の Agent を呼べば、
   並んで動く。
 - レビューの指摘に答えたあとの再レビューは、前のサブエージェントの文脈を使えず、新しく頼むことになる。
-- hook は Claude Code の hook の出力（`updatedInput`、`permissionDecision`）に頼る。control-plane 経由では権限の
-  確認を飛ばして動くので、`allow` で通しても権限は変わらない。
-- Claude Code 2.1.292 の init の出力では、Agent のツールは `Task` という名前で並ぶ。どちらの名前でも当たるようにする。
-  実際の Claude Code が `updatedInput` に従って、サブエージェントをフォアグラウンドで動かすかは、確かめていない。
+- サブエージェントが動いている間はターンが続くので、届いた依頼はそのターンが終わるまで待つ。流し込んだ依頼は、
+  動いているターンに入る。止める操作の `interrupt` は、フォアグラウンドのサブエージェントもいっしょに止める。
+- hook は Claude Code の hook の出力（`updatedInput`、`permissionDecision`）に頼る。`updatedInput` は入力を丸ごと
+  置き換えるので、元の入力に重ねて返す。control-plane 経由では権限の確認を飛ばして動くので、`allow` で通しても
+  権限は変わらない。
+- Claude Code 2.1.292 では、ツールの名前は `Agent` で、`Task` はその別名。どちらの名前でも当たるようにする。
+  `run_in_background` が `false` でもバックグラウンドで動くのは、`isolation: remote` のとき、エージェントの定義に
+  `background: true` があるとき、coordinator のモードのとき。今の roles の定義には `background` がない。

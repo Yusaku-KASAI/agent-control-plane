@@ -8,6 +8,15 @@ input=$(cat)
 [[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
 case $(jq -r .tool_name <<<"$input") in
   Agent | Task)
+    if [[ $(jq -r '.tool_input.isolation // ""' <<<"$input") == remote ]]; then
+      # A remote subagent always runs in the background.
+      jq -n '{hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "control-plane 経由では、サブエージェントはフォアグラウンドで動かす（ハーネスの契約）。isolation: remote は必ずバックグラウンドで動くので使わない。"
+      }}'
+      exit 0
+    fi
     jq '{hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "allow",
@@ -15,7 +24,8 @@ case $(jq -r .tool_name <<<"$input") in
     }}' <<<"$input"
     ;;
   SendMessage)
-    # Continuing a subagent with SendMessage always runs it in the background.
+    # Continuing a subagent with SendMessage always runs it in the background. The hook cannot
+    # tell a subagent from other recipients, and under the control plane there are no others.
     jq -n '{hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
