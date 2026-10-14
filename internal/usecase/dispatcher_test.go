@@ -560,6 +560,7 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	wait(t, first)
 
 	p.startTurn()
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
 	p.hold()
 	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
