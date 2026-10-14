@@ -177,9 +177,12 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		switch {
 		case e.Result.Error || e.Result.Failed:
 			// A turn that ended on an error or a failure says nothing of the work before it, so the
-			// held answer is posted, in one message with the notice to keep them in order.
-			held := m.takeHeld(m.heldGeneration())
-			if text := joinPosts(held, notice); noticed || held != "" {
+			// held answer is posted too. One message keeps them in order, and the notice goes first
+			// so that a long answer cut to the message limit cannot cut it off.
+			if !noticed {
+				notice = ""
+			}
+			if text := joinPosts(notice, m.takeHeld(m.heldGeneration())); text != "" {
 				b.post(s, text)
 			}
 		case !e.AgentStarted:
@@ -197,11 +200,7 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 				}
 				m.hold(e.Result.Output)
 			case dropAnswer:
-				switch {
-				case e.Result.Interrupted:
-					// A stopped turn cuts short the work the held answer spoke of.
-					m.dropHeld()
-				case e.Status.BackgroundTasks == 0:
+				if e.Status.BackgroundTasks == 0 {
 					b.releaseHeld(s, m)
 				}
 			}
