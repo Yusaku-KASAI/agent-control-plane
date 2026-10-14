@@ -133,6 +133,16 @@ func (m *statusMessage) takeHeld(gen int) string {
 	return text
 }
 
+// cancelRelease keeps the held answer but stops a release already scheduled for it.
+func (m *statusMessage) cancelRelease() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.heldGen++
+}
+
 func (m *statusMessage) dropHeld() {
 	if m == nil {
 		return
@@ -163,22 +173,38 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 	}
 	switch {
 	case e.Kind == usecase.SessionTurnFinished:
-		if text, ok := b.errorNotice(s, e); ok {
-			b.post(s, text)
+		notice, noticed := b.errorNotice(s, e)
+		if !e.AgentStarted {
+			// The reply to the request that joined the turn answers it.
+			m.dropHeld()
 			break
 		}
-		if !e.AgentStarted || e.Result.Error {
-			break
-		}
-		switch agentAnswer(e) {
-		case postAnswer:
-			b.post(s, e.Result.Output)
-		case holdAnswer:
-			if m == nil {
+		switch {
+		case noticed:
+			// A turn that ended on an error says nothing of the work before it, so the held answer
+			// goes first.
+			b.postHeld(s, m)
+			b.post(s, notice)
+		case e.Result.Error:
+			// A repeat of the usage limit already told; the status message shows it.
+		case e.Result.Failed:
+			b.postHeld(s, m)
+		default:
+			switch agentAnswer(e) {
+			case postAnswer:
+				m.dropHeld()
 				b.post(s, e.Result.Output)
-				break
+			case holdAnswer:
+				if m == nil {
+					b.post(s, e.Result.Output)
+					break
+				}
+				m.hold(e.Result.Output)
+			case dropAnswer:
+				if e.Status.BackgroundTasks == 0 {
+					b.releaseHeld(s, m)
+				}
 			}
-			m.hold(e.Result.Output)
 		}
 	case e.Kind == usecase.SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
 		b.releaseHeld(s, m)
@@ -206,6 +232,13 @@ func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) (string, boo
 		return "", false
 	}
 	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited), true
+}
+
+// postHeld posts the held answer at once.
+func (b *Bot) postHeld(s domain.Session, m *statusMessage) {
+	if text := m.takeHeld(m.heldGeneration()); text != "" {
+		b.post(s, text)
+	}
 }
 
 // releaseHeld posts the held answer unless the agent starts another turn within the grace.
@@ -260,14 +293,16 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	b.statusMu.Lock()
 	defer b.statusMu.Unlock()
 	prev := b.status[s.ID]
-	// A held answer is dropped once any turn starts; that turn's answer says what remains.
-	prev.dropHeld()
 	if prev != nil && e.AgentStarted {
+		// The agent's own turn decides at its end whether the held answer still matters.
+		prev.cancelRelease()
 		prev.mu.Lock()
 		prev.view.outcome, prev.view.finishedAt = running, time.Time{}
 		prev.mu.Unlock()
 		return prev
 	}
+	// A request's turn answers it whatever happened before, so the held answer is dropped.
+	prev.dropHeld()
 	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
 	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}
 	b.status[s.ID] = m
