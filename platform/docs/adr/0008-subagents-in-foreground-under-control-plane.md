@@ -54,5 +54,8 @@ Claude Code はサブエージェント（Agent）を、指定がなければバ
   置き換えるので、元の入力に重ねて返す。control-plane 経由では権限の確認を飛ばして動くので、`allow` で通しても
   権限は変わらない。
 - Claude Code 2.1.292 では、ツールの名前は `Agent` で、`Task` はその別名。どちらの名前でも当たるようにする。
-  `run_in_background` が `false` でもバックグラウンドで動くのは、`isolation: remote` のとき、エージェントの定義に
-  `background: true` があるとき、coordinator のモードのとき。今の roles の定義には `background` がない。
+  `run_in_background` が `false` でもバックグラウンドで動くのは、次のとき。今の roles の定義にはどちらの項目もなく、
+  control-plane はどちらのモードも使わない。
+  - 呼び出しか、エージェントの定義の `isolation` が `remote` のとき。定義の側はハーネスの契約で使わないとする。
+  - エージェントの定義に `background: true` があるとき。これもハーネスの契約で使わないとする。
+  - coordinator のモードのときと、fork のサブエージェントの機能（`CLAUDE_CODE_FORK_SUBAGENT`）を有効にしたとき。

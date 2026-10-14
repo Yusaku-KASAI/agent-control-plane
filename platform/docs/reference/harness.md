@@ -25,8 +25,8 @@
 - サブエージェント（Agent）は、harness プラグインの hook がフォアグラウンドで動かす
   （[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。hook は、Agent の呼び出しの `run_in_background` を
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
-  サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` があると、
-  バックグラウンドで動くので、そういう定義は使わない。
+  サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` か
+  `isolation: remote` があると、hook によらずバックグラウンドで動くので、そういう定義は使わない。
 - バックグラウンドの処理が終わって自分で始めたターンの回答は、ターンの終わりにほかのバックグラウンドの処理が
   残っていれば、すぐには投稿されない。投稿されるのは次の場合。
   - 次のターンが始まらずに処理が尽きたとき。
