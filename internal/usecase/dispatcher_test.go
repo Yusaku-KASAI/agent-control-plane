@@ -567,11 +567,17 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	p.finish("build passed")
 	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
 
+	// Another turn of the agent's own before the prompt is taken in is hidden, as for any prompt.
+	p.startTurn()
+	p.finish("lint passed")
 	p.startTurn()
 	p.accept(1)
 	p.finish("go1.27")
 	if o := wait(t, steer); o.err != nil || o.out.Output != "go1.27" {
 		t.Fatalf("injected = %+v, %v", o.out, o.err)
+	}
+	if got := e.observer.agentTurns(); len(got) != 1 {
+		t.Errorf("observer got agent turns %+v, want only the one the prompt was injected into", got)
 	}
 	started := e.observer.of(usecase.SessionTurnStarted)
 	if len(started) != 3 || started[0].AgentStarted || !started[1].AgentStarted || started[2].AgentStarted {
