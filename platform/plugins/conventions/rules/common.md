@@ -4,8 +4,8 @@
 リポジトリの CLAUDE.md と食い違うときは CLAUDE.md に従う（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 
 ここは要約と案内で、決まりは括弧の中のリンクの先にある。特定の作業（文書を書く、変更する）にだけ要る決まりは、定義の文書と、
-その作業のスキルにある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読み、読んだ中の
-「（全体を読む）」もたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
+その作業のスキルにある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の
+中に、場面が当てはまる「（全体を読む）」があれば、それもたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
 
 - 何かを決めるときは、まず一般に良いとされる確立した原則やパターンを探して沿い、その名前を挙げる
   （[原則：確立した考え方に拠る](../../principles/docs/reference/principles.md#established)）。今の形や頼まれた手段も、目的、
