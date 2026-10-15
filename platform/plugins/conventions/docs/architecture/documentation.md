@@ -3,7 +3,7 @@
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
 [ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
-[文書を書く](../../skills/write-docs/SKILL.md "在りか")にある。
+[文書を書く](../guides/write-docs.md "在りか")にある。
 
 ## 構成
 
@@ -81,7 +81,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 - 要らないものは置かない。小さな区切り（プラグインなど）は、`README.md` と `overview.md`（構成と構成要素）だけでもよい。
 - 手順は、エージェントが使うものも `guides/` に定義する。プラグインのスキル（`skills/`）は、その手順を要約か案内で載せ、
-  そのプラグインの道具の使い方だけを自分で持つ。
+  そのプラグインの道具の使い方（道具を使う手順を含む）だけを自分で持つ。
 - 文書の根の中で関心の違う部分は、`architecture/` と `adr/` を `<関心>/` に分ける。`guides/` と `reference/` は、
   文書が増えたら同じように分ける。
 

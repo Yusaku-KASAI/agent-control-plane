@@ -7,4 +7,4 @@ platform の[プラグイン](../../../docs/architecture/plugins.md)にある。
 | --- | --- | --- |
 | [overview.md](overview.md) | 解説 | このプラグインの構成と構成要素、本文が古いことの見つけ方 |
 
-手順はスキルにある：GitHub で作業する（[skills/github](../skills/github/SKILL.md)）。
+道具の使い方はスキルにある：GitHub で作業する（[skills/github](../skills/github/SKILL.md)）。
