@@ -10,4 +10,4 @@ description: 文書（README、CLAUDE.md、docs/ の下、ADR）を足したり�
 
 - ほかの文書の中身に触れるときは、要約か案内かを先に決め、そのうえでリンクの種類（前提か在りか）を決める
   （[要約と案内](../../docs/architecture/documentation.md#summaries-and-guides)、[形式：リンク](../../docs/reference/formats.md#links)）。
-- 項目を足す、移す、消すときは、親の地図を直す（[形式：地図](../../docs/reference/formats.md#map)）。
+- 項目を足す、移す、消すとき、または項目が前提にするものが変わるときは、親の地図を直す（[形式：地図](../../docs/reference/formats.md#map)）。

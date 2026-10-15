@@ -62,6 +62,14 @@ conventions/
   [観点を分けて読む](../../principles/docs/reference/patterns.md#perspective-based)、
   [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)。
 
+### 手順（[`docs/guides/`](guides/ "在りか")）
+
+- **責務**：決まりに沿って作業する手順を定義する。文書を書く、パターンを当てはめる、レビューする。
+- **置くもの / 置かないもの**：手順と、その場で要る最小の説明。決まりそのものは参照の文書に置き、手順からリンクする。
+  そのプラグインの道具の使い方はスキルに置く。
+- **関係**：用語集、文書、変更と課題、レビューを前提にする。スキルが、これを要約か案内で載せる。
+- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
+
 ### 共通のルール（[`rules/common.md`](../rules/common.md "在りか")）
 
 - **責務**：いつも守ることを、セッションとサブエージェントの始めに読み込ませる。
@@ -75,14 +83,6 @@ conventions/
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
   相対リンクは、読み込ませるときに絶対パスに書き換える。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
-
-### 手順（[`docs/guides/`](guides/ "在りか")）
-
-- **責務**：決まりに沿って作業する手順を定義する。文書を書く、パターンを当てはめる、レビューする。
-- **置くもの / 置かないもの**：手順と、その場で要る最小の説明。決まりそのものは参照の文書に置き、手順からリンクする。
-  そのプラグインの道具の使い方はスキルに置く。
-- **関係**：用語集、文書、変更と課題、レビューを前提にする。スキルが、これを要約か案内で載せる。
-- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
 
 ### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
 
