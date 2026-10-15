@@ -26,8 +26,8 @@ usage:
                                       with --pr, of another's PR, over the whole PR up to <commit>
   prctl review --minor <commit> <note-file|->
                                       record the range up to <commit> as fixes of nitpicks that change
-                                      no meaning, left unreviewed; only right after a review, not after
-                                      none or after another such record
+                                      no meaning, left unreviewed; only right after a review (refused
+                                      when the PR has none, or right after another such record)
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
@@ -85,6 +85,12 @@ reviewed() {
   local records
   records=$(review_records "$1") || return 1
   last_reviewed "$records" "$2"
+}
+
+# range_start <pr> <head> <last reviewed>: where the unreviewed range starts: the last reviewed
+# commit, else where the branch left the base.
+range_start() {
+  if [[ -n $3 ]]; then echo "$3"; else git merge-base "origin/$(jq -r .baseRefName <<<"$1")" "$2"; fi
 }
 
 # minor_refusal <records> <last reviewed>: why the range after <last reviewed> cannot be recorded as
@@ -315,7 +321,7 @@ cmd_unreviewed() {
   base=$(jq -r .baseRefName <<<"$pr")
   records=$(review_records "$pr") || die "could not read the reviews of the PR"
   rev=$(last_reviewed "$records" "$head")
-  from=${rev:-$(git merge-base "origin/$base" "$head")}
+  from=$(range_start "$pr" "$head" "$rev")
   [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
   echo "range: $from..$head"
   echo "after reviewing it: prctl review $head <findings>"
@@ -356,7 +362,7 @@ cmd_review() {
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
     records=$(review_records "$pr") || die "could not read the reviews of the PR"
     rev=$(last_reviewed "$records" "$head")
-    from=${rev:-$(git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head")}
+    from=$(range_start "$pr" "$head" "$rev")
     if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
       die "${commit:0:12} is not after the last reviewed ${from:0:12}"
     fi
