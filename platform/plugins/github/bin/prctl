@@ -496,41 +496,47 @@ cmd_hook() {
   esac
 }
 
-case "${1:-}" in
-  status) [[ $# -eq 1 ]] || usage; cmd_status ;;
-  since) [[ $# -eq 1 ]] || usage; cmd_since ;;
-  unreviewed) [[ $# -eq 1 ]] || usage; cmd_unreviewed ;;
-  ci)
-    [[ $# -eq 1 || ( $# -eq 2 && $2 == --wait ) ]] || usage
-    cmd_ci "${2:-}"
-    ;;
-  review)
-    if [[ ${2:-} == --pr ]]; then
-      [[ $# -eq 5 ]] || usage
-      cmd_review "$3" "$4" "$5"
-    else
-      [[ $# -eq 3 ]] || usage
-      cmd_review "" "$2" "$3"
-    fi
-    ;;
-  create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
-  update)
-    shift
-    title=""
-    if [[ ${1:-} == --title ]]; then
-      [[ $# -ge 2 ]] || usage
-      title=$2
-      shift 2
-    fi
-    [[ $# -eq 1 || $# -eq 2 ]] || usage
-    cmd_update "$title" "$1" "${2:-}"
-    ;;
-  worktree)
-    case ${2:-} in
-      remove) [[ $# -ge 3 && $# -le 4 ]] || usage; cmd_worktree_remove "$3" "${4:-}" ;;
-      *) [[ $# -ge 2 && $# -le 3 ]] || usage; cmd_worktree "$2" "${3:-}" ;;
-    esac
-    ;;
-  hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
-  *) usage ;;
-esac
+# The whole script is read before anything runs: bash reads a script as it goes, and a wait can
+# outlast an edit or a checkout of this file.
+main() {
+  case "${1:-}" in
+    status) [[ $# -eq 1 ]] || usage; cmd_status ;;
+    since) [[ $# -eq 1 ]] || usage; cmd_since ;;
+    unreviewed) [[ $# -eq 1 ]] || usage; cmd_unreviewed ;;
+    ci)
+      [[ $# -eq 1 || ( $# -eq 2 && $2 == --wait ) ]] || usage
+      cmd_ci "${2:-}"
+      ;;
+    review)
+      if [[ ${2:-} == --pr ]]; then
+        [[ $# -eq 5 ]] || usage
+        cmd_review "$3" "$4" "$5"
+      else
+        [[ $# -eq 3 ]] || usage
+        cmd_review "" "$2" "$3"
+      fi
+      ;;
+    create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
+    update)
+      shift
+      title=""
+      if [[ ${1:-} == --title ]]; then
+        [[ $# -ge 2 ]] || usage
+        title=$2
+        shift 2
+      fi
+      [[ $# -eq 1 || $# -eq 2 ]] || usage
+      cmd_update "$title" "$1" "${2:-}"
+      ;;
+    worktree)
+      case ${2:-} in
+        remove) [[ $# -ge 3 && $# -le 4 ]] || usage; cmd_worktree_remove "$3" "${4:-}" ;;
+        *) [[ $# -ge 2 && $# -le 3 ]] || usage; cmd_worktree "$2" "${3:-}" ;;
+      esac
+      ;;
+    hook) [[ $# -eq 2 ]] || usage; cmd_hook "$2" ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"; exit
