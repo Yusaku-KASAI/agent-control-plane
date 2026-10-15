@@ -22,9 +22,12 @@ case $args in
   *" repo view "*) echo main ;;
   *" -X POST "*"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
-    commit=$(sed -E 's/.* commit_id=([0-9a-f]+) .*/\1/' <<<"$args")
-    for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-body"; done
-    jq --arg c "$commit" '. + [{state: "COMMENTED", commit_id: $c, body: "review"}]' "$dir/reviews.json" >"$dir/r.tmp"
+    commit="" body=""
+    for a in "$@"; do
+      case $a in commit_id=*) commit=${a#commit_id=} ;; body=*) body=${a#body=} ;; esac
+    done
+    printf '%s' "$body" >"$dir/last-body"
+    jq --arg c "$commit" --arg b "$body" '. + [{state: "COMMENTED", commit_id: $c, body: $b}]' "$dir/reviews.json" >"$dir/r.tmp"
     mv "$dir/r.tmp" "$dir/reviews.json"
     echo "https://example.invalid/review"
     ;;
@@ -277,6 +280,17 @@ check "minor fixes are recorded" "$("$prctl" review --minor "$c8" - <<<"細部�
 check "minor fixes are titled as left unreviewed" "$(cat "$state/last-body")" "## レビューしない直し（${c7:0:12}...${c8:0:12}）"
 check "minor fixes count as reviewed" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "an empty note is refused" "$("$prctl" review --minor "$c8" - </dev/null 2>&1 || true)" "the note is empty"
-check "a stray argument to minor is refused" "$("$prctl" review --minor "$c8" 2>&1 || true)" "usage:"
+check "unreviewed points to recording minor fixes" "$(c=$(commit nine) && git push -q && set_pr "$c" && "$prctl" unreviewed)" "prctl review --minor"
+c9=$(git rev-parse HEAD)
+check "minor fixes after minor fixes are refused" "$("$prctl" review --minor "$c9" - <<<"x" 2>&1 || true)" "is itself of fixes left unreviewed"
+touch "$state/fail"
+check "minor fixes are refused when the reviews cannot be read" "$("$prctl" review --minor "$c9" - <<<"x" 2>&1 || true)" "could not read the reviews"
+rm "$state/fail"
+"$prctl" review "$c9" - <<<"指摘なし" >/dev/null
+c10=$(commit ten)
+git push -q
+set_pr "$c10"
+check "minor fixes after a review that follows minor fixes are recorded" "$("$prctl" review --minor "$c10" - <<<"x")" "https://example.invalid/review"
+check "a stray argument to minor is refused" "$("$prctl" review --minor "$c10" 2>&1 || true)" "usage:"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

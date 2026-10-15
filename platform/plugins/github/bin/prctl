@@ -72,6 +72,19 @@ reviewed() {
   echo "$best"
 }
 
+# record_at <pr> <commit>: what the reviews with a body at <commit> are: "minor" when all are records
+# of fixes left unreviewed (prctl review --minor), "review" otherwise, "none" without any. Fails
+# when the reviews cannot be read.
+record_at() {
+  local marks
+  [[ $2 =~ ^[0-9a-f]{40}$ ]] || return 1
+  marks=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
+    --jq ".[] | select(.commit_id == \"$2\" and (.body // \"\") != \"\") | .body | startswith(\"## レビューしない直し\")") || return 1
+  if [[ -z $marks ]]; then echo none
+  elif grep -qx false <<<"$marks"; then echo review
+  else echo minor; fi
+}
+
 # review_base <pr> <head>: where the unreviewed range starts: the last reviewed commit, else where
 # the branch left the base.
 review_base() {
@@ -299,6 +312,7 @@ cmd_unreviewed() {
   base=$(jq -r .baseRefName <<<"$pr")
   echo "range: $from..$head"
   echo "after reviewing it: prctl review $head <findings>"
+  echo "or, if it only fixes nitpicks of the last review: prctl review --minor $head <note>"
   # Commits merged in from the base are not this branch's change.
   git log --format='%h %s' "$from..$head" "^origin/$base"
   if [[ -n $(git rev-list --merges "$from..$head" "^origin/$base") ]]; then
@@ -311,7 +325,7 @@ cmd_unreviewed() {
 # cmd_review <number> <minor> <commit> <findings>: with <number>, of another's PR; with <minor>, the
 # range is recorded as left unreviewed, which counts as reviewed all the same.
 cmd_review() {
-  local number=$1 minor=$2 commit findings b pr head from base title=差分のレビュー
+  local number=$1 minor=$2 commit findings b pr head rev kind from base title=差分のレビュー
   commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
   findings=$(read_input "$4")
   if [[ -z ${findings//[[:space:]]/} ]]; then
@@ -331,13 +345,17 @@ cmd_review() {
     [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
     head=$(pr_head "$pr")
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
-    from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+    rev=$(reviewed "$pr" "$head") || die "could not read the reviews of the PR"
+    from=${rev:-$(git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head")}
     if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
       die "${commit:0:12} is not after the last reviewed ${from:0:12}"
     fi
     if [[ -n $minor ]]; then
       # The fixes answer a review, so there has to be one; the first review of a PR is never left out.
-      [[ -n $(reviewed "$pr" "$head") ]] || die "the PR has no review yet; have the range reviewed"
+      [[ -n $rev ]] || die "the PR has no review yet; have the range reviewed"
+      # The fixes of one review are pushed together, so they follow a review, not another record.
+      kind=$(record_at "$pr" "$rev") || die "could not read the reviews of the PR"
+      [[ $kind != minor ]] || die "the last record at ${rev:0:12} is itself of fixes left unreviewed; the fixes of a review are pushed together, so have the range reviewed"
       title=レビューしない直し
     fi
   fi
