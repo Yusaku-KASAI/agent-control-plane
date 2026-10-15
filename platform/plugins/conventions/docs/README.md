@@ -13,6 +13,9 @@
 | [reference/reviews.md](reference/reviews.md) | 参照 | レビューの扱い方：種類（差分、全体）、観点、指摘の重さと書き方、差分のレビュー、全体のレビューの手順 |
 | [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分類、ロードマップ |
 | [reference/glossary.md](reference/glossary.md) | 参照 | 文書、変更と課題の決まりで使う言葉 |
+| [guides/write-docs.md](guides/write-docs.md) | 手順 | 文書を書く：区切り、種類、持ち主、形、触れ方とリンク、地図、量、確かめる |
+| [guides/design.md](guides/design.md) | 手順 | パターンを当てはめる：変更の種類からパターンを選び、設計とレビューに使う |
+| [guides/review.md](guides/review.md) | 手順 | レビューする：差分のレビュー、指摘への答え方、全体のレビューの各段の道具 |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
 
-手順はスキルにある：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計の観点（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
+エージェントには、スキルが手順を届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
