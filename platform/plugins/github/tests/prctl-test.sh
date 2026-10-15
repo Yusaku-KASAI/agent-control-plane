@@ -306,8 +306,8 @@ c10=$(commit ten)
 git push -q
 set_pr "$c10"
 check "minor fixes after a review that follows minor fixes are recorded" "$("$prctl" review --minor "$c10" - <<<"x")" "https://example.invalid/review"
-# A review and a record at the same commit: the range follows a review.
-jq --arg c "$c10" '. + [{state: "COMMENTED", commit_id: $c, body: "## レビューしない直し（x）"}, {state: "COMMENTED", commit_id: $c, body: "別の人のレビュー"}]' \
+# A review among records at the same commit, wherever it comes: the range follows a review.
+jq --arg c "$c10" '. + [{state: "COMMENTED", commit_id: $c, body: "別の人のレビュー"}, {state: "COMMENTED", commit_id: $c, body: "## レビューしない直し（x）"}]' \
   "$state/reviews.json" >"$state/r" && mv "$state/r" "$state/reviews.json"
 c11=$(commit eleven)
 git push -q
