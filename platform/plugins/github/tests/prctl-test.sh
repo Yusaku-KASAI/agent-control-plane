@@ -181,11 +181,6 @@ check "wait gives the newer push's CI" "$(sed -n 2p <<<"$out")" "passed"
 set_pr "$c1"
 check "wait starts from this clone's push when GitHub lags" "$("$prctl" ci --wait | head -n 1)" "head: $next"
 git update-ref refs/remotes/origin/feature "$c2"
-set_pr "$next"
-check "wait does not go back to an older push of this clone" "$("$prctl" ci --wait | head -n 1)" "head: $next"
-set_pr 0123456789abcdef0123456789abcdef01234567
-check "wait takes a PR head this clone does not have" "$("$prctl" ci --wait | head -n 1)" \
-  "head: 0123456789abcdef0123456789abcdef01234567"
 set_pr "$c2"
 echo "git update-ref refs/remotes/origin/feature $c1" >"$state/on-checks"
 sequence "in_progress/" "completed/success"
@@ -195,15 +190,22 @@ git update-ref refs/remotes/origin/feature "$c2"
 # One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
 # devcontainer), every wait goes ahead.
 if command -v flock >/dev/null; then
-  lock=$tmp/prctl-work-ci-wait-feature
-  exec 9>>"$lock"
-  flock -n 9
-  echo 4242 >"$lock.pid"
+  hold() { exec 9>>"$tmp/prctl-work-ci-wait-$1"; flock -n 9; echo 4242 >"$tmp/prctl-work-ci-wait-$1"; }
+  hold feature
   sequence "in_progress/"
   check "a second wait ends at once" "$(PRCTL_CI_TIMEOUT=60 "$prctl" ci --wait)" "already waiting for the CI of feature (pid 4242)"
   exec 9>&-
   sequence "completed/success"
   check "the wait is free again once the first has ended" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+  # Branch names are encoded into the lock's name, so that feat/x and feat-x do not share one.
+  git checkout -q -b feat/x && git push -q -u origin feat/x 2>/dev/null
+  hold feat-x
+  check "a lock of another branch does not stop the wait" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+  exec 9>&-
+  hold "feat%2Fx"
+  check "the lock of a branch with a slash is its own" "$(PRCTL_CI_TIMEOUT=60 "$prctl" ci --wait)" "already waiting"
+  exec 9>&-
+  git checkout -q feature
 fi
 rm -rf "$state/seq"
 

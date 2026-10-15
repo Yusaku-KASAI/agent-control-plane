@@ -20,8 +20,8 @@ usage:
                                       such a push, and not posted when there is none
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
                                       first after an hour, "none (...)" when no check run appears. One
-                                      wait per branch, following its pushed head; another --wait while
-                                      one runs ends at once with "already waiting"
+                                      wait per branch, for the head this clone pushed, also when pushed
+                                      again; another --wait while one runs ends at once ("already waiting")
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
@@ -197,9 +197,10 @@ cmd_worktree_remove() {
 readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeout=${PRCTL_CI_TIMEOUT:-3600}
 
 # wait_lock <branch>: take the lock of waiting for the branch's CI, or say who holds it and fail.
-# A kernel lock (flock), so that it goes with the process however that ends. It lives in the
-# container's TMPDIR, beside the worktrees: on the mount of the work area (Docker Desktop), flock
-# does not exclude. Without flock, or when it fails for another reason, every wait goes ahead.
+# A kernel lock (flock), so that it goes with the process however that ends; the file holds the pid
+# of the holder. It lives in the container's TMPDIR, beside the worktrees: on the mount of the work
+# area (Docker Desktop), flock does not exclude. Without flock, or when it fails for another
+# reason, every wait goes ahead.
 wait_lock() {
   local file name=${1//%/%25} rc=0
   command -v flock >/dev/null || return 0
@@ -207,38 +208,27 @@ wait_lock() {
   exec {wait_fd}>>"$file" || return 0
   flock -n -E 75 "$wait_fd" || rc=$?
   case $rc in
-    0) echo $$ >"$file.pid" ;;
+    0) echo $$ >"$file" ;;
     75)
-      echo "already waiting for the CI of $1 (pid $(cat "$file.pid" 2>/dev/null || echo unknown)), which follows its"
-      echo "pushed head; its result comes when it ends, so this one does not wait"
+      echo "already waiting for the CI of $1 (pid $(cat "$file" 2>/dev/null || echo unknown)), which follows"
+      echo "this clone's pushes; its result comes when it ends, so this one does not wait"
       return 1
       ;;
   esac
 }
 
-# start_head <branch> <pr head>: the head to wait for first. What this clone last pushed to the
-# branch, as GitHub moves the PR head only a moment after the push; but the PR head when this clone
-# does not have it or it is ahead of that push, as then it was pushed from elsewhere.
-start_head() {
-  local pushed
-  pushed=$(remote_head "$1") || { echo "$2"; return; }
-  if ! git cat-file -e "$2^{commit}" 2>/dev/null || git merge-base --is-ancestor "$pushed" "$2"; then
-    echo "$2"
-  else
-    echo "$pushed"
-  fi
-}
-
 cmd_ci() {
-  local wait=$1 b pr head pushed now state="" first errors=0 start=$SECONDS
+  local wait=$1 b pr head pushed now state="" first ended errors=0 start=$SECONDS
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
   head=$(jq -r .headRefOid <<<"$pr")
   if [[ -n $wait ]]; then
     wait_lock "$b" || return 0
-    head=$(start_head "$b" "$head")
+    # The head this clone last pushed, which is what the hooks look at; GitHub moves the PR head
+    # only a moment after the push.
     pushed=$(remote_head "$b") || pushed=""
+    head=${pushed:-$head}
   fi
   while :; do
     if state=$(ci "$head"); then
@@ -250,20 +240,25 @@ cmd_ci() {
     fi
     first=${state%%$'\n'*}
     [[ -n $wait ]] || break
-    # A push from this clone while waiting, ahead or back, supersedes whatever this head came to:
-    # wait for the pushed head instead, from the start.
+    ended=""
+    if settles "$head" "$state"; then
+      ended=yes
+    else
+      case $first in
+        pending) ((SECONDS - start < ci_timeout)) || { state="timeout"$'\n'"$state"; ended=yes; } ;;
+        none) ((SECONDS - start < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; ended=yes; } ;;
+        "") ;;
+        *) ended=yes ;;
+      esac
+    fi
+    # When this clone's ref of the branch moves (a push, ahead or back, or a fetch), the new head
+    # supersedes whatever this one came to, also as this one ends: wait for it, from the start.
     now=$(remote_head "$b") || now=""
     if [[ -n $now && $now != "$pushed" ]]; then
       pushed=$now head=$now state="" errors=0 start=$SECONDS
       continue
     fi
-    settles "$head" "$state" && break
-    case $first in
-      pending) ((SECONDS - start < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
-      none) ((SECONDS - start < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;
-      "") ;;
-      *) break ;;
-    esac
+    [[ -z $ended ]] || break
     sleep "$ci_poll"
   done
   echo "head: $head"
