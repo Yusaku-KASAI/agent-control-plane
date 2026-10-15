@@ -7,8 +7,8 @@ description: 構成や責務の分け方、文書やコードをどこに置く�
 
 どこでも通用する設計の拠り所。このプラグインの `docs/reference/` にある。
 
-- [principles.md](../../docs/reference/principles.md "案内")：原則（何を大事にするか）。原則・何のため・一般的な当てはめ方・よくある違反。
-- [patterns.md](../../docs/reference/patterns.md "案内")：パターン（どう組むか）。解く問題・形・使いどころ・よくある失敗・拠り所の原則。
+- [principles.md](../../docs/reference/principles.md "在りか")：原則（何を大事にするか）。原則・何のため・一般的な当てはめ方・よくある違反。
+- [patterns.md](../../docs/reference/patterns.md "在りか")：パターン（どう組むか）。解く問題・形・使いどころ・よくある失敗・拠り所の原則。
 
 見出しと「解く問題」の行で当てはまるものを探し、要る項目だけを読む。設計を説明するときは、原則やパターンの名前で
 示す。

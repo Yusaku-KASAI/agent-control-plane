@@ -1,7 +1,7 @@
 # 書き方
 
-コード中のコメント、コミットメッセージ、PR に何を書くか。文書の書き方は[文書の体系](../architecture/documentation.md "案内")と
-[形式](formats.md "案内")にある。どの言語で書くかは、リポジトリの CLAUDE.md が決める。
+コード中のコメント、コミットメッセージ、PR に何を書くか。文書の書き方は[文書の体系](../architecture/documentation.md "在りか")と
+[形式](formats.md "在りか")にある。どの言語で書くかは、リポジトリの CLAUDE.md が決める。
 
 <a id="comments"></a>
 

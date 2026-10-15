@@ -20,7 +20,7 @@
 - **置くもの / 置かないもの**：一般的な形だけ。どこで使うかは置かない。
 - **関係**：原則を拠り所として指す。構成要素の説明から指される。
 
-### principles スキル（[`skills/principles/`](../skills/principles/SKILL.md "案内")）
+### principles スキル（[`skills/principles/`](../skills/principles/SKILL.md "在りか")）
 
 - **責務**：原則とパターンの一覧を、要るときに引けるようにする。
 - **置くもの / 置かないもの**：一覧の在りかと引き方だけ。原則とパターンの中身は置かない。

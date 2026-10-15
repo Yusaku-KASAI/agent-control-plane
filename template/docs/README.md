@@ -2,7 +2,7 @@
 
 ターゲットに共通の環境のファイルと、その説明。このリポジトリがひな形を兼ね、環境のファイルはルートにある。
 ターゲットの契約は、target-template ではなく契約の項目で、文書だけをここに置く。文書の分け方は conventions の
-[文書の体系](../../platform/plugins/conventions/docs/architecture/documentation.md "案内")にある。
+[文書の体系](../../platform/plugins/conventions/docs/architecture/documentation.md "在りか")にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |

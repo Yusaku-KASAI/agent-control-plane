@@ -1,8 +1,8 @@
 # 認証情報
 
 control-plane が認証情報を発行し、エージェントのコンテナに渡し、動いている間に更新する仕組み。コンテナが何を
-受け取るか（環境変数、ファイルの場所、読み取り専用であること）は[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")
-にあり、ここでは control-plane の側を書く。値の用意の仕方は[運用の手順](../../guides/operations.md "案内")にある。
+受け取るか（環境変数、ファイルの場所、読み取り専用であること）は[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")
+にあり、ここでは control-plane の側を書く。値の用意の仕方は[運用の手順](../../guides/operations.md "在りか")にある。
 
 ## 構成
 
@@ -32,7 +32,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   チャンネルを読み書きできる。
 - 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
-  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "案内")）。
+  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。
 
 <a id="secrets"></a>
 
@@ -47,8 +47,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 | Slack の client secret | `agents[].slack.rotation.client_secret_path` | 起動時 |
 
 ファイルはどれも `.env` の `ACP_SECRETS_DIR` の下に置き、control-plane のコンテナにはホストと同じパスで読み取り
-専用でマウントされる（[コンテナ](containers.md "案内")）。項目の意味と置き場所は [acp.example.yaml](../../../acp.example.yaml "案内") と
-[.env.example](../../../.env.example "案内") が正。
+専用でマウントされる（[コンテナ](containers.md "在りか")）。項目の意味と置き場所は [acp.example.yaml](../../../acp.example.yaml "在りか") と
+[.env.example](../../../.env.example "在りか") が正。
 
 ## 構成要素
 
@@ -91,7 +91,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
   （[ADR 0011](../../adr/app/0011-github-access-via-per-agent-apps.md)）。同じパッケージの `branches.go` は、
-  片付けで発行したトークンを使ってリモートのブランチを調べる（[作業領域とブランチ](workspace.md#github-branches "案内")）。
+  片付けで発行したトークンを使ってリモートのブランチを調べる（[作業領域とブランチ](workspace.md#github-branches "在りか")）。
 
 ### `internal/adapter/slackauth`
 
@@ -114,7 +114,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 - **責務**：ローテーションの状態を失ったときに、OAuth の認可コードから Slack のトークンを取り直す。
 - **置くもの / 置かないもの**：コードがなければ手順を表示し、あれば `RotatingSource.RedeemCode` で状態のファイルを
   書く。動いている control-plane は状態を読み直さないので、取り直したあとは再起動する。手順は
-  [運用の手順](../../guides/operations.md "案内")にある。
+  [運用の手順](../../guides/operations.md "在りか")にある。
 - **関係**：serve と同じ `slackTokenSources` で `RotatingSource` を作るので、状態のファイルの場所は同じになる。
 
 <a id="session-credentials"></a>
@@ -129,10 +129,10 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   Claude Code の認証情報は環境変数で渡すので、ここには置かない。
 - **関係**：
   - 置き場所は control-plane だけが書ける `acp-credentials` ボリュームで、エージェントのコンテナにはそのセッション
-    のサブパスだけをマウントする。ボリュームを使わない設定は [acp.example.yaml](../../../acp.example.yaml "案内") にある。
+    のサブパスだけをマウントする。ボリュームを使わない設定は [acp.example.yaml](../../../acp.example.yaml "在りか") にある。
   - runner がコンテナを起動する前に書き、動いている間は `Process.UpdateCredentials` で書き換える。
   - `sessions.root` は devcontainer から読めるので、そこには置かない（[ADR 0018](../../adr/app/0018-refreshable-credentials.md)）。
-  - セッションを片付けるとき、`SessionFiles` がディレクトリごと消す（[コンテナ](containers.md "案内")）。
+  - セッションを片付けるとき、`SessionFiles` がディレクトリごと消す（[コンテナ](containers.md "在りか")）。
 
 ### 動いている間の更新（`internal/usecase/dispatcher.go`）
 
@@ -141,4 +141,4 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   トークンの 1 時間より短い）。コンテナがなければ何もしない。発行か書き換えに失敗したら、そのプロセスを止め、
   実行中のターンを失敗にする。
 - **関係**：コンテナの中の `gh` と slack プラグインはファイルを毎回読むので、書き換えはそのまま効く。
-  セッションのライフサイクルは[セッション](sessions.md "案内")にある。
+  セッションのライフサイクルは[セッション](sessions.md "在りか")にある。

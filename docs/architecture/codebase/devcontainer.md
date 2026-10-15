@@ -3,7 +3,7 @@
 target-template の環境のファイルのうち、このリポジトリが埋める部分（[ファイルの分類](../../../template/docs/overview.md#files)）。
 Dockerfile の Go のツールチェーンと検査のステージ、Makefile の検査のルール、CI のジョブ、devcontainer.json と
 `.vscode/settings.json` の Go の部分を扱う。共通の部分の構成は target-template の
-[devcontainer](../../../template/docs/architecture/devcontainer.md "案内") と [CI](../../../template/docs/architecture/ci.md) にあり、
+[devcontainer](../../../template/docs/architecture/devcontainer.md "在りか") と [CI](../../../template/docs/architecture/ci.md) にあり、
 ルール（make のルール）という言葉も CI の文書のとおりに使う。
 
 ## 構成
@@ -23,7 +23,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 ```
 
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、
-  control-plane はこのリポジトリのエージェントも同じイメージで動かす（設定の `agents[].target.image`。例は [acp.example.yaml](../../../acp.example.yaml "案内")）。
+  control-plane はこのリポジトリのエージェントも同じイメージで動かす（設定の `agents[].target.image`。例は [acp.example.yaml](../../../acp.example.yaml "在りか")）。
 - 検査の関心は、共通の `check-target` と `check-docs` に、`check-go` と `check-platform` を足したもの。CI には、
   control-plane のイメージがビルドできることを確かめる `check-image` を足す。
 

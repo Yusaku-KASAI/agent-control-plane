@@ -46,4 +46,4 @@ claude --dangerously-skip-permissions
 Claude Code のフルスクリーン表示は、マウスで選択して離すと自動でコピーする。止めるには `/config` の Copy on select を
 オフにする（設定は Claude Code の設定ディレクトリに残る）。そのあとは選択中に `Ctrl+C` か `Ctrl+Shift+C` でコピーする。
 
-仕組みは [architecture/devcontainer.md](../architecture/devcontainer.md "案内") にある。
+仕組みは [architecture/devcontainer.md](../architecture/devcontainer.md "在りか") にある。

@@ -5,9 +5,9 @@
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
-| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "案内")、[guides/devcontainer.md](guides/devcontainer.md "案内") |
-| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "案内") |
-| CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md "案内") |
+| devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "在りか")、[guides/devcontainer.md](guides/devcontainer.md "在りか") |
+| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "在りか") |
+| CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml`、`tools/check-docs.py` | [architecture/ci.md](architecture/ci.md "在りか") |
 
 <a id="files"></a>
 
@@ -43,7 +43,7 @@
 
 ## 地図
 
-target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map "案内")）。
+target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |

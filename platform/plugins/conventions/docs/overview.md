@@ -16,7 +16,7 @@ conventions/
   skills/          届け方：必要なときに読む手順と観点（write-docs、design、review）
 ```
 
-- 届け方が定義とどう関わるか（写しであること、出典、例外）は[文書の体系](architecture/documentation.md#delivery "案内")にある。
+- 届け方が定義とどう関わるか（写しであること、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
 - 文書の決まりのうち機械で確かめられるものは、各リポジトリに置く `tools/check-docs.py` が確かめる。
 
@@ -62,7 +62,7 @@ conventions/
   [観点を分けて読む](../../principles/docs/reference/patterns.md#perspective-based)、
   [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)。
 
-### 共通のルール（[`rules/common.md`](../rules/common.md "案内")）
+### 共通のルール（[`rules/common.md`](../rules/common.md "在りか")）
 
 - **責務**：いつも読み込む要約。いつも守ることを、要約の形でセッションとサブエージェントの始めに読み込ませる。
 - **置くもの / 置かないもの**：定義の写しだけ（届け方の決まりに沿う）。
@@ -76,26 +76,26 @@ conventions/
   相対リンクは、読み込ませるときに絶対パスに書き換える。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
-### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "案内")）
+### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
 
 - **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → リンク → 地図 → 量 → 確かめる）。
 - **置くもの / 置かないもの**：定義の写しだけ。各手順に出典を付ける。
 - **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
 
-### design スキル（[`skills/design/`](../skills/design/SKILL.md "案内")）
+### design スキル（[`skills/design/`](../skills/design/SKILL.md "在りか")）
 
 - **責務**：どの変更にどのパターンを当てはめるかを、設計するときとレビューするときに届ける。
 - **置くもの / 置かないもの**：パターンの定義は置かず、パターンの一覧を指す。
 - **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
 
-### review スキル（[`skills/review/`](../skills/review/SKILL.md "案内")）
+### review スキル（[`skills/review/`](../skills/review/SKILL.md "在りか")）
 
 - **責務**：差分のレビューと全体のレビューの手順を、レビューの扱い方を出典にして届ける。
 
 ### 文書の検査（`tools/check-docs.py`）
 
 - **責務**：形式と器の決まりのうち、機械で確かめられるものを `make check-docs` で確かめる。
-- **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "案内")の各節の「検査」にある。文の書き方や置き場所の
+- **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や置き場所の
   良し悪しは確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。どのリポジトリにも同じものを置く。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
@@ -104,7 +104,7 @@ conventions/
 
 ## 地図
 
-conventions の中の項目と前提の向き（[形式](reference/formats.md#map "案内")）。
+conventions の中の項目と前提の向き（[形式](reference/formats.md#map "在りか")）。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |

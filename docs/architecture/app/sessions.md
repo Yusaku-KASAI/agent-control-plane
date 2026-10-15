@@ -2,8 +2,8 @@
 
 セッションが作られてから片付けられるまでと、セッションが持つもの。セッションと作業領域の意味は
 [用語集](../../../platform/docs/reference/glossary.md)のとおり。エージェントから見たセッション（渡されるもの、
-コンテナの寿命）は[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。作業領域とブランチの
-仕組みは[作業領域とブランチ](workspace.md "案内")、コンテナは[コンテナ](containers.md "案内")、認証情報は[認証情報](credentials.md "案内")
+コンテナの寿命）は[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。作業領域とブランチの
+仕組みは[作業領域とブランチ](workspace.md "在りか")、コンテナは[コンテナ](containers.md "在りか")、認証情報は[認証情報](credentials.md "在りか")
 にある。
 
 ## 構成
@@ -15,21 +15,21 @@
 | 段階 | 起きること |
 | --- | --- |
 | ID が決まる | Slack では、エージェントとスレッドから決まる。同じスレッドなら何度でも同じ ID になる（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。CLI では新しいセッションごとにランダム |
-| 作る | 記録がなければ、ロックを取って作業領域（ターゲットの clone と、そこで切ったセッションのブランチ）を作り、記録を保存する（[作業領域とブランチ](workspace.md "案内")） |
+| 作る | 記録がなければ、ロックを取って作業領域（ターゲットの clone と、そこで切ったセッションのブランチ）を作り、記録を保存する（[作業領域とブランチ](workspace.md "在りか")） |
 | 動かす | 依頼が来るとセッションのワーカーができ、ロックを取る。コンテナがなければ起動し、Claude Code を、終えたターンが 0 なら `--session-id <ID>`、それ以外は `--resume <ID>` で動かし続ける（[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。ターンを終えるたびに記録の `turns` を増やして保存する |
 | 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを止めて消し、ロックを放す。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
 | 中断する | control-plane の再起動で、動いていた処理は中断され、コンテナは消され、スレッドにそう知らせる（[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。次の依頼で `--resume` する |
-| 片付ける | 使われないまま `sessions.retention`（既定値は [acp.example.yaml](../../../acp.example.yaml "案内")）を過ぎたセッションを、control-plane が起動時と 1 時間ごとに調べ、残す理由がなければ丸ごと消す。残す理由があれば残し、保持期間ごとに 1 回スレッドで片付けを促す（[片付け](#cleaner)） |
+| 片付ける | 使われないまま `sessions.retention`（既定値は [acp.example.yaml](../../../acp.example.yaml "在りか")）を過ぎたセッションを、control-plane が起動時と 1 時間ごとに調べ、残す理由がなければ丸ごと消す。残す理由があれば残し、保持期間ごとに 1 回スレッドで片付けを促す（[片付け](#cleaner)） |
 
 ### セッションが持つもの
 
 | もの | 場所 |
 | --- | --- |
 | 記録とロック | `<sessions.root>/<ID>/` の `session.json` と `.lock` |
-| 作業領域 | `<sessions.root>/<ID>/workspace/<ターゲットのディレクトリ名>`（コンテナでは `/workspace/<ターゲットのディレクトリ名>`）（[作業領域とブランチ](workspace.md#prepare "案内")） |
-| 会話の履歴 | エージェントの Claude Code の設定ディレクトリ（[コンテナ](containers.md#claude-config "案内")）の `projects/` の下。作業ディレクトリのパスと ID で決まる |
-| 認証情報 | `acp-credentials` ボリュームの `<ID>/`（[認証情報](credentials.md#session-credentials "案内")） |
-| ブランチと PR | リモートのセッションのブランチと、push したほかのブランチ（[作業領域とブランチ](workspace.md#branch "案内")） |
+| 作業領域 | `<sessions.root>/<ID>/workspace/<ターゲットのディレクトリ名>`（コンテナでは `/workspace/<ターゲットのディレクトリ名>`）（[作業領域とブランチ](workspace.md#prepare "在りか")） |
+| 会話の履歴 | エージェントの Claude Code の設定ディレクトリ（[コンテナ](containers.md#claude-config "在りか")）の `projects/` の下。作業ディレクトリのパスと ID で決まる |
+| 認証情報 | `acp-credentials` ボリュームの `<ID>/`（[認証情報](credentials.md#session-credentials "在りか")） |
+| ブランチと PR | リモートのセッションのブランチと、push したほかのブランチ（[作業領域とブランチ](workspace.md#branch "在りか")） |
 
 これらは、ID でつながる。記録は ID から作業領域のパスとエージェントを引き、会話の履歴とブランチは ID から名前が
 決まる。依頼を受けるのは[ワーカー](#worker)、消すのは[片付け](#cleaner)で、どちらも[ロック](#lock)を取ってから
@@ -62,7 +62,7 @@
 - **置くもの / 置かないもの**：スレッドからの ID は、エージェント名、チャットの種類（`slack`）、Slack のワークスペースの ID、
   チャンネル、スレッドの ts をつないだ名前から UUIDv5 で作る。スレッドを持たない依頼（CLI）は UUIDv4 のランダム。どちらも
   小文字の UUID で、Claude Code のセッション ID にそのまま使う。ID とスレッドの対応表は持たない。
-- **関係**：セッションのブランチの名前は ID から決まる（[作業領域とブランチ](workspace.md#branch "案内")）。
+- **関係**：セッションのブランチの名前は ID から決まる（[作業領域とブランチ](workspace.md#branch "在りか")）。
 - **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：スレッドから毎回計算するので、
   ID の持ち主はスレッドだけで、対応表と食い違わない。その代わり、記録が消えても同じ ID が戻ってくる
   （[前提](#invariants)）。
@@ -112,11 +112,11 @@
 - **置くもの / 置かないもの**：
   - 最初の依頼でできる。ロックを取って記録を読み直し、`last_used_at` を書いて保存する。読み直したときに記録が
     消えていれば（片付けと入れ違えば）、同じ ID でセッションを作り直す。
-  - 依頼を受信箱で受け、順番に扱う（[依頼と知らせ](requests.md "案内")）。コンテナは要るときに起動し、認証情報を定期的に
-    発行し直す（[認証情報](credentials.md "案内")）。
+  - 依頼を受信箱で受け、順番に扱う（[依頼と知らせ](requests.md "在りか")）。コンテナは要るときに起動し、認証情報を定期的に
+    発行し直す（[認証情報](credentials.md "在りか")）。
   - ターンを終えるたびに `turns` を増やし、`last_used_at` を書いて保存する。
   - 休める状態が `sessions.idle_timeout` 続くと、プロセスを閉じてロックを放し、なくなる。
-  - コンテナの起動と Claude Code の動かし方は置かない（[コンテナ](containers.md "案内")）。
+  - コンテナの起動と Claude Code の動かし方は置かない（[コンテナ](containers.md "在りか")）。
 - **関係**：`Dispatcher` がセッションごとに一つ持ち、`Dispatcher` 自身はワーカーの一覧と受付だけを持つ。usecase のポート（`SessionRepository`、`Runner`、
   `CredentialIssuer` など）だけに依存する。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：一つのセッションの
@@ -130,7 +130,7 @@
 - **置くもの / 置かないもの**：
   - **事実**：作業領域の状態（`SessionWorkspace`）と、リモートのブランチの事実（`SessionBranches`）を集める。
     問い合わせるのは、セッションの名前でリモートにあるブランチ、push したブランチ、ほかにないコミットを持つ
-    ローカルのブランチ。事実の中身は[作業領域とブランチ](workspace.md "案内")にある。
+    ローカルのブランチ。事実の中身は[作業領域とブランチ](workspace.md "在りか")にある。
   - **理由**：事実から残す理由のリストを作るのは `reasons` の 1 か所だけ。残すか消すかと、知らせる文面は、
     そのリストから決める。状態の軸と判定の表は下の[状態の軸](#cleanup-axes)と[判定](#cleanup-rules)にある。
   - **消す手順**：まずロックを取らずに判定する。消すときはロックを取り、記録を読み直して、その間に使われて
@@ -180,8 +180,8 @@ head コミットは、閉じたときの先頭）。
 
 | 軸 | 値 |
 | --- | --- |
-| 名前 | セッションのもの（[セッションのブランチ](workspace.md#branch "案内")）/ ほか |
-| push の記録 | 一度でもある / ない（[作業領域の状態](workspace.md#state "案内")） |
+| 名前 | セッションのもの（[セッションのブランチ](workspace.md#branch "在りか")）/ ほか |
+| push の記録 | 一度でもある / ない（[作業領域の状態](workspace.md#state "在りか")） |
 | ローカル | ない / あり、ほかにないコミットを持つ / あり、持たない |
 | リモート（GitHub を読める） | ある / ない |
 | このブランチを head ブランチとする開いている PR（GitHub を読める） | ある / ない |

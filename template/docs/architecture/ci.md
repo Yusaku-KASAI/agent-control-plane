@@ -44,7 +44,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
   - `check-docs` は、リンクがどのファイルを指してもよいので、文脈をすべてコピーする。
   - ステージに見えるのはコピーしたファイルだけなので、コピーにないファイルは検査から読めず、変えてもキャッシュを
     外さない。読むファイルが変わらなければ層のキャッシュが当たり、検査は実行されない。
-- **関係**：ビルドの文脈は `Dockerfile.dockerignore` で決まる（[devcontainer](devcontainer.md "案内")）。
+- **関係**：ビルドの文脈は `Dockerfile.dockerignore` で決まる（[devcontainer](devcontainer.md "在りか")）。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：検査と、それが読むファイルを
   一つのステージにまとめ、ほかのファイルの変更がキャッシュを外さない。
   [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：devcontainer と同じイメージを元にするので、
@@ -69,5 +69,5 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 ### `tools/check-docs.py`
 
-- **責務**：文書の形式のうち機械で確かめられるものを確かめる。中身は conventions の[全体像](../../../platform/plugins/conventions/docs/overview.md "案内")の構成要素の説明にある。
+- **責務**：文書の形式のうち機械で確かめられるものを確かめる。中身は conventions の[全体像](../../../platform/plugins/conventions/docs/overview.md "在りか")の構成要素の説明にある。
 - **関係**：`make check-docs` が実行する。どのターゲットでも共通（[ファイルの分類](../overview.md#files)）。
