@@ -103,9 +103,12 @@ def anchors(path):
 
 
 def check_links(path, errors):
-    for target, fragment, _ in links(read(path)):
+    for target, fragment, title in links(read(path)):
         if is_external(target):
             continue
+        if title and title != NAVIGATION:
+            # A title other than the one kind of mark would silently count the link as relied on.
+            errors.append(f"{path}: link {target} with the title \"{title}\"; only \"{NAVIGATION}\" marks a link")
         if target.startswith("/"):
             errors.append(f"{path}: absolute link {target}; link with a relative path")
             continue
