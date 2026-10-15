@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md "在りか")にある。
 
@@ -113,25 +113,26 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 - **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まり（conventions の `docs/`：書き方、
   変更と課題の扱い方、レビューの扱い方、文書の体系、形式、用語集）、区切りの間の契約。同じ決まりを二か所で定義しない。
-- **届け方**：定義を、効く形に写したもの。新しい決まりを足さず、どの定義によるかを示す。定義を変えたら、写しも直す。
+- **届け方**：定義を、効く形にしたもの。定義を要約か案内で載せ、新しい決まりを足さない。定義を変えたら、それを載せた
+  届け方も直す。
   例外として、役割ごとの指示は役割に固有の振る舞いを、スキルはそのプラグインの道具の使い方を、自分で持ってよい。
 - リポジトリの決まり（CLAUDE.md）が conventions の定義と食い違うときは、リポジトリの決まりに従う。
 
-定義がエージェントや人に効く形は、強いものから次のとおり。最後の行のほかが届け方で、最後の行は写しではなく、
+定義がエージェントや人に効く形は、強いものから次のとおり。最後の行のほかが届け方で、最後の行は届け方ではなく、
 定義の文書を読みに行くこと。守らせたいことは、できるだけ強い形で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
 
 | 形 | 効き方 | 例 |
 | --- | --- | --- |
 | 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md "在りか")の各節の「検査」） |
-| いつも読み込む要約 | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
+| 共通のルール | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
 | 役割ごとの指示 | その役割で動くときの前提になる | プラグインの `agents/` の文書（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
 | 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design、review） |
 | 定義の文書そのもの | 読みに行ったとき | principles と conventions の文書、契約 |
 
-- **いつも読み込む要約**は、毎回すべての作業の前に読まれるので、載せるものを絞る。載せるのは、ほぼすべての作業に
+- **共通のルール**は、毎回すべての作業の前に読まれるので、載せるものを絞る。載せるのは、ほぼすべての作業に
   関わり、破られやすく、検査で守れない決まりだけ。特定の作業（文書を書く、変更する）にだけ要る決まりは、その作業の
   スキルや役割ごとの指示で届ける。
-- 写しは、定義を[要約か案内](#summaries-and-guides)で書く。
+- 届け方は、定義を[要約か案内](#summaries-and-guides)で書く。
 
 <a id="summaries-and-guides"></a>
 
@@ -156,13 +157,13 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 #### 起点
 
-起点は、エージェントがリンクをたどって選ぶのではなく、丸ごと読み込む文書。エージェントの入口（CLAUDE.md）、いつも
-読み込む要約、役割ごとの指示は作業の始めに、スキルは使うと決めたときに読み込まれる。人の入口（`README.md`）、索引、
+起点は、エージェントがリンクをたどって選ぶのではなく、丸ごと読み込む文書。エージェントの入口（CLAUDE.md）、共通の
+ルール、役割ごとの指示は作業の始めに、スキルは使うと決めたときに読み込まれる。人の入口（`README.md`）、索引、
 全体は、読み手が選んでたどる文書で、起点ではない。
 
 書いてあっても読まれない、読まれても使われないことを避けるため、起点には載せるものを選ぶ。
 
-- principles と conventions の定義を載せるときは、上のいつも読み込む要約に載せる基準を、その起点の範囲（すべての作業、
+- principles と conventions の定義を載せるときは、上の共通のルールに載せる基準を、その起点の範囲（すべての作業、
   その役割の作業、その作業）に当てはめて、要約にするか案内にするかを選ぶ。起点が自分で持つもの（CLAUDE.md の
   リポジトリの決まり、役割に固有の振る舞い、スキルの道具の使い方）は、この選び方に限らない。
 - 判断の軸になる決まりを、細かい作法より先に載せる。読み手は先に書かれたものから読むためで、並び順で大事さを
@@ -180,9 +181,9 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 全体まで読む。
 
 - 付けないリンクは、要るときに、リンク先の節を読む。
-- 読んだ文書や節の中に、場面が当てはまる「（全体を読む）」があれば、それも読む。
-- 「（全体を読む）」は、場面を限って付ける（例：決まりや文書を足す・移すとき）。いつも要るものは要約にするか、いつも
-  読み込む要約に載せる。
+- 読んだ文書や節の中に、場面が当てはまる「（全体を読む）」があれば、それもたどる。
+- 「（全体を読む）」は、場面を限って付ける（例：決まりや文書を足す・移すとき）。いつも要るものは要約にするか、共通の
+  ルールに載せる。
 - 読む範囲は、どれだけ読むかだけを表す。大事さは表さない。
 
 <a id="rewrite"></a>

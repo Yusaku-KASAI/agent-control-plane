@@ -22,11 +22,11 @@ roles/
 
 - **責務**：依頼された変更をターゲットのリポジトリに実装し、PR にして届ける。
 - **置くもの / 置かないもの**：developer に固有の振る舞い（PR にすること、報告）と、使う決まりの選び出し（変更の進め方、書き方、
-  スキル）、使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）。選び出した決まりは要約だけを書き、
-  出典（conventions の定義）を示す（conventions の届け方の決まりに沿う）。ハーネスの事実とターゲット固有の事実は置かない。
+  スキル）、使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）。選び出した決まりは要約か案内で書き、
+  要約には出典（conventions の定義）を付ける（conventions の届け方の決まりに沿う）。ハーネスの事実とターゲット固有の事実は置かない。
 - **関係**：conventions の変更の扱い方と書き方、ハーネスの契約、conventions の design スキル、github スキル、harness スキルを
   前提にする。
-- **当てはめた原則・パターン**：[一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)：役割ごとの指示は決まりの写しで、出典を示す。
+- **当てはめた原則・パターン**：[一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)：役割ごとの指示は決まりを要約か案内で載せ、要約には出典を付ける。
   [関心の分離](../../principles/docs/reference/principles.md#soc)：事実は契約とターゲットの CLAUDE.md に任せる。
 
 ### [`agents/guide.md`](../agents/guide.md "在りか")
@@ -40,7 +40,7 @@ roles/
 
 - **責務**：PR の差分のレビューと全体のレビューを、ファイルを変更せずに行い、結果を PR のレビューと Issue に残す。
 - **置くもの / 置かないもの**：差分と全体のどちらをするかの見分け方、しないこと（変更、承認、変更の要求）、結果の残し方、
-  報告。レビューの決まりは要約だけを書き、出典（conventions のレビューの扱い方）を示す。
+  報告。レビューの決まりは要約か案内で書き、要約には出典（conventions のレビューの扱い方）を付ける。
 - **関係**：conventions のレビューの扱い方と review スキル、design スキル、principles スキル、github スキルの
   「ほかの人の PR と既定のブランチを読む」を前提にする。guide と分け、書き込める権限（PR のレビューと Issue）は reviewer
   だけが持つ（[ADR 0007](../../../docs/adr/0007-reviewer-role.md)）。
