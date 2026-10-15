@@ -497,7 +497,7 @@ cmd_hook() {
 }
 
 # The whole script is read before anything runs: bash reads a script as it goes, and a wait can
-# outlast an edit or a checkout of this file.
+# outlast an edit of this file in place.
 main() {
   case "${1:-}" in
     status) [[ $# -eq 1 ]] || usage; cmd_status ;;
