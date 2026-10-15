@@ -3,7 +3,7 @@
 どのリポジトリでも、いつも守ること（conventions プラグインが、セッションとサブエージェントの始めに読み込ませる）。
 リポジトリの CLAUDE.md と食い違うときは CLAUDE.md に従う（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 
-ここは要約と案内で、決まりは括弧の中の出典にある。特定の作業（文書を書く、変更する）にだけ要る決まりは、出典の文書と、
+ここは要約と案内で、決まりは括弧の中のリンクの先にある。特定の作業（文書を書く、変更する）にだけ要る決まりは、定義の文書と、
 その作業のスキルにある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読み、その中の
 「（全体を読む）」もたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
 
@@ -15,7 +15,7 @@
 - 変更の理由と経緯はコミットメッセージと PR に書き、コードと文書には今の姿だけを書く
   （[書き方：コミット](../docs/reference/writing.md#commits)、[原則：今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)）。
 - 同じ事実は一か所にだけ書き、ほかはリンクする（[原則：SSOT](../../principles/docs/reference/principles.md#ssot)）。決まりは
-  conventions の `docs/` で定義し、ルール、ロール、スキルには、決まりを出典付きの要約か案内として書く（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
+  conventions の `docs/` で定義し、ルール、ロール、スキルには、決まりを出典付きの要約か、在りかを示す案内として書く（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 - 一つの言葉は一つの意味で使い、その言葉を定める用語集に従う
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
 - 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
