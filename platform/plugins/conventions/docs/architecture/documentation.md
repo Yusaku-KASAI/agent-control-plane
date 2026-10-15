@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../../skills/write-docs/SKILL.md "在りか")にある。
 
@@ -133,7 +133,38 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
   スキルや役割ごとの指示で届ける。
 - 写しの各項目には、出典（定義の文書へのリンク）を付ける。
 - いつも読み込むものと役割ごとの指示は、[形式](../reference/formats.md#size "在りか")の量の上限の中に収める
-  （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
+  （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。上限に当たったら、言い回しを詰めずに、
+  要約を案内に下げる。
+
+<a id="starting-points"></a>
+
+### 起点に書くもの
+
+起点（いつも読み込む要約、役割ごとの指示、スキル、CLAUDE.md）は、読み手がそこから読み始める文書。書いてあっても
+読まれない、読まれても使われないことを避けるため、起点には定義を次のどちらかの形で書く。どちらにするかは、上の
+いつも読み込む要約に載せる基準を、その起点の範囲（すべての作業、その役割の作業、その作業）に当てはめて選ぶ。
+
+| 形 | 書くもの | リンク |
+| --- | --- | --- |
+| 要約 | 定義の中身を短く言い直したもの。開かなくても守れるようにする | 出典へのリンク（前提のリンク） |
+| 案内 | 要約を持たず、どの場面で、どこを読むかだけ | 在りかのリンク |
+
+- 一般的な原則と、それをこのプロジェクト群で具体化した決まりがあるときは、具体化した決まりを要約にし、原則はその
+  理由として添える。
+- 判断の軸になる決まりを、細かい作法より先に載せる。大事さは、起点に要約として書くことで表し、「大事」の印は
+  付けない。
+
+<a id="reading-scope"></a>
+
+### 読む範囲
+
+起点や定義の文書のリンクの直後に「（全体を読む）」を付けると、その場面ではリンク先の文書を全体まで読む。
+
+- 全体を読んだ文書の中に、場面が当てはまる「（全体を読む）」があれば、それも読む。
+- 付けないリンクは、要るときに、リンク先の節を読む。
+- 「（全体を読む）」は、場面を限って付ける（例：決まりや文書を足す・移すとき）。いつも要るものは要約にするか、いつも
+  読み込む要約に載せる。
+- 読む範囲は、どれだけ読むかだけを表す。大事さは表さない。
 
 ## 構成要素
 
