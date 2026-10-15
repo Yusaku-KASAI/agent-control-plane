@@ -33,12 +33,11 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 ## 差分のレビュー
 
 自分の変更は、コミットしてから、PR を作る前と push のたびに、サブエージェントにレビューさせる（review スキル）。
-ただし、細部の指摘への直しだけの push は、レビューさせずに記録する（下の `--minor`）。
 `prctl review` には、サブエージェントが見た最後のコミットと、その指摘を渡す。そのあとに直したコミットは、次の
 `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 - PR を作る前のレビューは、`prctl create` のあとに残す。指摘への答えは、`findings.md` の指摘の後ろに書く。
-- push したら、`prctl unreviewed` の範囲をレビューさせて残す（細部の指摘への直しだけなら `--minor`）。指摘への答えは、直した push の `prctl update` の
+- push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
   コメントに書く（直しがなければ PR のコメント）。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。その範囲が細部の指摘への、意味の
   変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
