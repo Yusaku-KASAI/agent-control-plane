@@ -20,7 +20,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
   置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
   名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../reference/contract.md#image)）。
-  `check-*` のステージは CI が使う（[ci.md](ci.md "在りか")）。
+  `check-*` のステージの説明は [ci.md](ci.md "在りか") にある。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
   `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
   違うのは、埋める部分（[ファイルの分類](../overview.md#files)）だけ。
