@@ -82,7 +82,9 @@ check() {
 
 set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
-check "stop asks for a review" "$(stop_hook)" "not reviewed up to ${c2:0:12}"
+out=$(stop_hook)
+check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
+check "stop points to recording minor fixes" "$out" "prctl review --minor"
 check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the findings are empty"
 check "minor fixes before any review are refused" "$("$prctl" review --minor "$c2" - <<<"x" 2>&1 || true)" "has no review yet"
 
@@ -274,6 +276,7 @@ set_pr "$c8"
 check "minor fixes are recorded" "$("$prctl" review --minor "$c8" - <<<"細部の直しだけ")" "https://example.invalid/review"
 check "minor fixes are titled as left unreviewed" "$(cat "$state/last-body")" "## レビューしない直し（${c7:0:12}...${c8:0:12}）"
 check "minor fixes count as reviewed" "$("$prctl" unreviewed)" "reviewed up to the head"
+check "an empty note is refused" "$("$prctl" review --minor "$c8" - </dev/null 2>&1 || true)" "the note is empty"
 check "a stray argument to minor is refused" "$("$prctl" review --minor "$c8" 2>&1 || true)" "usage:"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

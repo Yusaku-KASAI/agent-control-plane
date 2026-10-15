@@ -2,7 +2,7 @@
 
 PR の本文は、追記ではなく今のブランチの姿に合わせて書き換え、push ごとの変更はコメントにする
 （[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
-レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。意味の変わらない直しだけの範囲は、
+レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
 レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。CI は待たずに進み、失敗したまま
 終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。このプラグインは、それを `prctl` と hook で守らせる。
 

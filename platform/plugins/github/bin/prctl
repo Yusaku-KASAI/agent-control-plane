@@ -25,8 +25,8 @@ usage:
                                       record the review of the range up to <commit> as a PR review;
                                       with --pr, of another's PR, over the whole PR up to <commit>
   prctl review --minor <commit> <note-file|->
-                                      record the range up to <commit> as fixes that change no meaning,
-                                      left unreviewed; only after a first review of the PR
+                                      record the range up to <commit> as fixes of nitpicks that change
+                                      no meaning, left unreviewed; only after a first review of the PR
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
@@ -314,7 +314,10 @@ cmd_review() {
   local number=$1 minor=$2 commit findings b pr head from base title=差分のレビュー
   commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
   findings=$(read_input "$4")
-  [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
+  if [[ -z ${findings//[[:space:]]/} ]]; then
+    [[ -z $minor ]] || die "the note is empty; say which review's nitpicks the range fixes"
+    die "the findings are empty; write what was found, or that nothing was"
+  fi
   if [[ -n $number ]]; then
     # Another's PR: read by number, and reviewed whole, from where it left its base.
     pr=$(gh pr view "$number" --json number,url,headRefOid,baseRefName,body) || die "no PR #$number"
@@ -383,7 +386,7 @@ body_message() {
 }
 
 review_message() {
-  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings>. If the range only fixes findings without changing any meaning, record it with prctl review --minor <commit> <note> instead (see the github skill)."' <<<"$1"
+  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings>. If the range only fixes nitpicks without changing any meaning, record it with prctl review --minor <commit> <note> instead (see the github skill)."' <<<"$1"
 }
 
 ci_message() {
