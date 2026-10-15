@@ -6,7 +6,7 @@
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
 | [overview.md](overview.md) | 解説 | このプラグインの構成（定義と届け方）、構成要素、地図 |
-| [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：置き場所と関係（設計を記述する 3 層、区切り、項目の階層と地図、文書の根と器、種類）と、読み手への届け方（定義と届け方、要約と案内、起点、読む範囲） |
+| [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：置き場所と関係（設計を記述する 3 層、区切り、項目の階層と地図、文書の根と器、種類）と、読み手への届け方（定義と届け方、要約と案内、起点、読む範囲）、書き換えの方針 |
 | [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：文書の根、構成要素の説明、ADR、リンク、量の上限、地図 |
 | [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR |
 | [reference/changes.md](reference/changes.md) | 参照 | 変更の扱い方：PR の流れ、変更の進め方、変更とパターン、検査と履歴 |
