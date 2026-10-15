@@ -6,6 +6,8 @@ set -euo pipefail
 prctl=$(cd "$(dirname "$0")/.." && pwd)/bin/prctl
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+# Where prctl keeps its worktrees and locks.
+export TMPDIR=$tmp
 
 state=$tmp/gh
 mkdir -p "$state" "$tmp/bin"
@@ -181,12 +183,19 @@ check "wait starts from this clone's push when GitHub lags" "$("$prctl" ci --wai
 git update-ref refs/remotes/origin/feature "$c2"
 set_pr "$next"
 check "wait does not go back to an older push of this clone" "$("$prctl" ci --wait | head -n 1)" "head: $next"
+set_pr 0123456789abcdef0123456789abcdef01234567
+check "wait takes a PR head this clone does not have" "$("$prctl" ci --wait | head -n 1)" \
+  "head: 0123456789abcdef0123456789abcdef01234567"
 set_pr "$c2"
+echo "git update-ref refs/remotes/origin/feature $c1" >"$state/on-checks"
+sequence "in_progress/" "completed/success"
+check "wait follows a push back to an older commit" "$("$prctl" ci --wait | head -n 1)" "head: $c1"
+git update-ref refs/remotes/origin/feature "$c2"
 
 # One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
 # devcontainer), every wait goes ahead.
 if command -v flock >/dev/null; then
-  lock=$(git rev-parse --git-path prctl-ci-wait-feature)
+  lock=$tmp/prctl-work-ci-wait-feature
   exec 9>>"$lock"
   flock -n 9
   echo 4242 >"$lock.pid"

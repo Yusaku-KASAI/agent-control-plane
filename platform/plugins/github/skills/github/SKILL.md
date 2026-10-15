@@ -80,9 +80,10 @@ gh run view <run ID> --log-failed                               # 失敗した�
   - control-plane 経由で動くとき（[ハーネスの契約の動き方](../../../../docs/reference/harness.md "在りか")）は、push のあと
     `prctl ci --wait` をバックグラウンドで実行してから、ターンを終える。CI が終わると自分で始めるターンになるので、
     失敗していれば直し、結果を報告する。`timeout` や「no check run appeared」で終わったら、そのことを報告する。
-  - `prctl ci --wait` は、一つのブランチに一つだけ動き、このクローンから最後に push した head を追う。動いている間に
-    また push しても、新しく待つ必要はない（始めても「already waiting」ですぐ終わる）。同じ CI をフォアグラウンドでも
-    待たず、終わりを Monitor や ScheduleWakeup で見張らない（[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md "在りか")）。
+  - `prctl ci --wait` は、push のたびにバックグラウンドで始める。一つのブランチに一つだけ動き、このクローンから最後に
+    push した head を追うので、ほかの待ちが動いていれば「already waiting」ですぐ終わる。前の待ちが終わった知らせが
+    まだ届いていないこともあるので、動いていると思っても始める。同じ CI をフォアグラウンドでも待たず、終わりを
+    Monitor や ScheduleWakeup で見張らない（[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md "在りか")）。
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。
