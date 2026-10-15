@@ -225,6 +225,7 @@ set_pr "$c4"
 check "a rewrite unreviews the branch" "$("$prctl" unreviewed)" "range: $base..$c4"
 check "minor fixes after a rewrite are refused as such" "$("$prctl" review --minor "$c4" - <<<"x" 2>&1 || true)" \
   "none of the PR's reviews is in the history of the head"
+lacks "unreviewed does not point to minor fixes after a rewrite" "$("$prctl" unreviewed)" "range:" "prctl review --minor"
 
 # The reviews cannot be read: the hook stays silent and the commands fail.
 touch "$state/fail"
