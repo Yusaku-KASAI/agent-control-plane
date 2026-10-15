@@ -1,9 +1,9 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
-[文書を書く](../../skills/write-docs/SKILL.md "在りか")にある。
+[文書を書く](../guides/write-docs.md "在りか")にある。
 
 ## 構成
 
@@ -80,7 +80,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 ```
 
 - 要らないものは置かない。小さな区切り（プラグインなど）は、`README.md` と `overview.md`（構成と構成要素）だけでもよい。
-- プラグインでは、エージェントが使う手順は `guides/` ではなくスキル（`skills/`）にする。
+- 手順は、エージェントが使うものも `guides/` に定義する。プラグインのスキル（`skills/`）は、その手順を要約か案内で載せ、
+  そのプラグインの道具の使い方（道具を使う手順を含む）だけを自分で持つ。
 - 文書の根の中で関心の違う部分は、`architecture/` と `adr/` を `<関心>/` に分ける。`guides/` と `reference/` は、
   文書が増えたら同じように分ける。
 
@@ -94,7 +95,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 | 種類 | 置き場所 |
 | --- | --- |
 | 解説 | `overview.md`、`architecture/` |
-| 手順 | `guides/`、プラグインのスキル |
+| 手順 | `guides/` |
 | 参照 | `reference/` |
 | 判断 | `adr/` |
 
@@ -112,7 +113,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 決まりは、一か所で定義し、効き方の違う形でエージェントや人に届ける（[一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)）。
 
 - **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まり（conventions の `docs/`：書き方、
-  変更と課題の扱い方、レビューの扱い方、文書の体系、形式、用語集）、区切りの間の契約。同じ決まりを二か所で定義しない。
+  変更と課題の扱い方、レビューの扱い方、文書の体系、形式、用語集、手順）、区切りの間の契約。同じ決まりを二か所で定義しない。
 - **届け方**：定義を、効く形にしたもの。新しい決まりを足さない。検査は定義を確かめ、文書の届け方（共通のルール、役割ごとの
   指示、スキル）は定義を要約か案内で載せる。定義を変えたら、それを確かめる検査と、それを載せた文書も直す。
   例外として、役割ごとの指示は役割に固有の振る舞いを、スキルはそのプラグインの道具の使い方を、自分で持ってよい。
@@ -126,7 +127,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 | 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md "在りか")の各節の「検査」） |
 | 共通のルール | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
 | 役割ごとの指示 | その役割で動くときの前提になる | プラグインの `agents/` の文書（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
-| 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design、review） |
+| 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（`guides/` の手順の要約か案内。write-docs、design、review） |
 | 定義の文書そのもの | 読みに行ったとき | principles と conventions の文書、契約 |
 
 - **共通のルール**は、毎回すべての作業の前に読まれるので、載せるものを絞る。載せるのは、ほぼすべての作業に
@@ -242,7 +243,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 - **責務**：手順。目的を果たすために何をどの順で行うか（準備、追加、移行、復旧）。
 - **置くもの / 置かないもの**：手順と、その場で要る最小の説明。仕組みの説明は `architecture/` へリンクする。
-  エージェントが使う手順は、スキルにしてもよい。
+  プラグインでは、スキルがその手順を要約か案内で載せて、エージェントに届ける。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の手順。
 
 ### `docs/reference/`

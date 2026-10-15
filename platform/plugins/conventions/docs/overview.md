@@ -9,11 +9,11 @@ conventions は、決まりの**定義**と、それをエージェントに**�
 
 ```
 conventions/
-  docs/            定義：文書（文書の体系、形式）、変更と課題（書き方、変更の扱い方、課題の扱い方）、レビュー、用語集
+  docs/            定義：文書（文書の体系、形式）、変更と課題（書き方、変更の扱い方、課題の扱い方）、レビュー、用語集、手順（guides/）
                    （README.md が一覧）
   rules/           届け方：いつも守ること（共通のルール）。定義を要約か案内で載せる
   hooks/、scripts/ 届け方：rules と、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる
-  skills/          届け方：必要なときに読む手順と観点（write-docs、design、review）
+  skills/          届け方：docs/guides/ の手順を、必要なときに要約か案内で読ませる（write-docs、design、review）
 ```
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
@@ -62,6 +62,14 @@ conventions/
   [観点を分けて読む](../../principles/docs/reference/patterns.md#perspective-based)、
   [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)。
 
+### 手順（[`docs/guides/`](guides/ "在りか")）
+
+- **責務**：決まりに沿って作業する手順を定義する。文書を書く、パターンを当てはめる、レビューする。
+- **置くもの / 置かないもの**：手順と、その場で要る最小の説明。決まりそのものは参照の文書に置き、手順からリンクする。
+  そのプラグインの道具の使い方はスキルに置く。
+- **関係**：用語集、文書、変更と課題、レビューを前提にする。スキルが、これを要約か案内で載せる。
+- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
+
 ### 共通のルール（[`rules/common.md`](../rules/common.md "在りか")）
 
 - **責務**：いつも守ることを、セッションとサブエージェントの始めに読み込ませる。
@@ -78,19 +86,20 @@ conventions/
 
 ### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
 
-- **責務**：文書を足したり直したりするときの手順（区切り → 種類 → 持ち主 → 形 → リンク → 地図 → 量 → 確かめる）。
-- **置くもの / 置かないもの**：定義の要約と案内だけ。要約には出典を付ける。
-- **当てはめた原則・パターン**：[文書の種類](../../principles/docs/reference/patterns.md#diataxis)の手順。
+- **責務**：文書を足したり直したりするときに、[文書を書く](guides/write-docs.md "在りか")の手順を読ませる。
+- **置くもの / 置かないもの**：手順への案内と、その要約だけ。手順そのものは置かない。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
 
 ### design スキル（[`skills/design/`](../skills/design/SKILL.md "在りか")）
 
-- **責務**：どの変更にどのパターンを当てはめるかを、設計するときとレビューするときに届ける。
-- **置くもの / 置かないもの**：パターンの定義は置かず、パターンの一覧を指す。
+- **責務**：設計するときとレビューするときに、[パターンを当てはめる](guides/design.md "在りか")の手順を読ませる。
+- **置くもの / 置かないもの**：手順への案内と、その要約だけ。パターンの定義と手順そのものは置かない。
 - **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
 
 ### review スキル（[`skills/review/`](../skills/review/SKILL.md "在りか")）
 
-- **責務**：差分のレビューと全体のレビューの手順を、レビューの扱い方を出典にして届ける。
+- **責務**：差分のレビューと全体のレビューのときに、[レビューする](guides/review.md "在りか")の手順を読ませる。
+- **置くもの / 置かないもの**：手順への案内と、その要約と、github スキルへの案内（PR のレビューの残し方）。
 
 ### 文書の検査（`tools/check-docs.py`）
 
@@ -113,6 +122,7 @@ conventions の中の項目と前提の向き（[形式](reference/formats.md#ma
 | 文書 | 定義 | `architecture/documentation.md`, `reference/formats.md` | 用語集 |
 | 変更と課題 | 定義 | `reference/writing.md`, `reference/changes.md`, `reference/issues.md` | 用語集, 文書 |
 | レビュー | 定義 | `reference/reviews.md` | 用語集, 文書, 変更と課題 |
+| 手順 | 定義 | `guides/` | 用語集, 文書, 変更と課題, レビュー |
 | 届け方 | conventions | | 定義 |
 | 共通のルール | 届け方 | `../rules/` | |
 | スキル | 届け方 | `../skills/` | |

@@ -7,4 +7,4 @@ platform の[プラグイン](../../../docs/architecture/plugins.md)にある。
 | --- | --- | --- |
 | [overview.md](overview.md) | 解説 | このプラグインの構成と構成要素 |
 
-手順はスキルにある：詰まったときの切り分け（[skills/harness](../skills/harness/SKILL.md)）。
+道具の使い方はスキルにある：詰まったときの切り分け（[skills/harness](../skills/harness/SKILL.md)）。
