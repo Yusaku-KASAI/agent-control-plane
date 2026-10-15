@@ -24,6 +24,9 @@ usage:
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
                                       with --pr, of another's PR, over the whole PR up to <commit>
+  prctl review --minor <commit> <note-file|->
+                                      record the range up to <commit> as fixes that change no meaning,
+                                      left unreviewed; only after a first review of the PR
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
@@ -305,10 +308,12 @@ cmd_unreviewed() {
   fi
 }
 
+# cmd_review <number> <minor> <commit> <findings>: with <number>, of another's PR; with <minor>, the
+# range is recorded as left unreviewed, which counts as reviewed all the same.
 cmd_review() {
-  local number=$1 commit findings b pr head from base
-  commit=$(git rev-parse --verify --quiet "$2^{commit}") || die "no commit $2; fetch the PR head first"
-  findings=$(read_input "$3")
+  local number=$1 minor=$2 commit findings b pr head from base title=差分のレビュー
+  commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
+  findings=$(read_input "$4")
   [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
   if [[ -n $number ]]; then
     # Another's PR: read by number, and reviewed whole, from where it left its base.
@@ -327,9 +332,14 @@ cmd_review() {
     if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
       die "${commit:0:12} is not after the last reviewed ${from:0:12}"
     fi
+    if [[ -n $minor ]]; then
+      # The fixes answer a review, so there has to be one; the first review of a PR is never left out.
+      [[ -n $(reviewed "$pr" "$head") ]] || die "the PR has no review yet; have the range reviewed"
+      title=レビューしない直し
+    fi
   fi
   gh api -X POST "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" --jq .html_url -f event=COMMENT \
-    -f commit_id="$commit" -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
+    -f commit_id="$commit" -f body="$(printf '## %s（%s...%s）\n\n%s\n' "$title" "${from:0:12}" "${commit:0:12}" "$findings")"
 }
 
 cmd_create() {
@@ -373,7 +383,7 @@ body_message() {
 }
 
 review_message() {
-  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
+  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings>. If the range only fixes findings without changing any meaning, record it with prctl review --minor <commit> <note> instead (see the github skill)."' <<<"$1"
 }
 
 ci_message() {
@@ -462,13 +472,11 @@ case "${1:-}" in
     cmd_ci "${2:-}"
     ;;
   review)
-    if [[ ${2:-} == --pr ]]; then
-      [[ $# -eq 5 ]] || usage
-      cmd_review "$3" "$4" "$5"
-    else
-      [[ $# -eq 3 ]] || usage
-      cmd_review "" "$2" "$3"
-    fi
+    case ${2:-} in
+      --pr) [[ $# -eq 5 ]] || usage; cmd_review "$3" "" "$4" "$5" ;;
+      --minor) [[ $# -eq 4 ]] || usage; cmd_review "" yes "$3" "$4" ;;
+      *) [[ $# -eq 3 ]] || usage; cmd_review "" "" "$2" "$3" ;;
+    esac
     ;;
   create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
   update)

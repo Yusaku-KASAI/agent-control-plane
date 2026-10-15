@@ -84,6 +84,7 @@ set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
 check "stop asks for a review" "$(stop_hook)" "not reviewed up to ${c2:0:12}"
 check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the findings are empty"
+check "minor fixes before any review are refused" "$("$prctl" review --minor "$c2" - <<<"x" 2>&1 || true)" "has no review yet"
 
 # A review of c1, recorded after c2 is pushed, covers c1 only.
 "$prctl" review "$c1" - <<<"指摘なし" >/dev/null
@@ -265,5 +266,14 @@ check "a stranger at the worktree's path is not removed" "$("$prctl" worktree de
 rmdir "$wt"
 check "a stray argument is refused" "$("$prctl" worktree default 5 2>&1 || true)" "usage:"
 git checkout -q feature
+
+# Fixes that change no meaning are recorded as left unreviewed, and count as reviewed.
+c8=$(commit eight)
+git push -q
+set_pr "$c8"
+check "minor fixes are recorded" "$("$prctl" review --minor "$c8" - <<<"細部の直しだけ")" "https://example.invalid/review"
+check "minor fixes are titled as left unreviewed" "$(cat "$state/last-body")" "## レビューしない直し（${c7:0:12}...${c8:0:12}）"
+check "minor fixes count as reviewed" "$("$prctl" unreviewed)" "reviewed up to the head"
+check "a stray argument to minor is refused" "$("$prctl" review --minor "$c8" 2>&1 || true)" "usage:"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
