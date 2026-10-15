@@ -37,11 +37,11 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 - PR を作る前のレビューは、`prctl create` のあとに残す。指摘への答えは、`findings.md` の指摘の後ろに書く。
-- push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
-  コメントに書く（直しがなければ PR のコメント）。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。その範囲が細部の指摘への、意味の
   変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
   指摘への直しかを書く。PR の最初のレビューは省けない（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+- ほかの push では、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
+  コメントに書く（直しがなければ PR のコメント）。
 
 ## ほかの人の PR と既定のブランチを読む
 
