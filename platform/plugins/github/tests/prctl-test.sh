@@ -171,7 +171,7 @@ check "wait gives up after three read errors in a row" "$("$prctl" ci --wait 2>&
 rm "$state/fail-checks"
 check "wait gives up at the timeout" "$(PRCTL_CI_TIMEOUT=0 "$prctl" ci --wait | sed -n 2p)" "timeout"
 
-# The wait follows the head this clone pushed, also when it is pushed again while waiting.
+# The wait follows this clone's ref of the branch, also when it is pushed again while waiting.
 next=$(git commit-tree -p "$c2" -m next "$(git rev-parse "$c2^{tree}")")
 echo "git update-ref refs/remotes/origin/feature $next" >"$state/on-checks"
 sequence "in_progress/" "completed/success"

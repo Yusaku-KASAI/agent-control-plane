@@ -20,8 +20,8 @@ usage:
                                       such a push, and not posted when there is none
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
                                       first after an hour, "none (...)" when no check run appears. One
-                                      wait per branch, for the head this clone pushed, also when pushed
-                                      again; another --wait while one runs ends at once ("already waiting")
+                                      wait per branch, for the head of origin/<branch> here, also when it
+                                      moves; another --wait while one runs ends at once ("already waiting")
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
@@ -211,7 +211,7 @@ wait_lock() {
     0) echo $$ >"$file" ;;
     75)
       echo "already waiting for the CI of $1 (pid $(cat "$file" 2>/dev/null || echo unknown)), which follows"
-      echo "this clone's pushes; its result comes when it ends, so this one does not wait"
+      echo "origin/$1 here; its result comes when it ends, so this one does not wait"
       return 1
       ;;
   esac
@@ -225,8 +225,8 @@ cmd_ci() {
   head=$(jq -r .headRefOid <<<"$pr")
   if [[ -n $wait ]]; then
     wait_lock "$b" || return 0
-    # The head this clone last pushed, which is what the hooks look at; GitHub moves the PR head
-    # only a moment after the push.
+    # The head of this clone's ref of the branch: usually its own last push, which the hooks look
+    # at too, or a push fetched from elsewhere. GitHub moves the PR head only a moment after a push.
     pushed=$(remote_head "$b") || pushed=""
     head=${pushed:-$head}
   fi
