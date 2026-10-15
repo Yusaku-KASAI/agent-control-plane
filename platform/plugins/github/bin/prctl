@@ -119,9 +119,10 @@ settles() {
   esac
 }
 
-# wt_path <name>: where the worktree for reading <name> (pr-<number> or default) lives. The same path
-# every time, so that a later shell can find and remove it. It is named after the main work tree,
-# so that it is the same from inside any worktree.
+# wt_path <name>: where prctl keeps <name> in the container: the worktree for reading pr-<number> or
+# default, or the lock ci-wait-<branch> of waiting for the CI. The same path every time, so that a
+# later shell can find it. It is named after the main work tree, so that it is the same from inside
+# any worktree.
 wt_path() { echo "${TMPDIR:-/tmp}/prctl-$(basename "$(main_tree)")-$1"; }
 
 # main_tree: the main work tree, wherever in its worktrees this runs.
@@ -198,9 +199,9 @@ readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeo
 
 # wait_lock <branch>: take the lock of waiting for the branch's CI, or say who holds it and fail.
 # A kernel lock (flock), so that it goes with the process however that ends; the file holds the pid
-# of the holder. It lives in the container's TMPDIR, beside the worktrees: on the mount of the work
-# area (Docker Desktop), flock does not exclude. Without flock, or when it fails for another
-# reason, every wait goes ahead.
+# of the holder. It lives in the container's TMPDIR (else /tmp), beside the worktrees: on the mount
+# of the work area (Docker Desktop), flock does not exclude. Without flock, or when it fails for
+# another reason, every wait goes ahead.
 wait_lock() {
   local file name=${1//%/%25} rc=0
   command -v flock >/dev/null || return 0

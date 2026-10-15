@@ -25,7 +25,7 @@ ADR 0006 で、control-plane 経由では、push のあと `prctl ci --wait` を
 
 ## Decision
 
-- `prctl ci --wait` は、一つのブランチに一つだけ動く。コンテナの `TMPDIR` の中のブランチごとのファイルを `flock` で
+- `prctl ci --wait` は、一つのブランチに一つだけ動く。コンテナの `TMPDIR`（なければ `/tmp`）の中のブランチごとのファイルを `flock` で
   取り、取り合いで取れなければ、動いている方の pid を示して、待たずにすぐ終わる。作業領域のマウント（Docker Desktop
   の fakeowner）の上では `flock` が取り合いにならないので、ファイルは作業領域に置かない。`flock` がないか、取り合い
   以外で失敗したときは守らずに待つ（誰も待たないよりは、二重に待つ方にする）。
