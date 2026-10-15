@@ -82,12 +82,20 @@ check() {
     failures=$((failures + 1))
   fi
 }
+lacks() {
+  local name=$1 got=$2 unwanted=$3
+  if [[ $got != *"$unwanted"* ]]; then echo "ok   $name"; else
+    echo "FAIL $name: do not want '$unwanted' in: $got"
+    failures=$((failures + 1))
+  fi
+}
 
 set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
 out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
-check "stop points to recording minor fixes" "$out" "prctl review --minor"
+lacks "stop does not point to minor fixes before any review" "$out" "prctl review --minor"
+lacks "unreviewed does not point to minor fixes before any review" "$("$prctl" unreviewed)" "prctl review --minor"
 check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the findings are empty"
 check "minor fixes before any review are refused" "$("$prctl" review --minor "$c2" - <<<"x" 2>&1 || true)" "has no review yet"
 
@@ -179,15 +187,18 @@ echo '{"check_runs": []}' >"$state/checks.json"
 c3=$(commit three)
 git push -q
 set_pr "$c3"
-check "a new push needs its own review" "$("$prctl" unreviewed)" "range: $c2..$c3"
+out=$("$prctl" unreviewed)
+check "a new push needs its own review" "$out" "range: $c2..$c3"
+check "unreviewed points to minor fixes after a review" "$out" "prctl review --minor $c3"
 # A review without a body (a lone line comment or a reply; empty or null) and a dismissed review
 # do not count.
 jq '. + [{state: "COMMENTED", commit_id: "'"$c3"'", body: ""}, {state: "COMMENTED", commit_id: "'"$c3"'", body: null},
   {state: "DISMISSED", commit_id: "'"$c3"'", body: "x"}]' \
   "$state/reviews.json" >"$state/r" && mv "$state/r" "$state/reviews.json"
 check "reviews without a body and dismissed reviews do not count" "$("$prctl" unreviewed)" "range: $c2..$c3"
-check "post-tool-use reminds of the review" \
-  "$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)" "not reviewed up to ${c3:0:12}"
+out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)
+check "post-tool-use reminds of the review" "$out" "not reviewed up to ${c3:0:12}"
+check "post-tool-use points to minor fixes after a review" "$out" "prctl review --minor"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
 check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
 
@@ -280,7 +291,8 @@ check "minor fixes are recorded" "$("$prctl" review --minor "$c8" - <<<"細部�
 check "minor fixes are titled as left unreviewed" "$(cat "$state/last-body")" "## レビューしない直し（${c7:0:12}...${c8:0:12}）"
 check "minor fixes count as reviewed" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "an empty note is refused" "$("$prctl" review --minor "$c8" - </dev/null 2>&1 || true)" "the note is empty"
-check "unreviewed points to recording minor fixes" "$(c=$(commit nine) && git push -q && set_pr "$c" && "$prctl" unreviewed)" "prctl review --minor"
+lacks "unreviewed does not point to minor fixes after minor fixes" \
+  "$(c=$(commit nine) && git push -q && set_pr "$c" && "$prctl" unreviewed)" "prctl review --minor"
 c9=$(git rev-parse HEAD)
 check "minor fixes after minor fixes are refused" "$("$prctl" review --minor "$c9" - <<<"x" 2>&1 || true)" "is itself of fixes left unreviewed"
 touch "$state/fail"
