@@ -186,6 +186,19 @@ echo "git update-ref refs/remotes/origin/feature $c1" >"$state/on-checks"
 sequence "in_progress/" "completed/success"
 check "wait follows a push back to an older commit" "$("$prctl" ci --wait | head -n 1)" "head: $c1"
 git update-ref refs/remotes/origin/feature "$c2"
+# Also a push just as the wait has come to an end supersedes it.
+echo "git update-ref refs/remotes/origin/feature $next" >"$state/on-checks"
+sequence "completed/failure" "completed/success"
+out=$("$prctl" ci --wait)
+check "wait follows a push as it ends" "$(head -n 1 <<<"$out")" "head: $next"
+check "wait gives the CI of the push as it ends" "$(sed -n 2p <<<"$out")" "passed"
+git update-ref refs/remotes/origin/feature "$c2"
+# Without this clone's ref of the branch, the PR head is waited for.
+git update-ref -d refs/remotes/origin/feature
+set_pr "$c1"
+check "wait takes the PR head without a ref of the branch" "$("$prctl" ci --wait | head -n 1)" "head: $c1"
+git update-ref refs/remotes/origin/feature "$c2"
+set_pr "$c2"
 
 # One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
 # devcontainer), every wait goes ahead.
