@@ -33,3 +33,4 @@
 | --- | --- | --- | --- |
 | 原則 | principles | `reference/principles.md` | |
 | パターン | principles | `reference/patterns.md` | 原則 |
+| principles スキル | principles | `../skills/` | 原則, パターン |
