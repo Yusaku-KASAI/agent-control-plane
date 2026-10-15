@@ -207,10 +207,11 @@ PRCTL_CI_POLL=1 "$tmp/prctl-copy" ci --wait >"$tmp/edited.out" 2>&1 &
 waiter=$!
 sleep 2
 script=$(cat "$tmp/prctl-copy")
-printf '#\n#\n#\n%s\n' "$script" >"$tmp/prctl-copy"
+# Longer than the last line, so that what is left at the old place does not parse.
+printf '# ----------------------------------------------------------------\n%s\n' "$script" >"$tmp/prctl-copy"
 sequence "completed/success"
 rc=0 && wait "$waiter" || rc=$?
-check "a wait outlives an edit of prctl in place" "$rc|$(cat "$tmp/edited.out")" "0|head: $c2"$'\n'"passed"
+check "a wait outlives an edit of prctl in place" "|$rc|$(cat "$tmp/edited.out")" "|0|head: $c2"$'\n'"passed"
 
 # One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
 # devcontainer), every wait goes ahead.
