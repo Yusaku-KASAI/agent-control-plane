@@ -38,6 +38,8 @@ USAGE
   exit 2
 }
 
+# The title of a record of fixes left unreviewed, by which it is told from a review.
+readonly minor_title=レビューしない直し
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
 
 die() { echo "prctl: $*" >&2; exit 1; }
@@ -65,7 +67,7 @@ review_records() {
   gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
     --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
       | select((.body // "") != "")
-      | "\(.commit_id) \(if (.body | startswith("## レビューしない直し")) then "minor" else "review" end)"'
+      | "\(.commit_id) \(if (.body | startswith("## '"$minor_title"'")) then "minor" else "review" end)"'
 }
 
 # last_reviewed <records> <head>: of the commits the records cover, the latest one in the history of
@@ -97,8 +99,10 @@ range_start() {
 # fixes left unreviewed, or nothing when it can. The fixes answer a review, so there has to be one,
 # and the fixes of one review are pushed together, so the range follows a review, not another record.
 minor_refusal() {
-  if [[ -z $2 ]]; then
+  if [[ -z $1 ]]; then
     echo "the PR has no review yet; have the range reviewed"
+  elif [[ -z $2 ]]; then
+    echo "none of the PR's reviews is in the history of the head (was it rewritten?); have the range reviewed"
   elif ! grep -qxF "$2 review" <<<"$1"; then
     echo "the last record at ${2:0:12} is itself of fixes left unreviewed; the fixes of a review are pushed together, so have the range reviewed"
   fi
@@ -369,7 +373,7 @@ cmd_review() {
     if [[ -n $minor ]]; then
       why=$(minor_refusal "$records" "$rev")
       [[ -z $why ]] || die "$why"
-      title=レビューしない直し
+      title=$minor_title
     fi
   fi
   gh api -X POST "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" --jq .html_url -f event=COMMENT \
