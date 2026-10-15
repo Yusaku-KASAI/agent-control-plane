@@ -109,7 +109,7 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 | 役割ごとの指示（プラグインの `agents/` と、リポジトリの `.claude/agents/` の文書。一つずつ） | 50 行 |
 
 - 上限に当たったら、言い回しを詰めて収めるのではなく、載せるものを減らすか、ほかの場所へ移すか、要約を案内に下げる
-  （[起点に書くもの](../architecture/documentation.md#starting-points "在りか")）。
+  （[要約と案内](../architecture/documentation.md#summaries-and-guides "在りか")）。
 - 検査：上の行数を超えていないこと。
 
 <a id="map"></a>
