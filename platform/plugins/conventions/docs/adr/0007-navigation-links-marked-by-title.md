@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-12
 amends: [6]
-amended_by: [8]
+amended_by: [8, 14]
 ---
 
 # 0007. 在りかを示すだけのリンクは、消さずにタイトル「案内」を付けて、依存の向きの確かめから外す

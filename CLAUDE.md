@@ -10,7 +10,7 @@ Claude Code エージェントをコンテナで隔離して実行し、Slack �
 
 ## 公開と運用
 
-公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md "案内")。
+公開も配布もしていない。手元での動かし方は [docs/guides/operations.md](docs/guides/operations.md "在りか")。
 
 ## 守る互換
 
@@ -20,9 +20,9 @@ principles と conventions、target-template（共通のファイル）を変え
 
 ## 参照先
 
-- [docs/README.md](docs/README.md "案内") — control-plane の文書の一覧。platform と target-template の文書は
-  [platform/docs/README.md](platform/docs/README.md "案内")、[template/docs/README.md](template/docs/README.md "案内")
-- [docs/overview.md](docs/overview.md "案内") — 狙い、考え方、全体の構成と地図、目指す姿
+- [docs/README.md](docs/README.md "在りか") — control-plane の文書の一覧。platform と target-template の文書は
+  [platform/docs/README.md](platform/docs/README.md "在りか")、[template/docs/README.md](template/docs/README.md "在りか")
+- [docs/overview.md](docs/overview.md "在りか") — 狙い、考え方、全体の構成と地図、目指す姿
 
 ## 作業の完了条件
 

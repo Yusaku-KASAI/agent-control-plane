@@ -1,7 +1,7 @@
 # ターゲットの契約
 
 ターゲットが用意するもの。control-plane と platform はこれを前提にする（[conventions ADR 0002](../../../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。
-control-plane がコンテナに渡すものは、逆向きの契約として[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
+control-plane がコンテナに渡すものは、逆向きの契約として[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 
 <a id="image"></a>
 
@@ -34,7 +34,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   （[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
   - `directory` のマーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
-  - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。
+  - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
 - `.claude/settings.json` の `language` に、CLAUDE.md の言語の節で決めた回答の言語を書く。Claude Code はこれを毎回の
   指示として渡す。決まりは CLAUDE.md にあり、ここはそれを届ける。
@@ -48,7 +48,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 ## 検査
 
 - `make check` が、そのターゲットの検査をすべて行う。エージェントは変更のあとにこれを通す（CLAUDE.md の作業の完了条件）。
-- `make check` は `make check-docs` を含む。`check-docs` が確かめるものは conventions の[文書の形式](../../../platform/plugins/conventions/docs/reference/formats.md "案内")の各節にある。
+- `make check` は `make check-docs` を含む。`check-docs` が確かめるものは conventions の[文書の形式](../../../platform/plugins/conventions/docs/reference/formats.md "在りか")の各節にある。
 
 <a id="control-plane"></a>
 

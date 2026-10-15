@@ -1,7 +1,7 @@
 # devcontainer
 
 人の開発環境とエージェントの実行環境を兼ねるコンテナ（`.devcontainer/`）と、VS Code の設定（`.vscode/settings.json`）。
-使い方は[手順](../guides/devcontainer.md "案内")に、ファイルごとの共通・埋める・固有の分類は[全体像](../overview.md#files "案内")にある。
+使い方は[手順](../guides/devcontainer.md "在りか")に、ファイルごとの共通・埋める・固有の分類は[全体像](../overview.md#files "在りか")にある。
 
 ## 構成
 
@@ -20,12 +20,12 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
   置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
   名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../reference/contract.md#image)）。
-  `check-*` のステージは CI が使う（[ci.md](ci.md "案内")）。
+  `check-*` のステージは CI が使う（[ci.md](ci.md "在りか")）。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
   `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
   違うのは、埋める部分（[ファイルの分類](../overview.md#files)）だけ。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
-  UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。root での作業の仕方は[手順](../guides/devcontainer.md#root "案内")にある。
+  UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。root での作業の仕方は[手順](../guides/devcontainer.md#root "在りか")にある。
 - マウントするもの：
 
   | もの | 置き場所 | 理由 |
@@ -114,7 +114,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 - **責務**：ホストを devcontainer のために準備する（`.env`、状態を置くディレクトリ、control-plane と共有するネットワーク）。
 - **置くもの / 置かないもの**：何度実行しても同じになる処理。`.env` にすでにある値は変えない。いつ実行するかは
-  [手順](../guides/devcontainer.md "案内")にある。
+  [手順](../guides/devcontainer.md "在りか")にある。
 - **関係**：`.env.example` の項目を `.env` に書く。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：状態のディレクトリを先に
   作る。ないまま起動すると Docker が root の持ち物として作り、root でないコンテナから書き込めない。
@@ -143,9 +143,9 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   - コピーモードは普段の端末の選択に近づけている。マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は
     選択するだけで自動ではコピーせず、`y`、`Enter`、`Ctrl+C` でコピーする。`Esc` かクリックで抜ける。
   - Claude Code のフルスクリーン表示では、マウスでの選択を Claude Code が扱い、離したときに自動でコピーする。
-    止め方は[手順](../guides/devcontainer.md#copy "案内")にある。
+    止め方は[手順](../guides/devcontainer.md#copy "在りか")にある。
   - ペインのベルは外の端末に届け、tmux にも表示する。Claude Code が対話で止まったときは、platform の bell プラグインが
-    ベルを鳴らす（[bell](../../../platform/plugins/bell/docs/overview.md "案内")）。
+    ベルを鳴らす（[bell](../../../platform/plugins/bell/docs/overview.md "在りか")）。
 - **関係**：base が `~/.tmux.conf` にコピーする。VS Code のターミナルのプロファイルが tmux を起動する。
 
 ### `.devcontainer/check-vscode-settings.py`

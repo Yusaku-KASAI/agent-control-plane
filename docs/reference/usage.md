@@ -1,8 +1,8 @@
 # 依頼の仕方
 
 エージェントへの依頼の出し方と止め方。依頼がどう扱われるか（待つ順番、流し込み、停止で止まるもの、再起動での中断）と
-何がスレッドに返るかは[依頼と知らせ](../architecture/app/requests.md "案内")に、セッションの動きは
-[セッション](../architecture/app/sessions.md "案内")にある。
+何がスレッドに返るかは[依頼と知らせ](../architecture/app/requests.md "在りか")に、セッションの動きは
+[セッション](../architecture/app/sessions.md "在りか")にある。
 
 ## Slack から
 

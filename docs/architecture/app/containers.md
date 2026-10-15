@@ -1,9 +1,9 @@
 # エージェントのコンテナ
 
 control-plane がエージェントを Docker のコンテナで動かす仕組み。コンテナの中から見た環境（動き方、寿命、渡される
-もの）は[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")に、ターゲットのイメージが満たすことは
-[ターゲットの契約](../../../template/docs/reference/contract.md "案内")にあり、ここでは control-plane の側を書く。
-起動の手順は[運用の手順](../../guides/operations.md "案内")にある。
+もの）は[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")に、ターゲットのイメージが満たすことは
+[ターゲットの契約](../../../template/docs/reference/contract.md "在りか")にあり、ここでは control-plane の側を書く。
+起動の手順は[運用の手順](../../guides/operations.md "在りか")にある。
 
 ## 構成
 
@@ -29,7 +29,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - 動いているセッションごとに、1 つのコンテナで Claude Code を動かし続け、依頼を標準入力に送る
   （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。いつコンテナを起動し、止めて消すかは
   usecase の dispatcher が決め、runner はその指示でコンテナを操作する。段階ごとに起きることは
-  [セッション](sessions.md "案内")にある。
+  [セッション](sessions.md "在りか")にある。
 - control-plane とエージェントのコンテナは、どちらもホストのパスで bind する。設定に書くパス（ターゲット、
   `sessions.root`、秘密のファイル）は、control-plane のコンテナにもホストと同じパスでマウントする。エージェントの
   コンテナのマウントはホストの Docker が解決するので、パスを読み替えずに済む。
@@ -44,18 +44,18 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **置くもの / 置かないもの**：
   - イメージは `Dockerfile` で、`acp` と git を入れ、名前付きボリュームのマウント先を作っておく。
   - `ACP_UID`、`ACP_GID` のユーザーで動き、作業領域を作る。エージェントのコンテナはイメージのユーザーで作業領域に
-    書くので、この値をイメージのユーザーと同じにして、作業領域の持ち主をそろえる（値は [.env.example](../../../.env.example "案内")）。
+    書くので、この値をイメージのユーザーと同じにして、作業領域の持ち主をそろえる（値は [.env.example](../../../.env.example "在りか")）。
   - マウント：設定ファイル（読み取り専用）。`ACP_HOST_ROOT`（読み書き可）と `ACP_SECRETS_DIR`（読み取り専用）を、
-    ホストと同じパスに（置き場所は [.env.example](../../../.env.example "案内")）。
+    ホストと同じパスに（置き場所は [.env.example](../../../.env.example "在りか")）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）。名前は固定する（`acp-credentials` と `acp-claude` は、
     エージェントのコンテナから名前で指す）。
   - API は、ホストからは `127.0.0.1:8787`、ターゲットの devcontainer からは共有ネットワーク `agent-control-plane-net` の
-    `control-plane:8787` で届く（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "案内")）。リクエストには `ACP_API_TOKEN` を要求する。
+    `control-plane:8787` で届く（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。リクエストには `ACP_API_TOKEN` を要求する。
   - 止めるときの猶予は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。実行中のターンを中断して
-    スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "案内")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
+    スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
 - **関係**：プロキシにだけ、内部ネットワーク `docker-proxy` でつながる。秘密のファイルとボリュームの中身は
-  [認証情報](credentials.md "案内")にある。
+  [認証情報](credentials.md "在りか")にある。
 
 ### `compose.yaml` の `docker-proxy` サービス
 
@@ -91,7 +91,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     - ラベル `acp.session`（セッション ID）と `acp.agent`（エージェント名）。
     - 標準入力を開いておき、閉じるとプロセスが終わる。
   - `RemoveLeftovers`：ラベル `acp.session` の付いたコンテナを、動いているものも止まっているものもすべて消し、
-    そのセッションを返す。いつ呼ばれるかは[依頼と知らせ](requests.md#shutdown "案内")にある。
+    そのセッションを返す。いつ呼ばれるかは[依頼と知らせ](requests.md#shutdown "在りか")にある。
   - いつ起動し、いつ止めるか（休ませる時間、停止）は置かない。dispatcher が決める。
 - **関係**：usecase の `Runner` と `StartRequest` だけを見る。イメージへの前提はターゲットの契約にある。
   エージェントに渡すものの一覧はハーネスの契約と一致させる。
@@ -99,7 +99,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   置き、ここは Docker の操作と事実（プロセスの出力）だけを扱う。
   [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：コンテナの形は `containerSpec` にだけある。
   [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントのコンテナには Docker ソケットも特権も渡さない。渡す認証情報は
-  [認証情報](credentials.md "案内")にある。
+  [認証情報](credentials.md "在りか")にある。
 
 ### `internal/adapter/docker`（`process.go`）
 
@@ -125,7 +125,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 - **責務**：ターゲットが宣言したプラグインのうち、control-plane が読み込ませるものと、その場所を決める。
 - **置くもの / 置かないもの**：どのプラグインをどこから読み込ませるかの決まりは、ターゲットの契約の
-  [プラグインとロール](../../../template/docs/reference/contract.md#plugins "案内")にある。ここはそれを実装する。
+  [プラグインとロール](../../../template/docs/reference/contract.md#plugins "在りか")にある。ここはそれを実装する。
   - 作業領域の `.claude/settings.json` の `enabledPlugins` と `extraKnownMarketplaces` を読み、`directory` の
     マーケットプレイスのプラグインを選んで `--plugin-dir` で渡す。ヘッドレスの Claude Code は宣言されたプラグインを
     入れないため。
@@ -145,10 +145,10 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **責務**：エージェントごとに、会話の履歴と auto memory を置く Claude Code の設定ディレクトリを用意する。
 - **置くもの / 置かないもの**：`acp-claude` ボリューム（`claude.config_dir`）の `<エージェント名>/` を、コンテナの
   `/home/node/.claude` にマウントし、`CLAUDE_CONFIG_DIR` で指す。ボリュームを使わない設定は
-  [acp.example.yaml](../../../acp.example.yaml "案内") にある。同じエージェントのセッションは、同時に動くものも含めてこれを共有する。
+  [acp.example.yaml](../../../acp.example.yaml "在りか") にある。同じエージェントのセッションは、同時に動くものも含めてこれを共有する。
   devcontainer の Claude Code の設定はエージェントに渡さず、エージェントの間と devcontainer とで会話の履歴と auto memory を分ける
   （[ADR 0023](../../adr/app/0023-claude-auth-and-per-agent-config.md)）。
-- **関係**：Claude Code の認証は設定ディレクトリではなく、発行した認証情報で行う（[認証情報](credentials.md "案内")）。
+- **関係**：Claude Code の認証は設定ディレクトリではなく、発行した認証情報で行う（[認証情報](credentials.md "在りか")）。
 
 ### `internal/adapter/docker`（`sessionfiles.go`）
 
@@ -157,7 +157,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   1〜2 段下にあるセッション ID で始まる名前のもの（`projects/<ディレクトリ>/<ID>.jsonl` など）。ID は UUID なので
   ほかのセッションのものと重ならず、Claude Code のファイルの配置を知らずに済む。記録と作業領域は消さない
   （`SessionRepository` が消す）。
-- **関係**：usecase の `SessionFiles` を実装し、[片付け](sessions.md#cleaner "案内")から
+- **関係**：usecase の `SessionFiles` を実装し、[片付け](sessions.md#cleaner "在りか")から
   呼ばれる。runner と同じ `Options` で場所を知る。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：runner が作るものと
   消すものを同じパッケージに置く。

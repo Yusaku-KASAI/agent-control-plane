@@ -1,9 +1,9 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md) にある。
-原則は[設計の原則](../../../principles/docs/reference/principles.md "案内")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "案内")、形は[文書の形式](../reference/formats.md "案内")、書くときの手順は
-[文書を書く](../../skills/write-docs/SKILL.md "案内")にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md) にある。
+原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
+[文書を書く](../../skills/write-docs/SKILL.md "在りか")にある。
 
 ## 構成
 
@@ -11,7 +11,7 @@
 
 | 層 | 書くもの | 置き場所 |
 | --- | --- | --- |
-| 原則とパターン | 原則（何を大事にするか）と、それを特定の問題への形にしたパターン（どう組むか）。一般的な当てはめ方とよくある失敗まで書き、どこで使うかは書かない | principles プラグインの [principles.md](../../../principles/docs/reference/principles.md "案内") と [patterns.md](../../../principles/docs/reference/patterns.md "案内") |
+| 原則とパターン | 原則（何を大事にするか）と、それを特定の問題への形にしたパターン（どう組むか）。一般的な当てはめ方とよくある失敗まで書き、どこで使うかは書かない | principles プラグインの [principles.md](../../../principles/docs/reference/principles.md "在りか") と [patterns.md](../../../principles/docs/reference/patterns.md "在りか") |
 | アーキテクチャ | その区切りで採った全体の構成と、部分の間の関係 | 文書の根の `overview.md` と、`architecture/` の各文書の冒頭 |
 | 構成要素の説明 | 層、ディレクトリ、ファイルごとの責務と関係、当てはめた原則・パターン | `architecture/` の各文書。[形式](../reference/formats.md#component)に沿う |
 
@@ -37,21 +37,21 @@
 - 区切りと、その中の部品（プラグイン、話題の文書など）は、入れ子の項目として表す（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
   何段あってもよい。同じ親の下の項目は、同じ種類と粒度にし、重ならず親を尽くす（[兄弟をそろえる](../../../principles/docs/reference/principles.md#siblings)）。
 - 含む関係（親子）は依存ではない。子を持つ項目が直接持つ文書（`overview.md`、索引、全体の解説）は、子と並ぶ「全体」として
-  扱う。子は全体（全体の構成や共通の考え方）を前提にしてよく、全体は子を前提にしない（子への道は案内にする）。全体には
+  扱う。子は全体（全体の構成や共通の考え方）を前提にしてよく、全体は子を前提にしない（子への道は在りかのリンクにする）。全体には
   全体についての事実だけを書き、子の細部を書き写さない（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)、
   [依存関係の逆転](../../../principles/docs/reference/principles.md#dip)）。
 - 区切りの間の契約は、作る側にも使う側にも属さない独立した項目として扱い、両側がそれを前提にする
   （[依存関係の逆転](../../../principles/docs/reference/principles.md#dip)）。置き場所は使う側から読める所にする。置き場所の親と、関係の上での親は
   違ってよい。
 - 項目の間の関係は種類で分け、依存の向きの決まりは「前提にする」関係にだけ当てる
-  （[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。在りかを示すだけのリンクは案内で、どう見分けてどう書くかは
-  [形式](../reference/formats.md#links "案内")にある。
+  （[関係を種類で分ける](../../../principles/docs/reference/patterns.md#relation-kinds)）。在りかを示すだけのリンク（在りかのリンク）を、どう見分けてどう書くかは
+  [形式](../reference/formats.md#links "在りか")にある。
 - 前提の向きは階層ごとに決め、循環させない（[非循環依存](../../../principles/docs/reference/principles.md#acyclic)）。多くから前提にされる項目ほど
   変わりにくく小さく保つ（[安定依存](../../../principles/docs/reference/principles.md#stable-dependencies)）。二つの文書の関係は、それらが初めて同じ親の
   下に入る階層で、その親の下の項目どうしの向きとして判断する。下の階層の向きは、上の階層の向きの範囲の中でだけ決める。
 - 地図（どんな項目があり、どの項目がどれを前提にするか）は、階層ごとにその持ち主が書く。最上位の地図は全体の設計を
   持つリポジトリの `overview.md` に、各項目の中の地図はその項目の `overview.md` に置き、上の階層の地図は中の項目を書かずに
-  委ねる。書き方は[形式](../reference/formats.md#map "案内")にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
+  委ねる。書き方は[形式](../reference/formats.md#map "在りか")にあり、`check-docs` がすべての地図を集めて文書のリンクと照らす。
   地図からは[設計構造行列](../../../principles/docs/reference/patterns.md#dsm)を出せる。
 
 <a id="roots"></a>
@@ -95,8 +95,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 ### 文書の外
 
-コード中のコメント、コミットメッセージ、PR に何を書くかは[書き方](../reference/writing.md "案内")にある。道筋と
-予定は Issue に置き、文書には書かない（[課題の扱い方](../reference/issues.md "案内")）。
+コード中のコメント、コミットメッセージ、PR に何を書くかは[書き方](../reference/writing.md "在りか")にある。道筋と
+予定は Issue に置き、文書には書かない（[課題の扱い方](../reference/issues.md "在りか")）。
 
 <a id="rewrite"></a>
 
@@ -122,7 +122,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 | 形 | 効き方 | 例 |
 | --- | --- | --- |
-| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md "案内")の各節の「検査」） |
+| 検査 | 守らないと通らない | `make check-docs`（何を確かめるかは[形式](../reference/formats.md "在りか")の各節の「検査」） |
 | いつも読み込む要約 | 毎回の作業の前提になる。短くする | conventions の `rules/`（hook が読み込ませる） |
 | 役割ごとの指示 | その役割で動くときの前提になる | プラグインの `agents/` の文書（どの決まりとスキルを使うかと、役割に固有の振る舞い） |
 | 必要なときに読む手順と観点 | 当てはまる作業のときだけ読む | スキル（write-docs、design、review） |
@@ -132,13 +132,13 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
   関わり、破られやすく、検査で守れない決まりだけ。特定の作業（文書を書く、変更する）にだけ要る決まりは、その作業の
   スキルや役割ごとの指示で届ける。
 - 写しの各項目には、出典（定義の文書へのリンク）を付ける。
-- いつも読み込むものと役割ごとの指示は、[形式](../reference/formats.md#size "案内")の量の上限の中に収める
+- いつも読み込むものと役割ごとの指示は、[形式](../reference/formats.md#size "在りか")の量の上限の中に収める
   （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
 
 ## 構成要素
 
 各文書の根の器の構成要素。体系を作る部品（conventions の定義と届け方、`tools/check-docs.py`）は
-[conventions の全体像](../overview.md "案内")にある。
+[conventions の全体像](../overview.md "在りか")にある。
 
 ### `README.md`
 

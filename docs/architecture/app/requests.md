@@ -1,9 +1,9 @@
 # 依頼と知らせ
 
 依頼が control-plane にどう入り、結果と知らせがどう依頼者に戻るか。使う人から見た依頼の仕方は
-[依頼の仕方](../../reference/usage.md "案内")に、エージェントから見た依頼と回答は
-[ハーネスの契約](../../../platform/docs/reference/harness.md "案内")にある。プロセスの中の構成要素は
-[control-plane の構成](components.md "案内")にある。
+[依頼の仕方](../../reference/usage.md "在りか")に、エージェントから見た依頼と回答は
+[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。プロセスの中の構成要素は
+[control-plane の構成](components.md "在りか")にある。
 
 ## 構成
 
@@ -43,7 +43,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 | 自分で始めたターンの回答 | `slackbot.Bot` | バックグラウンドの処理が終わり、エージェントが自分で始めたターンが、ほかのバックグラウンドの処理を残さずに終わった。処理を残して終わったターンの回答は、次のターンが始まらないまま処理が尽きたときに投稿する。中断されたターンは、処理が残っていても投稿する。エラーで終わったときは、処理が残っていてもすぐエラーの知らせを投稿する。使用上限の知らせは、上限ではない結果で終わるターンがあるまで、続けて出さない |
 | 失敗や取り消しの文面 | `HandleMessage` | 依頼者が許可されていない、ターンが失敗した、エージェントがエラー（使用上限を含む）でターンを終えた、停止や再起動で取り消された |
 | 中断の知らせ | `slackbot.Bot` | 待っている依頼がないのに進めていた処理を、control-plane が止まるときや起動したときに止めた |
-| 片付けの知らせ | `SessionCleaner` | セッションを消した、または残す理由があって残した（[セッション](sessions.md "案内")） |
+| 片付けの知らせ | `SessionCleaner` | セッションを消した、または残す理由があって残した（[セッション](sessions.md "在りか")） |
 
 ## 構成要素
 
@@ -53,7 +53,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   書く。
 - **置くもの / 置かないもの**：
   - メンションのスレッド（スレッドの外のメンションなら、そのメッセージ自身）を依頼のスレッドにする。スレッドからセッション ID が
-    決まる（[セッション ID](sessions.md#session-id "案内")）。
+    決まる（[セッション ID](sessions.md#session-id "在りか")）。
   - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所だけを書く。本文は、
     `:zap:` で始まるか（流し込み）を見るためだけに使う（[ADR 0020](../../adr/app/0020-slack-requests-by-reference.md)）。
   - Bot が書いたメッセージは依頼にしない。Slack が送り直した同じメッセージ（チャンネルと ts が同じ）は、
@@ -141,10 +141,10 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **置くもの / 置かないもの**：
   - 止まるとき：ワーカーごとに実行中のターンを中断してからプロセスを閉じる。待っている依頼には再起動で中断した
     ことを返し、待っている依頼がないのに進めていた処理（自分で始めたターン、バックグラウンドの処理）があれば、
-    スレッドに同じことを知らせる。知らせ終えるまで compose が待つ猶予は[コンテナ](containers.md#service "案内")にある。
+    スレッドに同じことを知らせる。知らせ終えるまで compose が待つ猶予は[コンテナ](containers.md#service "在りか")にある。
     止まり始めたあとに届いた依頼は受け付けない。
   - 起動するとき：依頼を受け付ける前に、前の実行が残したエージェントのコンテナを runner に消させ
-    （[コンテナ](containers.md#runner "案内")の `RemoveLeftovers`）、そのセッションのスレッドに、再起動で止めたことを知らせる。
+    （[コンテナ](containers.md#runner "在りか")の `RemoveLeftovers`）、そのセッションのスレッドに、再起動で止めたことを知らせる。
 - **関係**：知らせは `SessionAbandoned` として `sessionObserver` に伝わる。
 
 ### `sessionObserver`（`cmd/acp/serve.go`）
@@ -176,7 +176,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     あればその ID と作業領域のパスを添える。
   - スレッドを持たないセッションなので、状態メッセージは出ず、自分で始めたターンの回答は届かない。
 - **関係**：`Dispatcher` を、自分で定めた `TurnRunner` として呼ぶ。クライアントは `httpapi.Client` で、`acp run` と
-  `acp stop` が使う（[依頼の仕方](../../reference/usage.md "案内")）。
+  `acp stop` が使う（[依頼の仕方](../../reference/usage.md "在りか")）。
 - **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：要求、応答、
   エラーの形を `types.go` に定め、サーバーとクライアントがそれを共有する。
   [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`ACP_API_TOKEN` がなければ起動せず、`/healthz` のほかは、トークンが

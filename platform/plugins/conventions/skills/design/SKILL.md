@@ -6,8 +6,8 @@ description: 状態によって振る舞いが変わる処理、消す・上書�
 # 設計の観点
 
 変更を設計するときと、差分をレビューするときに使う。どの変更にどのパターンを当てはめるかは
-[変更とパターン](../../docs/reference/changes.md#patterns "案内")、レビューでの指摘の仕方は
-[指摘](../../docs/reference/reviews.md#findings "案内")にある。
+[変更とパターン](../../docs/reference/changes.md#patterns "在りか")、レビューでの指摘の仕方は
+[指摘](../../docs/reference/reviews.md#findings "在りか")にある。
 
 1. principles の原則「確立した考え方に拠る」に沿って決める。変更の種類を見て、[変更とパターン](../../docs/reference/changes.md#patterns)の表から当てはまるパターンを選ぶ。
 2. 各パターンの形とよくある失敗を、principles のパターンの一覧（SessionStart で示された principles の `docs/README.md` と

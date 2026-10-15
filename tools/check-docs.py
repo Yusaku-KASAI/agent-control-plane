@@ -15,7 +15,7 @@ DOCS_LAYOUT = {"README.md", "overview.md", "architecture", "guides", "reference"
 # Each key names other ADRs; the value is the key those ADRs must answer with.
 INVERSE = {"amends": "amended_by", "amended_by": "amends", "supersedes": "superseded_by", "superseded_by": "supersedes"}
 # A link titled so only shows where something is; it does not rely on it.
-NAVIGATION = "案内"
+NAVIGATION = "在りか"
 TITLE = r'''(?:\s+(?:"([^"]*)"|'([^']*)'))?'''
 INLINE_LINK = re.compile(r"\]\(\s*<?([^)\s#>]*)(?:#([^)\s>]*))?>?" + TITLE + r"\s*\)")
 LINK_DEFINITION = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^\s#>]*)(?:#([^\s>]*))?>?" + TITLE + r"\s*$", re.M)
@@ -103,9 +103,12 @@ def anchors(path):
 
 
 def check_links(path, errors):
-    for target, fragment, _ in links(read(path)):
+    for target, fragment, title in links(read(path)):
         if is_external(target):
             continue
+        if title and title != NAVIGATION:
+            # A title other than the one kind of mark would silently count the link as relied on.
+            errors.append(f"{path}: link {target} with the title \"{title}\"; only \"{NAVIGATION}\" marks a link")
         if target.startswith("/"):
             errors.append(f"{path}: absolute link {target}; link with a relative path")
             continue
@@ -416,7 +419,7 @@ def check_map(m, paths, errors):
             dest = m.item_of(resolved)
             if dest is not None and not m.may_rely(source, dest):
                 errors.append(f"{path}: relies on {target}, but {source} may not rely on {dest} in the maps"
-                              " (a link that only shows where something is takes the title \"案内\")")
+                              " (a link that only shows where something is takes the title \"在りか\")")
 
 
 # Where people and agents start reading: every document must be reachable by links from each of them.
