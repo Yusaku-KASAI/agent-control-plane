@@ -19,7 +19,9 @@ usage:
                                       since the last update; the comment is required when there is
                                       such a push, and not posted when there is none
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
-                                      first after an hour, "none (...)" when no check run appears
+                                      first after an hour, "none (...)" when no check run appears. One
+                                      wait per branch, following its pushed head; another --wait while
+                                      one runs ends at once with "already waiting"
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
@@ -194,12 +196,41 @@ cmd_worktree_remove() {
 # and how long in all. The environment can change them (the tests do).
 readonly ci_poll=${PRCTL_CI_POLL:-20} ci_appear=${PRCTL_CI_APPEAR:-300} ci_timeout=${PRCTL_CI_TIMEOUT:-3600}
 
+# wait_lock <branch>: take the lock of waiting for the branch's CI, or say who holds it and fail.
+# A kernel lock (flock), so that it goes with the process however that ends, also when the
+# container is made again; without flock, every wait goes ahead.
+wait_lock() {
+  local file
+  command -v flock >/dev/null || return 0
+  file=$(git rev-parse --git-path "prctl-ci-wait-${1//\//-}")
+  exec {wait_fd}>>"$file"
+  if ! flock -n "$wait_fd"; then
+    echo "already waiting for the CI of $1 (pid $(cat "$file.pid" 2>/dev/null || echo unknown)), which follows its"
+    echo "pushed head; its result comes when it ends, so this one does not wait"
+    return 1
+  fi
+  echo $$ >"$file.pid"
+}
+
+# following <branch> <head>: the head to wait for. What this clone last pushed to the branch, unless
+# that is <head> or behind it: GitHub moves the PR head only a moment after the push, and a push
+# from elsewhere leaves this clone behind.
+following() {
+  local pushed
+  pushed=$(remote_head "$1") || { echo "$2"; return; }
+  if git merge-base --is-ancestor "$pushed" "$2" 2>/dev/null; then echo "$2"; else echo "$pushed"; fi
+}
+
 cmd_ci() {
-  local wait=$1 b pr head state="" first errors=0 start=$SECONDS
+  local wait=$1 b pr head next state="" first errors=0 start=$SECONDS
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
   head=$(jq -r .headRefOid <<<"$pr")
+  if [[ -n $wait ]]; then
+    wait_lock "$b" || return 0
+    head=$(following "$b" "$head")
+  fi
   while :; do
     if state=$(ci "$head"); then
       errors=0
@@ -209,7 +240,14 @@ cmd_ci() {
       if [[ -z $wait ]] || ((errors >= 3)); then die "could not read the checks"; fi
     fi
     first=${state%%$'\n'*}
-    if [[ -z $wait ]] || settles "$head" "$state"; then break; fi
+    [[ -n $wait ]] || break
+    # A newer push supersedes whatever this head came to: wait for that one instead, from the start.
+    next=$(following "$b" "$head")
+    if [[ $next != "$head" ]]; then
+      head=$next state="" errors=0 start=$SECONDS
+      continue
+    fi
+    settles "$head" "$state" && break
     case $first in
       pending) ((SECONDS - start < ci_timeout)) || { state="timeout"$'\n'"$state"; break; } ;;
       none) ((SECONDS - start < ci_appear)) || { state="none (no check run appeared within ${ci_appear}s)"; break; } ;;

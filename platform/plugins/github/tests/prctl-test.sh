@@ -34,6 +34,8 @@ case $args in
     ;;
   *"/check-runs"*)
     [[ ! -f $dir/fail-checks ]] || exit 1
+    # Something to happen while prctl waits, once: on-checks is run before answering.
+    if [[ -f $dir/on-checks ]]; then bash "$dir/on-checks"; rm "$dir/on-checks"; fi
     if [[ -f $dir/fail-checks-once ]]; then rm "$dir/fail-checks-once"; exit 1; fi
     # A sequence of answers, one per call, the last one repeated: seq/1.json, seq/2.json, ...
     if [[ -d $dir/seq ]]; then
@@ -166,6 +168,34 @@ touch "$state/fail-checks"
 check "wait gives up after three read errors in a row" "$("$prctl" ci --wait 2>&1 || true)" "could not read the checks"
 rm "$state/fail-checks"
 check "wait gives up at the timeout" "$(PRCTL_CI_TIMEOUT=0 "$prctl" ci --wait | sed -n 2p)" "timeout"
+
+# The wait follows the head this clone pushed, also when it is pushed again while waiting.
+next=$(git commit-tree -p "$c2" -m next "$(git rev-parse "$c2^{tree}")")
+echo "git update-ref refs/remotes/origin/feature $next" >"$state/on-checks"
+sequence "in_progress/" "completed/success"
+out=$("$prctl" ci --wait)
+check "wait follows a newer push" "$(head -n 1 <<<"$out")" "head: $next"
+check "wait gives the newer push's CI" "$(sed -n 2p <<<"$out")" "passed"
+set_pr "$c1"
+check "wait starts from this clone's push when GitHub lags" "$("$prctl" ci --wait | head -n 1)" "head: $next"
+git update-ref refs/remotes/origin/feature "$c2"
+set_pr "$next"
+check "wait does not go back to an older push of this clone" "$("$prctl" ci --wait | head -n 1)" "head: $next"
+set_pr "$c2"
+
+# One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
+# devcontainer), every wait goes ahead.
+if command -v flock >/dev/null; then
+  lock=$(git rev-parse --git-path prctl-ci-wait-feature)
+  exec 9>>"$lock"
+  flock -n 9
+  echo 4242 >"$lock.pid"
+  sequence "in_progress/"
+  check "a second wait ends at once" "$(PRCTL_CI_TIMEOUT=60 "$prctl" ci --wait)" "already waiting for the CI of feature (pid 4242)"
+  exec 9>&-
+  sequence "completed/success"
+  check "the wait is free again once the first has ended" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+fi
 rm -rf "$state/seq"
 
 echo '{"check_runs": []}' >"$state/checks.json"
