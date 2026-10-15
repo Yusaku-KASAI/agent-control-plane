@@ -83,8 +83,8 @@ gh run view <run ID> --log-failed                               # 失敗した�
   - `prctl ci --wait` は、push のたびにバックグラウンドで始める。一つのブランチに一つだけ動き、このクローンの
     `origin/<ブランチ>` が指す head（ふつうは最後に push した head）を追うので、ほかの待ちが動いていれば
     「already waiting」ですぐ終わる。前の待ちが終わった知らせがまだ届いていないこともあるので、動いていると思っても
-    始める。同じ CI をフォアグラウンドでも待たず、終わりを
-    Monitor や ScheduleWakeup で見張らない（[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md "在りか")）。
+    始める。同じ CI をフォアグラウンドでも待たず、終わりを Monitor や ScheduleWakeup で見張らない
+    （[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md "在りか")）。
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。
