@@ -26,8 +26,8 @@ usage:
                                       with --pr, of another's PR, over the whole PR up to <commit>
   prctl review --minor <commit> <note-file|->
                                       record the range up to <commit> as fixes of nitpicks that change
-                                      no meaning, left unreviewed; only when the range starts at a
-                                      review (not at none, nor at another such record)
+                                      no meaning, left unreviewed; refused when no review of the PR is
+                                      in the head's history, or right after another such record
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
