@@ -495,9 +495,32 @@ cmd_answer() {
   )"
 }
 
+# The sections every PR body has, in this order, each with something written under it (writing.md:
+# PR). What is written under them is free.
+readonly body_sections=(何を変えるか 当てはめた決まり どう確かめたか 確かめていないこと)
+
+# body_check <body>: die unless the body has the sections, in order, none of them empty.
+body_check() {
+  local errors
+  errors=$(jq -Rrs --args '
+    split("\n") as $lines
+    | [$lines | to_entries[] | select(.value | test("^## ")) | {at: .key, name: (.value | ltrimstr("## ") | rtrimstr(" "))}] as $heads
+    | [$ARGS.positional[] as $want
+        | ($heads | map(select(.name == $want)) | first) as $h
+        | if $h == null then "no section ## \($want)"
+          else ($heads | map(select(.at > $h.at)) | first | .at // ($lines | length)) as $end
+            | if [$lines[$h.at + 1:$end][] | select(test("\\S"))] | length == 0 then "the section ## \($want) is empty" else empty end
+          end]
+    + (if [$heads[] | .name | select(IN($ARGS.positional[]))] != [$ARGS.positional[] | select(IN($heads[].name))]
+       then ["the sections are not in the order: \($ARGS.positional | join(", "))"] else [] end)
+    | .[]' "${body_sections[@]}" <<<"$1")
+  [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
+}
+
 cmd_create() {
   local title=$1 body b head base
   body=$(read_input "$2")
+  body_check "$body"
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
   [[ -z $(open_pr "$b") ]] || die "$b already has an open PR; use prctl update"
@@ -508,6 +531,7 @@ cmd_create() {
 cmd_update() {
   local title=$1 body comment="" b pr num head desc
   body=$(read_input "$2")
+  body_check "$body"
   [[ -z ${3:-} ]] || comment=$(read_input "$3")
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")

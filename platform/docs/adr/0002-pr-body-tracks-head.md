@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-05
+amended_by: [12]
 ---
 
 # 0002. PR の本文に説明済みの head を記録し、hook で古い本文を検出する

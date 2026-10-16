@@ -473,4 +473,18 @@ check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include 
 check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; severities')" \
   "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
 
+# A PR body has its sections, in order, none empty; what is under them is free.
+good=$'## 何を変えるか\nx\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
+check "a body without a section is refused" "$("$prctl" create t - <<<"${good/\#\# 当てはめた決まり/\#\# 決まり}" 2>&1 || true)" "no section ## 当てはめた決まり"
+check "a body with an empty section is refused" "$("$prctl" update - <<<"$(sed '/^なし$/,$d' <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+check "a body with the sections out of order is refused" \
+  "$("$prctl" create t - <<<"$(sed 's/## 何を変えるか/## どう確かめたか2/; s/## どう確かめたか$/## 何を変えるか/; s/## どう確かめたか2/## どう確かめたか/' <<<"$good")" 2>&1 || true)" "not in the order"
+check "a body in the form goes on" "$("$prctl" create t - <<<"$good" 2>&1 || true)" "already has an open PR"
+# The sections prctl asks for are those of the conventions.
+writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
+# shellcheck disable=SC2016 # backquotes of Markdown
+check "the body's sections are those of the conventions" \
+  "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
+  "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
+
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

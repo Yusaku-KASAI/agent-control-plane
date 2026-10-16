@@ -1,7 +1,7 @@
 # github の全体像
 
 PR の本文は、追記ではなく今のブランチの姿に合わせて書き換え、push ごとの変更はコメントにする
-（[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
+（[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。本文は決まった節を持つ（[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
 レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
 レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
 CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
@@ -35,7 +35,8 @@ github/
   一時的な worktree に取り出し、本文とレビューが head に追いついているかと、head の CI（check run）の状態を判定する。
   レビューへの答えを PR のコメントにする（`answer`）。
 - **置くもの / 置かないもの**：PR はブランチ名で探す（引数なしの `gh pr view` は upstream をたどり、別のブランチの PR を
-  返すことがある）。書き換えは push 済みの HEAD に対してだけ行い、前の印から push があったときは、その変更を説明する
+  返すことがある）。本文は、決まった節（conventions の[書き方：PR](../../conventions/docs/reference/writing.md#pull-requests)）が
+  この順にあり、どれも空でないことを確かめてから作る・書き換える（節の名前はその写し）。書き換えは push 済みの HEAD に対してだけ行い、前の印から push があったときは、その変更を説明する
   コメントを必ず付ける。まだレビューしていない範囲は、本文のある PR のレビュー（誰が付けたものでもよい）が付いたコミットのうち、
   今の head の履歴にある最後のものから、今の head まで。ないときは、ブランチが PR の向き先のブランチから分かれた所から。
   レビューしない直しの記録も PR のレビューなので、同じに数える。その記録は、範囲の始まりがレビューでないとき
