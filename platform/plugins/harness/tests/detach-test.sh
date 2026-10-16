@@ -48,6 +48,9 @@ allow|make & make test && wait
 deny|a & echo undo wait
 deny|a & b |& wait
 deny|a & b | wait
+allow|a & b || wait
+deny|a & (wait)
+allow|a & { wait; }
 CASES
 arith=$'echo $((1<<x))\nsleep 9 &\nx'
 check "a shift in arithmetic is not a here-document" deny "$(decision "$arith")"
