@@ -63,7 +63,7 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
 	}
-	if err := installCommitMsgHook(dest); err != nil {
+	if err := installHooks(dest); err != nil {
 		return domain.Workspace{}, err
 	}
 	return domain.Workspace{Path: dest}, nil
@@ -81,12 +81,51 @@ while IFS= read -r who; do
 done <"$f"
 `
 
-func installCommitMsgHook(repo string) error {
+// prePushHook runs the target's checks, make check, before a push. The checks run on the work
+// tree, so they stand for the pushed commit only when that commit is HEAD and the work tree has
+// nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
+const prePushHook = `#!/bin/sh
+say() { echo "acp pre-push: $*" >&2; }
+head=$(git rev-parse --verify HEAD) || exit 1
+pushes=
+while read -r local_ref local_sha _; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	commit=$(git rev-parse --verify --quiet "$local_sha^{commit}") || commit=$local_sha
+	if [ "$commit" != "$head" ]; then
+		say "$local_ref が今の HEAD ではない。make check は作業ツリーで回すので、push するコミットを HEAD にしてから push する。"
+		exit 1
+	fi
+	pushes=yes
+done
+[ -n "$pushes" ] || exit 0
+top=$(git rev-parse --show-toplevel) || exit 1
+if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+	say "作業ツリーが HEAD とずれている。変更に入れるものはコミットし、ほかは消してから push する："
+	git status --short >&2
+	exit 1
+fi
+[ -f "$top/Makefile" ] || [ -f "$top/makefile" ] || [ -f "$top/GNUmakefile" ] || exit 0
+# The checks may run git in repositories of their own, so the variables git sets for a hook (in a
+# linked worktree, GIT_DIR) must not point them here. The configuration in GIT_CONFIG_* stays.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
+say "make check"
+if ! make -C "$top" check </dev/null >&2; then
+	say "make check が落ちた。直してコミットし、push し直す。"
+	exit 1
+fi
+`
+
+func installHooks(repo string) error {
 	dir := filepath.Join(repo, ".git", "hooks")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "commit-msg"), []byte(commitMsgHook), 0o755)
+	for name, body := range map[string]string{"commit-msg": commitMsgHook, "pre-push": prePushHook} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // gitRunner ignores the host user's git configuration, credential helpers and SSH keys, so the
