@@ -718,7 +718,8 @@ nit=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.find
 "$prctl" review "$u1" - <<<"$nit" >/dev/null
 "$prctl" answer "$u1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
 u2=$(commit unrec-b) && git push -q && set_pr "$u2"
-# Counted from an earlier review of the whole PR, so that u1's counts, and writing it would show.
+# Count from an earlier review of the whole PR (s1), so that u1 is counted and a wrong write of u1
+# would show.
 git rev-parse "$s1" >"$handback"
 out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
 lacks "a push not recorded is not a reason to go back" "$out" "not recorded yet" "hand it back"
@@ -735,5 +736,16 @@ check "a PR that may end with CI passing settles" "[$out]" "[]"
 out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
 check "another review of a settled head is looked at again" "$out" "must be fixed"
 echo '{"check_runs": []}' >"$state/checks.json"
+
+# At the cap, a change after the whole review goes back; findings only to answer do not.
+count_from_here
+p1=$(commit cap-p1) && git push -q && set_pr "$p1" && "$prctl" review "$p1" - <<<"$proposal" >/dev/null
+p2=$(commit cap-p2) && git push -q && set_pr "$p2" && "$prctl" review "$p2" - <<<"$proposal" >/dev/null
+lacks "at the cap, findings only to answer do not go back" "$(cap_stop)" "not answered: 1" "hand it back"
+count_from_here
+p3=$(commit cap-p3) && git push -q && set_pr "$p3" && "$prctl" review "$p3" - <<<"$proposal" >/dev/null
+p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<<"$proposal" >/dev/null
+p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
+check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
