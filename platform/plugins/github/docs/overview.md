@@ -5,14 +5,16 @@ PR の本文は、追記ではなく今のブランチの姿に合わせて書�
 レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
 レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
 CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
-一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。このプラグインは、それを
-`prctl` と hook で守らせる。
+一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。レビューの結果と答えは決まった
+形の JSON で受け、表と機械で読む写しを作る（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。このプラグインは、
+それを `prctl` と hook で守らせる。
 
 ## 構成
 
 ```
 github/
   bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体
+  lib/review.jq        レビューの結果と答えの形の検査と、Markdown の表の作り方
   tests/prctl-test.sh  prctl の振る舞いの検査（make check-platform が回す）
   hooks/hooks.json     Bash のあと（PostToolUse）とターンの終わり（Stop）に prctl hook を呼ぶ
   skills/github/       PR の本文とコメントの書き方、差分のレビューの残し方、レビューと CI への対応
@@ -31,6 +33,7 @@ github/
 - **責務**：今のブランチの開いている PR を作り、本文を印付きで書き換え、レビューの結果を PR のレビューとして残し
   （`--pr` でほかの人の PR にも、`--minor` でレビューしない直しの範囲も）、ほかの人の PR と既定のブランチを
   一時的な worktree に取り出し、本文とレビューが head に追いついているかと、head の CI（check run）の状態を判定する。
+  レビューへの答えを PR のコメントにする（`answer`）。
 - **置くもの / 置かないもの**：PR はブランチ名で探す（引数なしの `gh pr view` は upstream をたどり、別のブランチの PR を
   返すことがある）。書き換えは push 済みの HEAD に対してだけ行い、前の印から push があったときは、その変更を説明する
   コメントを必ず付ける。まだレビューしていない範囲は、本文のある PR のレビュー（誰が付けたものでもよい）が付いたコミットのうち、
@@ -45,12 +48,26 @@ github/
   （`flock` がないか、取り合い以外で失敗したら守らない）。待つ head は、このクローンの参照（`origin/<ブランチ>`）が
   指す head。ふつうはこのクローンから最後に push した head で、fetch で取り込んだほかからの push も、参照が指せば
   待つ。待つ間にその参照が動けば（push で進めても戻しても、fetch でも）、終わる直前でも、新しい head を初めから
-  待ち直す。本文とレビューの結果の書き方は置かず、スキルに任せる。
+  待ち直す。レビューの結果と答えは JSON で受け、`lib/review.jq` で形を検査して表を作り、JSON の写しを base64 にして
+  隠した印（`<!-- prctl-review: … -->`、`<!-- prctl-answers: … -->`）に入れる。答えは、`prctl` が残したレビューに
+  対してだけ受け、その指摘すべてに答えることを求める。本文の書き方と、指摘の中身は置かず、スキルと conventions に
+  任せる。
 - **関係**：`git`、`gh`、`jq` を使う。振る舞いは `tests/prctl-test.sh`（偽の `gh` と使い捨てのリポジトリ）で確かめる。`gh` の認証はハーネスの契約で渡される（[ハーネスの契約](../../../docs/reference/harness.md)）。
 - **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：どこまで説明したかは本文の印に、
   どこまでレビューしたかは PR のレビューの `commit_id` にだけ持つ。[事実と判定を分ける](../../principles/docs/reference/patterns.md#facts-and-judgement)：
   レビューの一覧は事実として一度だけ読み、`--minor` を使えるかの判定は一か所にして、断る文と案内の文の両方を
   そこから作る。
+
+### `lib/review.jq`
+
+- **責務**：レビューの結果と答えの JSON の形の検査と、PR のレビューとコメントにする Markdown の作り方。
+- **置くもの / 置かないもの**：重さと観点の名前は、conventions の[指摘](../../conventions/docs/reference/reviews.md#findings)と
+  [観点](../../conventions/docs/reference/reviews.md#perspectives)の写しで、そこを変えたらここも直す。どの範囲をレビュー
+  するか、いつ答えるかの判定は置かず、`bin/prctl` に任せる。
+- **関係**：`bin/prctl` が `jq -L` で読み込む。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：形が足りなければ
+  記録させない（強制機能）。[単一の情報源](../../principles/docs/reference/principles.md#ssot)：表と隠した写しは、
+  同じ JSON から作る。
 
 ### `hooks/hooks.json`
 

@@ -50,6 +50,10 @@ case $args in
     fi
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
+  *"/issues/1/comments "*)
+    for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-comment"; done
+    echo "https://example.invalid/comment"
+    ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -78,6 +82,11 @@ stop_hook() {
   jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop
 }
 
+# Reviews in the form prctl takes: nothing found, looked at from every perspective, as a diff or whole.
+all='["別の形", "依頼との一致", "正しさ", "設計", "セキュリティ", "文書とコメント", "検査"]'
+nothing=$(jq -nc --argjson p "$all" '{scope: "since", perspectives: $p, findings: []}')
+whole=$(jq -nc --argjson p "$all" '{scope: "pr", perspectives: $p, findings: []}')
+
 failures=0
 check() {
   local name=$1 got=$2 want=$3
@@ -101,15 +110,18 @@ out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
 lacks "stop does not point to minor fixes before any review" "$out" "not reviewed up to" "prctl review --minor"
 lacks "unreviewed does not point to minor fixes before any review" "$("$prctl" unreviewed)" "range:" "prctl review --minor"
-check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the findings are empty"
+check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the review is not JSON"
+check "a review not in the form is refused" \
+  "$("$prctl" review "$c2" - <<<'{"scope": "since", "perspectives": ["正しさ"], "findings": [{"severity": "重い"}]}' 2>&1 || true)" \
+  "skipped says why these were not looked at: 別の形"
 check "minor fixes before any review are refused" "$("$prctl" review --minor "$c2" - <<<"x" 2>&1 || true)" "has no review yet"
 
 # A review of c1, recorded after c2 is pushed, covers c1 only.
-"$prctl" review "$c1" - <<<"指摘なし" >/dev/null
+"$prctl" review "$c1" - <<<"$nothing" >/dev/null
 check "a review covers the commit it names" "$("$prctl" unreviewed)" "range: $c1..$c2"
-check "a commit before the last review is refused" "$("$prctl" review "$base" - <<<"x" 2>&1 || true)" "is not after the last reviewed"
+check "a commit before the last review is refused" "$("$prctl" review "$base" - <<<"$nothing" 2>&1 || true)" "is not after the last reviewed"
 
-"$prctl" review "$c2" - <<<"指摘なし" >/dev/null
+"$prctl" review "$c2" - <<<"$nothing" >/dev/null
 check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the head"
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
@@ -268,7 +280,7 @@ out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)
 check "post-tool-use reminds of the review" "$out" "not reviewed up to ${c3:0:12}"
 check "post-tool-use points to minor fixes after a review" "$out" "prctl review --minor"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
-check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"$nothing" 2>&1 || true)" "is not in the PR"
 
 # Commits merged in from the base are not part of the range.
 git checkout -q main
@@ -310,7 +322,7 @@ echo x >sub/file
 git add .github sub && git commit -q -m workflow && git push -q
 c6=$(git rev-parse HEAD)
 set_pr "$c6"
-"$prctl" review "$c6" - <<<"指摘なし" >/dev/null
+"$prctl" review "$c6" - <<<"$nothing" >/dev/null
 checks
 rm -f "$(git rev-parse --git-path prctl-settled)"
 out=$(jq -n --arg cwd "$PWD/sub" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
@@ -334,11 +346,11 @@ check "the worktree leaves the work tree's HEAD" "$(git symbolic-ref HEAD; git r
 from=$(git merge-base origin/main "$c7")
 check "the range of another's PR is the whole PR" "$out" "range: $from..$c7"
 check "a review of another's PR is recorded" \
-  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$c7" - <<<"指摘なし")" "https://example.invalid/review"
-check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")" "（${from:0:12}...${c7:0:12}）"
+  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$c7" - <<<"$whole")" "https://example.invalid/review"
+check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")" "（${from:0:12}...${c7:0:12}、PR 全体）"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
-  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"x" 2>&1 || true)" "is not in the PR"
+  "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"$whole" 2>&1 || true)" "is not in the PR"
 out=$(cd "$wt" || exit; "$prctl" worktree pr 1)
 check "the worktree is made again from inside it" "$(git -C "$wt" rev-parse HEAD)" "$c7"
 (cd "$wt" || exit; "$prctl" worktree remove pr 1)
@@ -372,7 +384,7 @@ check "minor fixes after minor fixes are refused" "$("$prctl" review --minor "$c
 touch "$state/fail"
 check "minor fixes are refused when the reviews cannot be read" "$("$prctl" review --minor "$c9" - <<<"x" 2>&1 || true)" "could not read the reviews"
 rm "$state/fail"
-"$prctl" review "$c9" - <<<"指摘なし" >/dev/null
+"$prctl" review "$c9" - <<<"$nothing" >/dev/null
 c10=$(commit ten)
 git push -q
 set_pr "$c10"
@@ -385,5 +397,40 @@ git push -q
 set_pr "$c11"
 check "a review beside a record lets minor fixes follow" "$("$prctl" unreviewed)" "prctl review --minor $c11"
 check "a stray argument to minor is refused" "$("$prctl" review --minor "$c10" 2>&1 || true)" "usage:"
+
+# The form: a review is posted as a table, details and a hidden copy; answers must cover it.
+c12=$(commit twelve)
+git push -q
+set_pr "$c12"
+found=$(jq -nc --argjson p "$all" '{scope: "since", perspectives: ["正しさ", "文書とコメント"],
+  skipped: ($p - ["正しさ", "文書とコメント"] | map({perspective: ., reason: "関わらない"})),
+  findings: [{severity: "提案", perspective: "正しさ", location: "bin/prctl:1", summary: "a | b", basis: "状態を軸で洗い出す",
+    problem: "p", fix: "f", verified: "動かした"}, {severity: "細部", perspective: "文書とコメント", location: "README.md",
+    summary: "言い回し", basis: "書き方", problem: "p", fix: "f", verified: "読んだ", notes: "n"}]}')
+"$prctl" review "$c12" - <<<"$found" >/dev/null
+body=$(cat "$state/last-body")
+check "a review is titled with its range" "$body" "## 差分のレビュー（"
+check "a review since the last is titled as such" "$body" "...${c12:0:12}、前回から）"
+check "a review names the perspectives looked at and left out" "$body" "見た観点：正しさ、文書とコメント。外した観点：別の形（関わらない）、依頼との一致（関わらない）、設計"
+check "a review has a table of its findings" "$body" "| 1 | 提案 | 正しさ | bin/prctl:1 | a \\| b | 状態を軸で洗い出す |"
+check "a review has the details below the table" "$body" "- **補足**：n"
+check "a review carries a hidden copy of itself" "$(sed -n 's/.*<!-- prctl-review: \(.*\) -->.*/\1/p' <<<"$body" | base64 -d | jq -r .commit)" "$c12"
+check "a review of another's PR since the last is refused" \
+  "$("$prctl" review --pr 1 "$c12" - <<<"$nothing" 2>&1 || true)" "a review of another's PR is of scope \"pr\""
+check "answers must cover every finding" \
+  "$("$prctl" answer "$c12" - <<<'[{"finding": 1, "action": "直した", "commit": "abc"}]' 2>&1 || true)" "findings not answered: 2"
+check "a fix names its commit" \
+  "$("$prctl" answer "$c12" - <<<'[{"finding": 1, "action": "直した"}, {"finding": 2, "action": "直さない", "reason": "r"}]' 2>&1 || true)" \
+  "answer to 1: a fix names its commit"
+"$prctl" answer "$c12" - <<<'[{"finding": 2, "action": "直さない", "reason": "意味が変わらない"}, {"finding": 1, "action": "Issue にした", "issue": 140}]' >/dev/null
+comment=$(cat "$state/last-comment")
+check "answers are posted as a table" "$comment" "| 1 | Issue にした（#140） |"
+check "answers carry a hidden copy" "$(sed -n 's/.*<!-- prctl-answers: \(.*\) -->.*/\1/p' <<<"$comment" | base64 -d | jq -r .review)" "$c12"
+check "answers to a review prctl did not record are refused" "$("$prctl" answer "$c11" - <<<'[]' 2>&1 || true)" "no review of"
+# A review of the whole PR covers it from where it left its base, whatever was reviewed before.
+"$prctl" review "$c12" - <<<"$whole" >/dev/null
+check "a review of the whole PR covers it" "$(cat "$state/last-body")" "## 差分のレビュー（$(git merge-base origin/main "$c12" | cut -c1-12)...${c12:0:12}、PR 全体）"
+check "a review of the whole PR looks at every perspective" \
+  "$("$prctl" review "$c12" - <<<'{"scope": "pr", "perspectives": ["正しさ"], "findings": []}' 2>&1 || true)" "a review of the whole PR looks at every perspective"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
