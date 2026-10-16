@@ -17,6 +17,7 @@ GitHub App のトークンは[認証情報](credentials.md "在りか")にある
   refs/acp/target   = clone した時点のターゲットの HEAD
   acp/<ID の先頭8文字> = リモートの既定のブランチ（なければターゲットの HEAD）から切ったブランチ
   .git/hooks/commit-msg = 依頼者を Co-authored-by に足す
+  .git/hooks/pre-push   = push の前に make check を通す
   │ push（エージェント）
   ▼
 GitHub のブランチと PR
@@ -54,7 +55,7 @@ GitHub のブランチと PR
   4. `origin` があり GitHub App のトークンがあれば、`origin` を fetch して既定のブランチ（`origin/HEAD`）を決め、
      そこからセッションのブランチを切る。なければ clone した HEAD から切る。どちらも upstream は設定しない
      （[ADR 0013](../../adr/app/0013-session-branch-from-remote-default.md)）。
-  5. [commit-msg フック](#commit-msg)を置く。
+  5. [commit-msg フック](#commit-msg)と[pre-push フック](#pre-push)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
@@ -97,6 +98,21 @@ GitHub のブランチと PR
   [ワーカー](sessions.md#worker "在りか")が依頼をターンに取り込んだとき。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：エージェントへの
   指示ではなくフックで足す。
+
+<a id="pre-push"></a>
+
+### 検査の pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
+
+- **責務**：push の前に、ターゲットの検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
+- **置くもの / 置かないもの**：push する ref（消すものは除く）がどれも今の HEAD のコミットで、`git status` に
+  コミットしていない変更も ignore されていない追跡していないファイルもないときにだけ、作業ツリーの一番上で
+  `make check` を回す。どれかを満たさないか、検査が落ちれば push を断る。Makefile がなければ何も確かめない。
+  検査の前に、git がフックに渡すリポジトリの場所の変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。
+  作業領域の `.git/hooks/` にだけ置くので、コミットされない。
+- **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。
+  エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
+- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
+  通すことを、決まりだけでなく git のフックで守る。
 
 <a id="state"></a>
 

@@ -94,6 +94,18 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 作業領域の `.git/hooks/commit-msg` が、一覧の人を `Co-authored-by` としてコミットに足す。ターゲットが
 `core.hooksPath` を設定しているときや、`--no-verify` でコミットしたときは足されない。
 
+### push
+
+作業領域の `.git/hooks/pre-push` が、push の前に[ターゲットの検査](../../../template/docs/reference/contract.md#checks)（`make check`）を
+回し、落ちれば push を断る。push する ref（消すものは除く）が今の HEAD でないときと、作業ツリーにコミットしていない
+変更か ignore されていない追跡していないファイルがあるときも、検査を回さずに断る。
+
+- push は検査の時間だけかかるので、Bash の `timeout` をそれに合わせる。`--dry-run` の push でもフックは働く。
+- push に入れない作業用のファイル（PR の本文やコメント、レビューの JSON）は、作業ツリーの外（`mktemp -d` で
+  作った場所）に置く。作業ツリーに置くと、ずれとして断られる。
+- 断られたら、出力で理由を確かめて直し、コミットしてから push し直す。`--no-verify` で避けない。
+- Makefile のないリポジトリと、`core.hooksPath` を設定しているターゲットでは、何も確かめない。
+
 ### Claude Code の設定
 
 - `CLAUDE_CONFIG_DIR`（`/home/node/.claude`）はエージェントごとに一つで、そのエージェントのすべてのセッション

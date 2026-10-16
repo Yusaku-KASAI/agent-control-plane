@@ -120,6 +120,128 @@ func TestProvider_Prepare_CreditsCoAuthors(t *testing.T) {
 	}
 }
 
+func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
+	// The target's check passes when ACP_TEST_CHECK is "pass", fails when git variables leak into
+	// it, and records that it ran.
+	const makefile = "check:\n\ttest \"$$ACP_TEST_CHECK\" = pass\n\ttest -z \"$$GIT_DIR$$GIT_INDEX_FILE\"\n\ttouch \"$$ACP_TEST_CHECKED\"\n"
+	tests := []struct {
+		name     string
+		makefile bool
+		check    string
+		// prepare returns the directory to push from.
+		prepare  func(t *testing.T, ws string) string
+		refspec  string
+		wantPush bool
+		wantRan  bool
+	}{
+		{name: "the check passes", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic", wantPush: true, wantRan: true},
+		{name: "the check fails", makefile: true, check: "fail", refspec: "HEAD:refs/heads/topic"},
+		{
+			name: "an untracked file", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic",
+			prepare: func(t *testing.T, ws string) string {
+				if err := os.WriteFile(filepath.Join(ws, "stray"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
+			name: "a change to a tracked file", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic",
+			prepare: func(t *testing.T, ws string) string {
+				if err := os.WriteFile(filepath.Join(ws, "README.md"), []byte("edited"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
+			name: "an ignored file", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				commit(t, ws, ".gitignore", "build/\n")
+				if err := os.MkdirAll(filepath.Join(ws, "build"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(ws, "build", "out"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
+			name: "an annotated tag on HEAD", makefile: true, check: "pass", refspec: "refs/tags/v1", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "tag", "-a", "-m", "v1", "v1")
+				return ws
+			},
+		},
+		{
+			name: "a commit other than HEAD", makefile: true, check: "pass", refspec: "HEAD~1:refs/heads/topic",
+		},
+		{name: "a target without a Makefile", check: "fail", refspec: "HEAD:refs/heads/topic", wantPush: true},
+		{
+			name:  "a target without a Makefile, pushing a commit other than HEAD from a work tree with a stray file",
+			check: "fail", refspec: "HEAD~1:refs/heads/topic", wantPush: true,
+			prepare: func(t *testing.T, ws string) string {
+				if err := os.WriteFile(filepath.Join(ws, "stray"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
+			name: "deleting a branch", makefile: true, check: "fail", refspec: ":refs/heads/old", wantPush: true,
+			prepare: func(t *testing.T, ws string) string {
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/old")
+				return ws
+			},
+		},
+		{
+			name: "from a linked worktree", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				wt := filepath.Join(t.TempDir(), "wt")
+				git(t, ws, "worktree", "add", "--quiet", "-b", "linked", wt)
+				return wt
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+			ws, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+			if err != nil {
+				t.Fatalf("Prepare() error = %v", err)
+			}
+			if tt.makefile {
+				commit(t, ws.Path, "Makefile", makefile)
+			} else {
+				commit(t, ws.Path, "change.txt", "agent work")
+			}
+			dir := ws.Path
+			if tt.prepare != nil {
+				dir = tt.prepare(t, ws.Path)
+			}
+			checked := filepath.Join(t.TempDir(), "checked")
+			t.Setenv("ACP_TEST_CHECK", tt.check)
+			t.Setenv("ACP_TEST_CHECKED", checked)
+
+			before := gitOutput(t, f.remote, "for-each-ref")
+			cmd := exec.Command("git", "push", "--quiet", "origin", tt.refspec)
+			cmd.Dir = dir
+			out, err := cmd.CombinedOutput()
+			if pushed := err == nil; pushed != tt.wantPush {
+				t.Fatalf("push succeeded = %v, want %v: %s", pushed, tt.wantPush, out)
+			}
+			if !tt.wantPush && gitOutput(t, f.remote, "for-each-ref") != before {
+				t.Errorf("a refused push changed the remote")
+			}
+			if _, err := os.Stat(checked); (err == nil) != tt.wantRan {
+				t.Errorf("check ran = %v, want %v", err == nil, tt.wantRan)
+			}
+		})
+	}
+}
+
 func TestProvider_Prepare_NotARepository(t *testing.T) {
 	agent := domain.Agent{Name: "a", Role: "developer", Target: domain.Target{Path: t.TempDir(), Image: "img"}}
 	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{}); err == nil {
