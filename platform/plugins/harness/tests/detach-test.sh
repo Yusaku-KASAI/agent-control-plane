@@ -46,8 +46,11 @@ allow|a & b; wait
 allow|for f in x; do a & done; wait
 allow|make & make test && wait
 deny|a & echo undo wait
-deny|echo $((1<<x)); sleep 9 &
+deny|a & b |& wait
+deny|a & b | wait
 CASES
+arith=$'echo $((1<<x))\nsleep 9 &\nx'
+check "a shift in arithmetic is not a here-document" deny "$(decision "$arith")"
 big="cat >f <<'EOF'"$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"$'\nEOF\nsleep 9 &'
 check "a command over the limit of an environment variable is read" deny "$(decision "$big")"
 multi=$'git commit -m "title
