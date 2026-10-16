@@ -55,7 +55,16 @@ place() {
 # writes <dir> <subcommand> <arguments...>: whether the git subcommand, run in dir, changes the work
 # tree, the index or HEAD. Its forms that only read are left out.
 writes() {
-  local dir=$1 sub=$2 args=" ${*:3} " out="" a
+  local dir=$1 sub=$2 args out="" a w redirect=""
+  local -a kept=()
+  # Redirections and their targets are not arguments.
+  for w in "${@:3}"; do
+    if [[ -n $redirect ]]; then redirect=""; continue; fi
+    if [[ $w == *[\<\>]* ]]; then [[ $w == *[\<\>] ]] && redirect=yes; continue; fi
+    kept+=("$w")
+  done
+  set -- "$dir" "$sub" "${kept[@]}"
+  args=" ${kept[*]} "
   case $sub in
     add | am | checkout | checkout-index | cherry-pick | clean | commit | merge | mv | pull | read-tree | \
       rebase | reset | restore | revert | rm | switch | update-index | update-ref) return 0 ;;
@@ -108,8 +117,12 @@ changes_tree() {
       continue
     fi
     for ((i = 0; i < ${#words[@]}; i++)); do
-      [[ ${words[i]##*/} == git ]] || continue
       if [[ $dir == unknown ]]; then base=unknown; else base=$(place "$dir" /); fi
+      # gh pr checkout switches the branch of the repository it runs in.
+      if [[ ${words[i]##*/} == gh && " ${words[*]:i+1} " == *" pr checkout "* && $base == here ]]; then
+        return 0
+      fi
+      [[ ${words[i]##*/} == git ]] || continue
       gd="" wt="" sub=""
       for ((i++; i < ${#words[@]}; i++)); do
         case ${words[i]} in
@@ -176,7 +189,7 @@ case $event:$tool in
   PreToolUse:Bash)
     [[ -n $subagent ]] || exit 0
     if changes_tree "$(field .tool_input.command)"; then
-      deny "control-plane 経由では、サブエージェントは作業領域の HEAD、index、ファイルを変える git のコマンド（checkout、switch、reset、stash、add、commit など）を使わない（ハーネスの契約）。ほかのコミットを読むなら git show や git diff、ほかの PR は prctl worktree で取り出した一時的な worktree で読む。作業領域の外（mktemp -d で作った場所）で git を動かすなら、git -C <その場所> か cd <その場所> で場所を指す。"
+      deny "control-plane 経由では、サブエージェントは作業領域の HEAD、index、ファイルを変える git のコマンド（checkout、switch、reset、stash、add、commit、gh pr checkout など）を使わない（ハーネスの契約）。ほかのコミットを読むなら git show や git diff、ほかの PR は prctl worktree で取り出した一時的な worktree で読む。作業領域の外（mktemp -d で作った場所）で git を動かすなら、git -C <その場所> か cd <その場所> で場所を指す。"
     fi
     ;;
   PreToolUse:Agent | PreToolUse:Task)

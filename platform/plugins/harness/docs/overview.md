@@ -66,13 +66,21 @@ harness/
 - **置くもの / 置かないもの**：サブエージェントの呼び出しは、hook の入力の `agent_id` で見分ける。
   - サブエージェントの Edit、Write、NotebookEdit は、書く場所（まだなければ、ある一番近いディレクトリ）が作業領域の
     作業ツリーか `.git` の中なら断る。
-  - サブエージェントの Bash は、作業領域の中で動き、作業ツリー、index、HEAD を変える git のサブコマンド（一覧と
-    読むだけの形は ADR）を含めば断る。コマンドは `lib/shell.sh` で引用符、ヒアドキュメント、コメントを除いて
-    区切りごとに読む。git の場所の決め方は ADR にある（`cd` を追い、`-C`、`--git-dir`、`--work-tree` を解き、
-    引用符の中や変数の展開のように字面から読めない場所は通す）。
-  - セッションのエージェントの Agent の前に、1 日より古い写しを消し、作業領域の状態（HEAD、ブランチ、index、stash、変更のあるファイルと
-    ignore されていない追跡していないファイルの中身。作業領域の中の linked worktree は除く）の写しを `.git` に置き、
-    Agent のあと（失敗したときも）に今の状態と比べて、違いと種類ごとの戻し方を文脈として足し、写しを消す。
+  - サブエージェントの Bash は、作業領域の中で動き、作業ツリー、index、HEAD を変えるコマンドを含めば断る。
+    コマンドは `lib/shell.sh` で引用符、ヒアドキュメント、コメントを除き、区切りごとに読む。
+    - 断る git のサブコマンドは `add`、`am`、`apply`、`bisect`、`branch`（`-m`、`-M`）、`checkout`、`checkout-index`、
+      `cherry-pick`、`clean`、`commit`、`format-patch`、`merge`、`mv`、`pull`、`read-tree`、`rebase`、`reset`、
+      `restore`、`revert`、`rm`、`sparse-checkout`、`stash`、`submodule`、`switch`、`symbolic-ref`、`update-index`、
+      `update-ref`。読むだけの形（`stash list`、`bisect log`、`apply --check`、`symbolic-ref HEAD`、
+      `format-patch --stdout`、`submodule status` など）と、`format-patch` で `-o` が外を指すものは通す。
+      リダイレクトとその先は引数に数えない。`gh pr checkout` も断る。
+    - git の場所は、今のディレクトリ（同じコマンドの中の `cd` を追い、`( )` の中の `cd` は外に持ち越さない）か、
+      `-C` が指す所。`--git-dir` と `--work-tree` は、どちらかが作業領域を指せば作業領域で動くとみなす（指さない方は
+      git の場所になる）。引用符の中や変数の展開のように字面から読めない場所は通す。`pushd` は追わない。
+  - セッションのエージェントの Agent の前に、1 日より古い写しを消す。そのうえで、作業領域の状態（HEAD、ブランチ、
+    index、stash、変更のあるファイルと ignore されていない追跡していないファイルの中身。作業領域の中の linked
+    worktree は除く）の写しを `.git` に置く。Agent のあと（失敗したときも）に今の状態と比べて、違いと種類ごとの
+    戻し方を文脈として足し、写しを消す。
   - linked worktree と作業領域の外、devcontainer で直接動くときは何もしない。
 - **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。字面の
   読み方は `scripts/detach` と共有する。

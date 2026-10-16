@@ -64,7 +64,8 @@ for c in 'git checkout HEAD~1' 'git switch -c other' 'git stash' 'git stash push
   'git update-index --refresh' 'git update-ref HEAD HEAD~1' 'git symbolic-ref HEAD refs/heads/x' \
   'git format-patch -1' 'git submodule update' 'git sparse-checkout set x' 'git --git-dir=/tmp/wt/.git reset --hard' \
   "git --work-tree=$repo --git-dir=/tmp/wt/.git checkout ." 'git format-patch -o . -1' '/usr/bin/git checkout main' \
-  'git branch -m renamed' '(cd /tmp); git checkout main'; do
+  'git branch -m renamed' '(cd /tmp); git checkout main' 'gh pr checkout 147' \
+  'gh pr checkout --detach 147' 'git symbolic-ref HEAD refs/heads/x 2>/dev/null'; do
   check "subagent: $c is denied" deny "$(bash_by a1 "$c")"
 done
 # shellcheck disable=SC2016 # commands as a subagent writes them, unexpanded
@@ -75,7 +76,9 @@ for c in 'git status' 'git diff --stat origin/main...HEAD' 'git log --oneline' '
   'git -C "$repo" checkout main' 't=$(mktemp -d); cd $t && git init && git add .' 'cd "$t" && git add .' \
   "cd $tmp && git checkout x" 'git bisect log' 'git symbolic-ref --short HEAD' 'git symbolic-ref HEAD' \
   'git format-patch --stdout -1' 'git format-patch -o /tmp/p -1' 'git submodule status' 'git sparse-checkout list' \
-  'git branch -D old' '(cd /tmp && git checkout main)' 'cat <<EOF
+  'git branch -D old' '(cd /tmp && git checkout main)' 'git symbolic-ref --short HEAD 2>/dev/null' \
+  'git symbolic-ref -q HEAD >/dev/null' 'git symbolic-ref HEAD 2>&1' 'git symbolic-ref HEAD > /tmp/out' 'gh pr view 147' \
+  'cd /tmp && gh pr checkout 147' 'cat <<EOF
 git checkout main
 EOF'; do
   check "subagent: $c is left alone" "" "$(bash_by a1 "$c")"

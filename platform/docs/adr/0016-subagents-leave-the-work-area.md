@@ -22,21 +22,15 @@ Claude Code の hook の入力は、サブエージェントのツールの呼�
 
 - harness プラグインに hook（`scripts/guard-tree`）を置き、control-plane 経由のときは次をする。
   - **断る**（PreToolUse）：サブエージェントの Edit、Write、NotebookEdit のうち、作業領域（主の worktree と、その
-    `.git`）の中に書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git のサブコマンドを
-    動かすもの。サブコマンドは `add`、`am`、`apply`、`bisect`、`branch`（`-m`、`-M`）、`checkout`、`checkout-index`、`cherry-pick`、`clean`、
-    `commit`、`format-patch`、`merge`、`mv`、`pull`、`read-tree`、`rebase`、`reset`、`restore`、`revert`、`rm`、
-    `sparse-checkout`、`stash`、`submodule`、`switch`、`symbolic-ref`、`update-index`、`update-ref` で、読むだけの形
-    （`stash list`、`bisect log`、`apply --check`、`symbolic-ref HEAD`、`format-patch --stdout`、`submodule status`
-    など）と、`format-patch` で `-o` が外を指すものは通す。git の場所は、今のディレクトリ（同じコマンドの中の
-    `cd` を追い、`( )` の中の `cd` は外に持ち越さない）か、`-C` が指す所。`--git-dir` と `--work-tree` は、どちらかが
-    作業領域を指せば作業領域で動くとみなす（指さない方は git の場所になる）。引用符の中や変数の展開で書かれ、字面
-    から読めない場所は通し、次の比べに任せる。
-    コマンドは detach と同じく字面で読む。
+    `.git`）の中に書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git の
+    サブコマンド（と `gh pr checkout`）を動かすもの。読むだけの形は通す。コマンドは detach と同じく字面で読み、
+    git の場所（今のディレクトリと `cd`、`-C`、`--git-dir`、`--work-tree`）も字面で解く。引用符の中や変数の展開で
+    書かれ、字面から読めない場所は通し、次の比べに任せる。サブコマンドの一覧と場所の決め方は、harness の構成
+    文書に置く。
   - **知らせる**（Agent の PreToolUse と、PostToolUse、PostToolUseFailure）：セッションのエージェントがサブエージェントを
     動かす前後で、作業領域の HEAD、ブランチ、index、stash、変更のあるファイルと追跡していないファイル（ignore
     されたものと、作業領域の中の linked worktree は除く）の中身を比べ、変わっていれば何が変わったかと、種類ごとの
-    戻し方をエージェントに知らせる。リダイレクトやスクリプトの
-    中など、字面では見つけられない書き換えはここで拾う。
+    戻し方をエージェントに知らせる。リダイレクトやスクリプトの中など、字面では見つけられない書き換えはここで拾う。
 - linked worktree（`prctl worktree` の一時的な worktree、`isolation: worktree` のサブエージェント）と、作業領域の外
   （`mktemp -d` の場所）には何もしない。devcontainer で直接動くときも何もしない。
 - review の手順に、範囲のファイルを `git diff --stat` で先に確かめることと、作業領域を変えず、試すなら一時的な場所を
