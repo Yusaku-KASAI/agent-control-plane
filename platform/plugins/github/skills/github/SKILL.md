@@ -53,6 +53,10 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
 
+- 終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー（`"scope": "pr"`）を回し、
+  [終える前](../../../conventions/docs/reference/reviews.md#ending)を満たす。満たしていなければ、ターンの終わりに hook が
+  止め、何が足りないかを言う（`prctl status` の `end:` でも見える）。下書きの PR では止めない。
+
 ### 結果と答えの JSON
 
 レビューの結果と答えは JSON で `prctl` に渡し、`prctl` が Markdown の表と、機械で読む隠した写しの両方を作る。形が

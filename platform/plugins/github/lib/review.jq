@@ -86,7 +86,30 @@ def render_review($title; $answers):
 
 # record: what of a review is kept in its hidden copy: enough to tell its scope and to check the
 # answers to it, as the PR review's body has a limit.
-def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}]};
+def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}],
+  answered: [(.answers // [])[].finding]};
+
+# final_errors($cap): whether the PR may end, from the facts of its reviews in the head's history,
+# oldest first: [{commit, minor, scope, findings, answered}] ("answered" also holds the answers in
+# comments). What stands in the way, one string each; empty when the PR may end.
+def final_errors($cap):
+  . as $rs
+  | ([$rs[] | select(.scope == "pr")] | length) as $wholes
+  | ([$rs | to_entries[] | select(.value.scope == "pr")] | last) as $last
+  | if $last == null then
+      ["no review of the whole PR (scope \"pr\", every perspective) yet"]
+    else
+      $last.value as $r
+      | ([$rs[$last.key + 1:][] | select(.minor | not)] | length) as $after
+      | ([$r.findings | to_entries[] | select(.value.severity == "必須") | .key + 1]) as $musts
+      | ([range(1; ($r.findings | length) + 1)] - $r.answered) as $open
+      | [ (if $after > 0 then "changes other than fixes of nitpicks since the review of the whole PR at \($r.commit[0:12]); review the whole PR again" else empty end),
+          (if $after == 0 and ($musts | length) > 0 then "the review of the whole PR at \($r.commit[0:12]) has findings that must be fixed: \($musts | map(tostring) | join(", ")); fix them, then review the whole PR again" else empty end),
+          (if $after == 0 and ($open | length) > 0 then "findings of the review of the whole PR at \($r.commit[0:12]) not answered: \($open | map(tostring) | join(", ")); answer them (prctl answer \($r.commit[0:12]) <answers-json>)" else empty end) ]
+      | if length > 0 and $wholes >= $cap and (.[0] | startswith("findings") | not)
+        then ["the whole PR was reviewed \($wholes) times and still does not settle: stop, and hand it back to the requester with what remains: " + join("; ")]
+        else . end
+    end;
 
 # render_answers($title): the comment that answers a review.
 def render_answers($title):

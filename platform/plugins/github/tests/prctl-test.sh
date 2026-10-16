@@ -12,6 +12,7 @@ export TMPDIR=$tmp
 state=$tmp/gh
 mkdir -p "$state" "$tmp/bin"
 echo '[]' >"$state/reviews.json"
+echo '[]' >"$state/comments.json"
 echo '{"check_runs": []}' >"$state/checks.json"
 cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
@@ -67,10 +68,12 @@ case $args in
     fi
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
-  *"/issues/1/comments "*)
+  *"/issues/"*"/comments "*" body="*)
     for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-comment"; done
+    jq --rawfile b "$dir/last-comment" '. + [{body: $b}]' "$dir/comments.json" >"$dir/c.tmp" && mv "$dir/c.tmp" "$dir/comments.json"
     echo "https://example.invalid/comment"
     ;;
+  *"/issues/"*"/comments "*) jq -r "${@: -1}" "$dir/comments.json" ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -139,7 +142,7 @@ check "the first review since the last is refused" "$("$prctl" review "$c1" - <<
 check "a review covers the commit it names" "$("$prctl" unreviewed)" "range: $c1..$c2"
 check "a commit before the last review is refused" "$("$prctl" review "$base" - <<<"$nothing" 2>&1 || true)" "is not after the last reviewed"
 
-"$prctl" review "$c2" - <<<"$nothing" >/dev/null
+"$prctl" review "$c2" - <<<"$whole" >/dev/null
 check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the head"
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
@@ -564,5 +567,46 @@ jq --arg h "$(git rev-parse HEAD)" '.headRefOid = $h' "$state/pr.json" >"$state/
 git push -q -f origin "$c12:refs/heads/feature" 2>/dev/null; git fetch -q origin
 git checkout -q feature
 git reset -q --hard origin/feature
+
+# Before a PR ends, a review of the whole PR settles it: no finding that must be fixed, every
+# finding answered, nothing but fixes of nitpicks after it; or it goes back after the cap.
+c15=$(commit fifteen)
+git push -q
+set_pr "$c15"
+proposal=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.findings[0]]}' <<<"$found")
+"$prctl" review "$c15" - <<<"$proposal" >/dev/null
+check "a whole review with an unanswered finding stops the end" "$(stop_hook)" "not answered: 1"
+check "status tells what the end needs" "$("$prctl" status)" "end:       Before PR #1 ends"
+"$prctl" answer "$c15" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' >/dev/null
+out=$(stop_hook)
+check "a whole review with every finding answered lets the PR end" "[$out]" "[]"
+check "status tells the PR may end" "$("$prctl" status)" "end:       may end"
+c16=$(commit sixteen)
+git push -q
+set_pr "$c16"
+"$prctl" review "$c16" - <<<"$nothing" >/dev/null
+check "a change after the whole review stops the end" "$(stop_hook)" "review the whole PR again"
+must=$(jq -c '.findings[0].severity = "必須"' <<<"$proposal")
+"$prctl" review "$c16" - <<<"$must" >/dev/null
+check "a finding that must be fixed stops the end" "$(stop_hook)" "must be fixed: 1"
+c17=$(commit seventeen)
+git push -q
+set_pr "$c17"
+"$prctl" review "$c17" - <<<"$must" >/dev/null
+check "past the cap, the PR goes back to the requester" "$(stop_hook)" "hand it back to the requester"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+out=$(stop_hook)
+check "a draft PR is not held for the whole review" "[$out]" "[]"
+# Fixes of nitpicks after a settling whole review keep it.
+c18=$(commit eighteen)
+git push -q
+set_pr "$c18"
+"$prctl" review "$c18" - <<<"$whole" >/dev/null
+c19=$(commit nineteen)
+git push -q
+set_pr "$c19"
+"$prctl" review --minor "$c19" - <<<"細部の直し" >/dev/null
+out=$(stop_hook)
+check "fixes of nitpicks after the whole review let the PR end" "[$out]" "[]"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
