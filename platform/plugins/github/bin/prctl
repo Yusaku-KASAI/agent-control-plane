@@ -785,8 +785,8 @@ hook_post_tool_use() {
 }
 
 # Only a head pushed from this working tree counts, and a head once seen described, reviewed, out of
-# draft, allowed to end and passing CI is not asked about again with the same reviews, so most turns
-# end with one call to GitHub.
+# draft, allowed to end and passing CI is not asked about again with the same reviews: most turns
+# read only the PR and its reviews.
 hook_stop() {
   local input=$1 b remote state pr checks list draft msg final settled
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0

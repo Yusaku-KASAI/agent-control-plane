@@ -718,15 +718,16 @@ nit=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.find
 "$prctl" review "$u1" - <<<"$nit" >/dev/null
 "$prctl" answer "$u1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
 u2=$(commit unrec-b) && git push -q && set_pr "$u2"
-git rev-parse "$u1" >"$handback"
+# Counted from an earlier review of the whole PR, so that u1's counts, and writing it would show.
+git rev-parse "$s1" >"$handback"
 out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
 lacks "a push not recorded is not a reason to go back" "$out" "not recorded yet" "hand it back"
-check "a push not recorded does not count afresh" "$(cat "$handback")" "$u1"
+check "a push not recorded does not count afresh" "$(cat "$handback")" "$s1"
 "$prctl" review --minor "$u2" - <<<"細部の直し" >/dev/null
 checks completed/failure
 out=$(stop_hook)
 check "a turn held for CI is held" "$out" "CI failed on"
-check "a turn held for CI does not count afresh" "$(cat "$handback")" "$u1"
+check "a turn held for CI does not count afresh" "$(cat "$handback")" "$s1"
 checks completed/success
 out=$(stop_hook)
 check "a PR that may end with CI passing settles" "[$out]" "[]"
