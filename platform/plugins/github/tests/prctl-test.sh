@@ -597,10 +597,18 @@ git push -q
 set_pr "$c17"
 "$prctl" review "$c17" - <<<"$must" >/dev/null
 rm -f "$(git rev-parse --git-path prctl-handback-1)"
-# The cap is the first review of the whole PR and four after it: five, here past it.
-check "the cap is five reviews of the whole PR" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
-check "past the cap, the PR goes back to the requester" "$(stop_hook)" "hand it back to the requester"
-lacks "after going back, the cap counts afresh" "$(stop_hook)" "must be fixed" "hand it back"
+# The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
+handback=$(git rev-parse --git-path prctl-handback-1)
+count_from_here() { git rev-list --count HEAD >"$handback"; }
+check "the cap is five reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
+count_from_here
+cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
+ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
+lacks "below the cap, the PR is not handed back" "$(cap_stop)" "must be fixed" "hand it back"
+cb=$(commit cap-b) && git push -q && set_pr "$cb" && "$prctl" review "$cb" - <<<"$must" >/dev/null
+check "at the cap, the PR goes back to the requester" "$(cap_stop)" "hand it back to the requester"
+cc=$(commit cap-c) && git push -q && set_pr "$cc" && "$prctl" review "$cc" - <<<"$must" >/dev/null
+lacks "after going back, the cap counts afresh" "$(cap_stop)" "must be fixed" "hand it back"
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 out=$(stop_hook)
 check "a draft PR is not held for the whole review" "[$out]" "[]"
@@ -664,5 +672,23 @@ set_pr "$c23"
 "$prctl" answer "$c23" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 2, "action": "直さない", "reason": "r"}]' >/dev/null
 "$prctl" review "$c23" - <<<"$proposal" >/dev/null
 check "answers to another review of the commit do not answer the whole review" "$(stop_hook)" "not answered: 1"
+
+rm -f "$state/last-graphql"
+check "a PR is put back into draft" "$("$prctl" draft)" "https://example.invalid/pull/1"
+check "being put back into draft goes through GraphQL" "$(cat "$state/last-graphql")" "convertPullRequestToDraft"
+# On the way of a draft: prctl ready tells it goes back but does not count afresh, being asked again;
+# the end of the turn, not holding the draft, remembers it; then the count goes on afresh.
+cd1=$(commit draft-a) && git push -q && set_pr "$cd1" && "$prctl" review "$cd1" - <<<"$must" >/dev/null
+count_from_here
+cd2=$(commit draft-b) && git push -q && set_pr "$cd2" && "$prctl" review "$cd2" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+PRCTL_FINAL_CAP=1 "$prctl" ready >/dev/null 2>&1 || true
+check "prctl ready tells a draft past the cap goes back, asked again" "$(PRCTL_FINAL_CAP=1 "$prctl" ready 2>&1 || true)" "hand it back"
+out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
+check "the end of a draft's turn does not hold it" "[$out]" "[]"
+cd3=$(commit draft-c) && git push -q && set_pr "$cd3" && "$prctl" review "$cd3" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+lacks "after the end of a draft's turn, the count goes on afresh" "$(PRCTL_FINAL_CAP=2 "$prctl" ready 2>&1 || true)" "must be fixed" "hand it back"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

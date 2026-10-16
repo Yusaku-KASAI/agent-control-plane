@@ -19,6 +19,8 @@ prctl unreviewed                          # まだレビューしていない範
 prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
 prctl answer <コミット> answers.json        # そのコミットまでのレビューの指摘すべてへの答えを、PR のコメントにする
 prctl review --minor <コミット> note.md      # そのコミットまでを、細部の指摘への直しとして、レビューせずに残す
+prctl ready                               # 終えてよいときだけ、PR の下書きを外す
+prctl draft                               # 追加の依頼で続けるとき、PR を下書きに戻す
 ```
 
 ## 本文とコメント
@@ -57,7 +59,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   （`"scope": "pr"`）を回して[終える前](../../../conventions/docs/reference/reviews.md#ending)を満たし、`prctl ready` で
   下書きを外す。満たしていなければ `prctl ready` が断り、何が足りないかを言う（`prctl status` の `end:` でも見える）。
   下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが 5 回（最初の 1 回と、直したあとの 4 回）に達したら、
-  hook が依頼者に返すよう言う。
+  hook が依頼者に返すよう言う。下書きを外したあとに追加の依頼で作業を続けるときは、`prctl draft` で下書きに戻す。
 
 ### 結果と答えの JSON
 

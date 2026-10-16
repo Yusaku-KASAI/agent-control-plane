@@ -39,6 +39,7 @@ usage:
   prctl ready                         take the PR out of draft, once it may end: a review of the whole
                                       PR, nothing but fixes of nitpicks after it, no finding that must
                                       be fixed, every finding answered (PRs are opened as drafts)
+  prctl draft                         put the PR back into draft, to go on with it
   prctl answer <commit> <answers-json|->
                                       answer every finding of the review of <commit>, in a comment
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
@@ -164,9 +165,10 @@ review_facts() {
 handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$1")"; }
 
 # final_message <pr> <head> <list> [record]: what the PR still needs before it may end (a review of
-# the whole PR that settles it), or nothing. Not for a draft PR, which the callers leave out. With
-# record (the Stop hook only, which then stops the turn to hand the PR back), a PR sent back to the
-# requester is remembered, so that the cap counts afresh after it.
+# the whole PR that settles it), or nothing. With record, the place to count the cap afresh from is
+# remembered: record=turn (the end of a turn, when the PR goes back to the requester or may end) or
+# record=settled (only when it may end, as prctl ready does: it must not start the count afresh by
+# being asked again).
 # Fails when the facts cannot be read.
 final_message() {
   local facts since errors file
@@ -176,10 +178,11 @@ final_message() {
   facts=$(review_facts "$1" "$2" "$3") || return 1
   errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "$since" \
     'include "review"; final_errors($cap; $since)' <<<"$facts") || return 1
-  [[ $errors != "[]" ]] || return 0
-  if [[ -n ${4:-} ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; then
+  if [[ $errors == "[]" && -n ${4:-} ]] \
+    || { [[ ${4:-} == turn ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; }; then
     jq -r '[.[] | select(.scope == "pr") | .at] | max // 0' <<<"$facts" >"$file"
   fi
+  [[ $errors != "[]" ]] || return 0
   jq -r --argjson e "$errors" '"PR #\(.number) may not end yet: \($e | map(.text) | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill)."' <<<"$1"
 }
 
@@ -667,13 +670,30 @@ cmd_ready() {
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
-  # Not recorded here: going back to the requester is for the end of the turn to say.
-  msg=$(final_message "$pr" "$head" "$list") || die "could not read the reviews of the PR"
+  # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
+  msg=$(final_message "$pr" "$head" "$list" settled) || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "$msg"
-  node=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")" --jq .node_id) || die "could not read the PR"
-  # shellcheck disable=SC2016 # a GraphQL variable
-  gh api graphql -f query='mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { url } } }' \
-    -f id="$node" --jq .data.markPullRequestReadyForReview.pullRequest.url
+  draft_state "$pr" markPullRequestReadyForReview
+}
+
+# cmd_draft: put the PR back into draft, to go on with it (another request after it was ready).
+cmd_draft() {
+  local b pr
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  [[ $(jq -r '.isDraft // false' <<<"$pr") != true ]] || { echo "PR #$(jq -r .number <<<"$pr") is a draft already"; return; }
+  draft_state "$pr" convertPullRequestToDraft
+}
+
+# draft_state <pr> <mutation>: take the PR out of draft, or back into it. By GraphQL, as REST has no
+# way to, and directly rather than by gh pr ready, whose query reads other repository features that
+# can fail (as gh pr edit does, see cmd_update).
+draft_state() {
+  local node
+  node=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")" --jq .node_id) || die "could not read the PR"
+  gh api graphql -f query="mutation(\$id: ID!) { $2(input: {pullRequestId: \$id}) { pullRequest { url } } }" \
+    -f id="$node" --jq ".data.$2.pullRequest.url"
 }
 
 cmd_update() {
@@ -777,7 +797,10 @@ hook_stop() {
   # Only once the PR is otherwise current, and out of draft: whether it may end at all. A draft is
   # still on its way; prctl ready asks the same before it leaves draft.
   draft=$(jq -r '.isDraft // false' <<<"$pr")
-  if [[ -z $msg && $draft != true ]]; then msg=$(final_message "$pr" "$remote" "$list" record) || return 0; fi
+  if [[ -z $msg && $draft != true ]]; then msg=$(final_message "$pr" "$remote" "$list" turn) || return 0; fi
+  # A draft is not held, but the end of its turn still remembers where to count the cap from: the
+  # PR goes back to the requester here when prctl ready said so.
+  if [[ -z $msg && $draft == true ]]; then final_message "$pr" "$remote" "$list" turn >/dev/null || true; fi
   if [[ -z $msg ]]; then
     # A head is settled only once nothing more can come of its CI, and not while a draft, which
     # leaves draft without a push; until then, later turns look again.
@@ -822,6 +845,7 @@ main() {
       ;;
     answer) [[ $# -eq 3 ]] || usage; cmd_answer "$2" "$3" ;;
     ready) [[ $# -eq 1 ]] || usage; cmd_ready ;;
+    draft) [[ $# -eq 1 ]] || usage; cmd_draft ;;
     create)
       if [[ ${2:-} == --base ]]; then
         [[ $# -eq 5 ]] || usage
