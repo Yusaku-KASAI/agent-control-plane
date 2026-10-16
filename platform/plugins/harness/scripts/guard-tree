@@ -36,35 +36,80 @@ tree_of() {
   git -C "$p" rev-parse --show-toplevel 2>/dev/null || true
 }
 
-# changes_tree <command>: whether the command runs, in the work tree, a git command that changes its
-# files, its index or HEAD. A git command given another place (-C, --git-dir, --work-tree) is left
-# to the comparison around the subagent.
+# place <word> <dir>: where a directory named in a command is, relative to dir: here (in the work
+# area), elsewhere, or unknown when the word is not a literal path (quoted or expanded, which
+# shell_words marks with $) or dir is unknown.
+place() {
+  local w=$1 dir=$2
+  if [[ $w == *[\$\~*?[]* || -z $w ]] || [[ $w != /* && $dir == unknown ]]; then
+    echo unknown
+    return
+  fi
+  [[ $w == /* ]] || w=$dir/$w
+  if [[ $(tree_of "$w") == "$top" ]]; then echo here; else echo elsewhere; fi
+}
+
+# writes <subcommand> <arguments...>: whether the git subcommand changes the work tree, the index or
+# HEAD. Its forms that only read are left out.
+writes() {
+  local sub=$1 args=" ${*:2} "
+  case $sub in
+    add | am | checkout | checkout-index | cherry-pick | clean | commit | merge | mv | pull | read-tree | \
+      rebase | reset | restore | revert | rm | switch | update-index | update-ref) return 0 ;;
+    stash) [[ $args != " "@(list|show)" "* ]] ;;
+    bisect) [[ $args != " "@(log|visualize|view)" "* ]] ;;
+    sparse-checkout) [[ $args != " list "* ]] ;;
+    submodule) [[ $args == " "@(add|deinit|init|update|sync|absorbgitdirs)" "* ]] ;;
+    apply) [[ $args != *" --"@(check|stat|numstat|summary)" "* || $args == *" --apply "* ]] ;;
+    # symbolic-ref <name> <ref> sets a ref; with one name, it reads.
+    symbolic-ref) [[ $args == *" -"@(d|-delete)" "* || $(wc -w <<<"${args//-[a-z-]*([^ ])/}") -ge 2 ]] ;;
+    # format-patch writes its files to the current directory unless told otherwise.
+    format-patch) [[ $args != *" "@(--stdout|-o|--output-directory*)" "* ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+# changes_tree <command>: whether the command runs, in the work area, a git command that changes its
+# files, its index or HEAD. A git command's place is the current directory, followed through cd, or
+# what -C, --git-dir or --work-tree name. A place that cannot be read from the command (a quoted or
+# expanded path) is left to the comparison around the subagent.
 changes_tree() {
-  local line words i sub
-  [[ $(tree_of "$cwd") == "$top" ]] || return 1
+  local line words i dir here sub
+  dir=$cwd
   while IFS= read -r line; do
     read -ra words <<<"$line"
+    ((${#words[@]})) || continue
+    if [[ ${words[0]} == cd ]]; then
+      case $(place "${words[1]:-$HOME}" "$dir") in
+        unknown) dir=unknown ;;
+        *) [[ ${words[1]:-} == /* ]] && dir=${words[1]} || dir=$dir/${words[1]:-} ;;
+      esac
+      continue
+    fi
     for ((i = 0; i < ${#words[@]}; i++)); do
       [[ ${words[i]} == git ]] || continue
+      if [[ $dir == unknown ]]; then here=unknown; else here=$(place "$dir" /); fi
       sub=""
       for ((i++; i < ${#words[@]}; i++)); do
         case ${words[i]} in
-          -C | --git-dir* | --work-tree*) sub=elsewhere; break ;;
+          -C) ((i++)) || true; here=$(place "${words[i]:-}" "$dir") ;;
+          --work-tree=*) here=$(place "${words[i]#*=}" "$dir") ;;
+          --work-tree) ((i++)) || true; here=$(place "${words[i]:-}" "$dir") ;;
+          --git-dir=* | --git-dir)
+            local g=${words[i]#--git-dir}
+            g=${g#=}
+            [[ -n $g ]] || { ((i++)) || true; g=${words[i]:-}; }
+            if [[ $(place "$g" "$dir") == unknown ]]; then here=unknown
+            elif [[ $(cd "$( [[ $g == /* ]] && echo "$g" || echo "$dir/$g")" 2>/dev/null && pwd -P) == "$(cd "$common" && pwd -P)" ]]; then here=here
+            else here=elsewhere; fi ;;
           -c) ((i++)) || true ;;
           -*) ;;
           *) sub=${words[i]}; break ;;
         esac
       done
-      case $sub in
-        add | am | checkout | cherry-pick | clean | commit | merge | mv | pull | rebase | reset | restore | revert | rm | switch)
-          return 0 ;;
-        stash)
-          [[ ${words[i + 1]:-} == @(list|show) ]] || return 0 ;;
-        apply)
-          [[ " ${words[*]:i+1} " == *" --"@(check|stat|numstat|summary)" "* && " ${words[*]:i+1} " != *" --apply "* ]] || return 0 ;;
-      esac
+      [[ $here == here && -n $sub ]] && writes "$sub" "${words[@]:i+1}" && return 0
     done
-  done < <(tr ';&|(){}`' '\n' <<<"$(shell_words "$1")")
+  done < <(tr ';&|(){}`' '\n' <<<"$(shell_words "$1" '$')")
   return 1
 }
 
@@ -103,11 +148,13 @@ case $event:$tool in
   PreToolUse:Bash)
     [[ -n $subagent ]] || exit 0
     if changes_tree "$(field .tool_input.command)"; then
-      deny "control-plane 経由では、サブエージェントは作業領域の HEAD、index、ファイルを変える git のコマンド（checkout、switch、reset、stash、add、commit など）を使わない（ハーネスの契約）。ほかのコミットを読むなら git show や git diff、ほかの PR は prctl worktree で取り出した一時的な worktree で読む。"
+      deny "control-plane 経由では、サブエージェントは作業領域の HEAD、index、ファイルを変える git のコマンド（checkout、switch、reset、stash、add、commit など）を使わない（ハーネスの契約）。ほかのコミットを読むなら git show や git diff、ほかの PR は prctl worktree で取り出した一時的な worktree で読む。作業領域の外（mktemp -d で作った場所）で git を動かすなら、git -C <その場所> か cd <その場所> で場所を指す。"
     fi
     ;;
   PreToolUse:Agent | PreToolUse:Task)
     [[ -z $subagent ]] || exit 0
+    # A snapshot whose Agent call never ended (denied by another hook, say) is left behind.
+    find "$common" -maxdepth 1 -name 'acp-subagent-*' -mmin +1440 -delete 2>/dev/null || true
     state >"$(snapshot)"
     ;;
   PostToolUse:Agent | PostToolUse:Task | PostToolUseFailure:Agent | PostToolUseFailure:Task)

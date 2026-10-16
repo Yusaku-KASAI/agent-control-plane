@@ -57,13 +57,21 @@ check "subagent writing is left alone outside the control plane" "" \
 for c in 'git checkout HEAD~1' 'git switch -c other' 'git stash' 'git stash push -m m' 'git add -A' \
   'git commit -m m' 'git reset --hard' 'git restore README.md' 'git rebase main' 'git clean -fd' \
   'git apply p.diff' 'git -c core.pager=cat checkout main' 'git log | head; git reset HEAD~1' \
-  'cd sub && git checkout main' 'make check && git add README.md'; do
+  'cd sub && git checkout main' 'make check && git add README.md' "git -C $repo checkout main" 'git -C . switch -c x' \
+  "git --work-tree=$repo checkout ." "git --git-dir=$repo/.git reset" "git --git-dir $repo/.git reset" \
+  "cd $tmp && cd $repo && git checkout main" 'git bisect start' 'git read-tree HEAD' 'git checkout-index -a' \
+  'git update-index --refresh' 'git update-ref HEAD HEAD~1' 'git symbolic-ref HEAD refs/heads/x' \
+  'git format-patch -1' 'git submodule update' 'git sparse-checkout set x'; do
   check "subagent: $c is denied" deny "$(bash_by a1 "$c")"
 done
+# shellcheck disable=SC2016 # commands as a subagent writes them, unexpanded
 for c in 'git status' 'git diff --stat origin/main...HEAD' 'git log --oneline' 'git show HEAD~1:README.md' \
   'git stash list' 'git stash show -p' 'git apply --check p.diff' 'git apply --stat p.diff' \
   'echo "git checkout main"' "grep -n 'git reset' README.md" 'git -C /tmp/wt checkout main' \
-  'git --git-dir=/tmp/wt/.git reset' 'go test ./...' 'cat <<EOF
+  'git --git-dir=/tmp/wt/.git reset' 'go test ./...' "git -C $linked checkout main" "git -C $tmp/scratch init" \
+  'git -C "$repo" checkout main' 't=$(mktemp -d); cd $t && git init && git add .' 'cd "$t" && git add .' \
+  "cd $tmp && git checkout x" 'git bisect log' 'git symbolic-ref --short HEAD' 'git symbolic-ref HEAD' \
+  'git format-patch --stdout -1' 'git format-patch -o /tmp/p -1' 'git submodule status' 'git sparse-checkout list' 'cat <<EOF
 git checkout main
 EOF'; do
   check "subagent: $c is left alone" "" "$(bash_by a1 "$c")"
@@ -100,6 +108,11 @@ touch "$repo/failed"
 check "a change around a failed subagent is told" yes "$(contains 'failed' \
   "$(run "" PostToolUseFailure Agent '{"prompt":"p"}' | jq -r '.hookSpecificOutput.additionalContext // ""')")"
 rm -f "$repo/failed"
+stale=$(dirname "$snapshot")/acp-subagent-toolu_0
+touch -d '2 days ago' "$stale"
+run "" PreToolUse Agent '{"prompt":"p"}' >/dev/null
+run "" PostToolUse Agent '{"prompt":"p"}' >/dev/null
+check "a snapshot left for a day is removed" no "$([[ -e $stale ]] && echo yes || echo no)"
 check "a subagent's own Agent call takes no snapshot" "" "$(run a1 PreToolUse Agent '{"prompt":"p"}')"
 check "without a snapshot, nothing to tell" "" "$(run "" PostToolUse Agent '{"prompt":"p"}')"
 exit $failed

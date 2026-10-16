@@ -1,12 +1,12 @@
 # Shell helpers for the hooks, sourced by them.
 # shellcheck shell=bash
 
-# shell_words <command>: the command without what is not shell syntax: here-document bodies, quoted
-# strings and comments, read left to right once, so that one kind of quote inside another does not
-# end it. Quoted parts become a space.
+# shell_words <command> [<mark>]: the command without what is not shell syntax: here-document bodies,
+# quoted strings and comments, read left to right once, so that one kind of quote inside another does
+# not end it. Quoted parts become the mark, a space unless given.
 shell_words() {
   # On standard input, as an environment variable has a limit of its length.
-  printf '%s' "$1" | awk 'BEGIN {
+  printf '%s' "$1" | awk -v q="${2:- }" 'BEGIN {
     s = ""; k = 0
     while ((getline l) > 0) s = s (k++ ? "\n" : "") l
     n = length(s); st = "plain"; out = ""; pend = ""; arith = 0
@@ -16,10 +16,10 @@ shell_words() {
       if (st == "double") { if (c == "\\") i++; else if (c == "\"") st = "plain"; continue }
       if (st == "ansi") { if (c == "\\") i++; else if (c == "\047") st = "plain"; continue }
       if (st == "comment") { if (c == "\n") { st = "plain"; i-- }; continue }
-      if (c == "$" && substr(s, i + 1, 1) == "\047") { st = "ansi"; out = out " "; i++; continue }
-      if (c == "\047") { st = "single"; out = out " "; continue }
-      if (c == "\"") { st = "double"; out = out " "; continue }
-      if (c == "\\") { i++; out = out " "; continue }
+      if (c == "$" && substr(s, i + 1, 1) == "\047") { st = "ansi"; out = out q; i++; continue }
+      if (c == "\047") { st = "single"; out = out q; continue }
+      if (c == "\"") { st = "double"; out = out q; continue }
+      if (c == "\\") { i++; out = out q; continue }
       if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n;&|(]/)) { st = "comment"; continue }
       # In arithmetic, (( ... )), << is a shift, not a here-document.
       if (substr(s, i, 2) == "((") { arith++; out = out "(("; i++; continue }

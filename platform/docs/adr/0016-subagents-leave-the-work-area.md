@@ -22,10 +22,13 @@ Claude Code の hook の入力は、サブエージェントのツールの呼�
 
 - harness プラグインに hook（`scripts/guard-tree`）を置き、control-plane 経由のときは次をする。
   - **断る**（PreToolUse）：サブエージェントの Edit、Write、NotebookEdit のうち、作業領域（主の worktree）の中に
-    書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git のサブコマンド
-    （`add`、`am`、`apply`、`checkout`、`cherry-pick`、`clean`、`commit`、`merge`、`mv`、`pull`、`rebase`、`reset`、
-    `restore`、`revert`、`rm`、`stash`、`switch`）を動かすもの。読むだけの形（`stash list` と `stash show`、`apply` の
-    `--check` などで `--apply` のないもの）と、`-C`、`--git-dir`、`--work-tree` でほかの場所を指すものは通す。
+    書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git のサブコマンドを
+    動かすもの。サブコマンドは `add`、`am`、`apply`、`bisect`、`checkout`、`checkout-index`、`cherry-pick`、`clean`、
+    `commit`、`format-patch`、`merge`、`mv`、`pull`、`read-tree`、`rebase`、`reset`、`restore`、`revert`、`rm`、
+    `sparse-checkout`、`stash`、`submodule`、`switch`、`symbolic-ref`、`update-index`、`update-ref` で、読むだけの形
+    （`stash list`、`bisect log`、`apply --check`、`symbolic-ref HEAD`、`format-patch --stdout`、`submodule status`
+    など）は通す。git の場所は、今のディレクトリ（同じコマンドの中の `cd` を追う）か、`-C`、`--git-dir`、
+    `--work-tree` が指す所。引用符の中や変数の展開で書かれ、字面から読めない場所は通し、次の比べに任せる。
     コマンドは detach と同じく字面で読む。
   - **知らせる**（Agent の PreToolUse と、PostToolUse、PostToolUseFailure）：セッションのエージェントがサブエージェントを
     動かす前後で、作業領域の HEAD、ブランチ、index、stash、変更のあるファイルと追跡していないファイル（ignore
@@ -55,7 +58,10 @@ Claude Code の hook の入力は、サブエージェントのツールの呼�
 
 - control-plane 経由では、サブエージェントは作業領域のファイルを書けず、作業領域で HEAD、index、作業ツリーを変える
   git のコマンドを使えない。作業を任せるなら `isolation: worktree` にするか、セッションのエージェントが自分で行う。
-- 字面で読むので、`echo git checkout` のように git のコマンドでないものを断ることがある。逆に、`cd` でほかの場所に
-  移ってから動かす git のコマンドも断る（`-C` で場所を指せば通る）。
+- 字面で読むので、`echo git checkout` のように git のコマンドでないものを断ることがある。逆に、場所を引用符や変数で
+  書いた git のコマンド（`git -C "$dir" checkout`）や、`bash -c` やスクリプトの中の git のコマンドは断らず、前後の
+  比べで知らせるだけになる。
+- Agent がほかの hook に断られるなどして、あとの hook が呼ばれないと、写しが残る。1 日より古い写しは、次の Agent の
+  前に消す。
 - 比べるのは前後の状態なので、サブエージェントが変えてから戻したものは知らせない。並べて動かしたサブエージェントの
   どれが変えたかは分からない。比べるための写しを作業領域の `.git` に一時的に置く。
