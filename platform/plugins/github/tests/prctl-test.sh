@@ -19,9 +19,16 @@ set -euo pipefail
 dir=$FAKE_GH
 args=" $* "
 case $args in
-  *" pr list "*)
-    # nopr-<branch>: that branch has no open PR; otherwise every branch has the one in pr.json.
+  *" pr list "*" --state merged "*)
+    # merged-<branch>: that branch's PR #5 was merged.
     head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
+    [[ ! -f $dir/merged-${head//\//-} ]] || echo 5
+    ;;
+  *" pr list "*)
+    # nopr-<branch>: that branch has no open PR; fail-prs-<branch>: its PR cannot be read; otherwise
+    # every branch has the one in pr.json.
+    head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
+    [[ ! -f $dir/fail-prs-${head//\//-} ]] || exit 1
     [[ -f $dir/nopr-${head//\//-} ]] && exit 0
     [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
     ;;
@@ -533,9 +540,18 @@ jq -n --arg h "$(git rev-parse HEAD)" '{number: 2, url: "u", headRefOid: $h, bas
 lacks "a stacked PR on its base's head is told nothing" "$("$prctl" status)" "PR #2" "stacked on"
 git push -q origin "$(git commit-tree -p "$(git rev-parse origin/feature)" -m below "$(git rev-parse "origin/feature^{tree}")"):refs/heads/feature" && git fetch -q origin
 check "a stacked PR is told to take in its base" "$("$prctl" status)" "merge origin/feature in and push"
-touch "$state/nopr-feature"
-check "a stacked PR is told when its base has no open PR" "$(stop_hook)" "which has no open PR any more"
+touch "$state/nopr-feature" "$state/merged-feature"
+check "a stacked PR is told when its base's PR was merged" "$(stop_hook)" "whose PR #5 was merged"
+rm "$state/merged-feature"
+check "a stacked PR is told when its base's PR was closed unmerged" "$(stop_hook)" "closed without being merged. Do not move"
 rm "$state/nopr-feature"
+touch "$state/fail-prs-feature"
+lacks "a stacked PR is told nothing when its base's PR cannot be read" "$(stop_hook)" "not reviewed up to" "stacked on"
+rm "$state/fail-prs-feature"
+check "a stacked PR whose head is not here is told nothing of its base" \
+  "$(jq '.headRefOid = "0123456789abcdef0123456789abcdef01234567"' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"; "$prctl" status)" "PR #2"
+lacks "a head not here is not taken as behind its base" "$("$prctl" status)" "PR #2" "merge origin/feature in"
+jq --arg h "$(git rev-parse HEAD)" '.headRefOid = $h' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 git push -q -f origin "$c12:refs/heads/feature" 2>/dev/null; git fetch -q origin
 git checkout -q feature
 git reset -q --hard origin/feature

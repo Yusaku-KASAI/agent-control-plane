@@ -34,7 +34,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - まだマージされていない PR の中身を前提にする変更だけは、その PR に重ねる（`--base`。重ねてよいときと、本文に書く
   こと、下に push したときの取り込みは[変更](../../../conventions/docs/reference/changes.md#changes)）。`prctl` は、
   ブランチが下のブランチの上にあり、下に開いている PR があるときだけ作る。重ねたあと、下が先に進んで取り込んで
-  いないときと、下の PR がもう開いていないときは、`prctl status` と hook が知らせる。
+  いないときと、下の PR が閉じたとき（マージされたか、されずに閉じたか）は、`prctl status` と hook が知らせる。
 - PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー

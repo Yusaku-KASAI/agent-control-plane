@@ -337,16 +337,24 @@ pushed_head() {
 }
 
 # stack_message <pr> <head>: what a PR stacked on another's branch needs, or nothing: the branch it
-# is stacked on has moved on without it, or has no open PR any more. Says nothing when the default
-# branch is not known here (origin/HEAD) or the PR is into it.
+# is stacked on has moved on without it, or its PR was merged, or closed without merging. Says
+# nothing when the default branch is not known here (origin/HEAD), the PR is into it, or a fact
+# cannot be read (GitHub, or a head this clone does not have): nothing rather than something wrong.
 stack_message() {
-  local base def
+  local base def below merged
   base=$(jq -r .baseRefName <<<"$1")
   def=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD) || return 0
   [[ $base != "${def#origin/}" ]] || return 0
-  if [[ -z $(open_pr "$base" 2>/dev/null) ]]; then
-    jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), which has no open PR any more (merged or closed). Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
-  elif remote_head "$base" >/dev/null && ! git merge-base --is-ancestor "origin/$base" "$2"; then
+  below=$(open_pr "$base" 2>/dev/null) || return 0
+  if [[ -z $below ]]; then
+    merged=$(gh pr list --head "$base" --state merged --limit 1 --json number --jq '.[0].number // empty' 2>/dev/null) || return 0
+    if [[ -n $merged ]]; then
+      jq -r --arg base "$base" --arg m "$merged" '"PR #\(.number) is stacked on \($base), whose PR #\($m) was merged. Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
+    else
+      jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), whose PR was closed without being merged. Do not move the PR to the default branch, which would take in what was not merged: ask the requester what to do with it (see the github skill)."' <<<"$1"
+    fi
+  elif remote_head "$base" >/dev/null && git cat-file -e "$2^{commit}" 2>/dev/null \
+    && ! git merge-base --is-ancestor "origin/$base" "$2"; then
     jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), which has commits it does not: merge origin/\($base) in and push (see the github skill)."' <<<"$1"
   fi
 }
