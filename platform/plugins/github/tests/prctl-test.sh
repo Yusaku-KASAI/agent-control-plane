@@ -6,6 +6,8 @@ set -euo pipefail
 prctl=$(cd "$(dirname "$0")/.." && pwd)/bin/prctl
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+# Where prctl keeps its worktrees and locks.
+export TMPDIR=$tmp
 
 state=$tmp/gh
 mkdir -p "$state" "$tmp/bin"
@@ -37,6 +39,8 @@ case $args in
     ;;
   *"/check-runs"*)
     [[ ! -f $dir/fail-checks ]] || exit 1
+    # Something to happen while prctl waits, once: on-checks is run before answering.
+    if [[ -f $dir/on-checks ]]; then bash "$dir/on-checks"; rm "$dir/on-checks"; fi
     if [[ -f $dir/fail-checks-once ]]; then rm "$dir/fail-checks-once"; exit 1; fi
     # A sequence of answers, one per call, the last one repeated: seq/1.json, seq/2.json, ...
     if [[ -d $dir/seq ]]; then
@@ -181,6 +185,69 @@ touch "$state/fail-checks"
 check "wait gives up after three read errors in a row" "$("$prctl" ci --wait 2>&1 || true)" "could not read the checks"
 rm "$state/fail-checks"
 check "wait gives up at the timeout" "$(PRCTL_CI_TIMEOUT=0 "$prctl" ci --wait | sed -n 2p)" "timeout"
+
+# The wait follows this clone's ref of the branch, also when it is pushed again while waiting.
+next=$(git commit-tree -p "$c2" -m next "$(git rev-parse "$c2^{tree}")")
+echo "git update-ref refs/remotes/origin/feature $next" >"$state/on-checks"
+sequence "in_progress/" "completed/success"
+out=$("$prctl" ci --wait)
+check "wait follows a newer push" "$(head -n 1 <<<"$out")" "head: $next"
+check "wait gives the newer push's CI" "$(sed -n 2p <<<"$out")" "passed"
+set_pr "$c1"
+check "wait starts from this clone's push when GitHub lags" "$("$prctl" ci --wait | head -n 1)" "head: $next"
+git update-ref refs/remotes/origin/feature "$c2"
+set_pr "$c2"
+echo "git update-ref refs/remotes/origin/feature $c1" >"$state/on-checks"
+sequence "in_progress/" "completed/success"
+check "wait follows a push back to an older commit" "$("$prctl" ci --wait | head -n 1)" "head: $c1"
+git update-ref refs/remotes/origin/feature "$c2"
+# Also a push just as the wait has come to an end supersedes it.
+echo "git update-ref refs/remotes/origin/feature $next" >"$state/on-checks"
+sequence "completed/failure" "completed/success"
+out=$("$prctl" ci --wait)
+check "wait follows a push as it ends" "$(head -n 1 <<<"$out")" "head: $next"
+check "wait gives the CI of the push as it ends" "$(sed -n 2p <<<"$out")" "passed"
+git update-ref refs/remotes/origin/feature "$c2"
+# Without this clone's ref of the branch, the PR head is waited for.
+git update-ref -d refs/remotes/origin/feature
+set_pr "$c1"
+check "wait takes the PR head without a ref of the branch" "$("$prctl" ci --wait | head -n 1)" "head: $c1"
+git update-ref refs/remotes/origin/feature "$c2"
+set_pr "$c2"
+
+# A wait outlives an edit of prctl in place (bash reads a script as it goes).
+cp "$prctl" "$tmp/prctl-copy"
+sequence "in_progress/"
+PRCTL_CI_POLL=1 "$tmp/prctl-copy" ci --wait >"$tmp/edited.out" 2>&1 &
+waiter=$!
+sleep 2
+script=$(cat "$tmp/prctl-copy")
+# Longer than the last line, so that what is left at the old place does not parse.
+printf '# ----------------------------------------------------------------\n%s\n' "$script" >"$tmp/prctl-copy"
+sequence "completed/success"
+rc=0 && wait "$waiter" || rc=$?
+check "a wait outlives an edit of prctl in place" "|$rc|$(cat "$tmp/edited.out")" "|0|head: $c2"$'\n'"passed"
+
+# One wait per branch: another ends at once, naming the one that waits. Without flock (not in the
+# devcontainer), every wait goes ahead.
+if command -v flock >/dev/null; then
+  hold() { exec 9>>"$tmp/prctl-work-ci-wait-$1"; flock -n 9; echo 4242 >"$tmp/prctl-work-ci-wait-$1"; }
+  hold feature
+  sequence "in_progress/"
+  check "a second wait ends at once" "$(PRCTL_CI_TIMEOUT=60 "$prctl" ci --wait)" "already waiting for the CI of feature (pid 4242)"
+  exec 9>&-
+  sequence "completed/success"
+  check "the wait is free again once the first has ended" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+  # Branch names are encoded into the lock's name, so that feat/x and feat-x do not share one.
+  git checkout -q -b feat/x && git push -q -u origin feat/x 2>/dev/null
+  hold feat-x
+  check "a lock of another branch does not stop the wait" "$("$prctl" ci --wait | sed -n 2p)" "passed"
+  exec 9>&-
+  hold "feat%2Fx"
+  check "the lock of a branch with a slash is its own" "$(PRCTL_CI_TIMEOUT=60 "$prctl" ci --wait)" "already waiting"
+  exec 9>&-
+  git checkout -q feature
+fi
 rm -rf "$state/seq"
 
 echo '{"check_runs": []}' >"$state/checks.json"

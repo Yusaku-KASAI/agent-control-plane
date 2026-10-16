@@ -4,7 +4,9 @@ PR の本文は、追記ではなく今のブランチの姿に合わせて書�
 （[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
 レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
 レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
-CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。このプラグインは、それを `prctl` と hook で守らせる。
+CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
+一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。このプラグインは、それを
+`prctl` と hook で守らせる。
 
 ## 構成
 
@@ -38,7 +40,12 @@ github/
   一覧は一度だけ読んで事実（コミットと、レビューか記録か）にし、使えるかの判定は一か所に置いて、断るときと
   案内するときに使う。
   レビューを読めないときは、コマンドは失敗し、hook は何も言わない。CI を読めないときは、CI のことだけを言わない。
-  CI の状態は、失敗、実行中、人の操作待ち、取り消し、通った、なしに分け、各 check の最新の run だけを数える。本文とレビューの結果の書き方は置かず、スキルに任せる。
+  CI の状態は、失敗、実行中、人の操作待ち、取り消し、通った、なしに分け、各 check の最新の run だけを数える。
+  CI を待つ（`ci --wait`）のは一つのブランチに一つだけで、コンテナの `TMPDIR`（なければ `/tmp`）の中のファイルの `flock` で守る
+  （`flock` がないか、取り合い以外で失敗したら守らない）。待つ head は、このクローンの参照（`origin/<ブランチ>`）が
+  指す head。ふつうはこのクローンから最後に push した head で、fetch で取り込んだほかからの push も、参照が指せば
+  待つ。待つ間にその参照が動けば（push で進めても戻しても、fetch でも）、終わる直前でも、新しい head を初めから
+  待ち直す。本文とレビューの結果の書き方は置かず、スキルに任せる。
 - **関係**：`git`、`gh`、`jq` を使う。振る舞いは `tests/prctl-test.sh`（偽の `gh` と使い捨てのリポジトリ）で確かめる。`gh` の認証はハーネスの契約で渡される（[ハーネスの契約](../../../docs/reference/harness.md)）。
 - **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：どこまで説明したかは本文の印に、
   どこまでレビューしたかは PR のレビューの `commit_id` にだけ持つ。[事実と判定を分ける](../../principles/docs/reference/patterns.md#facts-and-judgement)：
