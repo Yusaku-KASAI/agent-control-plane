@@ -599,7 +599,7 @@ set_pr "$c17"
 rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
-count_from_here() { git rev-list --count HEAD >"$handback"; }
+count_from_here() { git rev-parse HEAD >"$handback"; }
 check "the cap is five reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
@@ -690,5 +690,23 @@ cd3=$(commit draft-c) && git push -q && set_pr "$cd3" && "$prctl" review "$cd3" 
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 lacks "after the end of a draft's turn, the count goes on afresh" "$(PRCTL_FINAL_CAP=2 "$prctl" ready 2>&1 || true)" "must be fixed" "hand it back"
 jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+
+# Out of draft, the end is asked along with the rest; a push not reviewed yet is a change; a mark
+# out of the history counts all; the count goes afresh once the PR may end.
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+s1=$(commit settle-a) && git push -q && set_pr "$s1" && "$prctl" review "$s1" - <<<"$whole" >/dev/null
+count_from_here
+out=$(stop_hook)
+check "a PR that may end lets the turn end" "[$out]" "[]"
+check "the count goes afresh once the PR may end" "$(cat "$handback")" "$s1"
+s2=$(commit settle-b) && git push -q && set_pr "$s2"
+out=$(stop_hook)
+check "the stop for a push not reviewed also asks for the whole review" "$out" "not reviewed up to ${s2:0:12}"
+check "the stop for a push not reviewed names the end too" "$out" "may not end yet"
+check "status does not say may end with a push not reviewed" "$("$prctl" status)" "end:       PR #1 may not end yet"
+"$prctl" review "$s2" - <<<"$must" >/dev/null
+lacks "after the count went afresh, one more is below the cap" "$(cap_stop)" "must be fixed" "hand it back"
+echo "$other" >"$handback"
+check "a mark out of the history counts every review of the whole PR" "$(cap_stop)" "hand it back"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

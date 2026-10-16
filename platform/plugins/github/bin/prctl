@@ -160,8 +160,9 @@ review_facts() {
          answered: ((($c.answered // []) + [$answers[] | select(.review_id == $id) | .answers[].finding]) | unique)})'
 }
 
-# handback_file <pr>: where this work tree keeps how far the reviews of the whole PR were counted
-# when the PR last went back to the requester; the cap counts those after it.
+# handback_file <pr>: where this work tree keeps the commit of the last review of the whole PR
+# counted when the PR last went back to the requester or was found to end; the cap counts those
+# after it.
 handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$1")"; }
 
 # final_message <pr> <head> <list> [record]: what the PR still needs before it may end (a review of
@@ -171,16 +172,21 @@ handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$
 # being asked again).
 # Fails when the facts cannot be read.
 final_message() {
-  local facts since errors file
+  local facts order since mark at errors file
   file=$(handback_file "$1")
-  since=$(cat "$file" 2>/dev/null) || since=0
-  [[ $since =~ ^[0-9]+$ ]] || since=0
   facts=$(review_facts "$1" "$2" "$3") || return 1
-  errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "$since" \
-    'include "review"; final_errors($cap; $since)' <<<"$facts") || return 1
+  # Places in the history of the head, as review_facts gives them: the head's, and that of the commit
+  # of the last review of the whole PR counted before (none when it is out of the history, as after
+  # a rewrite, which counts them all: sooner rather than later).
+  order=$(git rev-list --topo-order --reverse "$2" | awk '{ print $0 " " NR }')
+  at=$(wc -l <<<"$order")
+  mark=$(cat "$file" 2>/dev/null) || mark=""
+  since=$(awk -v c="$mark" '$1 == c { print $2 }' <<<"$order")
+  errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "${since:-0}" --argjson head "$at" \
+    'include "review"; final_errors($cap; $since; $head)' <<<"$facts") || return 1
   if [[ $errors == "[]" && -n ${4:-} ]] \
     || { [[ ${4:-} == turn ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; }; then
-    jq -r '[.[] | select(.scope == "pr") | .at] | max // 0' <<<"$facts" >"$file"
+    jq -r '[.[] | select(.scope == "pr")] | last | .commit // empty' <<<"$facts" >"$file"
   fi
   [[ $errors != "[]" ]] || return 0
   jq -r --argjson e "$errors" '"PR #\(.number) may not end yet: \($e | map(.text) | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill)."' <<<"$1"
@@ -660,7 +666,7 @@ cmd_create() {
 
 # cmd_ready: take the PR out of draft, once it may end (reviews.md: before ending).
 cmd_ready() {
-  local b head pr list msg node
+  local b head pr list msg
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
   pr=$(open_pr "$b")
@@ -781,7 +787,7 @@ hook_post_tool_use() {
 # Only a head pushed from this working tree counts, and a head once seen described, reviewed and
 # passing CI is not asked about again, so most turns end without calling GitHub.
 hook_stop() {
-  local input=$1 b remote state pr checks list draft msg
+  local input=$1 b remote state pr checks list draft msg final
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
@@ -797,9 +803,14 @@ hook_stop() {
   # Only once the PR is otherwise current, and out of draft: whether it may end at all. A draft is
   # still on its way; prctl ready asks the same before it leaves draft.
   draft=$(jq -r '.isDraft // false' <<<"$pr")
-  if [[ -z $msg && $draft != true ]]; then msg=$(final_message "$pr" "$remote" "$list" turn) || return 0; fi
-  # A draft is not held, but the end of its turn still remembers where to count the cap from: the
-  # PR goes back to the requester here when prctl ready said so.
+  # Out of draft, whether it may end at all is asked along with the rest: the hook stops a turn once,
+  # so that what the rest asks for, once done, would let the turn end without it.
+  if [[ $draft != true ]]; then
+    final=$(final_message "$pr" "$remote" "$list" turn) || final=""
+    msg+=${final:+$final }
+  fi
+  # A draft is not held, but the end of its turn still remembers where to count the cap from, once
+  # it is past the cap (prctl ready says so, whether asked or not) or may end.
   if [[ -z $msg && $draft == true ]]; then final_message "$pr" "$remote" "$list" turn >/dev/null || true; fi
   if [[ -z $msg ]]; then
     # A head is settled only once nothing more can come of its CI, and not while a draft, which
