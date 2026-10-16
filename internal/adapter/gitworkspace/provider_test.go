@@ -146,6 +146,28 @@ func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
 			},
 		},
 		{
+			name: "a change to a tracked file", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic",
+			prepare: func(t *testing.T, ws string) string {
+				if err := os.WriteFile(filepath.Join(ws, "README.md"), []byte("edited"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
+			name: "an ignored file", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				commit(t, ws, ".gitignore", "build/\n")
+				if err := os.MkdirAll(filepath.Join(ws, "build"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(ws, "build", "out"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
 			name: "a commit other than HEAD", makefile: true, check: "pass", refspec: "HEAD~1:refs/heads/topic",
 		},
 		{name: "a target without a Makefile", check: "fail", refspec: "HEAD:refs/heads/topic", wantPush: true},
