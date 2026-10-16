@@ -8,7 +8,8 @@ failed=0
 # decision <command>: what the hook decides for a Bash command under the control plane.
 decision() {
   local out
-  out=$(jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | ACP_SESSION_BRANCH=acp/x "$hook")
+  # The command on standard input, as an argument has a limit of its length.
+  out=$(printf '%s' "$1" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | ACP_SESSION_BRANCH=acp/x "$hook")
   if [[ -z $out ]]; then echo allow; else jq -r .hookSpecificOutput.permissionDecision <<<"$out"; fi
 }
 check() {
@@ -43,7 +44,12 @@ deny|wait; prctl ci --wait &
 deny|prctl ci --wait & echo wait
 allow|a & b; wait
 allow|for f in x; do a & done; wait
+allow|make & make test && wait
+deny|a & echo undo wait
+deny|echo $((1<<x)); sleep 9 &
 CASES
+big="cat >f <<'EOF'"$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"$'\nEOF\nsleep 9 &'
+check "a command over the limit of an environment variable is read" deny "$(decision "$big")"
 multi=$'git commit -m "title
 
 body: a & b"'
