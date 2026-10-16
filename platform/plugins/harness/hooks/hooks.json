@@ -29,6 +29,15 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/foreground"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Monitor|ScheduleWakeup|CronCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/detach"
+          }
+        ]
       }
     ]
   }
