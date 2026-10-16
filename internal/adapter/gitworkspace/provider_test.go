@@ -168,6 +168,13 @@ func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
 			},
 		},
 		{
+			name: "an annotated tag on HEAD", makefile: true, check: "pass", refspec: "refs/tags/v1", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "tag", "-a", "-m", "v1", "v1")
+				return ws
+			},
+		},
+		{
 			name: "a commit other than HEAD", makefile: true, check: "pass", refspec: "HEAD~1:refs/heads/topic",
 		},
 		{name: "a target without a Makefile", check: "fail", refspec: "HEAD:refs/heads/topic", wantPush: true},
