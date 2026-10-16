@@ -13,8 +13,10 @@ usage:
   prctl status                        the open PR of this branch, whether its body and review are
                                       current, and its CI on the head
   prctl since                         commits pushed since the body was last written
-  prctl create <title> <body-file|->  open a PR for the pushed branch; refused unless the body has
-                                      the sections of writing.md (PR), in order, none empty
+  prctl create [--base <branch>] <title> <body-file|->
+                                      open a PR for the pushed branch, into the default branch or, to
+                                      stack it on another PR, into that PR's branch; refused unless the
+                                      body has the sections of writing.md (PR), in order, none empty
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
@@ -334,6 +336,31 @@ pushed_head() {
   echo "$head"
 }
 
+# stack_message <pr> <head>: what a PR stacked on another's branch needs, or nothing: the branch it
+# is stacked on has moved on without it, or its PR was merged, or closed without merging. Says
+# nothing when the default branch is not known here (origin/HEAD), the PR is into it, or a fact
+# cannot be read (GitHub, or a head this clone does not have): nothing rather than something wrong.
+stack_message() {
+  local base def below last
+  base=$(jq -r .baseRefName <<<"$1")
+  def=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD) || return 0
+  [[ $base != "${def#origin/}" ]] || return 0
+  below=$(open_pr "$base" 2>/dev/null) || return 0
+  if [[ -z $below ]]; then
+    # The branch's latest PR: an earlier one may have been merged from the same branch.
+    last=$(gh pr list --head "$base" --state all --limit 1 --json number,state --jq '.[0] // empty | "\(.number) \(.state)"' 2>/dev/null) || return 0
+    [[ -n $last ]] || return 0
+    if [[ ${last#* } == MERGED ]]; then
+      jq -r --arg base "$base" --arg m "${last%% *}" '"PR #\(.number) is stacked on \($base), whose PR #\($m) was merged. Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
+    else
+      jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), whose PR was closed without being merged. Do not move the PR to the default branch, which would take in what was not merged: ask the requester what to do with it (see the github skill)."' <<<"$1"
+    fi
+  elif remote_head "$base" >/dev/null && git cat-file -e "$2^{commit}" 2>/dev/null \
+    && ! git merge-base --is-ancestor "origin/$base" "$2"; then
+    jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), which has commits it does not: merge origin/\($base) in and push (see the github skill)."' <<<"$1"
+  fi
+}
+
 cmd_status() {
   local b pr head desc rev
   b=$(branch) || die "not on a branch"
@@ -352,6 +379,7 @@ cmd_status() {
   fi
   echo "ci:        $( (ci "$head" || echo "could not read the checks") | paste -sd ' ' -)"
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
+  stack_message "$pr" "$head"
 }
 
 cmd_since() {
@@ -530,13 +558,21 @@ body_check() {
 }
 
 cmd_create() {
-  local title=$1 body b head base
-  body=$(read_input "$2")
+  local base=$1 title=$2 body b head
+  body=$(read_input "$3")
   body_check "$body"
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
   [[ -z $(open_pr "$b") ]] || die "$b already has an open PR; use prctl update"
-  base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+  if [[ -n $base ]]; then
+    # Stacked: the base is another PR's branch, which the branch is built on.
+    [[ $base != "$b" ]] || die "a PR cannot be stacked on its own branch"
+    remote_head "$base" >/dev/null || die "origin/$base is not here; fetch it, or push it first"
+    git merge-base --is-ancestor "origin/$base" "$head" || die "$b is not built on origin/$base; merge it in first"
+    [[ -n $(open_pr "$base") ]] || die "$base has no open PR to stack on"
+  else
+    base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+  fi
   gh pr create --base "$base" --head "$b" --title "$title" --body "$(with_marker "$body" "$head")"
 }
 
@@ -584,7 +620,7 @@ ci_message() {
 # only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
 # read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 state=${3:-} records rev minor="" failed msgs=()
+  local pr=$1 head=$2 state=${3:-} records rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
   records=$(review_records "$pr") || return 1
   rev=$(last_reviewed "$records" "$head")
@@ -592,6 +628,8 @@ pending_message() {
     [[ -n $(minor_refusal "$records" "$rev") ]] || minor=yes
     msgs+=("$(review_message "$pr" "$head" "$minor")")
   fi
+  msg=$(stack_message "$pr" "$head")
+  [[ -z $msg ]] || msgs+=("$msg")
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
     msgs+=("$(ci_message "$pr" "$head" "$failed")")
@@ -676,7 +714,15 @@ main() {
       esac
       ;;
     answer) [[ $# -eq 3 ]] || usage; cmd_answer "$2" "$3" ;;
-    create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
+    create)
+      if [[ ${2:-} == --base ]]; then
+        [[ $# -eq 5 ]] || usage
+        cmd_create "$3" "$4" "$5"
+      else
+        [[ $# -eq 3 ]] || usage
+        cmd_create "" "$2" "$3"
+      fi
+      ;;
     update)
       shift
       title=""

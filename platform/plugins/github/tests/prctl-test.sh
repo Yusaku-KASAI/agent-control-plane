@@ -19,7 +19,23 @@ set -euo pipefail
 dir=$FAKE_GH
 args=" $* "
 case $args in
-  *" pr list "*) [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0 ;;
+  *" pr list "*" --state all "*)
+    # The branch's latest PR: merged-<branch> #5 merged, closed-<branch> #6 closed; fail-all-<branch>
+    # when it cannot be read.
+    head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
+    [[ ! -f $dir/fail-all-${head//\//-} ]] || exit 1
+    if [[ -f $dir/merged-${head//\//-} ]]; then echo "5 MERGED"
+    elif [[ -f $dir/closed-${head//\//-} ]]; then echo "6 CLOSED"; fi
+    ;;
+  *" pr list "*)
+    # nopr-<branch>: that branch has no open PR; fail-prs-<branch>: its PR cannot be read; otherwise
+    # every branch has the one in pr.json.
+    head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
+    [[ ! -f $dir/fail-prs-${head//\//-} ]] || exit 1
+    [[ -f $dir/nopr-${head//\//-} ]] && exit 0
+    [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
+    ;;
+  *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
   *" -X POST "*"/reviews "*)
@@ -501,5 +517,52 @@ writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
 check "the body's sections are those of the conventions" \
   "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
   "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
+
+# A PR is stacked on another PR's branch only when built on it, and only on an open PR.
+git checkout -q -b stacked
+commit fourteen >/dev/null
+git push -q -u origin stacked 2>/dev/null
+touch "$state/nopr-stacked"
+check "a PR stacked on its base's branch is opened into it" \
+  "$("$prctl" create --base feature t - <<<"$good" >/dev/null && cat "$state/last-create")" "--base feature --head stacked"
+check "a PR into the default branch is opened as before" \
+  "$("$prctl" create t - <<<"$good" >/dev/null && cat "$state/last-create")" "--base main --head stacked"
+git push -q origin "$c2:refs/heads/elsewhere" && git fetch -q origin
+check "a PR not built on the base is refused" "$("$prctl" create --base elsewhere t - <<<"$good" 2>&1 || true)" "is not built on origin/elsewhere"
+touch "$state/nopr-feature"
+check "a PR on a branch without an open PR is refused" "$("$prctl" create --base feature t - <<<"$good" 2>&1 || true)" "has no open PR to stack on"
+rm "$state/nopr-feature" "$state/nopr-stacked"
+check "a stray argument to create is refused" "$("$prctl" create --base feature t 2>&1 || true)" "usage:"
+touch "$state/nopr-stacked"
+check "a PR on its own branch is refused" "$("$prctl" create --base stacked t - <<<"$good" 2>&1 || true)" "cannot be stacked on its own branch"
+check "a PR on a branch not here is refused" "$("$prctl" create --base nosuch t - <<<"$good" 2>&1 || true)" "origin/nosuch is not here"
+rm "$state/nopr-stacked"
+# A stacked PR is told when the branch below moves on without it, and when that has no open PR any more.
+git remote set-head origin main
+jq -n --arg h "$(git rev-parse HEAD)" '{number: 2, url: "u", headRefOid: $h, baseRefName: "feature", body: "x\n<!-- prctl: head=\($h) -->"}' >"$state/pr.json"
+lacks "a stacked PR on its base's head is told nothing" "$("$prctl" status)" "PR #2" "stacked on"
+git push -q origin "$(git commit-tree -p "$(git rev-parse origin/feature)" -m below "$(git rev-parse "origin/feature^{tree}")"):refs/heads/feature" && git fetch -q origin
+check "a stacked PR is told to take in its base" "$("$prctl" status)" "merge origin/feature in and push"
+touch "$state/nopr-feature" "$state/merged-feature"
+check "a stacked PR is told when its base's PR was merged" "$(stop_hook)" "whose PR #5 was merged"
+rm "$state/merged-feature"
+touch "$state/closed-feature"
+check "a stacked PR is told when its base's PR was closed unmerged" "$(stop_hook)" "closed without being merged. Do not move"
+rm "$state/closed-feature"
+check "a base without any PR tells nothing" "$("$prctl" status)" "PR #2"
+lacks "a base without any PR is not taken as closed" "$("$prctl" status)" "PR #2" "stacked on"
+touch "$state/fail-all-feature" "$state/closed-feature"
+lacks "a stacked PR is told nothing when its base's latest PR cannot be read" "$(stop_hook)" "not reviewed up to" "stacked on"
+rm "$state/fail-all-feature" "$state/closed-feature" "$state/nopr-feature"
+touch "$state/fail-prs-feature"
+lacks "a stacked PR is told nothing when its base's PR cannot be read" "$(stop_hook)" "not reviewed up to" "stacked on"
+rm "$state/fail-prs-feature"
+check "a stacked PR whose head is not here is told nothing of its base" \
+  "$(jq '.headRefOid = "0123456789abcdef0123456789abcdef01234567"' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"; "$prctl" status)" "PR #2"
+lacks "a head not here is not taken as behind its base" "$("$prctl" status)" "PR #2" "merge origin/feature in"
+jq --arg h "$(git rev-parse HEAD)" '.headRefOid = $h' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+git push -q -f origin "$c12:refs/heads/feature" 2>/dev/null; git fetch -q origin
+git checkout -q feature
+git reset -q --hard origin/feature
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
