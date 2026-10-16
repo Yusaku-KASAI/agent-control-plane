@@ -457,6 +457,8 @@ check "answers carried in a review must cover it" \
 body=$(cat "$state/last-body")
 check "answers carried in a review are shown with the findings" "$body" "- **答え**：直した（abc）"
 check "the hidden copy keeps only what is checked" "$(tail -n 1 <<<"$body" | sed 's/.*: \(.*\) -->/\1/' | base64 -d | jq -c '.findings[0] | keys')" '["perspective","severity","summary"]'
+# A review without a body at the same commit (a lone line comment) does not stop the reading.
+jq --arg c "$c13" '. + [{state: "COMMENTED", commit_id: $c, body: ""}]' "$state/reviews.json" >"$state/r" && mv "$state/r" "$state/reviews.json"
 check "the hidden copy is read from the last line" \
   "$("$prctl" answer "$c13" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' 2>&1 || true)" "findings not answered: 2"
 check "a review over GitHub's limit is refused" \
@@ -468,7 +470,7 @@ forms=$(dirname "$prctl")/../lib
 column() { sed -n "/^## $1/,/^## /p" "$reviews" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
 check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column 観点)"
 check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column 結果の形)"
-weights=$(grep '^| 重さ |' "$reviews")
-for w in $(jq -nr -L "$forms" 'include "review"; severities[]'); do check "the severity $w is of the conventions" "$weights" "$w（"; done
+check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; severities')" \
+  "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

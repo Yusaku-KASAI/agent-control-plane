@@ -472,7 +472,7 @@ form_check() {
 # nothing. Only the body's last line is read, where prctl puts it: a finding may quote a copy.
 review_at() {
   gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
-    --jq ".[] | select(.commit_id == \"$2\") | .body // \"\" | rtrimstr(\"\\n\") | split(\"\\n\") | last
+    --jq ".[] | select(.commit_id == \"$2\") | .body // \"\" | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
       | capture(\"^<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m" \
     | tail -n 1 | base64 -d 2>/dev/null
 }
