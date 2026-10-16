@@ -7,7 +7,7 @@ harness/
   hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground と scripts/detach を呼ぶ
   scripts/context      動き方の要約と、ハーネスの契約と platform の文書の一覧の在りかを返す
   scripts/foreground   control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす
-  scripts/detach       control-plane 経由のとき、処理を手放す Bash と、Monitor、ScheduleWakeup を断る
+  scripts/detach       control-plane 経由のとき、処理を手放す Bash と、Monitor、ScheduleWakeup、CronCreate を断る
   tests/               scripts/foreground と scripts/detach の試験
   skills/harness/      詰まったときに、どこの問題かを切り分ける手順
 ```
@@ -44,9 +44,10 @@ harness/
 
 - **責務**：control-plane 経由のとき、終わりの知らせが届かない形でバックグラウンドの処理を始めることと、終わりを
   見張ることを断る（[ADR 0015](../../../docs/adr/0015-refuse-let-go-processes-under-control-plane.md)）。
-- **置くもの / 置かないもの**：Bash のコマンドから、ヒアドキュメントの中身、引用符の中、コメントを除いた残りを見て、
-  演算子の `&`（`&&`、`|&`、リダイレクトの `&` は除く）か、`nohup`、`disown`、`setsid` があれば断る。`&` のあとに
-  同じコマンドの中で `wait` するものは通す。Monitor と ScheduleWakeup は断る。シェルの文法をすべては解かないので、
+- **置くもの / 置かないもの**：Bash のコマンドを左から一度だけ読み、ヒアドキュメントの中身、引用符の中、コメントを
+  除いた残りを見て、演算子の `&`（`&&`、`|&`、リダイレクトの `&` は除く）か、`nohup`、`disown`、`setsid` があれば
+  断る。最後の `&` より後ろに、コマンドとしての `wait` があるものは通す。Monitor、ScheduleWakeup、CronCreate は
+  断る。シェルの文法をすべては解かないので、
   まれに通すべきものを断る（断る文で `run_in_background` か `wait` を案内する）。devcontainer で直接動くときは
   何もしない。
 - **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。CI の待ちは github プラグインの

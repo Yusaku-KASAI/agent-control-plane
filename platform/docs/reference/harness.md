@@ -33,7 +33,7 @@
 - 処理をバックグラウンドで動かすときは、Bash の `run_in_background` を使う。`&`、`nohup`、`disown`、`setsid` で
   手放した処理は、終わりの知らせが届かず、control-plane のバックグラウンドの処理にも数えられない。harness
   プラグインの hook が、手放す Bash（`&` のあとに同じコマンドの中で `wait` するものは除く）と、Monitor、
-  ScheduleWakeup を断る（[ADR 0015](../adr/0015-refuse-let-go-processes-under-control-plane.md)）。
+  ScheduleWakeup、CronCreate（待つための予約）を断る（[ADR 0015](../adr/0015-refuse-let-go-processes-under-control-plane.md)）。
 - バックグラウンドの処理が終わって自分で始めたターンの回答は、ターンの終わりにほかのバックグラウンドの処理が
   残っていれば、すぐには投稿されない。投稿されるのは次の場合。
   - 次のターンが始まらずに処理が尽きたとき。

@@ -2,7 +2,8 @@
 # PreToolUse hook. Under the control plane, the end of a background task comes as a notification,
 # and the control plane counts the session's background tasks. A process let go from a Bash command
 # (&, nohup, disown, setsid) sends no notification and is not counted, so its result is lost or
-# comes in a turn of its own. Watching a task with Monitor or ScheduleWakeup only adds turns.
+# comes in a turn of its own. Watching a task with Monitor, ScheduleWakeup or CronCreate only adds
+# turns.
 # Under the control plane, both are refused, pointing to run_in_background.
 set -euo pipefail
 
@@ -14,19 +15,44 @@ deny() {
     hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
 }
 
-# shell_words <command>: the command without what is not shell syntax: here-document bodies,
-# quoted strings and comments.
+# shell_words <command>: the command without what is not shell syntax: here-document bodies, quoted
+# strings and comments, read left to right once, so that one kind of quote inside another does not
+# end it. Quoted parts become a space.
 shell_words() {
-  awk '
-    heredoc != "" { line = $0; if (strip) sub(/^\t+/, "", line); if (line == heredoc) heredoc = ""; next }
-    {
-      print
-      if (match($0, /<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
-        op = substr($0, RSTART, RLENGTH); strip = (op ~ /^<<-/)
-        gsub(/^<<-?[ \t]*["\047]?|["\047]$/, "", op); heredoc = op
+  CMD=$1 awk 'BEGIN {
+    s = ENVIRON["CMD"]; n = length(s); st = "plain"; out = ""; pend = ""
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1)
+      if (st == "single") { if (c == "\047") st = "plain"; continue }
+      if (st == "double") { if (c == "\\") i++; else if (c == "\"") st = "plain"; continue }
+      if (st == "comment") { if (c == "\n") { st = "plain"; i-- }; continue }
+      if (c == "\047") { st = "single"; out = out " "; continue }
+      if (c == "\"") { st = "double"; out = out " "; continue }
+      if (c == "\\") { i++; out = out " "; continue }
+      if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n;&|(]/)) { st = "comment"; continue }
+      if (substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<") {
+        rest = substr(s, i + 2); strip = 0
+        if (substr(rest, 1, 1) == "-") { strip = 1; rest = substr(rest, 2) }
+        if (match(rest, /^[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
+          w = substr(rest, RSTART, RLENGTH); gsub(/[ \t"\047]/, "", w); pend = w; pstrip = strip
+        }
+        out = out "<<"; i++; continue
       }
-    }' <<<"$1" |
-    sed -E "s/'[^']*'//g; s/\"([^\"\\\\]|\\\\.)*\"//g; s/(^|[[:space:]])#.*$//"
+      if (c == "\n" && pend != "") {
+        # The body of a here-document, up to its delimiter.
+        out = out c; j = i + 1
+        while (j <= n) {
+          e = index(substr(s, j), "\n"); line = e ? substr(s, j, e - 1) : substr(s, j)
+          j += e ? e : length(line) + 1
+          if (pstrip) sub(/^\t+/, "", line)
+          if (line == pend) break
+        }
+        i = j - 1; pend = ""; continue
+      }
+      out = out c
+    }
+    printf "%s", out
+  }'
 }
 
 case $(jq -r .tool_name <<<"$input") in
@@ -37,15 +63,16 @@ case $(jq -r .tool_name <<<"$input") in
     let_go=""
     if grep -qE '(^|[^[:alnum:]_-])(nohup|disown|setsid)([^[:alnum:]_-]|$)' <<<"$words"; then
       let_go=yes
-    elif [[ $ops == *"&"* ]] && ! grep -qE '(^|[^[:alnum:]_-])wait([^[:alnum:]_-]|$)' <<<"$words"; then
-      # A job started with & and waited for in the same command ends with it.
+    elif [[ $ops == *"&"* ]] \
+      && ! grep -qE '(^|[;&|({]|then|do|else)[[:space:]]*wait([[:space:];&|)]|$)' <<<"${ops##*&}"; then
+      # A job started with & and waited for after it, as a command, ends within the command.
       let_go=yes
     fi
     if [[ -n $let_go ]]; then
       deny "control-plane 経由では、処理を & や nohup、disown、setsid で手放さない（ハーネスの契約）。手放した処理は、終わりの知らせが届かず、control-plane のバックグラウンドの処理にも数えられない。終わりを待つなら Bash の run_in_background を使う。コマンドの中で済ませるなら、& のあとに wait で待つ。"
     fi
     ;;
-  Monitor | ScheduleWakeup)
-    deny "control-plane 経由では、バックグラウンドの処理の終わりは知らせで届くので、Monitor や ScheduleWakeup で見張らない（ハーネスの契約）。見張りもターンを増やし、そのぶん回答が増える。処理は Bash の run_in_background で始め、知らせを待つ。"
+  Monitor | ScheduleWakeup | CronCreate)
+    deny "control-plane 経由では、バックグラウンドの処理の終わりは知らせで届くので、Monitor、ScheduleWakeup、CronCreate で見張ったり予約したりしない（ハーネスの契約）。見張りもターンを増やし、そのぶん回答が増える。処理は Bash の run_in_background で始め、知らせを待つ。"
     ;;
 esac

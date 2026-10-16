@@ -37,12 +37,24 @@ allow|echo 'nohup here'
 allow|git commit -m "fix &"
 allow|ls # sleep & comment
 allow|echo disowned-thing
+deny|echo "it's"; prctl ci --wait & echo 'done'
+deny|echo "don't" & echo 'ok'
+deny|wait; prctl ci --wait &
+deny|prctl ci --wait & echo wait
+allow|a & b; wait
+allow|for f in x; do a & done; wait
 CASES
+multi=$'git commit -m "title
+
+body: a & b"'
+check "a quote over lines is not read" allow "$(decision "$multi")"
+multi=$(printf 'gh pr create --body "it%ss fine & good\nmore"' "'")
+check "a quote with an apostrophe over lines is not read" allow "$(decision "$multi")"
 heredoc=$'cat >f <<\'EOF\'\nsleep 1 &\nnohup x\nEOF\nmake'
 check "a here-document is not read as commands" allow "$(decision "$heredoc")"
 heredoc=$'cat >f <<-EOF\n\tsleep 1 &\n\tEOF\nsleep 2 &'
 check "a command after a here-document is read" deny "$(decision "$heredoc")"
-for tool in Monitor ScheduleWakeup; do
+for tool in Monitor ScheduleWakeup CronCreate; do
   check "$tool is denied" deny \
     "$(jq -n --arg t "$tool" '{tool_name: $t, tool_input: {}}' | ACP_SESSION_BRANCH=acp/x "$hook" | jq -r .hookSpecificOutput.permissionDecision)"
   check "$tool is left alone outside the control plane" "" \
