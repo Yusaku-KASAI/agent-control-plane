@@ -91,11 +91,11 @@ def record: {scope, perspectives, findings: [.findings[] | {severity, perspectiv
 
 # final_errors($cap; $since; $head): whether the PR may end, from the facts of its reviews in the
 # head's history, oldest first: [{commit, at, minor, scope, findings, answered}] (at: the commit's
-# place in the history; $head: the head's). What stands in the way, as [{kind, text}], kind one of none (no review of the whole
-# PR), unrecorded (a push not recorded yet), changed, must, open (not answered) and back (hand it
-# back); empty when it may end. The
-# reviews of the whole PR are counted against $cap from the place $since on (the PR last went back
-# there); back comes once the count reaches $cap and the PR still needs another such review.
+# place in the history; $head: the head's). What stands in the way, as [{kind, text}], kind one of
+# none (no review of the whole PR), unrecorded (a push not recorded yet), changed, must, open (not
+# answered) and back (hand it back); empty when it may end. The reviews of the whole PR are counted
+# against $cap from the place $since on (the PR last went back there); back comes once the count
+# reaches $cap and the PR still needs another such review.
 def final_errors($cap; $since; $head):
   . as $rs
   | ([$rs[] | select(.scope == "pr" and .at > $since)] | length) as $wholes
