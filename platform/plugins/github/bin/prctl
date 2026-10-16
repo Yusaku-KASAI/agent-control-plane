@@ -429,6 +429,8 @@ cmd_review() {
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
     records=$(review_records "$pr") || die "could not read the reviews of the PR"
     rev=$(last_reviewed "$records" "$head")
+    # The first review of a PR covers it whole, at every perspective.
+    [[ -n $rev || -n $minor || $scope == pr ]] || die "the PR has no review in the head's history yet; review the whole PR, at every perspective (scope \"pr\")"
     if [[ $scope == pr ]]; then
       # The whole PR, whatever was reviewed before.
       from=$(range_start "$pr" "$commit" "")
@@ -449,8 +451,10 @@ cmd_review() {
     if [[ $scope == pr ]]; then title="PR 全体"; else title="前回から"; fi
     body=$(jq -r -L "$forms" --arg t "差分のレビュー（${from:0:12}...${commit:0:12}、$title）" \
       'include "review"; render_review($t; .answers)' <<<"$review")
-    body+=$'\n\n'"<!-- $review_mark: $(jq -c --arg c "$commit" '. + {commit: $c}' <<<"$review" | base64 | tr -d '\n') -->"
+    body+=$'\n\n'"<!-- $review_mark: $(jq -c -L "$forms" --arg c "$commit" 'include "review"; record + {commit: $c}' <<<"$review" | base64 | tr -d '\n') -->"
   fi
+  # GitHub takes a body of up to 65536 characters.
+  ((${#body} <= 65536)) || die "the review is ${#body} characters, over GitHub's 65536; shorten the findings or record them in parts"
   gh api -X POST "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" --jq .html_url -f event=COMMENT \
     -f commit_id="$commit" -f body="$body"
 }
@@ -464,10 +468,12 @@ form_check() {
   [[ -z $errors ]] || die "the form is not right (see the github skill):"$'\n'"$errors"
 }
 
-# review_at <pr> <commit>: the JSON of the latest review of <commit> that prctl recorded, or nothing.
+# review_at <pr> <commit>: the hidden copy of the latest review of <commit> that prctl recorded, or
+# nothing. Only the body's last line is read, where prctl puts it: a finding may quote a copy.
 review_at() {
   gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
-    --jq ".[] | select(.commit_id == \"$2\") | .body // \"\" | capture(\"<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->\").m" \
+    --jq ".[] | select(.commit_id == \"$2\") | .body // \"\" | rtrimstr(\"\\n\") | split(\"\\n\") | last
+      | capture(\"^<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m" \
     | tail -n 1 | base64 -d 2>/dev/null
 }
 

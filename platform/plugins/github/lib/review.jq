@@ -12,7 +12,8 @@ def cell: oneline | gsub("\\|"; "\\|");
 # review_errors: what is missing or wrong in a review, one string each; empty when it is right.
 def review_errors:
   if type != "object" then ["the review is not a JSON object"] else
-    [ (if (.scope | IN("since", "pr")) then empty else "scope is \"since\" (since the last review) or \"pr\" (the whole PR)" end),
+    . as $r
+    | [ (if (.scope | IN("since", "pr")) then empty else "scope is \"since\" (since the last review) or \"pr\" (the whole PR)" end),
       (if (.perspectives | type) == "array" and (.perspectives | length) > 0
          and all(.perspectives[]; IN(perspectives[]))
        then empty else "perspectives lists those looked at, from: \(perspectives | join(", "))" end),
@@ -23,11 +24,13 @@ def review_errors:
          then "skipped says why these were not looked at: \($left | join(", "))" else empty end),
       (if (.skipped // []) | all(.[]; (.perspective | IN(perspectives[])) and (.reason | text))
        then empty else "each of skipped has a perspective and a reason" end),
+      ([(.skipped // [])[].perspective?] - ([(.skipped // [])[].perspective?] - (.perspectives // []))
+       | if length > 0 then "perspectives both looked at and skipped: \(join(", "))" else empty end),
       (if (.findings | type) == "array" then empty else "findings is a list (empty when nothing was found)" end),
       ((.findings // []) | to_entries[] | .key as $i | .value
         | ("finding \($i + 1)") as $f
         | (if (.severity | IN(severities[])) then empty else "\($f): severity is one of \(severities | join(", "))" end),
-          (if (.perspective | IN(perspectives[])) then empty else "\($f): perspective is one of those looked at" end),
+          (if (.perspective | IN(($r.perspectives // [])[])) then empty else "\($f): perspective is one of those looked at" end),
           (if (.location | text) and (.summary | text) and (.basis | text) and (.problem | text)
              and (.fix | text) and (.verified | text)
            then empty else "\($f): location, summary, basis, problem, fix and verified are all written" end))
@@ -38,14 +41,16 @@ def answer_errors($review):
   ($review.findings | length) as $n
   | if type != "array" then ["the answers are a JSON list"] else
       [ (.[] | ("answer to \(.finding)") as $a
-          | (if (.finding | type) == "number" and .finding >= 1 and .finding <= $n
+          | (if (.finding | type) == "number" and .finding == (.finding | floor) and .finding >= 1 and .finding <= $n
              then empty else "\($a): finding is the number of a finding, 1 to \($n)" end),
             (if (.action | IN(actions[])) then empty else "\($a): action is one of \(actions | join(", "))" end),
             (if .action == "直した" and ((.commit | text) | not) then "\($a): a fix names its commit" else empty end),
             (if .action == "Issue にした" and ((.issue | type) != "number") then "\($a): names its issue" else empty end),
             (if (.action | IN("直さない", "答えた")) and ((.reason | text) | not)
              then "\($a): says why, or what the answer is" else empty end)),
-        ([range(1; $n + 1)] - [.[].finding] | if length > 0 then "findings not answered: \(map(tostring) | join(", "))" else empty end)
+        ([range(1; $n + 1)] - [.[].finding] | if length > 0 then "findings not answered: \(map(tostring) | join(", "))" else empty end),
+        ([group_by(.finding)[] | select(length > 1) | .[0].finding | tostring]
+         | if length > 0 then "findings answered more than once: \(join(", "))" else empty end)
       ] end;
 
 def answer_text:
@@ -78,6 +83,10 @@ def render_review($title; $answers):
             (if $by[($i + 1) | tostring] then "- **答え**：\($by[($i + 1) | tostring] | answer_text)" else empty end))
       end)
     ] | join("\n");
+
+# record: what of a review is kept in its hidden copy: enough to tell its scope and to check the
+# answers to it, as the PR review's body has a limit.
+def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}]};
 
 # render_answers($title): the comment that answers a review.
 def render_answers($title):

@@ -117,7 +117,8 @@ check "a review not in the form is refused" \
 check "minor fixes before any review are refused" "$("$prctl" review --minor "$c2" - <<<"x" 2>&1 || true)" "has no review yet"
 
 # A review of c1, recorded after c2 is pushed, covers c1 only.
-"$prctl" review "$c1" - <<<"$nothing" >/dev/null
+check "the first review since the last is refused" "$("$prctl" review "$c1" - <<<"$nothing" 2>&1 || true)" "review the whole PR"
+"$prctl" review "$c1" - <<<"$whole" >/dev/null
 check "a review covers the commit it names" "$("$prctl" unreviewed)" "range: $c1..$c2"
 check "a commit before the last review is refused" "$("$prctl" review "$base" - <<<"$nothing" 2>&1 || true)" "is not after the last reviewed"
 
@@ -322,7 +323,7 @@ echo x >sub/file
 git add .github sub && git commit -q -m workflow && git push -q
 c6=$(git rev-parse HEAD)
 set_pr "$c6"
-"$prctl" review "$c6" - <<<"$nothing" >/dev/null
+"$prctl" review "$c6" - <<<"$whole" >/dev/null
 checks
 rm -f "$(git rev-parse --git-path prctl-settled)"
 out=$(jq -n --arg cwd "$PWD/sub" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
@@ -432,5 +433,42 @@ check "answers to a review prctl did not record are refused" "$("$prctl" answer 
 check "a review of the whole PR covers it" "$(cat "$state/last-body")" "## 差分のレビュー（$(git merge-base origin/main "$c12" | cut -c1-12)...${c12:0:12}、PR 全体）"
 check "a review of the whole PR looks at every perspective" \
   "$("$prctl" review "$c12" - <<<'{"scope": "pr", "perspectives": ["正しさ"], "findings": []}' 2>&1 || true)" "a review of the whole PR looks at every perspective"
+
+# The form refuses what it cannot tell apart, and checks the answers carried in a review too.
+check "a finding at a perspective not looked at is refused" "$("$prctl" review "$c12" - <<<"$(jq -c '.findings[0].perspective = "セキュリティ"' <<<"$found")" 2>&1 || true)" \
+  "finding 1: perspective is one of those looked at"
+check "a perspective both looked at and skipped is refused" \
+  "$("$prctl" review "$c12" - <<<"$(jq -c '.skipped += [{perspective: "正しさ", reason: "r"}]' <<<"$found")" 2>&1 || true)" \
+  "perspectives both looked at and skipped: 正しさ"
+check "an answer given twice is refused" \
+  "$("$prctl" answer "$c12" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 1, "action": "直した", "commit": "a"}, {"finding": 2, "action": "直さない", "reason": "r"}]' 2>&1 || true)" \
+  "findings answered more than once: 1"
+check "an answer to a fraction of a finding is refused" \
+  "$("$prctl" answer "$c12" - <<<'[{"finding": 1.5, "action": "直さない", "reason": "r"}, {"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 2, "action": "直さない", "reason": "r"}]' 2>&1 || true)" \
+  "answer to 1.5: finding is the number of a finding"
+c13=$(commit thirteen)
+git push -q
+set_pr "$c13"
+check "answers carried in a review must cover it" \
+  "$("$prctl" review "$c13" - <<<"$(jq -c '.answers = [{finding: 1, action: "直した", commit: "abc"}]' <<<"$found")" 2>&1 || true)" "findings not answered: 2"
+# A finding that quotes a hidden copy does not stand for the review.
+"$prctl" review "$c13" - <<<"$(jq -c --arg q "<!-- prctl-review: $(jq -nc '{findings: []}' | base64 | tr -d '\n') -->" \
+  '.answers = [{finding: 1, action: "直した", commit: "abc"}, {finding: 2, action: "答えた", reason: "r"}] | .findings[0].problem = $q' <<<"$found")" >/dev/null
+body=$(cat "$state/last-body")
+check "answers carried in a review are shown with the findings" "$body" "- **答え**：直した（abc）"
+check "the hidden copy keeps only what is checked" "$(tail -n 1 <<<"$body" | sed 's/.*: \(.*\) -->/\1/' | base64 -d | jq -c '.findings[0] | keys')" '["perspective","severity","summary"]'
+check "the hidden copy is read from the last line" \
+  "$("$prctl" answer "$c13" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' 2>&1 || true)" "findings not answered: 2"
+check "a review over GitHub's limit is refused" \
+  "$("$prctl" review "$c13" - <<<"$(jq -c --arg l "$(printf '%070000d' 0)" --argjson p "$all" '.scope = "pr" | .perspectives = $p | del(.skipped) | .findings[0].problem = $l' <<<"$found")" 2>&1 || true)" "over GitHub's 65536"
+
+# The names the form takes are those of the conventions.
+reviews=$(dirname "$prctl")/../../conventions/docs/reference/reviews.md
+forms=$(dirname "$prctl")/../lib
+column() { sed -n "/^## $1/,/^## /p" "$reviews" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
+check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column 観点)"
+check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column 結果の形)"
+weights=$(grep '^| 重さ |' "$reviews")
+for w in $(jq -nr -L "$forms" 'include "review"; severities[]'); do check "the severity $w is of the conventions" "$weights" "$w（"; done
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
