@@ -13,11 +13,13 @@ usage:
   prctl status                        the open PR of this branch, whether its body and review are
                                       current, and its CI on the head
   prctl since                         commits pushed since the body was last written
-  prctl create <title> <body-file|->  open a PR for the pushed branch
+  prctl create <title> <body-file|->  open a PR for the pushed branch; refused unless the body has
+                                      the sections of writing.md (PR), in order, none empty
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
-                                      such a push, and not posted when there is none
+                                      such a push, and not posted when there is none; the body as for
+                                      create
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
                                       first after an hour, "none (...)" when no check run appears. One
                                       wait per branch, for the head of origin/<branch> here, also when it
@@ -499,20 +501,30 @@ cmd_answer() {
 # PR). What is written under them is free.
 readonly body_sections=(何を変えるか 当てはめた決まり どう確かめたか 確かめていないこと)
 
-# body_check <body>: die unless the body has the sections, in order, none of them empty.
+# body_check <body>: die unless the body has the sections, in order, once each, none of them empty.
+# Lines in code blocks are not headings. Lines that only close or refer to an issue, and the
+# attribution line, do not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs --args '
-    split("\n") as $lines
-    | [$lines | to_entries[] | select(.value | test("^## ")) | {at: .key, name: (.value | ltrimstr("## ") | rtrimstr(" "))}] as $heads
-    | [$ARGS.positional[] as $want
-        | ($heads | map(select(.name == $want)) | first) as $h
-        | if $h == null then "no section ## \($want)"
-          else ($heads | map(select(.at > $h.at)) | first | .at // ($lines | length)) as $end
-            | if [$lines[$h.at + 1:$end][] | select(test("\\S"))] | length == 0 then "the section ## \($want) is empty" else empty end
-          end]
-    + (if [$heads[] | .name | select(IN($ARGS.positional[]))] != [$ARGS.positional[] | select(IN($heads[].name))]
-       then ["the sections are not in the order: \($ARGS.positional | join(", "))"] else [] end)
+    [foreach (split("\n")[]) as $l ({fence: false};
+        if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .line = $l | .head = null
+        else .line = $l | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
+        {line, head})] as $lines
+    | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
+    | ($ARGS.positional) as $want
+    | [ ($want[] as $w
+          | ($heads | map(select(.name == $w))) as $hs
+          | if ($hs | length) == 0 then "no section ## \($w)"
+            elif ($hs | length) > 1 then "the section ## \($w) appears \($hs | length) times"
+            else ($heads | map(select(.at > $hs[0].at)) | first | .at // ($lines | length)) as $end
+              | if [$lines[$hs[0].at + 1:$end][] | .line
+                    | select(test("\\S") and (test("^\\s*((Closes|Fixes|Resolves|Refs) #[0-9]+|🤖 )") | not))] | length == 0
+                then "the section ## \($w) is empty" else empty end
+            end),
+        ([$heads[] | .name | select(IN($want[]))] as $got
+         | if ($got | length) == ($want | length) and ($got | unique | length) == ($want | length) and $got != $want
+         then "the sections are not in the order: \($want | join(", "))" else empty end) ]
     | .[]' "${body_sections[@]}" <<<"$1")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }
