@@ -336,6 +336,21 @@ pushed_head() {
   echo "$head"
 }
 
+# stack_message <pr> <head>: what a PR stacked on another's branch needs, or nothing: the branch it
+# is stacked on has moved on without it, or has no open PR any more. Says nothing when the default
+# branch is not known here (origin/HEAD) or the PR is into it.
+stack_message() {
+  local base def
+  base=$(jq -r .baseRefName <<<"$1")
+  def=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD) || return 0
+  [[ $base != "${def#origin/}" ]] || return 0
+  if [[ -z $(open_pr "$base" 2>/dev/null) ]]; then
+    jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), which has no open PR any more (merged or closed). Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
+  elif remote_head "$base" >/dev/null && ! git merge-base --is-ancestor "origin/$base" "$2"; then
+    jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), which has commits it does not: merge origin/\($base) in and push (see the github skill)."' <<<"$1"
+  fi
+}
+
 cmd_status() {
   local b pr head desc rev
   b=$(branch) || die "not on a branch"
@@ -354,6 +369,7 @@ cmd_status() {
   fi
   echo "ci:        $( (ci "$head" || echo "could not read the checks") | paste -sd ' ' -)"
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
+  stack_message "$pr" "$head"
 }
 
 cmd_since() {
@@ -594,7 +610,7 @@ ci_message() {
 # only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
 # read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 state=${3:-} records rev minor="" failed msgs=()
+  local pr=$1 head=$2 state=${3:-} records rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
   records=$(review_records "$pr") || return 1
   rev=$(last_reviewed "$records" "$head")
@@ -602,6 +618,8 @@ pending_message() {
     [[ -n $(minor_refusal "$records" "$rev") ]] || minor=yes
     msgs+=("$(review_message "$pr" "$head" "$minor")")
   fi
+  msg=$(stack_message "$pr" "$head")
+  [[ -z $msg ]] || msgs+=("$msg")
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
     msgs+=("$(ci_message "$pr" "$head" "$failed")")

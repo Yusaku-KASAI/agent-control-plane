@@ -523,6 +523,21 @@ touch "$state/nopr-feature"
 check "a PR on a branch without an open PR is refused" "$("$prctl" create --base feature t - <<<"$good" 2>&1 || true)" "has no open PR to stack on"
 rm "$state/nopr-feature" "$state/nopr-stacked"
 check "a stray argument to create is refused" "$("$prctl" create --base feature t 2>&1 || true)" "usage:"
+touch "$state/nopr-stacked"
+check "a PR on its own branch is refused" "$("$prctl" create --base stacked t - <<<"$good" 2>&1 || true)" "cannot be stacked on its own branch"
+check "a PR on a branch not here is refused" "$("$prctl" create --base nosuch t - <<<"$good" 2>&1 || true)" "origin/nosuch is not here"
+rm "$state/nopr-stacked"
+# A stacked PR is told when the branch below moves on without it, and when that has no open PR any more.
+git remote set-head origin main
+jq -n --arg h "$(git rev-parse HEAD)" '{number: 2, url: "u", headRefOid: $h, baseRefName: "feature", body: "x\n<!-- prctl: head=\($h) -->"}' >"$state/pr.json"
+lacks "a stacked PR on its base's head is told nothing" "$("$prctl" status)" "PR #2" "stacked on"
+git push -q origin "$(git commit-tree -p "$(git rev-parse origin/feature)" -m below "$(git rev-parse "origin/feature^{tree}")"):refs/heads/feature" && git fetch -q origin
+check "a stacked PR is told to take in its base" "$("$prctl" status)" "merge origin/feature in and push"
+touch "$state/nopr-feature"
+check "a stacked PR is told when its base has no open PR" "$(stop_hook)" "which has no open PR any more"
+rm "$state/nopr-feature"
+git push -q -f origin "$c12:refs/heads/feature" 2>/dev/null; git fetch -q origin
 git checkout -q feature
+git reset -q --hard origin/feature
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
