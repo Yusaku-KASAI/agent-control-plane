@@ -15,7 +15,8 @@ prctl since                               # 前に本文を書いてから push 
 prctl create "<タイトル>" body.md            # push 済みのブランチの PR を作る
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
 prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
-prctl review <コミット> findings.md          # そのコミットまでのレビューの結果を、PR のレビューとして残す
+prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
+prctl answer <コミット> answers.json        # そのコミットまでのレビューの指摘すべてへの答えを、PR のコメントにする
 prctl review --minor <コミット> note.md      # そのコミットまでを、細部の指摘への直しとして、レビューせずに残す
 ```
 
@@ -33,17 +34,46 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 ## 差分のレビュー
 
 自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、サブエージェントにレビューさせる（review
-スキル）。`prctl review` には、サブエージェントが見た最後のコミットと、その指摘を渡す。そのあとに直したコミットは、
-次の `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+スキル）。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
+直したコミットは、次の `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
-- PR を作る前のレビューは、`prctl create` のあとに残す。指摘への答えは、`findings.md` の指摘の後ろに書く。
+- PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
+  残す。指摘への答えは、`review.json` の `answers` に書く。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。
 - push で head が進んだら、`prctl unreviewed` の範囲をレビューさせて残す。ただし、その範囲が細部の指摘への、意味の
   変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
   指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の
   履歴にない、`--minor` の記録のあと）は、`prctl` が断る。
-- PR を作ったあとのレビューの指摘への答えは、どちらの道でも、直した push の `prctl update` のコメントに書く
-  （直しがなければ PR のコメント）。
+- PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
+  直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
+
+### 結果と答えの JSON
+
+レビューの結果と答えは JSON で `prctl` に渡し、`prctl` が Markdown の表と、機械で読む隠した写しの両方を作る。形が
+足りなければ `prctl` が断る。項目の中身は[指摘](../../../conventions/docs/reference/reviews.md#findings)と
+[結果の形](../../../conventions/docs/reference/reviews.md#record)にある。
+
+```json
+{
+  "scope": "since",
+  "perspectives": ["正しさ", "文書とコメント"],
+  "skipped": [{"perspective": "セキュリティ", "reason": "権限も秘密も変わらない"}],
+  "note": "全体についての一言（任意）",
+  "findings": [
+    {"severity": "提案", "perspective": "正しさ", "location": "bin/prctl:120", "summary": "一行の要約",
+     "basis": "状態を軸で洗い出す", "problem": "何が起きるか", "fix": "直し方の案", "verified": "動かして確かめた",
+     "notes": "補足（任意）"}
+  ],
+  "answers": [{"finding": 1, "action": "直した", "commit": "abc1234"}]
+}
+```
+
+- `scope` は `since`（前回のレビューから）か `pr`（PR 全体。`perspectives` はすべての観点）。`since` では、見なかった
+  観点を `skipped` に理由と書く。指摘の `perspective` は見た観点のどれか。指摘がなければ `findings` は `[]`。
+  head の履歴にまだレビューがなければ（PR の最初のレビュー、履歴を書き換えたあと）、`pr` でなければ断られる。
+- `answers`（PR を作る前のレビューだけ）と、`prctl answer` に渡すリストは、指摘の番号ごとに `action` を
+  `直した`（`commit`）、`直さない`（`reason`）、`Issue にした`（`issue`）、`答えた`（`reason`）のどれかにする。
+  すべての指摘に答える。
 
 ## ほかの人の PR と既定のブランチを読む
 
@@ -53,7 +83,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 ```bash
 prctl worktree pr <番号>                 # PR の head を取り出す。置き場所、範囲、差分の見方、次のコマンドを出す
-prctl review --pr <番号> <見た head> -     # 標準入力の指摘を、PR 全体のレビューとして残す
+prctl review --pr <番号> <見た head> -     # 標準入力の結果の JSON（"scope": "pr"）を、PR のレビューとして残す
 prctl worktree remove pr <番号>          # 終えたら消す
 prctl worktree default                  # 既定のブランチの head を取り出す（全体のレビュー）
 prctl worktree remove default
