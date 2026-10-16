@@ -4,11 +4,13 @@
 
 ```
 harness/
-  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground と scripts/detach を呼ぶ
+  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground、scripts/detach、scripts/guard-tree を、Agent の PostToolUse と PostToolUseFailure で scripts/guard-tree を呼ぶ
   scripts/context      動き方の要約と、ハーネスの契約と platform の文書の一覧の在りかを返す
   scripts/foreground   control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす
   scripts/detach       control-plane 経由のとき、処理を手放す Bash と、Monitor、ScheduleWakeup、CronCreate を断る
-  tests/               scripts/foreground と scripts/detach の試験
+  scripts/guard-tree   control-plane 経由のとき、サブエージェントが作業領域を変えることを断り、変わったら知らせる
+  lib/shell.sh         hook が共有する、シェルのコマンドの字面の読み方
+  tests/               scripts/foreground、scripts/detach、scripts/guard-tree の試験
   skills/harness/      詰まったときに、どこの問題かを切り分ける手順
 ```
 
@@ -55,6 +57,36 @@ harness/
   `prctl ci --wait` を `run_in_background` で始める。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：決まりだけでは二度破られたので、
   hook で断る。
+
+### `scripts/guard-tree`
+
+- **責務**：control-plane 経由のとき、サブエージェントが作業領域（主の worktree）のファイル、index、HEAD を変える
+  ことを断り、サブエージェントの間に作業領域が変わったらセッションのエージェントに知らせる
+  （[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
+- **置くもの / 置かないもの**：サブエージェントの呼び出しは、hook の入力の `agent_id` で見分ける。
+  - サブエージェントの Edit、Write、NotebookEdit は、書く場所（まだなければ、ある一番近いディレクトリ）が作業領域の
+    中なら断る。
+  - サブエージェントの Bash は、作業領域の中で動き、作業ツリー、index、HEAD を変える git のサブコマンド（一覧は
+    ADR）を含めば断る。コマンドは `lib/shell.sh` で引用符、ヒアドキュメント、コメントを除いて区切りごとに読み、
+    `-C`、`--git-dir`、`--work-tree` でほかの場所を指すものと、読むだけの形（`stash list`、`apply --check` など）は
+    通す。
+  - セッションのエージェントの Agent の前に、作業領域の状態（HEAD、ブランチ、index、stash、変更のあるファイルと
+    ignore されていない追跡していないファイルの中身）の写しを `.git` に置き、Agent のあと（失敗したときも）に
+    今の状態と比べて、違いを文脈として足し、写しを消す。
+  - linked worktree と作業領域の外、devcontainer で直接動くときは何もしない。
+- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。字面の
+  読み方は `scripts/detach` と共有する。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：依頼文の念押しに頼らず、
+  よく起きる形は hook で断る。[多層防御](../../principles/docs/reference/principles.md#defense-in-depth)：字面で
+  断りきれないものは、前後を比べて拾う。
+
+### `lib/shell.sh`
+
+- **責務**：hook が Bash のコマンドを字面で読むための関数（`shell_words`：ヒアドキュメントの中身、引用符の中、
+  コメントを除く）。
+- **置くもの / 置かないもの**：コマンドの読み方だけ。何を断るかは、読み込む hook が決める。
+- **関係**：`scripts/detach` と `scripts/guard-tree` が読み込む。
+- **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：同じ読み方を一か所に置く。
 
 ### `skills/harness/`
 

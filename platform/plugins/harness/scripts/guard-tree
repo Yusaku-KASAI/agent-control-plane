@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# PreToolUse and PostToolUse hook. Under the control plane, the agent that runs the session owns the
+# work area: what it commits is what is in the work tree. A subagent (one reviewing a diff, say) that
+# writes a file there or moves HEAD leaves changes the agent did not make, and they end up in its
+# commits. So subagents leave the work tree, its index and HEAD alone:
+# - Before a subagent's tool use, writing a file in the work tree and git commands that change it
+#   are refused.
+# - Around each subagent, the work tree is compared, and a change is told to the agent, as what a
+#   command can write cannot all be read from it.
+# A subagent's tool use carries agent_id in the hook input; the agent's own does not.
+set -euo pipefail
+
+input=$(cat)
+[[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
+field() { jq -r "$1 // \"\"" <<<"$input"; }
+cwd=$(field .cwd)
+# The work area is the main worktree; linked ones (prctl worktree, isolation: worktree) are not it.
+common=$(git -C "${CLAUDE_PROJECT_DIR:-$cwd}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+top=$(dirname "$common")
+shopt -s extglob
+
+# shellcheck source-path=SCRIPTDIR source=../lib/shell.sh
+source "$(dirname "$0")/../lib/shell.sh"
+
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput: {
+    hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+}
+
+# tree_of <path>: the top of the work tree that holds the path, or nothing outside one. A path that
+# does not exist yet belongs where its nearest existing directory does.
+tree_of() {
+  local p=$1
+  [[ $p == /* ]] || p=$cwd/$p
+  while [[ ! -d $p ]]; do p=$(dirname "$p"); done
+  git -C "$p" rev-parse --show-toplevel 2>/dev/null || true
+}
+
+# changes_tree <command>: whether the command runs, in the work tree, a git command that changes its
+# files, its index or HEAD. A git command given another place (-C, --git-dir, --work-tree) is left
+# to the comparison around the subagent.
+changes_tree() {
+  local line words i sub
+  [[ $(tree_of "$cwd") == "$top" ]] || return 1
+  while IFS= read -r line; do
+    read -ra words <<<"$line"
+    for ((i = 0; i < ${#words[@]}; i++)); do
+      [[ ${words[i]} == git ]] || continue
+      sub=""
+      for ((i++; i < ${#words[@]}; i++)); do
+        case ${words[i]} in
+          -C | --git-dir* | --work-tree*) sub=elsewhere; break ;;
+          -c) ((i++)) || true ;;
+          -*) ;;
+          *) sub=${words[i]}; break ;;
+        esac
+      done
+      case $sub in
+        add | am | checkout | cherry-pick | clean | commit | merge | mv | pull | rebase | reset | restore | revert | rm | switch)
+          return 0 ;;
+        stash)
+          [[ ${words[i + 1]:-} == @(list|show) ]] || return 0 ;;
+        apply)
+          [[ " ${words[*]:i+1} " == *" --"@(check|stat|numstat|summary)" "* && " ${words[*]:i+1} " != *" --apply "* ]] || return 0 ;;
+      esac
+    done
+  done < <(tr ';&|(){}`' '\n' <<<"$(shell_words "$1")")
+  return 1
+}
+
+# state: what a subagent must leave as it is: HEAD, the branch, the index, the stash, and each
+# changed or untracked file with its content.
+state() (
+  cd "$top"
+  export GIT_OPTIONAL_LOCKS=0
+  echo "HEAD $(git rev-parse --verify --quiet HEAD || echo none)"
+  echo "ブランチ $(git symbolic-ref --quiet --short HEAD || echo '(detached)')"
+  echo "index $(git ls-files --stage | git hash-object --stdin)"
+  echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
+  { git diff --name-only -z HEAD -- 2>/dev/null || true; git ls-files --others --exclude-standard -z; } \
+    | sort -zu | while IFS= read -r -d '' f; do
+      if [[ -e $f || -L $f ]]; then
+        printf 'ファイル %s %s\n' "$(git hash-object --no-filters -- "$f" 2>/dev/null || echo unreadable)" "$f"
+      else
+        printf 'ファイル deleted %s\n' "$f"
+      fi
+    done
+)
+
+snapshot() { git -C "$top" rev-parse --path-format=absolute --git-path "acp-subagent-$(field .tool_use_id)"; }
+
+event=$(field .hook_event_name)
+tool=$(field .tool_name)
+subagent=$(field .agent_id)
+case $event:$tool in
+  PreToolUse:Edit | PreToolUse:Write | PreToolUse:NotebookEdit)
+    [[ -n $subagent ]] || exit 0
+    path=$(field '.tool_input.file_path // .tool_input.notebook_path')
+    if [[ -n $path && $(tree_of "$path") == "$top" ]]; then
+      deny "control-plane 経由では、サブエージェントは作業領域のファイルを書かない（ハーネスの契約）。作業領域でコミットするのはセッションのエージェントで、サブエージェントが残したファイルはそのコミットに紛れる。試すなら作業領域の外（mktemp -d で作った場所）に書く。"
+    fi
+    ;;
+  PreToolUse:Bash)
+    [[ -n $subagent ]] || exit 0
+    if changes_tree "$(field .tool_input.command)"; then
+      deny "control-plane 経由では、サブエージェントは作業領域の HEAD、index、ファイルを変える git のコマンド（checkout、switch、reset、stash、add、commit など）を使わない（ハーネスの契約）。ほかのコミットを読むなら git show や git diff、ほかの PR は prctl worktree で取り出した一時的な worktree で読む。"
+    fi
+    ;;
+  PreToolUse:Agent | PreToolUse:Task)
+    [[ -z $subagent ]] || exit 0
+    state >"$(snapshot)"
+    ;;
+  PostToolUse:Agent | PostToolUse:Task | PostToolUseFailure:Agent | PostToolUseFailure:Task)
+    [[ -z $subagent ]] || exit 0
+    file=$(snapshot)
+    [[ -f $file ]] || exit 0
+    before=$(cat "$file")
+    rm -f "$file"
+    after=$(state)
+    [[ $before != "$after" ]] || exit 0
+    changed=$(diff <(echo "$before") <(echo "$after") | sed -n 's/^< /前：/p; s/^> /今：/p' || true)
+    jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域が変わった（ハーネスの契約では、サブエージェントは作業領域を変えない）。変わったもの：
+$changed
+自分の変更でなければ戻す（ファイルは消し、HEAD はブランチに戻す）。コミットの前に git status で、入れるファイルを確かめる。" \
+      '{hookSpecificOutput: {hookEventName: $event, additionalContext: $context}}'
+    ;;
+esac

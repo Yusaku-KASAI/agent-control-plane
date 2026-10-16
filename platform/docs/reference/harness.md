@@ -27,6 +27,11 @@
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
   サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` か
   `isolation: remote` があると、hook によらずバックグラウンドで動くので、そういう定義は使わない。
+- サブエージェントは、作業領域（主の worktree）のファイル、index、HEAD を変えない。試すなら作業領域の外
+  （`mktemp -d` で作った場所）を使う。harness プラグインの hook が、サブエージェントが作業領域に書く Edit、Write、
+  NotebookEdit と、作業領域で HEAD、index、作業ツリーを変える git のコマンドを断る。サブエージェントの間に作業領域が
+  変わったら、セッションのエージェントに何が変わったかを知らせる（[ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
+  作業を任せるなら `isolation: worktree` にする。
 - バックグラウンドの処理が終わると、知らせが届く（動いているターンに入るか、自分で始めるターンになる）。終わりを
   待つために、Monitor、ScheduleWakeup、`sleep` の繰り返し、同じ処理のフォアグラウンドでの実行で見張らない。見張りも
   ターンやバックグラウンドの処理を増やし、そのぶん回答が増える（[ADR 0010](../adr/0010-one-ci-wait-per-branch.md)）。
