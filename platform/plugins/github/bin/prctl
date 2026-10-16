@@ -36,6 +36,9 @@ usage:
                                       record the range up to <commit> as fixes of nitpicks that change
                                       no meaning, left unreviewed; refused when the PR has no review,
                                       none in the head's history, or right after another such record
+  prctl ready                         take the PR out of draft, once it may end: a review of the whole
+                                      PR, nothing but fixes of nitpicks after it, no finding that must
+                                      be fixed, every finding answered (PRs are opened as drafts)
   prctl answer <commit> <answers-json|->
                                       answer every finding of the review of <commit>, in a comment
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
@@ -75,15 +78,30 @@ described() {
   if [[ $(jq -r .body <<<"$1") =~ $marker_re ]]; then echo "${BASH_REMATCH[1]}"; fi
 }
 
-# review_records <pr>: the facts of the PR's reviews that count, one line "<commit> review" or
-# "<commit> minor" (a record of fixes left unreviewed, by prctl review --minor) each. A submitted
-# review with a body counts, whoever wrote it; a lone line comment or a reply is also a review on
-# GitHub, but has no body. Fails when the reviews cannot be read.
-review_records() {
+# review_list <pr>: the PR's reviews that count, one JSON line {id, commit, minor, copy} each: minor
+# for a record of fixes left unreviewed (prctl review --minor), copy the base64 hidden copy of a
+# review prctl recorded, or null. A submitted review with a body counts, whoever wrote it; a lone
+# line comment or a reply is also a review on GitHub, but has no body. Fails when the reviews
+# cannot be read.
+review_list() {
   gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
-    --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
-      | select((.body // "") != "")
-      | "\(.commit_id) \(if (.body | startswith("## '"$minor_title"'")) then "minor" else "review" end)"'
+    --jq ".[] | select(.state == \"COMMENTED\" or .state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\")
+      | select((.body // \"\") != \"\")
+      | {id, commit: .commit_id, minor: (.body | startswith(\"## $minor_title\")),
+         copy: (.body | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
+           | (capture(\"^<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m // null))} | tojson"
+}
+
+# records_of <list>: the list as lines "<commit> review" or "<commit> minor".
+records_of() {
+  [[ -z $1 ]] || jq -r '"\(.commit) \(if .minor then "minor" else "review" end)"' <<<"$1"
+}
+
+# review_records <pr>: the records of the PR's reviews (records_of). Fails when they cannot be read.
+review_records() {
+  local list
+  list=$(review_list "$1") || return 1
+  records_of "$list"
 }
 
 # last_reviewed <records> <head>: of the commits the records cover, the latest one in the history of
@@ -114,43 +132,49 @@ range_start() {
 # How many reviews of the whole PR may not settle it before it goes back to the requester.
 readonly final_cap=${PRCTL_FINAL_CAP:-3}
 
-# review_facts <pr> <head>: the facts of the PR's reviews in the head's history, oldest first, as a
-# JSON list of {commit, minor, scope, findings, answered}: scope and findings from the hidden copy
-# (null for a review without one), answered from the copy and from the answers' comments. Fails
-# when the reviews or the comments cannot be read.
+# review_facts <pr> <head> <list>: the facts of the PR's reviews (review_list) in the head's history,
+# oldest first, as a JSON list of {commit, at, minor, scope, findings, answered}: at the commit's
+# place in the history, scope and findings from the hidden copy (null and [] for a review without
+# one), answered from the copy and from the comments that answer that very review (by its id).
+# Fails when the comments cannot be read.
 review_facts() {
-  local num reviews answers id n
-  num=$(jq -r .number <<<"$1")
-  reviews=$(gh api --paginate "repos/{owner}/{repo}/pulls/$num/reviews" \
-    --jq ".[] | select(.state == \"COMMENTED\" or .state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\")
-      | select((.body // \"\") != \"\")
-      | {commit: .commit_id, minor: (.body | startswith(\"## $minor_title\")),
-         copy: (.body | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
-           | (capture(\"^<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m // null))}") || return 1
-  answers=$(gh api --paginate "repos/{owner}/{repo}/issues/$num/comments" \
+  local answers line n
+  answers=$(gh api --paginate "repos/{owner}/{repo}/issues/$(jq -r .number <<<"$1")/comments" \
     --jq ".[] | .body // \"\" | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
       | capture(\"^<!-- $answers_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m" \
-    | while read -r id; do base64 -d <<<"$id" 2>/dev/null; echo; done | jq -sc '[.[] | select(type == "object")]') || return 1
+    | while read -r line; do base64 -d <<<"$line" 2>/dev/null; echo; done | jq -sc '[.[] | select(type == "object")]') || return 1
   # Order and filter by the head's history here: jq knows nothing of git.
-  jq -c '.' <<<"$reviews" | while read -r id; do
-    n=$(jq -r .commit <<<"$id")
+  [[ -z $3 ]] || while read -r line; do
+    n=$(jq -r .commit <<<"$line")
     git merge-base --is-ancestor "$n" "$2" 2>/dev/null || continue
-    jq -c --argjson at "$(git rev-list --count "$n")" '. + {at: $at}' <<<"$id"
-  done | jq -sc --argjson answers "$answers" '
-    sort_by(.at) | map(.commit as $at
+    jq -c --argjson at "$(git rev-list --count "$n")" '. + {at: $at}' <<<"$line"
+  done <<<"$3" | jq -sc --argjson answers "$answers" '
+    sort_by(.at) | map(.id as $id
       | (.copy | if . then (@base64d | fromjson) else {} end) as $c
-      | {commit, minor, scope: $c.scope, findings: ($c.findings // []),
-         answered: ((($c.answered // []) + [$answers[] | select(.review == $at) | .answers[].finding]) | unique)})'
+      | {commit, at, minor, scope: $c.scope, findings: ($c.findings // []),
+         answered: ((($c.answered // []) + [$answers[] | select(.review_id == $id) | .answers[].finding]) | unique)})'
 }
 
-# final_message <pr> <head>: what the PR still needs before it may end (a review of the whole PR that
-# settles it), or nothing; nothing for a draft PR. Fails when the facts cannot be read.
+# handback_file <pr>: where this work tree keeps how far the reviews of the whole PR were counted
+# when the PR last went back to the requester; the cap counts those after it.
+handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$1")"; }
+
+# final_message <pr> <head> <list> [record]: what the PR still needs before it may end (a review of
+# the whole PR that settles it), or nothing. Not for a draft PR, which the callers leave out. With
+# record, a PR sent back to the requester is remembered, so that the cap counts afresh after it.
+# Fails when the facts cannot be read.
 final_message() {
-  local facts errors
-  [[ $(jq -r '.isDraft // false' <<<"$1") != true ]] || return 0
-  facts=$(review_facts "$1" "$2") || return 1
-  errors=$(jq -r -L "$forms" --argjson cap "$final_cap" 'include "review"; final_errors($cap) | .[]' <<<"$facts") || return 1
+  local facts since errors file
+  file=$(handback_file "$1")
+  since=$(cat "$file" 2>/dev/null) || since=0
+  [[ $since =~ ^[0-9]+$ ]] || since=0
+  facts=$(review_facts "$1" "$2" "$3") || return 1
+  errors=$(jq -r -L "$forms" --argjson cap "$final_cap" --argjson since "$since" \
+    'include "review"; final_errors($cap; $since) | .[]' <<<"$facts") || return 1
   [[ -n $errors ]] || return 0
+  if [[ -n ${4:-} && $errors == *"hand it back"* ]]; then
+    jq -r '[.[] | select(.scope == "pr") | .at] | max // 0' <<<"$facts" >"$file"
+  fi
   jq -r --arg e "$errors" '"Before PR #\(.number) ends: \($e | split("\n") | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill). "' <<<"$1"
 }
 
@@ -405,7 +429,7 @@ stack_message() {
 }
 
 cmd_status() {
-  local b pr head desc rev end
+  local b pr head desc rev list end
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || { echo "no open PR for $b"; return; }
@@ -424,7 +448,8 @@ cmd_status() {
   [[ $(git rev-parse HEAD) == "$head" ]] || echo "local HEAD $(git rev-parse --short HEAD) is not the PR head"
   stack_message "$pr" "$head"
   if git cat-file -e "$head^{commit}" 2>/dev/null; then
-    if ! end=$(final_message "$pr" "$head"); then echo "end:       could not read the reviews"
+    if [[ $(jq -r '.isDraft // false' <<<"$pr") == true ]]; then echo "end:       a draft; prctl ready checks it"
+    elif ! list=$(review_list "$pr") || ! end=$(final_message "$pr" "$head" "$list"); then echo "end:       could not read the reviews"
     else echo "end:       ${end:-may end}"; fi
   fi
 }
@@ -545,30 +570,31 @@ form_check() {
   [[ -z $errors ]] || die "the form is not right (see the github skill):"$'\n'"$errors"
 }
 
-# review_at <pr> <commit>: the hidden copy of the latest review of <commit> that prctl recorded, or
-# nothing. Only the body's last line is read, where prctl puts it: a finding may quote a copy.
+# review_at <pr> <commit>: {id, review} of the latest review of <commit> that prctl recorded (its
+# hidden copy), or nothing. Fails when the reviews cannot be read.
 review_at() {
-  gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
-    --jq ".[] | select(.commit_id == \"$2\") | .body // \"\" | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
-      | capture(\"^<!-- $review_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m" \
-    | tail -n 1 | base64 -d 2>/dev/null
+  local list
+  list=$(review_list "$1") || return 1
+  [[ -z $list ]] || jq -sc --arg c "$2" '[.[] | select(.commit == $c and .copy != null)] | last // empty
+    | {id, review: (.copy | @base64d | fromjson)}' <<<"$list"
 }
 
 cmd_answer() {
-  local commit answers b pr review
+  local commit answers b pr at review
   commit=$(git rev-parse --verify --quiet "$1^{commit}") || die "no commit $1"
   answers=$(jq -c . <<<"$(read_input "$2")" 2>/dev/null) || answers=""
   [[ -n $answers ]] || die "the answers are not JSON (see the github skill)"
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
-  review=$(review_at "$pr" "$commit") || die "could not read the reviews of the PR"
-  [[ -n $review ]] || die "no review of ${commit:0:12} recorded by prctl"
+  at=$(review_at "$pr" "$commit") || die "could not read the reviews of the PR"
+  [[ -n $at ]] || die "no review of ${commit:0:12} recorded by prctl"
+  review=$(jq -c .review <<<"$at")
   # shellcheck disable=SC2016 # a jq expression
   form_check "$answers" 'answer_errors($review)' --argjson review "$review"
   gh api "repos/{owner}/{repo}/issues/$(jq -r .number <<<"$pr")/comments" --jq .html_url -f body="$(
     jq -r -L "$forms" --arg t "${commit:0:12} までのレビューへの答え" 'include "review"; render_answers($t)' <<<"$answers"
-    printf '\n\n<!-- %s: %s -->\n' "$answers_mark" "$(jq -c --arg c "$commit" '{review: $c, answers: .}' <<<"$answers" | base64 | tr -d '\n')"
+    printf '\n\n<!-- %s: %s -->\n' "$answers_mark" "$(jq -c --arg c "$commit" --argjson id "$(jq .id <<<"$at")" '{review: $c, review_id: $id, answers: .}' <<<"$answers" | base64 | tr -d '\n')"
   )"
 }
 
@@ -620,7 +646,28 @@ cmd_create() {
   else
     base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
   fi
-  gh pr create --base "$base" --head "$b" --title "$title" --body "$(with_marker "$body" "$head")"
+  # A draft until prctl ready: on its way, it is not held for a review of the whole PR.
+  gh pr create --draft --base "$base" --head "$b" --title "$title" --body "$(with_marker "$body" "$head")"
+}
+
+# cmd_ready: take the PR out of draft, once it may end (reviews.md: before ending).
+cmd_ready() {
+  local b head pr list msg node
+  b=$(branch) || die "not on a branch"
+  head=$(pushed_head "$b")
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  [[ $(jq -r .headRefOid <<<"$pr") == "$head" ]] || die "GitHub has not caught up with the push yet; retry"
+  [[ $(jq -r '.isDraft // false' <<<"$pr") == true ]] || { echo "PR #$(jq -r .number <<<"$pr") is not a draft"; return; }
+  list=$(review_list "$pr") || die "could not read the reviews of the PR"
+  msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
+  [[ -z $msg ]] || die "not ready: $msg"
+  msg=$(final_message "$pr" "$head" "$list" record) || die "could not read the reviews of the PR"
+  [[ -z $msg ]] || die "not ready: $msg"
+  node=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")" --jq .node_id) || die "could not read the PR"
+  # shellcheck disable=SC2016 # a GraphQL variable
+  gh api graphql -f query='mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { url } } }' \
+    -f id="$node" --jq .data.markPullRequestReadyForReview.pullRequest.url
 }
 
 cmd_update() {
@@ -663,13 +710,14 @@ ci_message() {
   jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it (see the github skill)."' <<<"$1"
 }
 
-# pending_message <pr> <head> [<ci>]: what the PR still needs for this head, or nothing. Of the CI,
+# pending_message <pr> <head> [<ci> [<review list>]]: what the PR still needs for this head, or nothing. Of the CI,
 # only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
 # read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 state=${3:-} records rev minor="" msg failed msgs=()
+  local pr=$1 head=$2 state=${3:-} list records rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
-  records=$(review_records "$pr") || return 1
+  if [[ $# -ge 4 ]]; then list=$4; else list=$(review_list "$pr") || return 1; fi
+  records=$(records_of "$list")
   rev=$(last_reviewed "$records" "$head")
   if [[ $rev != "$head" ]]; then
     [[ -n $(minor_refusal "$records" "$rev") ]] || minor=yes
@@ -707,7 +755,7 @@ hook_post_tool_use() {
 # Only a head pushed from this working tree counts, and a head once seen described, reviewed and
 # passing CI is not asked about again, so most turns end without calling GitHub.
 hook_stop() {
-  local input=$1 b remote state pr checks msg
+  local input=$1 b remote state pr checks list draft msg
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
@@ -718,12 +766,16 @@ hook_stop() {
   [[ -n $pr ]] || return 0
   # Checks that cannot be read are left out, and keep the head unsettled.
   checks=$(ci "$remote" 2>/dev/null) || checks=""
-  msg=$(pending_message "$pr" "$remote" "$checks") || return 0
-  # Only once the PR is otherwise current: whether it may end at all.
-  [[ -n $msg ]] || msg=$(final_message "$pr" "$remote") || return 0
+  list=$(review_list "$pr" 2>/dev/null) || return 0
+  msg=$(pending_message "$pr" "$remote" "$checks" "$list") || return 0
+  # Only once the PR is otherwise current, and out of draft: whether it may end at all. A draft is
+  # still on its way; prctl ready asks the same before it leaves draft.
+  draft=$(jq -r '.isDraft // false' <<<"$pr")
+  if [[ -z $msg && $draft != true ]]; then msg=$(final_message "$pr" "$remote" "$list" record) || return 0; fi
   if [[ -z $msg ]]; then
-    # A head is settled only once nothing more can come of its CI; until then, later turns look again.
-    ! settles "$remote" "$checks" || echo "$remote" >"$state"
+    # A head is settled only once nothing more can come of its CI, and not while a draft, which
+    # leaves draft without a push; until then, later turns look again.
+    if [[ $draft != true ]] && settles "$remote" "$checks"; then echo "$remote" >"$state"; fi
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.
@@ -763,6 +815,7 @@ main() {
       esac
       ;;
     answer) [[ $# -eq 3 ]] || usage; cmd_answer "$2" "$3" ;;
+    ready) [[ $# -eq 1 ]] || usage; cmd_ready ;;
     create)
       if [[ ${2:-} == --base ]]; then
         [[ $# -eq 5 ]] || usage

@@ -53,9 +53,11 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
 
-- 終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー（`"scope": "pr"`）を回し、
-  [終える前](../../../conventions/docs/reference/reviews.md#ending)を満たす。満たしていなければ、ターンの終わりに hook が
-  止め、何が足りないかを言う（`prctl status` の `end:` でも見える）。下書きの PR では止めない。
+- `prctl create` は PR を下書きで作る。終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー
+  （`"scope": "pr"`）を回して[終える前](../../../conventions/docs/reference/reviews.md#ending)を満たし、`prctl ready` で
+  下書きを外す。満たしていなければ `prctl ready` が断り、何が足りないかを言う（`prctl status` の `end:` でも見える）。
+  下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが 3 回に達したら、
+  hook が依頼者に返すよう言う。
 
 ### 結果と答えの JSON
 

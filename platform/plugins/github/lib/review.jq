@@ -89,25 +89,27 @@ def render_review($title; $answers):
 def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}],
   answered: [(.answers // [])[].finding]};
 
-# final_errors($cap): whether the PR may end, from the facts of its reviews in the head's history,
-# oldest first: [{commit, minor, scope, findings, answered}] ("answered" also holds the answers in
-# comments). What stands in the way, one string each; empty when the PR may end.
-def final_errors($cap):
+# final_errors($cap; $since): whether the PR may end, from the facts of its reviews in the head's
+# history, oldest first: [{commit, at, minor, scope, findings, answered}] (at: the commit's place in
+# the history). What stands in the way, one string each; empty when it may end. The reviews of the
+# whole PR are counted against $cap from the place $since on (the PR last went back there).
+def final_errors($cap; $since):
   . as $rs
-  | ([$rs[] | select(.scope == "pr")] | length) as $wholes
-  | ([$rs | to_entries[] | select(.value.scope == "pr")] | last) as $last
-  | if $last == null then
+  | ([$rs[] | select(.scope == "pr" and .at > $since)] | length) as $wholes
+  | ([$rs[] | select(.scope == "pr")] | last) as $r
+  | if $r == null then
       ["no review of the whole PR (scope \"pr\", every perspective) yet"]
     else
-      $last.value as $r
-      | ([$rs[$last.key + 1:][] | select(.minor | not)] | length) as $after
+      # Changes after it: records of later commits other than fixes of nitpicks. Another review of the
+      # same commit is no change.
+      ([$rs[] | select(.at > $r.at and (.minor | not))] | length) as $after
       | ([$r.findings | to_entries[] | select(.value.severity == "必須") | .key + 1]) as $musts
       | ([range(1; ($r.findings | length) + 1)] - $r.answered) as $open
       | [ (if $after > 0 then "changes other than fixes of nitpicks since the review of the whole PR at \($r.commit[0:12]); review the whole PR again" else empty end),
           (if $after == 0 and ($musts | length) > 0 then "the review of the whole PR at \($r.commit[0:12]) has findings that must be fixed: \($musts | map(tostring) | join(", ")); fix them, then review the whole PR again" else empty end),
           (if $after == 0 and ($open | length) > 0 then "findings of the review of the whole PR at \($r.commit[0:12]) not answered: \($open | map(tostring) | join(", ")); answer them (prctl answer \($r.commit[0:12]) <answers-json>)" else empty end) ]
       | if length > 0 and $wholes >= $cap and (.[0] | startswith("findings") | not)
-        then ["the whole PR was reviewed \($wholes) times and still does not settle: stop, and hand it back to the requester with what remains: " + join("; ")]
+        then ["the whole PR was reviewed \($wholes) times since it last went back and still does not settle: stop, and hand it back to the requester with what remains (" + join("; ") + ")"]
         else . end
     end;
 

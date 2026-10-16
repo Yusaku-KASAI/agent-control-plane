@@ -36,6 +36,8 @@ case $args in
     [[ -f $dir/nopr-${head//\//-} ]] && exit 0
     [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
     ;;
+  *" --jq .node_id "*) echo N1 ;;
+  *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
@@ -46,7 +48,7 @@ case $args in
       case $a in commit_id=*) commit=${a#commit_id=} ;; body=*) body=${a#body=} ;; esac
     done
     printf '%s' "$body" >"$dir/last-body"
-    jq --arg c "$commit" --arg b "$body" '. + [{state: "COMMENTED", commit_id: $c, body: $b}]' "$dir/reviews.json" >"$dir/r.tmp"
+    jq --arg c "$commit" --arg b "$body" '. + [{id: (length + 1), state: "COMMENTED", commit_id: $c, body: $b}]' "$dir/reviews.json" >"$dir/r.tmp"
     mv "$dir/r.tmp" "$dir/reviews.json"
     echo "https://example.invalid/review"
     ;;
@@ -593,7 +595,9 @@ c17=$(commit seventeen)
 git push -q
 set_pr "$c17"
 "$prctl" review "$c17" - <<<"$must" >/dev/null
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
 check "past the cap, the PR goes back to the requester" "$(stop_hook)" "hand it back to the requester"
+lacks "after going back, the cap counts afresh" "$(stop_hook)" "must be fixed" "hand it back"
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 out=$(stop_hook)
 check "a draft PR is not held for the whole review" "[$out]" "[]"
@@ -608,5 +612,52 @@ set_pr "$c19"
 "$prctl" review --minor "$c19" - <<<"細部の直し" >/dev/null
 out=$(stop_hook)
 check "fixes of nitpicks after the whole review let the PR end" "[$out]" "[]"
+
+# PRs are opened as drafts; a draft is not held for the whole review, and prctl ready takes it out of
+# draft only once it may end.
+git checkout -q stacked
+touch "$state/nopr-stacked"
+check "a PR is opened as a draft" "$("$prctl" create t - <<<"$good" >/dev/null && cat "$state/last-create")" "pr create --draft"
+rm "$state/nopr-stacked"
+git checkout -q feature
+c20=$(commit twenty)
+git push -q
+set_pr "$c20"
+"$prctl" review "$c20" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+out=$(stop_hook)
+check "a draft is not held at the end of a turn" "[$out]" "[]"
+check "a draft is not remembered as settled" "[$(settled)]" "[]"
+check "status tells a draft is checked when made ready" "$("$prctl" status)" "end:       a draft; prctl ready checks it"
+check "a draft that may not end is not made ready" "$("$prctl" ready 2>&1 || true)" "not ready: Before PR #1 ends"
+c21=$(commit twentyone)
+git push -q
+set_pr "$c21"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+"$prctl" review "$c21" - <<<"$whole" >/dev/null
+rm -f "$state/last-graphql"
+check "a draft that may end is made ready" "$("$prctl" ready)" "https://example.invalid/pull/1"
+check "being made ready goes through GraphQL" "$(cat "$state/last-graphql")" "markPullRequestReadyForReview"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "a PR out of draft is told so" "$("$prctl" ready)" "is not a draft"
+# Another review of the same commit is no change, and answers count for the review they answer.
+"$prctl" review "$c21" - <<<"$nothing" >/dev/null 2>&1 || true
+out=$(stop_hook)
+check "another review of the commit of the whole review is no change" "[$out]" "[]"
+c22=$(commit twentytwo)
+git push -q
+set_pr "$c22"
+"$prctl" review "$c22" - <<<"$(jq -c '.findings[0].severity = "提案"' <<<"$found")" >/dev/null
+"$prctl" review "$c22" - <<<"$proposal" >/dev/null
+"$prctl" answer "$c22" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' >/dev/null
+out=$(stop_hook)
+check "answers count for the latest review of the commit only" "[$out]" "[]"
+c23=$(commit twentythree)
+git push -q
+set_pr "$c23"
+"$prctl" review "$c23" - <<<"$found" >/dev/null
+"$prctl" answer "$c23" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 2, "action": "直さない", "reason": "r"}]' >/dev/null
+"$prctl" review "$c23" - <<<"$proposal" >/dev/null
+check "answers to another review of the commit do not answer the whole review" "$(stop_hook)" "not answered: 1"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
