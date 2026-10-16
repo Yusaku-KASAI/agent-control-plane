@@ -86,7 +86,39 @@ def render_review($title; $answers):
 
 # record: what of a review is kept in its hidden copy: enough to tell its scope and to check the
 # answers to it, as the PR review's body has a limit.
-def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}]};
+def record: {scope, perspectives, findings: [.findings[] | {severity, perspective, summary}],
+  answered: [(.answers // [])[].finding]};
+
+# final_errors($cap; $since; $head): whether the PR may end, from the facts of its reviews in the
+# head's history, oldest first: [{commit, at, minor, scope, findings, answered}] (at: the commit's
+# place in the history; $head: the head's). What stands in the way, as [{kind, text}], kind one of
+# none (no review of the whole PR), unrecorded (a push not recorded yet), changed, must, open (not
+# answered) and back (hand it back); empty when it may end. The reviews of the whole PR are counted
+# against $cap from the place $since on (the PR last went back there); back comes once the count
+# reaches $cap and the PR still needs another such review.
+def final_errors($cap; $since; $head):
+  . as $rs
+  | ([$rs[] | select(.scope == "pr" and .at > $since)] | length) as $wholes
+  | ([$rs[] | select(.scope == "pr")] | last) as $r
+  | if $r == null then
+      [{kind: "none", text: "no review of the whole PR (scope \"pr\", every perspective) yet"}]
+    else
+      # Changes after it: records of later commits other than fixes of nitpicks. Another review of the
+      # same commit is no change.
+      ([$rs[] | select(.at > $r.at and (.minor | not))] | length) as $after
+      # A head past the last record is a push not recorded yet: whether a change or a fix of
+      # nitpicks is for its record to say.
+      | ($head > ([$rs[].at] | max)) as $unrecorded
+      | ([$r.findings | to_entries[] | select(.value.severity == "必須") | .key + 1]) as $musts
+      | ([range(1; ($r.findings | length) + 1)] - $r.answered) as $open
+      | [ (if $unrecorded then {kind: "unrecorded", text: "the push after the last record is not recorded yet: record it first (prctl unreviewed tells how)"} else empty end),
+          (if $after > 0 then {kind: "changed", text: "changes other than fixes of nitpicks since the review of the whole PR at \($r.commit[0:12]); review the whole PR again"} else empty end),
+          (if $after == 0 and ($musts | length) > 0 then {kind: "must", text: "the review of the whole PR at \($r.commit[0:12]) has findings that must be fixed: \($musts | map(tostring) | join(", ")); fix them, then review the whole PR again"} else empty end),
+          (if $after == 0 and ($open | length) > 0 then {kind: "open", text: "findings of the review of the whole PR at \($r.commit[0:12]) not answered: \($open | map(tostring) | join(", ")); answer them (prctl answer \($r.commit[0:12]) <answers-json>)"} else empty end) ]
+      | if length > 0 and $wholes >= $cap and any(.kind == "changed" or .kind == "must")
+        then [{kind: "back", text: "the whole PR was reviewed \($wholes) times since it last went back and still does not settle: stop, and hand it back to the requester with what remains (\(map(.text) | join("; ")))"}]
+        else . end
+    end;
 
 # render_answers($title): the comment that answers a review.
 def render_answers($title):

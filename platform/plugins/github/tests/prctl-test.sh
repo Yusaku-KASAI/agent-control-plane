@@ -12,6 +12,7 @@ export TMPDIR=$tmp
 state=$tmp/gh
 mkdir -p "$state" "$tmp/bin"
 echo '[]' >"$state/reviews.json"
+echo '[]' >"$state/comments.json"
 echo '{"check_runs": []}' >"$state/checks.json"
 cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
@@ -35,6 +36,8 @@ case $args in
     [[ -f $dir/nopr-${head//\//-} ]] && exit 0
     [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
     ;;
+  *" --jq .node_id "*) echo N1 ;;
+  *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
@@ -45,7 +48,7 @@ case $args in
       case $a in commit_id=*) commit=${a#commit_id=} ;; body=*) body=${a#body=} ;; esac
     done
     printf '%s' "$body" >"$dir/last-body"
-    jq --arg c "$commit" --arg b "$body" '. + [{state: "COMMENTED", commit_id: $c, body: $b}]' "$dir/reviews.json" >"$dir/r.tmp"
+    jq --arg c "$commit" --arg b "$body" '. + [{id: (length + 1), state: "COMMENTED", commit_id: $c, body: $b}]' "$dir/reviews.json" >"$dir/r.tmp"
     mv "$dir/r.tmp" "$dir/reviews.json"
     echo "https://example.invalid/review"
     ;;
@@ -67,10 +70,12 @@ case $args in
     fi
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
-  *"/issues/1/comments "*)
+  *"/issues/"*"/comments "*" body="*)
     for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-comment"; done
+    jq --rawfile b "$dir/last-comment" '. + [{body: $b}]' "$dir/comments.json" >"$dir/c.tmp" && mv "$dir/c.tmp" "$dir/comments.json"
     echo "https://example.invalid/comment"
     ;;
+  *"/issues/"*"/comments "*) jq -r "${@: -1}" "$dir/comments.json" ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -123,6 +128,7 @@ lacks() {
 
 set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
+check "a PR without any review may not end" "$("$prctl" status)" "end:       PR #1 may not end yet: no review of the whole PR"
 out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
 lacks "stop does not point to minor fixes before any review" "$out" "not reviewed up to" "prctl review --minor"
@@ -139,7 +145,7 @@ check "the first review since the last is refused" "$("$prctl" review "$c1" - <<
 check "a review covers the commit it names" "$("$prctl" unreviewed)" "range: $c1..$c2"
 check "a commit before the last review is refused" "$("$prctl" review "$base" - <<<"$nothing" 2>&1 || true)" "is not after the last reviewed"
 
-"$prctl" review "$c2" - <<<"$nothing" >/dev/null
+"$prctl" review "$c2" - <<<"$whole" >/dev/null
 check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the head"
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
@@ -564,5 +570,182 @@ jq --arg h "$(git rev-parse HEAD)" '.headRefOid = $h' "$state/pr.json" >"$state/
 git push -q -f origin "$c12:refs/heads/feature" 2>/dev/null; git fetch -q origin
 git checkout -q feature
 git reset -q --hard origin/feature
+
+# Before a PR ends, a review of the whole PR settles it: no finding that must be fixed, every
+# finding answered, nothing but fixes of nitpicks after it; or it goes back after the cap.
+c15=$(commit fifteen)
+git push -q
+set_pr "$c15"
+proposal=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.findings[0]]}' <<<"$found")
+"$prctl" review "$c15" - <<<"$proposal" >/dev/null
+check "a whole review with an unanswered finding stops the end" "$(stop_hook)" "not answered: 1"
+check "status tells what the end needs" "$("$prctl" status)" "end:       PR #1 may not end yet"
+"$prctl" answer "$c15" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' >/dev/null
+out=$(stop_hook)
+check "a whole review with every finding answered lets the PR end" "[$out]" "[]"
+check "status tells the PR may end" "$("$prctl" status)" "end:       may end"
+c16=$(commit sixteen)
+git push -q
+set_pr "$c16"
+"$prctl" review "$c16" - <<<"$nothing" >/dev/null
+check "a change after the whole review stops the end" "$(stop_hook)" "review the whole PR again"
+must=$(jq -c '.findings[0].severity = "必須"' <<<"$proposal")
+"$prctl" review "$c16" - <<<"$must" >/dev/null
+check "a finding that must be fixed stops the end" "$(stop_hook)" "must be fixed: 1"
+c17=$(commit seventeen)
+git push -q
+set_pr "$c17"
+"$prctl" review "$c17" - <<<"$must" >/dev/null
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
+# The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
+handback=$(git rev-parse --git-path prctl-handback-1)
+count_from_here() { git rev-parse HEAD >"$handback"; }
+check "the cap is five reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
+count_from_here
+cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
+ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
+lacks "below the cap, the PR is not handed back" "$(cap_stop)" "must be fixed" "hand it back"
+cb=$(commit cap-b) && git push -q && set_pr "$cb" && "$prctl" review "$cb" - <<<"$must" >/dev/null
+check "at the cap, the PR goes back to the requester" "$(cap_stop)" "hand it back to the requester"
+cc=$(commit cap-c) && git push -q && set_pr "$cc" && "$prctl" review "$cc" - <<<"$must" >/dev/null
+lacks "after going back, the cap counts afresh" "$(cap_stop)" "must be fixed" "hand it back"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+out=$(stop_hook)
+check "a draft PR is not held for the whole review" "[$out]" "[]"
+# Fixes of nitpicks after a settling whole review keep it.
+c18=$(commit eighteen)
+git push -q
+set_pr "$c18"
+"$prctl" review "$c18" - <<<"$whole" >/dev/null
+c19=$(commit nineteen)
+git push -q
+set_pr "$c19"
+"$prctl" review --minor "$c19" - <<<"細部の直し" >/dev/null
+out=$(stop_hook)
+check "fixes of nitpicks after the whole review let the PR end" "[$out]" "[]"
+
+# PRs are opened as drafts; a draft is not held for the whole review, and prctl ready takes it out of
+# draft only once it may end.
+git checkout -q stacked
+touch "$state/nopr-stacked"
+check "a PR is opened as a draft" "$("$prctl" create t - <<<"$good" >/dev/null && cat "$state/last-create")" "pr create --draft"
+rm "$state/nopr-stacked"
+git checkout -q feature
+c20=$(commit twenty)
+git push -q
+set_pr "$c20"
+"$prctl" review "$c20" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+out=$(stop_hook)
+check "a draft is not held at the end of a turn" "[$out]" "[]"
+check "a draft is not remembered as settled" "[$(settled)]" "[]"
+check "status tells a draft is checked when made ready" "$("$prctl" status)" "end:       a draft; prctl ready checks it"
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
+check "a draft that may not end is not made ready" "$("$prctl" ready 2>&1 || true)" "prctl: PR #1 may not end yet"
+check "prctl ready does not start the count afresh" "[$(cat "$(git rev-parse --git-path prctl-handback-1)" 2>/dev/null)]" "[]"
+c21=$(commit twentyone)
+git push -q
+set_pr "$c21"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+"$prctl" review "$c21" - <<<"$whole" >/dev/null
+rm -f "$state/last-graphql"
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
+check "a draft that may end is made ready" "$("$prctl" ready)" "https://example.invalid/pull/1"
+check "being made ready counts afresh" "$(cat "$(git rev-parse --git-path prctl-handback-1)")" "$c21"
+check "being made ready goes through GraphQL" "$(cat "$state/last-graphql")" "markPullRequestReadyForReview"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "a PR out of draft is told so" "$("$prctl" ready)" "is not a draft"
+# Another review of the same commit is no change, and answers count for the review they answer.
+"$prctl" review "$c21" - <<<"$nothing" >/dev/null 2>&1 || true
+out=$(stop_hook)
+check "another review of the commit of the whole review is no change" "[$out]" "[]"
+c22=$(commit twentytwo)
+git push -q
+set_pr "$c22"
+"$prctl" review "$c22" - <<<"$(jq -c '.findings[0].severity = "提案"' <<<"$found")" >/dev/null
+"$prctl" review "$c22" - <<<"$proposal" >/dev/null
+"$prctl" answer "$c22" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' >/dev/null
+out=$(stop_hook)
+check "answers count for the latest review of the commit only" "[$out]" "[]"
+c23=$(commit twentythree)
+git push -q
+set_pr "$c23"
+"$prctl" review "$c23" - <<<"$found" >/dev/null
+"$prctl" answer "$c23" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 2, "action": "直さない", "reason": "r"}]' >/dev/null
+"$prctl" review "$c23" - <<<"$proposal" >/dev/null
+check "answers to another review of the commit do not answer the whole review" "$(stop_hook)" "not answered: 1"
+
+rm -f "$state/last-graphql"
+check "a PR is put back into draft" "$("$prctl" draft)" "https://example.invalid/pull/1"
+check "being put back into draft goes through GraphQL" "$(cat "$state/last-graphql")" "convertPullRequestToDraft"
+# On the way of a draft: prctl ready tells it goes back but does not count afresh, being asked again;
+# the end of the turn, not holding the draft, remembers it; then the count goes on afresh.
+cd1=$(commit draft-a) && git push -q && set_pr "$cd1" && "$prctl" review "$cd1" - <<<"$must" >/dev/null
+count_from_here
+cd2=$(commit draft-b) && git push -q && set_pr "$cd2" && "$prctl" review "$cd2" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+PRCTL_FINAL_CAP=1 "$prctl" ready >/dev/null 2>&1 || true
+check "prctl ready tells a draft past the cap goes back, asked again" "$(PRCTL_FINAL_CAP=1 "$prctl" ready 2>&1 || true)" "hand it back"
+out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
+check "the end of a draft's turn does not hold it" "[$out]" "[]"
+cd3=$(commit draft-c) && git push -q && set_pr "$cd3" && "$prctl" review "$cd3" - <<<"$must" >/dev/null
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+lacks "after the end of a draft's turn, the count goes on afresh" "$(PRCTL_FINAL_CAP=2 "$prctl" ready 2>&1 || true)" "must be fixed" "hand it back"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+
+# Out of draft, the end is asked along with the rest; a push not recorded yet asks to be recorded
+# first; a mark out of the history counts all; the count goes afresh once the PR may end.
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+s1=$(commit settle-a) && git push -q && set_pr "$s1" && "$prctl" review "$s1" - <<<"$whole" >/dev/null
+rm -f "$handback"
+out=$(stop_hook)
+check "a PR that may end lets the turn end" "[$out]" "[]"
+check "the count goes afresh once the PR may end" "$(cat "$handback")" "$s1"
+s2=$(commit settle-b) && git push -q && set_pr "$s2"
+out=$(stop_hook)
+check "the stop for a push not reviewed also asks for the whole review" "$out" "not reviewed up to ${s2:0:12}"
+check "the stop for a push not reviewed names the end too" "$out" "may not end yet"
+check "status does not say may end with a push not reviewed" "$("$prctl" status)" "end:       PR #1 may not end yet"
+"$prctl" review "$s2" - <<<"$must" >/dev/null
+lacks "after the count went afresh, one more is below the cap" "$(cap_stop)" "must be fixed" "hand it back"
+echo "$other" >"$handback"
+check "a mark out of the history counts every review of the whole PR" "$(cap_stop)" "hand it back"
+
+# A push not recorded yet is neither a change nor a reason to go back; a turn held for another
+# reason does not count afresh; another review of a settled head is looked at again.
+u1=$(commit unrec-a) && git push -q && set_pr "$u1"
+nit=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.findings[1]]}' <<<"$found")
+"$prctl" review "$u1" - <<<"$nit" >/dev/null
+"$prctl" answer "$u1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
+u2=$(commit unrec-b) && git push -q && set_pr "$u2"
+# Count from an earlier review of the whole PR (s1), so that u1 is counted and a wrong write of u1
+# would show.
+git rev-parse "$s1" >"$handback"
+out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
+lacks "a push not recorded is not a reason to go back" "$out" "not recorded yet" "hand it back"
+check "a push not recorded does not count afresh" "$(cat "$handback")" "$s1"
+"$prctl" review --minor "$u2" - <<<"細部の直し" >/dev/null
+checks completed/failure
+out=$(stop_hook)
+check "a turn held for CI is held" "$out" "CI failed on"
+check "a turn held for CI does not count afresh" "$(cat "$handback")" "$s1"
+checks completed/success
+out=$(stop_hook)
+check "a PR that may end with CI passing settles" "[$out]" "[]"
+"$prctl" review "$u2" - <<<"$must" >/dev/null
+out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
+check "another review of a settled head is looked at again" "$out" "must be fixed"
+echo '{"check_runs": []}' >"$state/checks.json"
+
+# At the cap, a change after the whole review goes back; findings only to answer do not.
+count_from_here
+p1=$(commit cap-p1) && git push -q && set_pr "$p1" && "$prctl" review "$p1" - <<<"$proposal" >/dev/null
+p2=$(commit cap-p2) && git push -q && set_pr "$p2" && "$prctl" review "$p2" - <<<"$proposal" >/dev/null
+lacks "at the cap, findings only to answer do not go back" "$(cap_stop)" "not answered: 1" "hand it back"
+count_from_here
+p3=$(commit cap-p3) && git push -q && set_pr "$p3" && "$prctl" review "$p3" - <<<"$proposal" >/dev/null
+p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<<"$proposal" >/dev/null
+p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
+check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

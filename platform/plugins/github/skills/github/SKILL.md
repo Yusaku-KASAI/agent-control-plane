@@ -19,6 +19,8 @@ prctl unreviewed                          # まだレビューしていない範
 prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
 prctl answer <コミット> answers.json        # そのコミットまでのレビューの指摘すべてへの答えを、PR のコメントにする
 prctl review --minor <コミット> note.md      # そのコミットまでを、細部の指摘への直しとして、レビューせずに残す
+prctl ready                               # 終えてよいときだけ、PR の下書きを外す
+prctl draft                               # 追加の依頼で続けるとき、PR を下書きに戻す
 ```
 
 ## 本文とコメント
@@ -52,6 +54,13 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   履歴にない、`--minor` の記録のあと）は、`prctl` が断る。
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
+
+- `prctl create` は PR を下書きで作る。終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー
+  （`"scope": "pr"`）を回して[終える前](../../../conventions/docs/reference/reviews.md#ending)を満たし、`prctl ready` で
+  下書きを外す。満たしていなければ `prctl ready` が断り、何が足りないかを言う（`prctl status` の `end:` でも見える）。
+  下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが上限（終える前）に
+  達したら、`prctl ready` が断るとき、または下書きを外したあとのターンの終わりに hook が、依頼者に返すよう言う。
+  下書きを外したあとに追加の依頼で作業を続けるときは、`prctl draft` で下書きに戻す。
 
 ### 結果と答えの JSON
 

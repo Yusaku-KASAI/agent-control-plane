@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-16
 amends: [5]
+amended_by: [14]
 ---
 
 # 0011. レビューの結果と答えを決まった形の JSON で受け、表と機械で読む写しを作る
