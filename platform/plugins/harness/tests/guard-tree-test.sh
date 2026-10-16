@@ -47,6 +47,7 @@ check "subagent editing in the work area is denied" deny "$(write_by a1 "$repo/R
 check "subagent editing a notebook in the work area is denied" deny "$(write_by a1 "$repo/n.ipynb" NotebookEdit)"
 check "subagent writing in a new directory of the work area is denied" deny "$(write_by a1 "$repo/new/dir/x.txt")"
 check "subagent writing a relative path is denied" deny "$(write_by a1 "x.txt")"
+check "subagent writing in the work area's .git is denied" deny "$(write_by a1 "$repo/.git/hooks/pre-commit")"
 check "subagent writing outside the work area is left alone" "" "$(write_by a1 "$tmp/scratch/x.txt")"
 check "subagent writing in a linked worktree is left alone" "" "$(write_by a1 "$linked/x.txt")"
 check "the agent writing in the work area is left alone" "" "$(write_by "" "$repo/x.txt")"
@@ -61,21 +62,27 @@ for c in 'git checkout HEAD~1' 'git switch -c other' 'git stash' 'git stash push
   "git --work-tree=$repo checkout ." "git --git-dir=$repo/.git reset" "git --git-dir $repo/.git reset" \
   "cd $tmp && cd $repo && git checkout main" 'git bisect start' 'git read-tree HEAD' 'git checkout-index -a' \
   'git update-index --refresh' 'git update-ref HEAD HEAD~1' 'git symbolic-ref HEAD refs/heads/x' \
-  'git format-patch -1' 'git submodule update' 'git sparse-checkout set x'; do
+  'git format-patch -1' 'git submodule update' 'git sparse-checkout set x' 'git --git-dir=/tmp/wt/.git reset --hard' \
+  "git --work-tree=$repo --git-dir=/tmp/wt/.git checkout ." 'git format-patch -o . -1' '/usr/bin/git checkout main' \
+  'git branch -m renamed' '(cd /tmp); git checkout main'; do
   check "subagent: $c is denied" deny "$(bash_by a1 "$c")"
 done
 # shellcheck disable=SC2016 # commands as a subagent writes them, unexpanded
 for c in 'git status' 'git diff --stat origin/main...HEAD' 'git log --oneline' 'git show HEAD~1:README.md' \
   'git stash list' 'git stash show -p' 'git apply --check p.diff' 'git apply --stat p.diff' \
   'echo "git checkout main"' "grep -n 'git reset' README.md" 'git -C /tmp/wt checkout main' \
-  'git --git-dir=/tmp/wt/.git reset' 'go test ./...' "git -C $linked checkout main" "git -C $tmp/scratch init" \
+  'git --git-dir=/tmp/wt/.git --work-tree=/tmp/wt reset' 'go test ./...' "git -C $linked checkout main" "git -C $tmp/scratch init" \
   'git -C "$repo" checkout main' 't=$(mktemp -d); cd $t && git init && git add .' 'cd "$t" && git add .' \
   "cd $tmp && git checkout x" 'git bisect log' 'git symbolic-ref --short HEAD' 'git symbolic-ref HEAD' \
-  'git format-patch --stdout -1' 'git format-patch -o /tmp/p -1' 'git submodule status' 'git sparse-checkout list' 'cat <<EOF
+  'git format-patch --stdout -1' 'git format-patch -o /tmp/p -1' 'git submodule status' 'git sparse-checkout list' \
+  'git branch -D old' '(cd /tmp && git checkout main)' 'cat <<EOF
 git checkout main
 EOF'; do
   check "subagent: $c is left alone" "" "$(bash_by a1 "$c")"
 done
+check "subagent: cd to a home in the work area, then git checkout, is denied" deny \
+  "$(HOME=$repo bash_by a1 'cd; git checkout main')"
+check "subagent: cd to a home outside, then git checkout, is left alone" "" "$(HOME=$tmp bash_by a1 'cd; git checkout main')"
 check "subagent: git checkout in a linked worktree is left alone" "" "$(bash_by a1 'git checkout main' "$linked")"
 check "the agent: git checkout is left alone" "" "$(bash_by "" 'git checkout main')"
 check "subagent: git checkout is left alone outside the control plane" "" \
@@ -102,6 +109,11 @@ g reset --quiet --hard
 check "a detached HEAD is told" yes "$(contains '今：ブランチ (detached)' "$(around 'git checkout --quiet HEAD~1')")"
 g switch --quiet main
 check "a stash is told" yes "$(contains '今：stash' "$(around 'echo s >README.md; git stash --quiet')")"
+check "a linked worktree made in the work area is not told" "" \
+  "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')"
+check "stashing tells how to bring it back" yes "$(contains 'git stash pop' "$(around 'echo t >README.md; git stash --quiet')")"
+g stash pop --quiet
+g reset --quiet --hard
 check "an ignored file is not told" "" "$(around 'mkdir -p build && touch build/out')"
 out=$(run "" PreToolUse Agent '{"prompt":"p"}')
 touch "$repo/failed"

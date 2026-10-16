@@ -16,6 +16,7 @@ field() { jq -r "$1 // \"\"" <<<"$input"; }
 cwd=$(field .cwd)
 # The work area is the main worktree; linked ones (prctl worktree, isolation: worktree) are not it.
 common=$(git -C "${CLAUDE_PROJECT_DIR:-$cwd}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+common=$(cd "$common" && pwd -P)
 top=$(dirname "$common")
 shopt -s extglob
 
@@ -27,13 +28,15 @@ deny() {
     hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
 }
 
-# tree_of <path>: the top of the work tree that holds the path, or nothing outside one. A path that
-# does not exist yet belongs where its nearest existing directory does.
-tree_of() {
+# in_area <path>: whether the path is in the work area: in its work tree (not in a linked worktree
+# there) or in its .git. A path that does not exist yet is where its nearest existing directory is.
+in_area() {
   local p=$1
   [[ $p == /* ]] || p=$cwd/$p
   while [[ ! -d $p ]]; do p=$(dirname "$p"); done
-  git -C "$p" rev-parse --show-toplevel 2>/dev/null || true
+  p=$(cd "$p" && pwd -P)
+  [[ $p == "$common" || $p == "$common"/* ]] && return 0
+  [[ $(git -C "$p" rev-parse --show-toplevel 2>/dev/null) == "$top" ]]
 }
 
 # place <word> <dir>: where a directory named in a command is, relative to dir: here (in the work
@@ -46,13 +49,13 @@ place() {
     return
   fi
   [[ $w == /* ]] || w=$dir/$w
-  if [[ $(tree_of "$w") == "$top" ]]; then echo here; else echo elsewhere; fi
+  if in_area "$w"; then echo here; else echo elsewhere; fi
 }
 
-# writes <subcommand> <arguments...>: whether the git subcommand changes the work tree, the index or
-# HEAD. Its forms that only read are left out.
+# writes <dir> <subcommand> <arguments...>: whether the git subcommand, run in dir, changes the work
+# tree, the index or HEAD. Its forms that only read are left out.
 writes() {
-  local sub=$1 args=" ${*:2} "
+  local dir=$1 sub=$2 args=" ${*:3} " out="" a
   case $sub in
     add | am | checkout | checkout-index | cherry-pick | clean | commit | merge | mv | pull | read-tree | \
       rebase | reset | restore | revert | rm | switch | update-index | update-ref) return 0 ;;
@@ -63,8 +66,20 @@ writes() {
     apply) [[ $args != *" --"@(check|stat|numstat|summary)" "* || $args == *" --apply "* ]] ;;
     # symbolic-ref <name> <ref> sets a ref; with one name, it reads.
     symbolic-ref) [[ $args == *" -"@(d|-delete)" "* || $(wc -w <<<"${args//-[a-z-]*([^ ])/}") -ge 2 ]] ;;
-    # format-patch writes its files to the current directory unless told otherwise.
-    format-patch) [[ $args != *" "@(--stdout|-o|--output-directory*)" "* ]] ;;
+    branch) [[ $args == *" "@(-m|-M|--move)" "* ]] ;;
+    # format-patch writes its files to the current directory, or where -o names.
+    format-patch)
+      [[ $args != *" --stdout "* ]] || return 1
+      set -- "${@:3}"
+      while (($#)); do
+        case $1 in
+          -o | --output-directory) out=${2:-}; shift ;;
+          --output-directory=*) out=${1#*=} ;;
+        esac
+        shift
+      done
+      a=$(place "${out:-.}" "$dir")
+      [[ $a == here ]] ;;
     *) return 1 ;;
   esac
 }
@@ -74,42 +89,51 @@ writes() {
 # what -C, --git-dir or --work-tree name. A place that cannot be read from the command (a quoted or
 # expanded path) is left to the comparison around the subagent.
 changes_tree() {
-  local line words i dir here sub
+  local line words i dir base gd wt g w sub
+  local -a saved=()
   dir=$cwd
   while IFS= read -r line; do
+    # A ( ) group runs in a subshell, so a cd in it does not last.
+    case $line in
+      "(") saved+=("$dir"); continue ;;
+      ")") ((${#saved[@]})) && { dir=${saved[-1]}; unset 'saved[-1]'; }; continue ;;
+    esac
     read -ra words <<<"$line"
     ((${#words[@]})) || continue
     if [[ ${words[0]} == cd ]]; then
-      case $(place "${words[1]:-$HOME}" "$dir") in
-        unknown) dir=unknown ;;
-        *) [[ ${words[1]:-} == /* ]] && dir=${words[1]} || dir=$dir/${words[1]:-} ;;
-      esac
+      w=${words[1]:-$HOME}
+      if [[ $(place "$w" "$dir") == unknown ]]; then dir=unknown
+      elif [[ $w == /* ]]; then dir=$w
+      else dir=$dir/$w; fi
       continue
     fi
     for ((i = 0; i < ${#words[@]}; i++)); do
-      [[ ${words[i]} == git ]] || continue
-      if [[ $dir == unknown ]]; then here=unknown; else here=$(place "$dir" /); fi
-      sub=""
+      [[ ${words[i]##*/} == git ]] || continue
+      if [[ $dir == unknown ]]; then base=unknown; else base=$(place "$dir" /); fi
+      gd="" wt="" sub=""
       for ((i++; i < ${#words[@]}; i++)); do
         case ${words[i]} in
-          -C) ((i++)) || true; here=$(place "${words[i]:-}" "$dir") ;;
-          --work-tree=*) here=$(place "${words[i]#*=}" "$dir") ;;
-          --work-tree) ((i++)) || true; here=$(place "${words[i]:-}" "$dir") ;;
+          -C) ((i++)) || true; base=$(place "${words[i]:-}" "$dir") ;;
+          --work-tree=*) wt=$(place "${words[i]#*=}" "$dir") ;;
+          --work-tree) ((i++)) || true; wt=$(place "${words[i]:-}" "$dir") ;;
           --git-dir=* | --git-dir)
-            local g=${words[i]#--git-dir}
+            g=${words[i]#--git-dir}
             g=${g#=}
             [[ -n $g ]] || { ((i++)) || true; g=${words[i]:-}; }
-            if [[ $(place "$g" "$dir") == unknown ]]; then here=unknown
-            elif [[ $(cd "$( [[ $g == /* ]] && echo "$g" || echo "$dir/$g")" 2>/dev/null && pwd -P) == "$(cd "$common" && pwd -P)" ]]; then here=here
-            else here=elsewhere; fi ;;
+            gd=$(place "$g" "$dir") ;;
           -c) ((i++)) || true ;;
           -*) ;;
           *) sub=${words[i]}; break ;;
         esac
       done
-      [[ $here == here && -n $sub ]] && writes "$sub" "${words[@]:i+1}" && return 0
+      [[ -n $sub ]] || continue
+      # Without --work-tree, git with --git-dir works on the current directory; without --git-dir, git
+      # finds the repository from there. Either way, what is not named is where git runs.
+      if [[ ${gd:-$base} == here || ${wt:-$base} == here ]]; then
+        writes "$dir" "$sub" "${words[@]:i+1}" && return 0
+      fi
     done
-  done < <(tr ';&|(){}`' '\n' <<<"$(shell_words "$1" '$')")
+  done < <(sed -E 's/[;&|{}`]/\n/g; s/([()])/\n\1\n/g' <<<"$(shell_words "$1" '$')")
   return 1
 }
 
@@ -122,8 +146,12 @@ state() (
   echo "ブランチ $(git symbolic-ref --quiet --short HEAD || echo '(detached)')"
   echo "index $(git ls-files --stage | git hash-object --stdin)"
   echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
+  # A linked worktree inside the work area (isolation: worktree) is not its file.
+  local -a linked=()
+  mapfile -t linked < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
   { git diff --name-only -z HEAD -- 2>/dev/null || true; git ls-files --others --exclude-standard -z; } \
     | sort -zu | while IFS= read -r -d '' f; do
+      for w in "${linked[@]}"; do [[ $f == "$w" || $f == "$w"/* ]] && continue 2; done
       if [[ -e $f || -L $f ]]; then
         printf 'ファイル %s %s\n' "$(git hash-object --no-filters -- "$f" 2>/dev/null || echo unreadable)" "$f"
       else
@@ -141,7 +169,7 @@ case $event:$tool in
   PreToolUse:Edit | PreToolUse:Write | PreToolUse:NotebookEdit)
     [[ -n $subagent ]] || exit 0
     path=$(field '.tool_input.file_path // .tool_input.notebook_path')
-    if [[ -n $path && $(tree_of "$path") == "$top" ]]; then
+    if [[ -n $path ]] && in_area "$path"; then
       deny "control-plane 経由では、サブエージェントは作業領域のファイルを書かない（ハーネスの契約）。作業領域でコミットするのはセッションのエージェントで、サブエージェントが残したファイルはそのコミットに紛れる。試すなら作業領域の外（mktemp -d で作った場所）に書く。"
     fi
     ;;
@@ -168,7 +196,7 @@ case $event:$tool in
     changed=$(diff <(echo "$before") <(echo "$after") | sed -n 's/^< /前：/p; s/^> /今：/p' || true)
     jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域が変わった（ハーネスの契約では、サブエージェントは作業領域を変えない）。変わったもの：
 $changed
-自分の変更でなければ戻す（ファイルは消し、HEAD はブランチに戻す）。コミットの前に git status で、入れるファイルを確かめる。" \
+自分の変更でなければ戻す。新しい追跡していないファイルは消す。追跡しているファイルは git diff で確かめてから直す（前の中身は残っていないことがある）。stage は git restore --staged、stash は git stash pop、HEAD とブランチは git switch <ブランチ> で戻す。コミットの前に git status で、入れるファイルを確かめる。" \
       '{hookSpecificOutput: {hookEventName: $event, additionalContext: $context}}'
     ;;
 esac

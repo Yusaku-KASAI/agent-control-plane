@@ -21,18 +21,21 @@ Claude Code の hook の入力は、サブエージェントのツールの呼�
 ## Decision
 
 - harness プラグインに hook（`scripts/guard-tree`）を置き、control-plane 経由のときは次をする。
-  - **断る**（PreToolUse）：サブエージェントの Edit、Write、NotebookEdit のうち、作業領域（主の worktree）の中に
-    書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git のサブコマンドを
-    動かすもの。サブコマンドは `add`、`am`、`apply`、`bisect`、`checkout`、`checkout-index`、`cherry-pick`、`clean`、
+  - **断る**（PreToolUse）：サブエージェントの Edit、Write、NotebookEdit のうち、作業領域（主の worktree と、その
+    `.git`）の中に書くもの。サブエージェントの Bash のうち、作業領域の中で、作業ツリー、index、HEAD を変える git のサブコマンドを
+    動かすもの。サブコマンドは `add`、`am`、`apply`、`bisect`、`branch`（`-m`、`-M`）、`checkout`、`checkout-index`、`cherry-pick`、`clean`、
     `commit`、`format-patch`、`merge`、`mv`、`pull`、`read-tree`、`rebase`、`reset`、`restore`、`revert`、`rm`、
     `sparse-checkout`、`stash`、`submodule`、`switch`、`symbolic-ref`、`update-index`、`update-ref` で、読むだけの形
     （`stash list`、`bisect log`、`apply --check`、`symbolic-ref HEAD`、`format-patch --stdout`、`submodule status`
-    など）は通す。git の場所は、今のディレクトリ（同じコマンドの中の `cd` を追う）か、`-C`、`--git-dir`、
-    `--work-tree` が指す所。引用符の中や変数の展開で書かれ、字面から読めない場所は通し、次の比べに任せる。
+    など）と、`format-patch` で `-o` が外を指すものは通す。git の場所は、今のディレクトリ（同じコマンドの中の
+    `cd` を追い、`( )` の中の `cd` は外に持ち越さない）か、`-C` が指す所。`--git-dir` と `--work-tree` は、どちらかが
+    作業領域を指せば作業領域で動くとみなす（指さない方は git の場所になる）。引用符の中や変数の展開で書かれ、字面
+    から読めない場所は通し、次の比べに任せる。
     コマンドは detach と同じく字面で読む。
   - **知らせる**（Agent の PreToolUse と、PostToolUse、PostToolUseFailure）：セッションのエージェントがサブエージェントを
     動かす前後で、作業領域の HEAD、ブランチ、index、stash、変更のあるファイルと追跡していないファイル（ignore
-    されたものは除く）の中身を比べ、変わっていれば何が変わったかをエージェントに知らせる。リダイレクトやスクリプトの
+    されたものと、作業領域の中の linked worktree は除く）の中身を比べ、変わっていれば何が変わったかと、種類ごとの
+    戻し方をエージェントに知らせる。リダイレクトやスクリプトの
     中など、字面では見つけられない書き換えはここで拾う。
 - linked worktree（`prctl worktree` の一時的な worktree、`isolation: worktree` のサブエージェント）と、作業領域の外
   （`mktemp -d` の場所）には何もしない。devcontainer で直接動くときも何もしない。
@@ -59,8 +62,8 @@ Claude Code の hook の入力は、サブエージェントのツールの呼�
 - control-plane 経由では、サブエージェントは作業領域のファイルを書けず、作業領域で HEAD、index、作業ツリーを変える
   git のコマンドを使えない。作業を任せるなら `isolation: worktree` にするか、セッションのエージェントが自分で行う。
 - 字面で読むので、`echo git checkout` のように git のコマンドでないものを断ることがある。逆に、場所を引用符や変数で
-  書いた git のコマンド（`git -C "$dir" checkout`）や、`bash -c` やスクリプトの中の git のコマンドは断らず、前後の
-  比べで知らせるだけになる。
+  書いた git のコマンド（`git -C "$dir" checkout`）や、`bash -c`、`eval`、スクリプトの中の git のコマンドは断らず、
+  前後の比べで知らせるだけになる。
 - Agent がほかの hook に断られるなどして、あとの hook が呼ばれないと、写しが残る。1 日より古い写しは、次の Agent の
   前に消す。
 - 比べるのは前後の状態なので、サブエージェントが変えてから戻したものは知らせない。並べて動かしたサブエージェントの
