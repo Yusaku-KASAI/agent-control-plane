@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Checks that the detach hook refuses, only under the control plane, Bash commands that let a
+# process go and the tools that watch for an end, and leaves everything else alone.
+set -euo pipefail
+
+hook=$(cd "$(dirname "$0")/.." && pwd)/scripts/detach
+failed=0
+# decision <command>: what the hook decides for a Bash command under the control plane.
+decision() {
+  local out
+  out=$(jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | ACP_SESSION_BRANCH=acp/x "$hook")
+  if [[ -z $out ]]; then echo allow; else jq -r .hookSpecificOutput.permissionDecision <<<"$out"; fi
+}
+check() {
+  local name=$1 want=$2 got=$3
+  if [[ $got == "$want" ]]; then echo "ok   $name"; else echo "FAIL $name: got '$got', want '$want'"; failed=1; fi
+}
+
+while IFS='|' read -r want command; do
+  check "$want: $command" "$want" "$(decision "$command")"
+done <<'CASES'
+deny|prctl ci --wait &
+deny|sleep 10 & echo started
+deny|nohup make serve
+deny|make serve & disown
+deny|setsid ./run
+deny|(cd x && make) &
+allow|make check
+allow|make check && git push
+allow|make 2>&1 | tail
+allow|make &>/tmp/log
+allow|cmd >&2
+allow|cmd 2>&-
+allow|a & b & wait
+allow|echo "a & b"
+allow|echo 'nohup here'
+allow|git commit -m "fix &"
+allow|ls # sleep & comment
+allow|echo disowned-thing
+CASES
+heredoc=$'cat >f <<\'EOF\'\nsleep 1 &\nnohup x\nEOF\nmake'
+check "a here-document is not read as commands" allow "$(decision "$heredoc")"
+heredoc=$'cat >f <<-EOF\n\tsleep 1 &\n\tEOF\nsleep 2 &'
+check "a command after a here-document is read" deny "$(decision "$heredoc")"
+for tool in Monitor ScheduleWakeup; do
+  check "$tool is denied" deny \
+    "$(jq -n --arg t "$tool" '{tool_name: $t, tool_input: {}}' | ACP_SESSION_BRANCH=acp/x "$hook" | jq -r .hookSpecificOutput.permissionDecision)"
+  check "$tool is left alone outside the control plane" "" \
+    "$(jq -n --arg t "$tool" '{tool_name: $t, tool_input: {}}' | env -u ACP_SESSION_BRANCH "$hook")"
+done
+check "a let-go command is left alone outside the control plane" "" \
+  "$(jq -n '{tool_name: "Bash", tool_input: {command: "sleep 1 &"}}' | env -u ACP_SESSION_BRANCH "$hook")"
+exit $failed

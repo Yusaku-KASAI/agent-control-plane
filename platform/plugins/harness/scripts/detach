@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# PreToolUse hook. Under the control plane, the end of a background task comes as a notification,
+# and the control plane counts the session's background tasks. A process let go from a Bash command
+# (&, nohup, disown, setsid) sends no notification and is not counted, so its result is lost or
+# comes in a turn of its own. Watching a task with Monitor or ScheduleWakeup only adds turns.
+# Under the control plane, both are refused, pointing to run_in_background.
+set -euo pipefail
+
+input=$(cat)
+[[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
+
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput: {
+    hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+}
+
+# shell_words <command>: the command without what is not shell syntax: here-document bodies,
+# quoted strings and comments.
+shell_words() {
+  awk '
+    heredoc != "" { line = $0; if (strip) sub(/^\t+/, "", line); if (line == heredoc) heredoc = ""; next }
+    {
+      print
+      if (match($0, /<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
+        op = substr($0, RSTART, RLENGTH); strip = (op ~ /^<<-/)
+        gsub(/^<<-?[ \t]*["\047]?|["\047]$/, "", op); heredoc = op
+      }
+    }' <<<"$1" |
+    sed -E "s/'[^']*'//g; s/\"([^\"\\\\]|\\\\.)*\"//g; s/(^|[[:space:]])#.*$//"
+}
+
+case $(jq -r .tool_name <<<"$input") in
+  Bash)
+    words=$(shell_words "$(jq -r '.tool_input.command // ""' <<<"$input")")
+    # & as an operator, not in &&, |&, or a redirection (>&, &>, <&).
+    ops=$(sed -E 's/&&//g; s/\|&//g; s/[0-9]*>&[0-9-]*//g; s/&>>?//g; s/[0-9]*<&[0-9-]*//g' <<<"$words")
+    let_go=""
+    if grep -qE '(^|[^[:alnum:]_-])(nohup|disown|setsid)([^[:alnum:]_-]|$)' <<<"$words"; then
+      let_go=yes
+    elif [[ $ops == *"&"* ]] && ! grep -qE '(^|[^[:alnum:]_-])wait([^[:alnum:]_-]|$)' <<<"$words"; then
+      # A job started with & and waited for in the same command ends with it.
+      let_go=yes
+    fi
+    if [[ -n $let_go ]]; then
+      deny "control-plane 経由では、処理を & や nohup、disown、setsid で手放さない（ハーネスの契約）。手放した処理は、終わりの知らせが届かず、control-plane のバックグラウンドの処理にも数えられない。終わりを待つなら Bash の run_in_background を使う。コマンドの中で済ませるなら、& のあとに wait で待つ。"
+    fi
+    ;;
+  Monitor | ScheduleWakeup)
+    deny "control-plane 経由では、バックグラウンドの処理の終わりは知らせで届くので、Monitor や ScheduleWakeup で見張らない（ハーネスの契約）。見張りもターンを増やし、そのぶん回答が増える。処理は Bash の run_in_background で始め、知らせを待つ。"
+    ;;
+esac

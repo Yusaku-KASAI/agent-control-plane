@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-14
+amended_by: [15]
 ---
 
 # 0008. control-plane 経由では、サブエージェントをフォアグラウンドで動かす
