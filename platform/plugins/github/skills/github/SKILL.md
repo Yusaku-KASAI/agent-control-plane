@@ -23,13 +23,14 @@ prctl review --minor <コミット> note.md      # そのコミットまでを�
 ## 本文とコメント
 
 本文とコメントに何を書くかは、conventions の[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)に
-ある。要約すると、本文はこの PR が今何か（何をなぜ変えるか、どう確かめたか）を、コメントは前回の push からの変更と
-その理由を書き、本文は追記せず書き換える。
+ある。要約すると、本文はこの PR が今何かを、決まった節（`## 何を変えるか`、`## 当てはめた決まり`、`## どう確かめたか`、
+`## 確かめていないこと`）に書き、コメントは前回の push からの変更とその理由を書き、本文は追記せず書き換える。節が
+足りないか空なら、`prctl create` と `prctl update` が断る。
 
 PR を作るときは、タイトルと本文を書くだけでよい（`prctl create`）。作ったあとに push で中身が変わったら、本文の
 書き換えとコメントの2つを `prctl update` で行い、範囲が変わったときはタイトルも `--title` で直す。コメントの理由は
 書いた本人しか知らないので、`prctl since` の出す事実に理由を足して書く。
-- 確かめていないこと、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
+- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー
 

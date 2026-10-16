@@ -44,9 +44,10 @@ case $args in
     if [[ -f $dir/fail-checks-once ]]; then rm "$dir/fail-checks-once"; exit 1; fi
     # A sequence of answers, one per call, the last one repeated: seq/1.json, seq/2.json, ...
     if [[ -d $dir/seq ]]; then
-      next=$(find "$dir/seq" -name '*.json' | sort -V | head -n 1)
-      cp "$next" "$dir/checks.json"
-      [[ $(find "$dir/seq" -name '*.json' | wc -l) -eq 1 ]] || rm "$next"
+      next=$(find "$dir/seq" -name '*.json' 2>/dev/null | sort -V | head -n 1)
+      if [[ -n $next ]] && cp "$next" "$dir/checks.json" 2>/dev/null; then
+        [[ $(find "$dir/seq" -name '*.json' 2>/dev/null | wc -l) -le 1 ]] || rm -f "$next"
+      fi
     fi
     jq -r "${@: -1}" "$dir/checks.json"
     ;;
@@ -176,15 +177,19 @@ rm "$state/fail-checks"
 # prctl ci --wait follows the CI until it has finished.
 export PRCTL_CI_POLL=0
 # sequence <runs>...: the answers to come, one call each.
+# The new answers replace the old by renames, as a wait may be asking meanwhile.
 sequence() {
   local i=1 runs
-  rm -rf "$state/seq" && mkdir "$state/seq"
+  rm -rf "$state/seq.new" && mkdir "$state/seq.new"
   for runs in "$@"; do
     # shellcheck disable=SC2086 # the runs are words
     checks $runs
-    mv "$state/checks.json" "$state/seq/$i.json"
+    mv "$state/checks.json" "$state/seq.new/$i.json"
     i=$((i + 1))
   done
+  if [[ -d $state/seq ]]; then mv "$state/seq" "$state/seq.old"; fi
+  mv "$state/seq.new" "$state/seq"
+  rm -rf "$state/seq.old"
 }
 sequence "in_progress/" "in_progress/ completed/success" "completed/success completed/success"
 check "wait follows the CI to its end" "$("$prctl" ci --wait | sed -n 2p)" "passed"
@@ -472,5 +477,29 @@ check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'inc
 check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column 結果の形)"
 check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; severities')" \
   "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
+
+# A PR body has its sections, in order, none empty; what is under them is free.
+good=$'## 何を変えるか\nx\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
+check "a body without a section is refused" "$("$prctl" create t - <<<"${good/\#\# 当てはめた決まり/\#\# 決まり}" 2>&1 || true)" "no section ## 当てはめた決まり"
+check "a body with an empty section is refused" "$("$prctl" update - <<<"$(sed '/^なし$/,$d' <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+check "a body with the sections out of order is refused" \
+  "$("$prctl" create t - <<<"$(sed 's/## 何を変えるか/## どう確かめたか2/; s/## どう確かめたか$/## 何を変えるか/; s/## どう確かめたか2/## どう確かめたか/' <<<"$good")" 2>&1 || true)" "not in the order"
+check "a body in the form goes on" "$("$prctl" create t - <<<"$good" 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2001,SC2016 # line-wise edits of a sample body, with Markdown backquotes
+check "an issue to close does not fill the last section" \
+  "$("$prctl" create t - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n🤖 Generated' 2>&1 || true)" "the section ## 確かめていないこと is empty"
+# shellcheck disable=SC2001,SC2016 # a line-wise edit of a sample body, with Markdown backquotes
+check "a heading in a code block is not a section" \
+  "$("$prctl" create t - <<<"$(sed 's/^x$/```md\n## どう確かめたか\n```/' <<<"$good")" 2>&1 || true)" "already has an open PR"
+check "a section twice is refused as such" "$("$prctl" create t - <<<"$good"$'\n## 何を変えるか\nz' 2>&1 || true)" "the section ## 何を変えるか appears 2 times"
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "spaces after a heading do not hide it" "$("$prctl" create t - <<<"$(sed 's/^## 何を変えるか$/## 何を変えるか  /' <<<"$good")" 2>&1 || true)" "already has an open PR"
+check "other sections may come anywhere" "$("$prctl" create t - <<<"## 背景"$'\nb\n'"$good" 2>&1 || true)" "already has an open PR"
+# The sections prctl asks for are those of the conventions.
+writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
+# shellcheck disable=SC2016 # backquotes of Markdown
+check "the body's sections are those of the conventions" \
+  "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
+  "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
