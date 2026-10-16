@@ -51,6 +51,11 @@ deny|a & b | wait
 allow|a & b || wait
 deny|a & (wait)
 allow|a & { wait; }
+deny|a & (b; wait)
+deny|a & wait | cat
+allow|a & wait $pid
+deny|echo $'it\'s' & b
+allow|echo $'a & b'
 CASES
 arith=$'echo $((1<<x))\nsleep 9 &\nx'
 check "a shift in arithmetic is not a here-document" deny "$(decision "$arith")"
@@ -74,4 +79,10 @@ for tool in Monitor ScheduleWakeup CronCreate; do
 done
 check "a let-go command is left alone outside the control plane" "" \
   "$(jq -n '{tool_name: "Bash", tool_input: {command: "sleep 1 &"}}' | env -u ACP_SESSION_BRANCH "$hook")"
+# The hook is called for every tool it refuses.
+matcher=$(jq -r '.hooks.PreToolUse[] | select(.hooks[].command | endswith("/scripts/detach")) | .matcher' \
+  "$(dirname "$hook")/../hooks/hooks.json")
+for tool in Bash Monitor ScheduleWakeup CronCreate; do
+  check "the hook is called for $tool" yes "$([[ $tool =~ ^($matcher)$ ]] && echo yes || echo no)"
+done
 exit $failed

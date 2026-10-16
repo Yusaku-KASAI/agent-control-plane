@@ -46,7 +46,8 @@ harness/
   見張ることを断る（[ADR 0015](../../../docs/adr/0015-refuse-let-go-processes-under-control-plane.md)）。
 - **置くもの / 置かないもの**：Bash のコマンドを左から一度だけ読み、ヒアドキュメントの中身、引用符の中、コメントを
   除いた残りを見て、演算子の `&`（`&&`、`|&`、リダイレクトの `&` は除く）か、`nohup`、`disown`、`setsid` があれば
-  断る。最後の `&` より後ろに、コマンドとしての `wait` があるものは通す。Monitor、ScheduleWakeup、CronCreate は
+  断る。最後の `&` より後ろに、今のシェルで動くコマンドとしての `wait`（パイプや `( )` の中は除く）があるものは
+  通す。Monitor、ScheduleWakeup、CronCreate は
   断る。シェルの文法をすべては解かないので、
   まれに通すべきものを断る（断る文で `run_in_background` か `wait` を案内する）。devcontainer で直接動くときは
   何もしない。

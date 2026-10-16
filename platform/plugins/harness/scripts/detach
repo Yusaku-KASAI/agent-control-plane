@@ -28,7 +28,9 @@ shell_words() {
       c = substr(s, i, 1)
       if (st == "single") { if (c == "\047") st = "plain"; continue }
       if (st == "double") { if (c == "\\") i++; else if (c == "\"") st = "plain"; continue }
+      if (st == "ansi") { if (c == "\\") i++; else if (c == "\047") st = "plain"; continue }
       if (st == "comment") { if (c == "\n") { st = "plain"; i-- }; continue }
+      if (c == "$" && substr(s, i + 1, 1) == "\047") { st = "ansi"; out = out " "; i++; continue }
       if (c == "\047") { st = "single"; out = out " "; continue }
       if (c == "\"") { st = "double"; out = out " "; continue }
       if (c == "\\") { i++; out = out " "; continue }
@@ -61,6 +63,17 @@ shell_words() {
   }'
 }
 
+# waits <after the last &>: whether a wait there, as a command in this shell, waits for the jobs.
+# Groups in ( ) run in a subshell and are left out first, and a wait in a pipe runs in one too.
+waits() {
+  local rest=$1 prev=""
+  while [[ $rest != "$prev" ]]; do
+    prev=$rest
+    rest=$(sed -E 's/\([^()]*\)/ /g' <<<"$rest")
+  done
+  grep -qE '(^|[;&{]|(^|[^[:alnum:]_-])(then|do|else))[[:space:]]*wait([[:space:]]+[^|;&(){}]*)?[[:space:]]*([;&}]|$)' <<<"$rest"
+}
+
 case $(jq -r .tool_name <<<"$input") in
   Bash)
     words=$(shell_words "$(jq -r '.tool_input.command // ""' <<<"$input")")
@@ -71,8 +84,7 @@ case $(jq -r .tool_name <<<"$input") in
     let_go=""
     if grep -qE '(^|[^[:alnum:]_-])(nohup|disown|setsid)([^[:alnum:]_-]|$)' <<<"$words"; then
       let_go=yes
-    elif [[ $ops == *"&"* ]] \
-      && ! grep -qE '(^|[;&{]|(^|[^[:alnum:]_-])(then|do|else))[[:space:]]*wait([[:space:];&|)]|$)' <<<"${ops##*&}"; then
+    elif [[ $ops == *"&"* ]] && ! waits "${ops##*&}"; then
       # A job started with & and waited for after it, as a command, ends within the command.
       let_go=yes
     fi

@@ -31,7 +31,7 @@
         ]
       },
       {
-        "matcher": "Bash|Monitor|ScheduleWakeup",
+        "matcher": "Bash|Monitor|ScheduleWakeup|CronCreate",
         "hooks": [
           {
             "type": "command",
