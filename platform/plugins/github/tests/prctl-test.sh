@@ -19,10 +19,13 @@ set -euo pipefail
 dir=$FAKE_GH
 args=" $* "
 case $args in
-  *" pr list "*" --state merged "*)
-    # merged-<branch>: that branch's PR #5 was merged.
+  *" pr list "*" --state all "*)
+    # The branch's latest PR: merged-<branch> #5 merged, closed-<branch> #6 closed; fail-all-<branch>
+    # when it cannot be read.
     head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
-    [[ ! -f $dir/merged-${head//\//-} ]] || echo 5
+    [[ ! -f $dir/fail-all-${head//\//-} ]] || exit 1
+    if [[ -f $dir/merged-${head//\//-} ]]; then echo "5 MERGED"
+    elif [[ -f $dir/closed-${head//\//-} ]]; then echo "6 CLOSED"; fi
     ;;
   *" pr list "*)
     # nopr-<branch>: that branch has no open PR; fail-prs-<branch>: its PR cannot be read; otherwise
@@ -543,8 +546,14 @@ check "a stacked PR is told to take in its base" "$("$prctl" status)" "merge ori
 touch "$state/nopr-feature" "$state/merged-feature"
 check "a stacked PR is told when its base's PR was merged" "$(stop_hook)" "whose PR #5 was merged"
 rm "$state/merged-feature"
+touch "$state/closed-feature"
 check "a stacked PR is told when its base's PR was closed unmerged" "$(stop_hook)" "closed without being merged. Do not move"
-rm "$state/nopr-feature"
+rm "$state/closed-feature"
+check "a base without any PR tells nothing" "$("$prctl" status)" "PR #2"
+lacks "a base without any PR is not taken as closed" "$("$prctl" status)" "PR #2" "stacked on"
+touch "$state/fail-all-feature" "$state/closed-feature"
+lacks "a stacked PR is told nothing when its base's latest PR cannot be read" "$(stop_hook)" "not reviewed up to" "stacked on"
+rm "$state/fail-all-feature" "$state/closed-feature" "$state/nopr-feature"
 touch "$state/fail-prs-feature"
 lacks "a stacked PR is told nothing when its base's PR cannot be read" "$(stop_hook)" "not reviewed up to" "stacked on"
 rm "$state/fail-prs-feature"

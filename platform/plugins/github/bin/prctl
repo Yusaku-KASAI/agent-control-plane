@@ -341,15 +341,17 @@ pushed_head() {
 # nothing when the default branch is not known here (origin/HEAD), the PR is into it, or a fact
 # cannot be read (GitHub, or a head this clone does not have): nothing rather than something wrong.
 stack_message() {
-  local base def below merged
+  local base def below last
   base=$(jq -r .baseRefName <<<"$1")
   def=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD) || return 0
   [[ $base != "${def#origin/}" ]] || return 0
   below=$(open_pr "$base" 2>/dev/null) || return 0
   if [[ -z $below ]]; then
-    merged=$(gh pr list --head "$base" --state merged --limit 1 --json number --jq '.[0].number // empty' 2>/dev/null) || return 0
-    if [[ -n $merged ]]; then
-      jq -r --arg base "$base" --arg m "$merged" '"PR #\(.number) is stacked on \($base), whose PR #\($m) was merged. Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
+    # The branch's latest PR: an earlier one may have been merged from the same branch.
+    last=$(gh pr list --head "$base" --state all --limit 1 --json number,state --jq '.[0] // empty | "\(.number) \(.state)"' 2>/dev/null) || return 0
+    [[ -n $last ]] || return 0
+    if [[ ${last#* } == MERGED ]]; then
+      jq -r --arg base "$base" --arg m "${last%% *}" '"PR #\(.number) is stacked on \($base), whose PR #\($m) was merged. Check that the PR is now into the default branch, and take the stacking out of the body (see the github skill)."' <<<"$1"
     else
       jq -r --arg base "$base" '"PR #\(.number) is stacked on \($base), whose PR was closed without being merged. Do not move the PR to the default branch, which would take in what was not merged: ask the requester what to do with it (see the github skill)."' <<<"$1"
     fi
