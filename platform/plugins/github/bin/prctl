@@ -167,9 +167,9 @@ handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$
 
 # final_message <pr> <head> <list> [record]: what the PR still needs before it may end (a review of
 # the whole PR that settles it), or nothing. With record, the place to count the cap afresh from is
-# remembered: record=turn (the end of a turn, when the PR goes back to the requester or may end) or
-# record=settled (only when it may end, as prctl ready does: it must not start the count afresh by
-# being asked again).
+# remembered: record=back when the PR goes back to the requester (the end of a turn only: prctl
+# ready must not start the count afresh by being asked again), record=settled when it may end (the
+# callers ask so only once nothing else holds the PR).
 # Fails when the facts cannot be read.
 final_message() {
   local facts order since mark at errors file
@@ -184,8 +184,8 @@ final_message() {
   since=$(awk -v c="$mark" '$1 == c { print $2 }' <<<"$order")
   errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "${since:-0}" --argjson head "$at" \
     'include "review"; final_errors($cap; $since; $head)' <<<"$facts") || return 1
-  if [[ $errors == "[]" && -n ${4:-} ]] \
-    || { [[ ${4:-} == turn ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; }; then
+  if { [[ ${4:-} == settled && $errors == "[]" ]]; } \
+    || { [[ ${4:-} == back ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; }; then
     jq -r '[.[] | select(.scope == "pr")] | last | .commit // empty' <<<"$facts" >"$file"
   fi
   [[ $errors != "[]" ]] || return 0
@@ -784,38 +784,41 @@ hook_post_tool_use() {
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 }
 
-# Only a head pushed from this working tree counts, and a head once seen described, reviewed and
-# passing CI is not asked about again, so most turns end without calling GitHub.
+# Only a head pushed from this working tree counts, and a head once seen described, reviewed, out of
+# draft, allowed to end and passing CI is not asked about again with the same reviews, so most turns
+# end with one call to GitHub.
 hook_stop() {
-  local input=$1 b remote state pr checks list draft msg final
+  local input=$1 b remote state pr checks list draft msg final settled
   [[ $(jq -r '.stop_hook_active // false' <<<"$input") != true ]] || return 0
   b=$(branch) || return 0
   remote=$(remote_head "$b") || return 0
   [[ $remote == "$(git rev-parse HEAD)" ]] || return 0
   state=$(git rev-parse --git-path prctl-settled)
-  [[ $(cat "$state" 2>/dev/null) != "$remote" ]] || return 0
   pr=$(open_pr "$b" 2>/dev/null) || return 0
   [[ -n $pr ]] || return 0
+  list=$(review_list "$pr" 2>/dev/null) || return 0
+  # A head is settled with the reviews it had: another review of the same head may change whether the
+  # PR may end.
+  settled="$remote $(grep -c . <<<"$list")"
+  [[ $(cat "$state" 2>/dev/null) != "$settled" ]] || return 0
   # Checks that cannot be read are left out, and keep the head unsettled.
   checks=$(ci "$remote" 2>/dev/null) || checks=""
-  list=$(review_list "$pr" 2>/dev/null) || return 0
   msg=$(pending_message "$pr" "$remote" "$checks" "$list") || return 0
-  # Only once the PR is otherwise current, and out of draft: whether it may end at all. A draft is
-  # still on its way; prctl ready asks the same before it leaves draft.
   draft=$(jq -r '.isDraft // false' <<<"$pr")
   # Out of draft, whether it may end at all is asked along with the rest: the hook stops a turn once,
-  # so that what the rest asks for, once done, would let the turn end without it.
-  if [[ $draft != true ]]; then
-    final=$(final_message "$pr" "$remote" "$list" turn) || final=""
-    msg+=${final:+$final }
-  fi
-  # A draft is not held, but the end of its turn still remembers where to count the cap from, once
-  # it is past the cap (prctl ready says so, whether asked or not) or may end.
-  if [[ -z $msg && $draft == true ]]; then final_message "$pr" "$remote" "$list" turn >/dev/null || true; fi
+  # so that what the rest asks for, once done, would let the turn end without it. A draft is still
+  # on its way and not held; prctl ready asks the same before it leaves draft. Either way, the end of
+  # a turn remembers where to count the cap from once the PR goes back to the requester.
+  final=$(final_message "$pr" "$remote" "$list" back) || final=""
+  [[ $draft == true ]] || msg+=${final:+$final }
   if [[ -z $msg ]]; then
-    # A head is settled only once nothing more can come of its CI, and not while a draft, which
-    # leaves draft without a push; until then, later turns look again.
-    if [[ $draft != true ]] && settles "$remote" "$checks"; then echo "$remote" >"$state"; fi
+    # Nothing holds the turn: an out-of-draft PR may end, so the count goes afresh from here. A head is
+    # settled only once nothing more can come of its CI, and not while a draft, which leaves draft
+    # without a push; until then, later turns look again.
+    if [[ $draft != true ]]; then
+      final_message "$pr" "$remote" "$list" settled >/dev/null || true
+      ! settles "$remote" "$checks" || echo "$settled" >"$state"
+    fi
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.

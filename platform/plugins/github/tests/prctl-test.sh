@@ -649,7 +649,9 @@ set_pr "$c21"
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 "$prctl" review "$c21" - <<<"$whole" >/dev/null
 rm -f "$state/last-graphql"
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
 check "a draft that may end is made ready" "$("$prctl" ready)" "https://example.invalid/pull/1"
+check "being made ready counts afresh" "$(cat "$(git rev-parse --git-path prctl-handback-1)")" "$c21"
 check "being made ready goes through GraphQL" "$(cat "$state/last-graphql")" "markPullRequestReadyForReview"
 jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 check "a PR out of draft is told so" "$("$prctl" ready)" "is not a draft"
@@ -695,7 +697,7 @@ jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.j
 # out of the history counts all; the count goes afresh once the PR may end.
 jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 s1=$(commit settle-a) && git push -q && set_pr "$s1" && "$prctl" review "$s1" - <<<"$whole" >/dev/null
-count_from_here
+rm -f "$handback"
 out=$(stop_hook)
 check "a PR that may end lets the turn end" "[$out]" "[]"
 check "the count goes afresh once the PR may end" "$(cat "$handback")" "$s1"
@@ -708,5 +710,29 @@ check "status does not say may end with a push not reviewed" "$("$prctl" status)
 lacks "after the count went afresh, one more is below the cap" "$(cap_stop)" "must be fixed" "hand it back"
 echo "$other" >"$handback"
 check "a mark out of the history counts every review of the whole PR" "$(cap_stop)" "hand it back"
+
+# A push not recorded yet is neither a change nor a reason to go back; a turn held for another
+# reason does not count afresh; another review of a settled head is looked at again.
+u1=$(commit unrec-a) && git push -q && set_pr "$u1"
+nit=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.findings[1]]}' <<<"$found")
+"$prctl" review "$u1" - <<<"$nit" >/dev/null
+"$prctl" answer "$u1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
+u2=$(commit unrec-b) && git push -q && set_pr "$u2"
+git rev-parse "$u1" >"$handback"
+out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
+lacks "a push not recorded is not a reason to go back" "$out" "not recorded yet" "hand it back"
+check "a push not recorded does not count afresh" "$(cat "$handback")" "$u1"
+"$prctl" review --minor "$u2" - <<<"細部の直し" >/dev/null
+checks completed/failure
+out=$(stop_hook)
+check "a turn held for CI is held" "$out" "CI failed on"
+check "a turn held for CI does not count afresh" "$(cat "$handback")" "$u1"
+checks completed/success
+out=$(stop_hook)
+check "a PR that may end with CI passing settles" "[$out]" "[]"
+"$prctl" review "$u2" - <<<"$must" >/dev/null
+out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | "$prctl" hook stop)
+check "another review of a settled head is looked at again" "$out" "must be fixed"
+echo '{"check_runs": []}' >"$state/checks.json"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
