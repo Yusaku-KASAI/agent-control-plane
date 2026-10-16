@@ -172,6 +172,16 @@ func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
 		},
 		{name: "a target without a Makefile", check: "fail", refspec: "HEAD:refs/heads/topic", wantPush: true},
 		{
+			name:  "a target without a Makefile, pushing a commit other than HEAD from a work tree with a stray file",
+			check: "fail", refspec: "HEAD~1:refs/heads/topic", wantPush: true,
+			prepare: func(t *testing.T, ws string) string {
+				if err := os.WriteFile(filepath.Join(ws, "stray"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
 			name: "deleting a branch", makefile: true, check: "fail", refspec: ":refs/heads/old", wantPush: true,
 			prepare: func(t *testing.T, ws string) string {
 				git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/old")

@@ -106,7 +106,7 @@ GitHub のブランチと PR
 - **責務**：push の前に、ターゲットの検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
 - **置くもの / 置かないもの**：push する ref（消すものは除く）がどれも今の HEAD のコミットで、`git status` に
   コミットしていない変更も ignore されていない追跡していないファイルもないときにだけ、作業ツリーの一番上で
-  `make check` を回す。どれかを満たさないか、検査が落ちれば push を断る。Makefile がなければ検査を回さない。
+  `make check` を回す。どれかを満たさないか、検査が落ちれば push を断る。Makefile がなければ何も確かめない。
   検査の前に、git がフックに渡すリポジトリの場所の変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。
   作業領域の `.git/hooks/` にだけ置くので、コミットされない。
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。

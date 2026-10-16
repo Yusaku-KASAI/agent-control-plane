@@ -86,6 +86,11 @@ done <"$f"
 // nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
 const prePushHook = `#!/bin/sh
 say() { echo "acp pre-push: $*" >&2; }
+top=$(git rev-parse --show-toplevel) || exit 1
+if ! [ -f "$top/Makefile" ] && ! [ -f "$top/makefile" ] && ! [ -f "$top/GNUmakefile" ]; then
+	cat >/dev/null
+	exit 0
+fi
 head=$(git rev-parse --verify HEAD) || exit 1
 pushes=
 while read -r local_ref local_sha _; do
@@ -98,13 +103,11 @@ while read -r local_ref local_sha _; do
 	pushes=yes
 done
 [ -n "$pushes" ] || exit 0
-top=$(git rev-parse --show-toplevel) || exit 1
 if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
 	say "作業ツリーが HEAD とずれている。変更に入れるものはコミットし、ほかは消してから push する："
 	git status --short >&2
 	exit 1
 fi
-[ -f "$top/Makefile" ] || [ -f "$top/makefile" ] || [ -f "$top/GNUmakefile" ] || exit 0
 # The checks may run git in repositories of their own, so the variables git sets for a hook (in a
 # linked worktree, GIT_DIR) must not point them here. The configuration in GIT_CONFIG_* stays.
 unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
