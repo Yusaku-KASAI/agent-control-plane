@@ -60,7 +60,8 @@ conventions/
 - **関係**：正しさの観点は変更の扱い方の「変更とパターン」を、文書の観点は文書の体系と形式を前提にする。
 - **当てはめた原則・パターン**：[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)、
   [観点を分けて読む](../../principles/docs/reference/patterns.md#perspective-based)、
-  [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)。
+  [指摘に重さを付ける](../../principles/docs/reference/patterns.md#labeled-comments)、
+  [直しを任せて見直しを終える](../../principles/docs/reference/patterns.md#lgtm-with-comments)。
 
 ### 手順（[`docs/guides/`](guides/ "在りか")）
 

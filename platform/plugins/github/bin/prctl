@@ -26,6 +26,10 @@ usage:
   prctl review [--pr <number>] <commit> <findings-file|->
                                       record the review of the range up to <commit> as a PR review;
                                       with --pr, of another's PR, over the whole PR up to <commit>
+  prctl review --minor <commit> <note-file|->
+                                      record the range up to <commit> as fixes of nitpicks that change
+                                      no meaning, left unreviewed; refused when the PR has no review,
+                                      none in the head's history, or right after another such record
   prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
@@ -36,6 +40,8 @@ USAGE
   exit 2
 }
 
+# The title of a record of fixes left unreviewed, by which it is told from a review.
+readonly minor_title=レビューしない直し
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
 
 die() { echo "prctl: $*" >&2; exit 1; }
@@ -55,28 +61,53 @@ described() {
   if [[ $(jq -r .body <<<"$1") =~ $marker_re ]]; then echo "${BASH_REMATCH[1]}"; fi
 }
 
-# reviewed <pr> <head>: of the commits the PR's reviews cover, the latest one in the history of
-# <head>, or nothing. A submitted review with a body counts, whoever wrote it; a lone line comment
-# or a reply is also a review on GitHub, but has no body.
-reviewed() {
-  local pr=$1 head=$2 ids id best="" n most=-1
-  ids=$(gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" \
+# review_records <pr>: the facts of the PR's reviews that count, one line "<commit> review" or
+# "<commit> minor" (a record of fixes left unreviewed, by prctl review --minor) each. A submitted
+# review with a body counts, whoever wrote it; a lone line comment or a reply is also a review on
+# GitHub, but has no body. Fails when the reviews cannot be read.
+review_records() {
+  gh api --paginate "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/reviews" \
     --jq '.[] | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
-      | select((.body // "") != "") | .commit_id') || return 1
-  while read -r id; do
+      | select((.body // "") != "")
+      | "\(.commit_id) \(if (.body | startswith("## '"$minor_title"'")) then "minor" else "review" end)"'
+}
+
+# last_reviewed <records> <head>: of the commits the records cover, the latest one in the history of
+# <head>, or nothing.
+last_reviewed() {
+  local head=$2 id kind best="" n most=-1
+  while read -r id kind; do
     if [[ -z $id ]] || ! git merge-base --is-ancestor "$id" "$head" 2>/dev/null; then continue; fi
     n=$(git rev-list --count "$id")
     if ((n > most)); then best=$id most=$n; fi
-  done < <(sort -u <<<"$ids")
+  done <<<"$1"
   echo "$best"
 }
 
-# review_base <pr> <head>: where the unreviewed range starts: the last reviewed commit, else where
-# the branch left the base.
-review_base() {
-  local pr=$1 head=$2 rev
-  rev=$(reviewed "$pr" "$head") || return 1
-  if [[ -n $rev ]]; then echo "$rev"; else git merge-base "origin/$(jq -r .baseRefName <<<"$pr")" "$head"; fi
+# reviewed <pr> <head>: the last reviewed commit of the PR in the history of <head>, or nothing.
+reviewed() {
+  local records
+  records=$(review_records "$1") || return 1
+  last_reviewed "$records" "$2"
+}
+
+# range_start <pr> <head> <last reviewed>: where the unreviewed range starts: the last reviewed
+# commit, else where the branch left the base.
+range_start() {
+  if [[ -n $3 ]]; then echo "$3"; else git merge-base "origin/$(jq -r .baseRefName <<<"$1")" "$2"; fi
+}
+
+# minor_refusal <records> <last reviewed>: why the range after <last reviewed> cannot be recorded as
+# fixes left unreviewed, or nothing when it can. The fixes answer a review, so there has to be one,
+# and the fixes of one review are pushed together, so the range follows a review, not another record.
+minor_refusal() {
+  if [[ -z $1 ]]; then
+    echo "the PR has no review yet; have the range reviewed"
+  elif [[ -z $2 ]]; then
+    echo "none of the PR's reviews is in the history of the head (was it rewritten?); have the range reviewed"
+  elif ! grep -qxF "$2 review" <<<"$1"; then
+    echo "the last record at ${2:0:12} is itself of fixes left unreviewed; the fixes of a review are pushed together, so have the range reviewed"
+  fi
 }
 
 # ci <head>: the head's CI. The first line is the state, which the first matching rule gives:
@@ -330,16 +361,21 @@ cmd_since() {
 }
 
 cmd_unreviewed() {
-  local b pr head from base
+  local b pr head records rev from base
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
   head=$(pr_head "$pr")
-  from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
-  [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
   base=$(jq -r .baseRefName <<<"$pr")
+  records=$(review_records "$pr") || die "could not read the reviews of the PR"
+  rev=$(last_reviewed "$records" "$head")
+  from=$(range_start "$pr" "$head" "$rev")
+  [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
   echo "range: $from..$head"
   echo "after reviewing it: prctl review $head <findings>"
+  if [[ -z $(minor_refusal "$records" "$rev") ]]; then
+    echo "or, if it only fixes nitpicks of the last review: prctl review --minor $head <note>"
+  fi
   # Commits merged in from the base are not this branch's change.
   git log --format='%h %s' "$from..$head" "^origin/$base"
   if [[ -n $(git rev-list --merges "$from..$head" "^origin/$base") ]]; then
@@ -349,11 +385,16 @@ cmd_unreviewed() {
   fi
 }
 
+# cmd_review <number> <minor> <commit> <findings>: with <number>, of another's PR; with <minor>, the
+# range is recorded as left unreviewed, which counts as reviewed all the same.
 cmd_review() {
-  local number=$1 commit findings b pr head from base
-  commit=$(git rev-parse --verify --quiet "$2^{commit}") || die "no commit $2; fetch the PR head first"
-  findings=$(read_input "$3")
-  [[ -n ${findings//[[:space:]]/} ]] || die "the findings are empty; write what was found, or that nothing was"
+  local number=$1 minor=$2 commit findings b pr head records rev why from base title=差分のレビュー
+  commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
+  findings=$(read_input "$4")
+  if [[ -z ${findings//[[:space:]]/} ]]; then
+    [[ -z $minor ]] || die "the note is empty; say which review's nitpicks the range fixes"
+    die "the findings are empty; write what was found, or that nothing was"
+  fi
   if [[ -n $number ]]; then
     # Another's PR: read by number, and reviewed whole, from where it left its base.
     pr=$(gh pr view "$number" --json number,url,headRefOid,baseRefName,body) || die "no PR #$number"
@@ -367,13 +408,20 @@ cmd_review() {
     [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
     head=$(pr_head "$pr")
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
-    from=$(review_base "$pr" "$head") || die "could not read the reviews of the PR"
+    records=$(review_records "$pr") || die "could not read the reviews of the PR"
+    rev=$(last_reviewed "$records" "$head")
+    from=$(range_start "$pr" "$head" "$rev")
     if [[ $commit == "$from" ]] || ! git merge-base --is-ancestor "$from" "$commit"; then
       die "${commit:0:12} is not after the last reviewed ${from:0:12}"
     fi
+    if [[ -n $minor ]]; then
+      why=$(minor_refusal "$records" "$rev")
+      [[ -z $why ]] || die "$why"
+      title=$minor_title
+    fi
   fi
   gh api -X POST "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")/reviews" --jq .html_url -f event=COMMENT \
-    -f commit_id="$commit" -f body="$(printf '## 差分のレビュー（%s...%s）\n\n%s\n' "${from:0:12}" "${commit:0:12}" "$findings")"
+    -f commit_id="$commit" -f body="$(printf '## %s（%s...%s）\n\n%s\n' "$title" "${from:0:12}" "${commit:0:12}" "$findings")"
 }
 
 cmd_create() {
@@ -416,8 +464,9 @@ body_message() {
   jq -r --arg head "${head:0:12}" --arg desc "${desc:0:12}" 'if $desc == "" then "The body of PR #\(.number) was not written by prctl. Rewrite it with prctl update <body>; no comment is needed (see the github skill)." else "PR #\(.number) now has head \($head) but its body describes \($desc). Rewrite the body to describe the branch as it is now (and the title if the scope changed), and comment on what this push changed and why: prctl since, then prctl update [--title <title>] <body> <comment> (see the github skill)." end' <<<"$pr"
 }
 
+# review_message <pr> <head> <minor>: with <minor>, the range can be recorded as fixes left unreviewed.
 review_message() {
-  jq -r --arg head "${2:0:12}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings> (see the github skill)."' <<<"$1"
+  jq -r --arg head "${2:0:12}" --arg minor "${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <findings>.\($minor) (See the github skill.)"' <<<"$1"
 }
 
 ci_message() {
@@ -428,10 +477,14 @@ ci_message() {
 # only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
 # read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 state=${3:-} rev failed msgs=()
+  local pr=$1 head=$2 state=${3:-} records rev minor="" failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
-  rev=$(reviewed "$pr" "$head") || return 1
-  [[ $rev == "$head" ]] || msgs+=("$(review_message "$pr" "$head")")
+  records=$(review_records "$pr") || return 1
+  rev=$(last_reviewed "$records" "$head")
+  if [[ $rev != "$head" ]]; then
+    [[ -n $(minor_refusal "$records" "$rev") ]] || minor=yes
+    msgs+=("$(review_message "$pr" "$head" "$minor")")
+  fi
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
     msgs+=("$(ci_message "$pr" "$head" "$failed")")
@@ -509,13 +562,11 @@ main() {
       cmd_ci "${2:-}"
       ;;
     review)
-      if [[ ${2:-} == --pr ]]; then
-        [[ $# -eq 5 ]] || usage
-        cmd_review "$3" "$4" "$5"
-      else
-        [[ $# -eq 3 ]] || usage
-        cmd_review "" "$2" "$3"
-      fi
+      case ${2:-} in
+        --pr) [[ $# -eq 5 ]] || usage; cmd_review "$3" "" "$4" "$5" ;;
+        --minor) [[ $# -eq 4 ]] || usage; cmd_review "" yes "$3" "$4" ;;
+        *) [[ $# -eq 3 ]] || usage; cmd_review "" "" "$2" "$3" ;;
+      esac
       ;;
     create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
     update)

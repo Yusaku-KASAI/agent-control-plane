@@ -16,6 +16,7 @@ prctl create "<タイトル>" body.md            # push 済みのブランチの
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
 prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
 prctl review <コミット> findings.md          # そのコミットまでのレビューの結果を、PR のレビューとして残す
+prctl review --minor <コミット> note.md      # そのコミットまでを、細部の指摘への直しとして、レビューせずに残す
 ```
 
 ## 本文とコメント
@@ -31,13 +32,18 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 ## 差分のレビュー
 
-自分の変更は、コミットしてから、PR を作る前と push のたびに、サブエージェントにレビューさせる（review スキル）。
-`prctl review` には、サブエージェントが見た最後のコミットと、その指摘を渡す。そのあとに直したコミットは、次の
-`prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、サブエージェントにレビューさせる（review
+スキル）。`prctl review` には、サブエージェントが見た最後のコミットと、その指摘を渡す。そのあとに直したコミットは、
+次の `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 - PR を作る前のレビューは、`prctl create` のあとに残す。指摘への答えは、`findings.md` の指摘の後ろに書く。
-- push したら、`prctl unreviewed` の範囲をレビューさせて残す。指摘への答えは、直した push の `prctl update` の
-  コメントに書く（直しがなければ PR のコメント）。
+- 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。
+- push で head が進んだら、`prctl unreviewed` の範囲をレビューさせて残す。ただし、その範囲が細部の指摘への、意味の
+  変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
+  指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の
+  履歴にない、`--minor` の記録のあと）は、`prctl` が断る。
+- PR を作ったあとのレビューの指摘への答えは、どちらの道でも、直した push の `prctl update` のコメントに書く
+  （直しがなければ PR のコメント）。
 
 ## ほかの人の PR と既定のブランチを読む
 
