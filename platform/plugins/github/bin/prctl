@@ -138,17 +138,20 @@ readonly final_cap=${PRCTL_FINAL_CAP:-3}
 # one), answered from the copy and from the comments that answer that very review (by its id).
 # Fails when the comments cannot be read.
 review_facts() {
-  local answers line n
+  local answers order line n at
   answers=$(gh api --paginate "repos/{owner}/{repo}/issues/$(jq -r .number <<<"$1")/comments" \
     --jq ".[] | .body // \"\" | rtrimstr(\"\\n\") | (split(\"\\n\") | last // \"\")
       | capture(\"^<!-- $answers_mark: (?<m>[A-Za-z0-9+/=]+) -->$\").m" \
     | while read -r line; do base64 -d <<<"$line" 2>/dev/null; echo; done | jq -sc '[.[] | select(type == "object")]') || return 1
-  # Order and filter by the head's history here: jq knows nothing of git.
-  [[ -z $3 ]] || while read -r line; do
+  # Order and filter by the head's history here: jq knows nothing of git. A commit's place is its
+  # place in the history in topological order, so that a commit comes after all it is built on.
+  order=$(git rev-list --topo-order --reverse "$2" | awk '{ print $0 " " NR }')
+  { [[ -z $3 ]] || while read -r line; do
     n=$(jq -r .commit <<<"$line")
-    git merge-base --is-ancestor "$n" "$2" 2>/dev/null || continue
-    jq -c --argjson at "$(git rev-list --count "$n")" '. + {at: $at}' <<<"$line"
-  done <<<"$3" | jq -sc --argjson answers "$answers" '
+    at=$(awk -v c="$n" '$1 == c { print $2 }' <<<"$order")
+    [[ -n $at ]] || continue
+    jq -c --argjson at "$at" '. + {at: $at}' <<<"$line"
+  done <<<"$3"; } | jq -sc --argjson answers "$answers" '
     sort_by(.at) | map(.id as $id
       | (.copy | if . then (@base64d | fromjson) else {} end) as $c
       | {commit, at, minor, scope: $c.scope, findings: ($c.findings // []),

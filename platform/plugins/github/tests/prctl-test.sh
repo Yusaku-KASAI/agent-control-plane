@@ -128,6 +128,7 @@ lacks() {
 
 set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
+check "a PR without any review may not end" "$("$prctl" status)" "end:       Before PR #1 ends: no review of the whole PR"
 out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
 lacks "stop does not point to minor fixes before any review" "$out" "not reviewed up to" "prctl review --minor"
