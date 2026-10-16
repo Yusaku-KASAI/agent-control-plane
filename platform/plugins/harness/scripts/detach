@@ -65,8 +65,10 @@ shell_words() {
 
 # waits <after the last &>: whether a wait there, as a command in this shell, waits for the jobs.
 # Groups in ( ) run in a subshell and are left out first, and a wait in a pipe runs in one too.
+# Parameter expansions, ${...}, are one word, so that their braces are not taken for a group.
 waits() {
-  local rest=$1 prev=""
+  local rest prev=""
+  rest=$(sed -E 's/\$\{[^}]*\}/$v/g' <<<"$1")
   while [[ $rest != "$prev" ]]; do
     prev=$rest
     rest=$(sed -E 's/\([^()]*\)/ /g' <<<"$rest")

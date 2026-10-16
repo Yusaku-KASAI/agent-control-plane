@@ -54,6 +54,7 @@ allow|a & { wait; }
 deny|a & (b; wait)
 deny|a & wait | cat
 allow|a & wait $pid
+allow|a & wait ${pids[@]}
 deny|echo $'it\'s' & b
 allow|echo $'a & b'
 CASES
