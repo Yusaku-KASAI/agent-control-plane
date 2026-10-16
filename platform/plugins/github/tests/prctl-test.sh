@@ -128,7 +128,7 @@ lacks() {
 
 set_pr "$c2"
 check "unreviewed starts where the branch left the base" "$("$prctl" unreviewed)" "range: $base..$c2"
-check "a PR without any review may not end" "$("$prctl" status)" "end:       Before PR #1 ends: no review of the whole PR"
+check "a PR without any review may not end" "$("$prctl" status)" "end:       PR #1 may not end yet: no review of the whole PR"
 out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
 lacks "stop does not point to minor fixes before any review" "$out" "not reviewed up to" "prctl review --minor"
@@ -579,7 +579,7 @@ set_pr "$c15"
 proposal=$(jq -c --argjson p "$all" '{scope: "pr", perspectives: $p, findings: [.findings[0]]}' <<<"$found")
 "$prctl" review "$c15" - <<<"$proposal" >/dev/null
 check "a whole review with an unanswered finding stops the end" "$(stop_hook)" "not answered: 1"
-check "status tells what the end needs" "$("$prctl" status)" "end:       Before PR #1 ends"
+check "status tells what the end needs" "$("$prctl" status)" "end:       PR #1 may not end yet"
 "$prctl" answer "$c15" - <<<'[{"finding": 1, "action": "直さない", "reason": "r"}]' >/dev/null
 out=$(stop_hook)
 check "a whole review with every finding answered lets the PR end" "[$out]" "[]"
@@ -597,6 +597,8 @@ git push -q
 set_pr "$c17"
 "$prctl" review "$c17" - <<<"$must" >/dev/null
 rm -f "$(git rev-parse --git-path prctl-handback-1)"
+# The cap is the first review of the whole PR and four after it: five, here past it.
+check "the cap is five reviews of the whole PR" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
 check "past the cap, the PR goes back to the requester" "$(stop_hook)" "hand it back to the requester"
 lacks "after going back, the cap counts afresh" "$(stop_hook)" "must be fixed" "hand it back"
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
@@ -630,7 +632,9 @@ out=$(stop_hook)
 check "a draft is not held at the end of a turn" "[$out]" "[]"
 check "a draft is not remembered as settled" "[$(settled)]" "[]"
 check "status tells a draft is checked when made ready" "$("$prctl" status)" "end:       a draft; prctl ready checks it"
-check "a draft that may not end is not made ready" "$("$prctl" ready 2>&1 || true)" "not ready: Before PR #1 ends"
+rm -f "$(git rev-parse --git-path prctl-handback-1)"
+check "a draft that may not end is not made ready" "$("$prctl" ready 2>&1 || true)" "prctl: PR #1 may not end yet"
+check "prctl ready does not start the count afresh" "[$(cat "$(git rev-parse --git-path prctl-handback-1)" 2>/dev/null)]" "[]"
 c21=$(commit twentyone)
 git push -q
 set_pr "$c21"

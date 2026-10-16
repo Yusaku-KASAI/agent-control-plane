@@ -129,8 +129,9 @@ range_start() {
   if [[ -n $3 ]]; then echo "$3"; else git merge-base "origin/$(jq -r .baseRefName <<<"$1")" "$2"; fi
 }
 
-# How many reviews of the whole PR may not settle it before it goes back to the requester.
-readonly final_cap=${PRCTL_FINAL_CAP:-3}
+# How many reviews of the whole PR may not settle it before it goes back to the requester: the
+# first and four after it.
+readonly final_cap=${PRCTL_FINAL_CAP:-5}
 
 # review_facts <pr> <head> <list>: the facts of the PR's reviews (review_list) in the head's history,
 # oldest first, as a JSON list of {commit, at, minor, scope, findings, answered}: at the commit's
@@ -164,7 +165,8 @@ handback_file() { git rev-parse --git-path "prctl-handback-$(jq -r .number <<<"$
 
 # final_message <pr> <head> <list> [record]: what the PR still needs before it may end (a review of
 # the whole PR that settles it), or nothing. Not for a draft PR, which the callers leave out. With
-# record, a PR sent back to the requester is remembered, so that the cap counts afresh after it.
+# record (the Stop hook only, which then stops the turn to hand the PR back), a PR sent back to the
+# requester is remembered, so that the cap counts afresh after it.
 # Fails when the facts cannot be read.
 final_message() {
   local facts since errors file
@@ -172,13 +174,13 @@ final_message() {
   since=$(cat "$file" 2>/dev/null) || since=0
   [[ $since =~ ^[0-9]+$ ]] || since=0
   facts=$(review_facts "$1" "$2" "$3") || return 1
-  errors=$(jq -r -L "$forms" --argjson cap "$final_cap" --argjson since "$since" \
-    'include "review"; final_errors($cap; $since) | .[]' <<<"$facts") || return 1
-  [[ -n $errors ]] || return 0
-  if [[ -n ${4:-} && $errors == *"hand it back"* ]]; then
+  errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "$since" \
+    'include "review"; final_errors($cap; $since)' <<<"$facts") || return 1
+  [[ $errors != "[]" ]] || return 0
+  if [[ -n ${4:-} ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; then
     jq -r '[.[] | select(.scope == "pr") | .at] | max // 0' <<<"$facts" >"$file"
   fi
-  jq -r --arg e "$errors" '"Before PR #\(.number) ends: \($e | split("\n") | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill). "' <<<"$1"
+  jq -r --argjson e "$errors" '"PR #\(.number) may not end yet: \($e | map(.text) | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill)."' <<<"$1"
 }
 
 # minor_refusal <records> <last reviewed>: why the range after <last reviewed> cannot be recorded as
@@ -664,9 +666,10 @@ cmd_ready() {
   [[ $(jq -r '.isDraft // false' <<<"$pr") == true ]] || { echo "PR #$(jq -r .number <<<"$pr") is not a draft"; return; }
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
-  [[ -z $msg ]] || die "not ready: $msg"
-  msg=$(final_message "$pr" "$head" "$list" record) || die "could not read the reviews of the PR"
-  [[ -z $msg ]] || die "not ready: $msg"
+  [[ -z $msg ]] || die "not ready: ${msg% }"
+  # Not recorded here: going back to the requester is for the end of the turn to say.
+  msg=$(final_message "$pr" "$head" "$list") || die "could not read the reviews of the PR"
+  [[ -z $msg ]] || die "$msg"
   node=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$pr")" --jq .node_id) || die "could not read the PR"
   # shellcheck disable=SC2016 # a GraphQL variable
   gh api graphql -f query='mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { url } } }' \
@@ -782,7 +785,7 @@ hook_stop() {
     return 0
   fi
   # The turn's last message is the answer the requester reads, so it has to be the whole report again.
-  jq -n --arg reason "${msg}Then end with your full answer to the request again, not only this update." \
+  jq -n --arg reason "${msg% } Then end with your full answer to the request again, not only this update." \
     '{decision: "block", reason: $reason}'
 }
 
