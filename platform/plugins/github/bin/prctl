@@ -13,8 +13,10 @@ usage:
   prctl status                        the open PR of this branch, whether its body and review are
                                       current, and its CI on the head
   prctl since                         commits pushed since the body was last written
-  prctl create <title> <body-file|->  open a PR for the pushed branch; refused unless the body has
-                                      the sections of writing.md (PR), in order, none empty
+  prctl create [--base <branch>] <title> <body-file|->
+                                      open a PR for the pushed branch, into the default branch or, to
+                                      stack it on another PR, into that PR's branch; refused unless the
+                                      body has the sections of writing.md (PR), in order, none empty
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
@@ -530,13 +532,21 @@ body_check() {
 }
 
 cmd_create() {
-  local title=$1 body b head base
-  body=$(read_input "$2")
+  local base=$1 title=$2 body b head
+  body=$(read_input "$3")
   body_check "$body"
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
   [[ -z $(open_pr "$b") ]] || die "$b already has an open PR; use prctl update"
-  base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+  if [[ -n $base ]]; then
+    # Stacked: the base is another PR's branch, which the branch is built on.
+    [[ $base != "$b" ]] || die "a PR cannot be stacked on its own branch"
+    remote_head "$base" >/dev/null || die "origin/$base is not here; fetch it, or push it first"
+    git merge-base --is-ancestor "origin/$base" "$head" || die "$b is not built on origin/$base; merge it in first"
+    [[ -n $(open_pr "$base") ]] || die "$base has no open PR to stack on"
+  else
+    base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+  fi
   gh pr create --base "$base" --head "$b" --title "$title" --body "$(with_marker "$body" "$head")"
 }
 
@@ -676,7 +686,15 @@ main() {
       esac
       ;;
     answer) [[ $# -eq 3 ]] || usage; cmd_answer "$2" "$3" ;;
-    create) [[ $# -eq 3 ]] || usage; cmd_create "$2" "$3" ;;
+    create)
+      if [[ ${2:-} == --base ]]; then
+        [[ $# -eq 5 ]] || usage
+        cmd_create "$3" "$4" "$5"
+      else
+        [[ $# -eq 3 ]] || usage
+        cmd_create "" "$2" "$3"
+      fi
+      ;;
     update)
       shift
       title=""

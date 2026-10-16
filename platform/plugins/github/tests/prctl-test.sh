@@ -19,7 +19,13 @@ set -euo pipefail
 dir=$FAKE_GH
 args=" $* "
 case $args in
-  *" pr list "*) [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0 ;;
+  *" pr list "*)
+    # nopr-<branch>: that branch has no open PR; otherwise every branch has the one in pr.json.
+    head=$(sed -E 's/.* --head ([^ ]+) .*/\1/' <<<"$args")
+    [[ -f $dir/nopr-${head//\//-} ]] && exit 0
+    [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
+    ;;
+  *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
   *" -X POST "*"/reviews "*)
@@ -501,5 +507,22 @@ writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
 check "the body's sections are those of the conventions" \
   "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
   "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
+
+# A PR is stacked on another PR's branch only when built on it, and only on an open PR.
+git checkout -q -b stacked
+commit fourteen >/dev/null
+git push -q -u origin stacked 2>/dev/null
+touch "$state/nopr-stacked"
+check "a PR stacked on its base's branch is opened into it" \
+  "$("$prctl" create --base feature t - <<<"$good" >/dev/null && cat "$state/last-create")" "--base feature --head stacked"
+check "a PR into the default branch is opened as before" \
+  "$("$prctl" create t - <<<"$good" >/dev/null && cat "$state/last-create")" "--base main --head stacked"
+git push -q origin "$c2:refs/heads/elsewhere" && git fetch -q origin
+check "a PR not built on the base is refused" "$("$prctl" create --base elsewhere t - <<<"$good" 2>&1 || true)" "is not built on origin/elsewhere"
+touch "$state/nopr-feature"
+check "a PR on a branch without an open PR is refused" "$("$prctl" create --base feature t - <<<"$good" 2>&1 || true)" "has no open PR to stack on"
+rm "$state/nopr-feature" "$state/nopr-stacked"
+check "a stray argument to create is refused" "$("$prctl" create --base feature t 2>&1 || true)" "usage:"
+git checkout -q feature
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

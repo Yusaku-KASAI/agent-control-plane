@@ -13,6 +13,7 @@ PR の本文の作成と更新と、差分のレビューの記録は `prctl` �
 prctl status                              # このブランチの PR と、本文とレビューが今の head に追いついているか
 prctl since                               # 前に本文を書いてから push したコミット（コメントの材料）
 prctl create "<タイトル>" body.md            # push 済みのブランチの PR を作る
+prctl create --base <下のブランチ> "<タイトル>" body.md   # まだマージされていない PR に重ねて作る
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
 prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
 prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
@@ -30,6 +31,9 @@ prctl review --minor <コミット> note.md      # そのコミットまでを�
 PR を作るときは、タイトルと本文を書くだけでよい（`prctl create`）。作ったあとに push で中身が変わったら、本文の
 書き換えとコメントの2つを `prctl update` で行い、範囲が変わったときはタイトルも `--title` で直す。コメントの理由は
 書いた本人しか知らないので、`prctl since` の出す事実に理由を足して書く。
+- まだマージされていない PR の中身を前提にする変更だけは、その PR に重ねる（`--base`。重ねてよいときと、本文に書く
+  こと、下に push したときの取り込みは[変更](../../../conventions/docs/reference/changes.md#changes)）。`prctl` は、
+  ブランチが下のブランチの上にあり、下に開いている PR があるときだけ作る。
 - PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー

@@ -2,7 +2,8 @@
 
 PR の本文は、追記ではなく今のブランチの姿に合わせて書き換え、push ごとの変更はコメントにする
 （[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。本文は決まった節を持つ
-（[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
+（[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。まだマージされていない PR に重ねて作れる
+（[ADR 0013](../../../docs/adr/0013-stacked-prs.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
 レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
 レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
 CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
@@ -31,7 +32,7 @@ github/
 
 ### `bin/prctl`
 
-- **責務**：今のブランチの開いている PR を作り、本文を印付きで書き換え、レビューの結果を PR のレビューとして残し
+- **責務**：今のブランチの開いている PR を作り（`--base` でほかの PR に重ねても）、本文を印付きで書き換え、レビューの結果を PR のレビューとして残し
   （`--pr` でほかの人の PR にも、`--minor` でレビューしない直しの範囲も）、ほかの人の PR と既定のブランチを
   一時的な worktree に取り出し、本文とレビューが head に追いついているかと、head の CI（check run）の状態を判定する。
   レビューへの答えを PR のコメントにする（`answer`）。
