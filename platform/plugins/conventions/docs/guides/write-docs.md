@@ -26,4 +26,4 @@
    （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
    決まりを守るためなら、まとめ直す、移す、構成を変えるなど、破壊的に書き換えてよい
    （[書き換え](../architecture/documentation.md#rewrite)）。
-8. **確かめる**：`make check-docs` を通す。
+8. **確かめる**：`check-docs`（conventions のコマンド）を通す。Markdown を変えたターンの終わりには hook も回す。

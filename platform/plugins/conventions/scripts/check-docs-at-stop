@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Stop hook: when the branch or the working tree changed Markdown, runs check-docs and keeps the turn
+# going while it fails. Errors of the hook itself (no git, no jq) never stop the turn.
+set -uo pipefail
+
+input=$(cat)
+# The turn already went on for a Stop hook (this one or another): stopping it again could loop.
+[[ $(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null) != true ]] || exit 0
+dir=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)
+cd "${dir:-.}" 2>/dev/null || exit 0
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$top" || exit 0
+
+# What this branch changed: since it left the default branch when that is known here, else only the
+# working tree. Documents already broken on the default branch do not hold a turn that left them alone.
+base=$(git merge-base HEAD refs/remotes/origin/HEAD 2>/dev/null) || base=HEAD
+changed=$({
+  git diff --name-only "$base" -- '*.md'
+  git ls-files --others --exclude-standard -- '*.md'
+} 2>/dev/null)
+[[ -n $changed ]] || exit 0
+
+errors=$("$(dirname "$0")/../bin/check-docs" 2>&1) && exit 0
+# The turn's last message is the answer the requester reads, so it has to be the whole report again.
+jq -n --arg errors "$errors" '{decision: "block", reason: ("check-docs (the conventions plugin'"'"'s document check) fails on the Markdown this branch changed. Fix these, then end with your full answer to the request again, not only this update.\n" + $errors)}'

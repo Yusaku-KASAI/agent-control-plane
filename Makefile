@@ -11,11 +11,13 @@ check-go:
 
 check-platform:
 	claude plugin validate ./platform
-	shellcheck $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/* platform/plugins/*/tests/*)
+	# Only the shell scripts: a command may be written in another language (conventions' check-docs).
+	shellcheck $$(grep -lE '^#!.*[/ ](ba)?sh$$' $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/* platform/plugins/*/tests/*))
 	platform/plugins/github/tests/prctl-test.sh
 	platform/plugins/harness/tests/foreground-test.sh
 	platform/plugins/harness/tests/detach-test.sh
 	platform/plugins/harness/tests/watch-tree-test.sh
+	platform/plugins/conventions/tests/check-docs-at-stop-test.sh
 	# The injected rules link their sources by path; each must exist.
 	platform/plugins/conventions/scripts/context SessionStart | jq -r .hookSpecificOutput.additionalContext \
 		| grep -o '](/[^)#"]*' | cut -c3- | sed 's/ *$$//' | while read -r f; do test -e "$$f" || { echo "missing: $$f"; exit 1; }; done
@@ -25,7 +27,7 @@ check-target:
 	python3 .devcontainer/check-vscode-settings.py
 
 check-docs:
-	python3 tools/check-docs.py
+	platform/plugins/conventions/bin/check-docs
 
 fmt:
 	golangci-lint fmt ./...

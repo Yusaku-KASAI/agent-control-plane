@@ -51,7 +51,6 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 ## 検査
 
 - `make check` が、そのターゲットの検査をすべて行う。エージェントは変更のあとにこれを通す（CLAUDE.md の作業の完了条件）。
-- `make check` は `make check-docs` を含む。`check-docs` が確かめるものは conventions の[文書の形式](../../../platform/plugins/conventions/docs/reference/formats.md "在りか")の各節にある。
 
 <a id="control-plane"></a>
 
