@@ -49,8 +49,8 @@
 - **`turns` が `--session-id` と `--resume` を切り替える。** ターンを終えるたびに保存される。保存されていないと、
   次の起動で、会話の履歴がある ID を `--session-id` で始めようとする。
 - **セッションのディレクトリを触る処理は、どれもロックを取る。** 取るのはセッションを作る処理、ワーカー、片付けで、
-  同じ control-plane の中でも別の control-plane とでも、同時には一つだけが触る。ロックを取れなかった処理は待たずに
-  諦める（いつ持つかは[ロック](#lock)）。
+  同じ control-plane の中では、同時には一つだけが触る。別の control-plane との間は、flock が効くファイルシステムの
+  上でだけ守る。ロックを取れなかった処理は待たずに諦める（いつ持つか、どう守るかは[ロック](#lock)）。
 
 ## 構成要素
 
@@ -105,7 +105,7 @@
   [片付け](#cleaner)がセッションや記録のないディレクトリを消す間と `kept_notified_at` を書く間。取れなければ、
   依頼はセッションが使用中だと返し、片付けはそのセッションをその回は飛ばす。ロックを取ったら、記録を読み直してから使う。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同時に触らないことを
-  呼び出し側の気遣いではなく OS のロックで守る。[多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：
+  呼び出し側の気遣いではなく、ストアのロック（プロセスの中のロックと flock）で守る。[多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：
   プロセスの中のロックと flock を重ね、片方が効かない所でももう片方で守る。
 
 <a id="worker"></a>
