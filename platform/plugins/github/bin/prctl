@@ -213,13 +213,16 @@ minor_refusal() {
 #   passed           every check run succeeded, was neutral or was skipped
 #   none             there is no check run (yet)
 # The lines after it are "<name> <url>" of the check runs that gave the state. Only the latest run
-# of each check is asked for (filter=latest). Fails when the checks cannot be read.
+# of each check counts: filter=latest keeps the latest within each check suite, but a head can have
+# more than one suite (the PR reopened, the workflow run again), so of the runs of the same app and
+# name, only the one with the greatest id is kept. Fails when the checks cannot be read.
 ci() {
   local runs
   runs=$(gh api --paginate "repos/{owner}/{repo}/commits/$1/check-runs?filter=latest&per_page=100" \
-    --jq '.check_runs[] | [.status, (.conclusion // ""), .name, (.details_url // .html_url // "")] | @tsv') || return 1
+    --jq '.check_runs[] | [.status, (.conclusion // ""), .name, (.details_url // .html_url // ""), (.app.id // "" | tostring), (.id | tostring)] | @tsv') || return 1
   [[ -n $runs ]] || { echo none; return; }
-  jq -Rrn '[inputs | split("\t") | {status: .[0], conclusion: .[1], name: .[2], url: .[3]}]
+  jq -Rrn '[inputs | split("\t") | {status: .[0], conclusion: .[1], name: .[2], url: .[3], app: .[4], id: (.[5] | tonumber)}]
+    | group_by([.app, .name]) | map(max_by(.id))
     | def pick(f): map(select(f) | [.name, .url] | map(select(. != "")) | join(" "));
       if any(.conclusion == "failure" or .conclusion == "timed_out") then
         ["failed"] + pick(.conclusion == "failure" or .conclusion == "timed_out")
