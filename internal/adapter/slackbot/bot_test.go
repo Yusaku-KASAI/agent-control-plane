@@ -102,8 +102,16 @@ func TestStatusViewRender(t *testing.T) {
 		}
 	}
 
-	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done}
+	running.remarks = [maxRemarks]string{"", "原因が分かりました"}
+	if got := running.render(start); !strings.Contains(got, "\n> 原因が分かりました\n今の作業：") {
+		t.Errorf("running render does not quote the remark above the activity:\n%s", got)
+	}
+
+	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done, remarks: [maxRemarks]string{"A", "B"}}
 	got = finished.render(start.Add(time.Hour))
+	if strings.Contains(got, "> ") {
+		t.Errorf("finished render shows remarks:\n%s", got)
+	}
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
 	}
@@ -164,6 +172,25 @@ func TestStatusForAgentStartedTurn(t *testing.T) {
 
 	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next == requested {
 		t.Error("a requested turn reused the earlier status message")
+	}
+}
+
+func TestObserveKeepsLatestRemarks(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	m.updating = true // keeps observe from starting to write to Slack
+	for _, r := range []string{"一つ目", "二つ目", "三つ目", ""} {
+		b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: r, Status: usecase.SessionStatus{Running: true}})
+	}
+	if want := [maxRemarks]string{"二つ目", "三つ目"}; m.view.remarks != want {
+		t.Errorf("remarks = %q, want %q", m.view.remarks, want)
+	}
+	if b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true}).view.remarks[1] != "三つ目" {
+		t.Error("an agent-started turn dropped the remarks of the status message it took over")
+	}
+	if b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}).view.remarks != ([maxRemarks]string{}) {
+		t.Error("a requested turn's new status message carries earlier remarks")
 	}
 }
 

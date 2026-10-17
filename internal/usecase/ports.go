@@ -169,8 +169,11 @@ type ProcessEvent struct {
 	Result TurnResult
 	// BackgroundTasks lists the IDs of background tasks still running, for EventBackgroundTasks.
 	BackgroundTasks []string
-	// Activity is what the agent is doing now, for EventActivity.
+	// Activity is what the agent is doing now, for EventActivity; empty when it did not change.
 	Activity string
+	// Remark is what the agent said to people, on one line, for EventActivity; empty when it
+	// said nothing.
+	Remark string
 	// PromptID is set for EventPromptAccepted.
 	PromptID string
 }
@@ -198,6 +201,8 @@ type SessionEvent struct {
 	// SessionTurnFinished when no request waits for the turn's result, which then reaches people
 	// only through the observer. A prompt injected into the agent's own turn makes the two differ.
 	AgentStarted bool
+	// Remark is set for SessionTurnUpdated when the agent said something to people as it works.
+	Remark string
 }
 
 type SessionStatus struct {

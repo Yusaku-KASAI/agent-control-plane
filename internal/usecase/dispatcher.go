@@ -379,8 +379,10 @@ func (w *worker) handle(e ProcessEvent) {
 		w.notifyStatus()
 	case EventActivity:
 		if w.running {
-			w.activity = e.Activity
-			w.notifyStatus()
+			if e.Activity != "" {
+				w.activity = e.Activity
+			}
+			w.observe(SessionEvent{Kind: SessionTurnUpdated, Remark: e.Remark})
 		}
 	case EventPromptAccepted:
 		if r, ok := w.sent[e.PromptID]; ok {

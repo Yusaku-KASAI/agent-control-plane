@@ -341,19 +341,25 @@ func TestRunner_Start(t *testing.T) {
 }
 
 func TestStreamEventActivity(t *testing.T) {
-	tests := map[string]string{
-		`{"type":"assistant","message":{"content":[{"type":"text","text":"Looking at the tests\nmore"}]}}`:                                   "Looking at the tests",
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`:                     "Edit: /w/a.go",
-		`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`: "（サブエージェント）Grep: Foo",
-		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":""}]}}`:                                                     "",
+	long := strings.Repeat("あ", maxRemark+5)
+	tests := []struct {
+		line             string
+		activity, remark string
+	}{
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Found the cause.\n\n  Fixing it next."}]}}`, "", "Found the cause. Fixing it next."},
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Running the tests."},{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`, "Edit: /w/a.go", "Running the tests."},
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"` + long + `"}]}}`, "", strings.Repeat("あ", maxRemark) + "…"},
+		{`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`, "（サブエージェント）Grep: Foo", ""},
+		{`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"text","text":"Looking at the tests\nmore"}]}}`, "（サブエージェント）Looking at the tests", ""},
+		{`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":""},{"type":"text","text":"  "}]}}`, "", ""},
 	}
-	for line, want := range tests {
+	for _, tc := range tests {
 		var e streamEvent
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
+		if err := json.Unmarshal([]byte(tc.line), &e); err != nil {
 			t.Fatal(err)
 		}
-		if got := e.activity(); got != want {
-			t.Errorf("activity(%s) = %q, want %q", line, got, want)
+		if a, r := e.activity(); a != tc.activity || r != tc.remark {
+			t.Errorf("activity(%s) = %q, %q, want %q, %q", tc.line, a, r, tc.activity, tc.remark)
 		}
 	}
 }

@@ -585,6 +585,25 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	}
 }
 
+func TestDispatcher_ActivityAndRemarks(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	out := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: "Bash: make check"}
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventActivity, Remark: "原因が分かりました"}
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) == 2 })
+	updated := e.observer.of(usecase.SessionTurnUpdated)
+	if updated[0].Remark != "" || updated[0].Status.Activity != "Bash: make check" {
+		t.Errorf("tool call update = %+v", updated[0])
+	}
+	if updated[1].Remark != "原因が分かりました" || updated[1].Status.Activity != "Bash: make check" {
+		t.Errorf("remark update = %+v, want the remark with the activity kept", updated[1])
+	}
+	p.finish("done")
+	wait(t, out)
+}
+
 func TestDispatcher_StopRunningTurn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})

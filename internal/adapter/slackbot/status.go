@@ -18,6 +18,8 @@ const (
 	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
 	refreshInterval = 5 * time.Second
 	heldAnswerGrace = 15 * time.Second
+	// maxRemarks is how many of the agent's latest remarks a running status message shows.
+	maxRemarks = 2
 )
 
 type outcome int
@@ -37,6 +39,9 @@ type statusView struct {
 	finishedAt time.Time
 	outcome    outcome
 	activity   string
+	// remarks are the agent's latest remarks while the message follows its work, oldest first;
+	// an array keeps the view comparable and unshared with the copies being rendered.
+	remarks    [maxRemarks]string
 	queued     int
 	background int
 }
@@ -46,6 +51,11 @@ func (v statusView) render(now time.Time) string {
 	switch v.outcome {
 	case running:
 		fmt.Fprintf(&b, "⏳ **実行中**（%s）\n", elapsed(v.startedAt, now))
+		for _, r := range v.remarks {
+			if r != "" {
+				fmt.Fprintf(&b, "> %s\n", r)
+			}
+		}
 		if v.activity != "" {
 			fmt.Fprintf(&b, "今の作業：%s\n", v.activity)
 		}
@@ -166,6 +176,10 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		if e.Kind == usecase.SessionTurnFinished {
 			m.view.finishedAt = time.Now()
 			m.view.outcome = outcomeOf(e.Result)
+		}
+		if e.Remark != "" {
+			copy(m.view.remarks[:], m.view.remarks[1:])
+			m.view.remarks[maxRemarks-1] = e.Remark
 		}
 		m.mu.Unlock()
 		m.apply(e.Status)
