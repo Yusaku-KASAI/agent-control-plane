@@ -3,6 +3,7 @@ package slackbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -102,8 +103,20 @@ func TestStatusViewRender(t *testing.T) {
 		}
 	}
 
-	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done}
+	running.remarks = remarks("原因が分かりました")
+	if got := running.render(start); !strings.Contains(got, "\nエージェントの直近の発言（古い順）：\n- 原因が分かりました\n\n今の作業：") {
+		t.Errorf("running render does not list the remark apart from the activity:\n%s", got)
+	}
+	running.remarks = remarks("一つ目", "二つ目")
+	if got := running.render(start); !strings.Contains(got, "：\n- 一つ目\n- 二つ目\n\n今の作業：") {
+		t.Errorf("running render does not list the remarks oldest first:\n%s", got)
+	}
+
+	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done, remarks: remarks("A", "B")}
 	got = finished.render(start.Add(time.Hour))
+	if strings.Contains(got, "発言") {
+		t.Errorf("finished render shows remarks:\n%s", got)
+	}
 	if !strings.Contains(got, "完了") || !strings.Contains(got, "9秒") || strings.Contains(got, ":no_entry_sign:") {
 		t.Errorf("finished render:\n%s", got)
 	}
@@ -165,6 +178,57 @@ func TestStatusForAgentStartedTurn(t *testing.T) {
 	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next == requested {
 		t.Error("a requested turn reused the earlier status message")
 	}
+}
+
+func TestObserveKeepsLatestRemarks(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	m.updating = true // keeps observe from starting to write to Slack
+	var sent []string
+	for i := range maxRemarks + 1 {
+		sent = append(sent, fmt.Sprintf("%d つ目", i+1))
+	}
+	for _, r := range append(sent, " \n ") {
+		b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: r, Status: usecase.SessionStatus{Running: true}})
+	}
+	if want := remarks(sent[1:]...); m.view.remarks != want {
+		t.Errorf("remarks = %q, want %q", m.view.remarks, want)
+	}
+	answer := "終わりました。\n\nPR は #1 です。" + strings.Repeat("あ", maxRemarkLength)
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: answer})
+	if last := m.view.remarks[maxRemarks-1]; last != remarkLine(answer) || !strings.HasPrefix(last, "終わりました。 PR は #1 です。あ") || !strings.HasSuffix(last, "あ…") {
+		t.Errorf("long remark = %q, want it on one line and cut", last)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: answer}})
+	if want := remarks(sent[2:]...); m.view.remarks != want {
+		t.Errorf("remarks after the answer = %q, want %q without the answer", m.view.remarks, want)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "その前の発言"})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "終わりました。"})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "PR は #1 です。" + strings.Repeat("い", maxRemarkLength)})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "終わりました。\n\nPR は #1 です。" + strings.Repeat("い", maxRemarkLength+10)}})
+	if want := remarks(append(sent[4:], "その前の発言")...); m.view.remarks != want {
+		t.Errorf("remarks after an answer that came in blocks = %q, want %q without any of its blocks", m.view.remarks, want)
+	}
+	m.view.remarks = remarks("三つ目")
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "別の回答"}})
+	if want := remarks("三つ目"); m.view.remarks != want {
+		t.Errorf("remarks after an answer that no remark starts = %q, want %q", m.view.remarks, want)
+	}
+	if b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true}).view.remarks[maxRemarks-1] != "三つ目" {
+		t.Error("an agent-started turn dropped the remarks of the status message it took over")
+	}
+	if b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}).view.remarks != ([maxRemarks]string{}) {
+		t.Error("a requested turn's new status message carries earlier remarks")
+	}
+}
+
+// remarks lays out the latest remarks as a status view keeps them, the latest last.
+func remarks(rs ...string) [maxRemarks]string {
+	var out [maxRemarks]string
+	copy(out[maxRemarks-len(rs):], rs)
+	return out
 }
 
 func TestAgentAnswer(t *testing.T) {

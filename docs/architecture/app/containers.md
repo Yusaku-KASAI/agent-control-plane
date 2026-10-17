@@ -112,7 +112,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - 送る：依頼（ID 付きの `user` メッセージ）、`control_request` の `interrupt`（取り込まれていない依頼も捨てる）と
     `stop_task`。
   - 読む：標準出力の行を、ターンの始まり（`system/init`）、終わり（`result`）、バックグラウンドの処理の変化、依頼の
-    取り込み（`--replay-user-messages` で返る依頼）、今していること（最後のツール呼び出しかテキスト）の出来事にする。
+    取り込み（`--replay-user-messages` で返る依頼）、今していること（最後のツール呼び出しかサブエージェントの
+    テキスト）とエージェントの発言（エージェント本体のテキスト）の出来事にする。
     ターンの終わりは、`subtype` が `error_during_execution` で、`interrupt` を送ってから最初の `result` か、
     `terminal_reason` が `aborted_streaming` か `aborted_tools` なら中断とする
     （[ADR 0033](../../adr/app/0033-stopped-turns-by-terminal-reason.md)）。ほかに `is_error` が立つか `subtype` が

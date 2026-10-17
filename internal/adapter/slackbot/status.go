@@ -18,6 +18,11 @@ const (
 	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
 	refreshInterval = 5 * time.Second
 	heldAnswerGrace = 15 * time.Second
+	// maxRemarks is how many of the agent's latest remarks a running status message shows, so that
+	// the flow of the work can be followed, and maxRemarkLength the runes each is cut to, which most
+	// remarks other than answers fit in.
+	maxRemarks      = 10
+	maxRemarkLength = 100
 )
 
 type outcome int
@@ -37,6 +42,9 @@ type statusView struct {
 	finishedAt time.Time
 	outcome    outcome
 	activity   string
+	// remarks are the agent's latest remarks while the message follows its work, oldest first;
+	// an array keeps the view comparable and unshared with the copies being rendered.
+	remarks    [maxRemarks]string
 	queued     int
 	background int
 }
@@ -46,6 +54,7 @@ func (v statusView) render(now time.Time) string {
 	switch v.outcome {
 	case running:
 		fmt.Fprintf(&b, "⏳ **実行中**（%s）\n", elapsed(v.startedAt, now))
+		b.WriteString(remarkList(v.remarks[:]))
 		if v.activity != "" {
 			fmt.Fprintf(&b, "今の作業：%s\n", v.activity)
 		}
@@ -69,6 +78,51 @@ func (v statusView) render(now time.Time) string {
 		fmt.Fprintf(&b, "・止めるには、このメッセージに :%s: を付けてください", stopReaction)
 	}
 	return b.String()
+}
+
+// remarkList renders remarks as a list, oldest first. The blank line after it keeps the next lines
+// out of the last item, which Markdown would otherwise continue.
+func remarkList(remarks []string) string {
+	var items []string
+	for _, r := range remarks {
+		if r != "" {
+			items = append(items, "- "+r)
+		}
+	}
+	if len(items) == 0 {
+		return ""
+	}
+	return "エージェントの直近の発言（古い順）：\n" + strings.Join(items, "\n") + "\n\n"
+}
+
+// forgetAnswer drops the latest remarks that are part of the turn's answer, which reaches the
+// thread as an answer, so that a status message taken over by the agent's next turn does not show
+// it again. The answer's text may come as one remark or, block by block, as several.
+func (v *statusView) forgetAnswer(output string) {
+	answer := oneLine(output)
+	for range maxRemarks {
+		last := v.remarks[maxRemarks-1]
+		if last == "" || answer == "" || !strings.Contains(answer, strings.TrimSuffix(last, "…")) {
+			return
+		}
+		copy(v.remarks[1:], v.remarks[:maxRemarks-1])
+		v.remarks[0] = ""
+	}
+}
+
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// remarkLine puts a remark on one line, cut to maxRemarkLength.
+func remarkLine(s string) string {
+	return truncate(oneLine(s), maxRemarkLength, "…")
+}
+
+// addRemark keeps the remark as the latest, pushing out the oldest.
+func (v *statusView) addRemark(remark string) {
+	if line := remarkLine(remark); line != "" {
+		copy(v.remarks[:], v.remarks[1:])
+		v.remarks[maxRemarks-1] = line
+	}
 }
 
 func (v statusView) stoppable() bool {
@@ -166,7 +220,9 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		if e.Kind == usecase.SessionTurnFinished {
 			m.view.finishedAt = time.Now()
 			m.view.outcome = outcomeOf(e.Result)
+			m.view.forgetAnswer(e.Result.Output)
 		}
+		m.view.addRemark(e.Remark)
 		m.mu.Unlock()
 		m.apply(e.Status)
 		b.refresh(m)

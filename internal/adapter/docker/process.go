@@ -173,8 +173,8 @@ func (e streamEvent) processEvent(f turnFacts) (usecase.ProcessEvent, bool) {
 	case e.Type == "user" && e.IsReplay:
 		return usecase.ProcessEvent{Kind: usecase.EventPromptAccepted, PromptID: e.UUID}, true
 	case e.Type == "assistant":
-		if a := e.activity(); a != "" {
-			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a}, true
+		if a, r := e.activity(); a != "" || r != "" {
+			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a, Remark: r}, true
 		}
 	case e.Type == "result":
 		r := usecase.TurnResult{Output: e.Result}
@@ -215,27 +215,34 @@ func (e streamEvent) stopped(interruptSent bool) bool {
 	return interruptSent || e.TerminalReason == "aborted_streaming" || e.TerminalReason == "aborted_tools"
 }
 
-// activity describes the last tool call or text in an assistant message.
-func (e streamEvent) activity() string {
+// activity describes the last tool call in an assistant message, or a subagent's last text.
+// remark is the main agent's text in it: what the agent tells people as it works.
+func (e streamEvent) activity() (activity, remark string) {
 	var blocks []contentBlock
 	if json.Unmarshal(e.Message.Content, &blocks) != nil {
-		return ""
+		return "", ""
 	}
-	var a string
+	subagent := e.ParentToolUseID != ""
+	var texts []string
 	for _, c := range blocks {
 		switch c.Type {
 		case "tool_use":
-			a = toolActivity(c.Name, c.Input)
+			activity = toolActivity(c.Name, c.Input)
 		case "text":
-			if t := strings.TrimSpace(c.Text); t != "" {
-				a = firstLine(t)
+			t := strings.TrimSpace(c.Text)
+			switch {
+			case t == "":
+			case subagent:
+				activity = firstLine(t)
+			default:
+				texts = append(texts, t)
 			}
 		}
 	}
-	if a != "" && e.ParentToolUseID != "" {
-		a = "（サブエージェント）" + a
+	if activity != "" && subagent {
+		activity = "（サブエージェント）" + activity
 	}
-	return a
+	return activity, strings.Join(texts, "\n\n")
 }
 
 func toolActivity(name string, input json.RawMessage) string {

@@ -372,19 +372,29 @@ func TestRunner_Start(t *testing.T) {
 }
 
 func TestStreamEventActivity(t *testing.T) {
-	tests := map[string]string{
-		`{"type":"assistant","message":{"content":[{"type":"text","text":"Looking at the tests\nmore"}]}}`:                                   "Looking at the tests",
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`:                     "Edit: /w/a.go",
-		`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`: "（サブエージェント）Grep: Foo",
-		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":""}]}}`:                                                     "",
+	tests := []struct {
+		line             string
+		activity, remark string
+	}{
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Found the cause.\n\n  Fixing it next.\n"}]}}`, "", "Found the cause.\n\n  Fixing it next."},
+		{`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check"}}]}}`, "Bash: make check", ""},
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Running the tests."},{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`, "Edit: /w/a.go", "Running the tests."},
+		{`{"type":"assistant","message":{"content":[{"type":"text","text":"One."},{"type":"text","text":"Two."}]}}`, "", "One.\n\nTwo."},
+		{`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`, "（サブエージェント）Grep: Foo", ""},
+		{`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"text","text":"Looking at the tests\nmore"}]}}`, "（サブエージェント）Looking at the tests", ""},
+		{`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":""},{"type":"text","text":"  "}]}}`, "", ""},
 	}
-	for line, want := range tests {
+	for _, tc := range tests {
 		var e streamEvent
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
+		if err := json.Unmarshal([]byte(tc.line), &e); err != nil {
 			t.Fatal(err)
 		}
-		if got := e.activity(); got != want {
-			t.Errorf("activity(%s) = %q, want %q", line, got, want)
+		pe, ok := e.processEvent(turnFacts{})
+		if want := tc.activity != "" || tc.remark != ""; ok != want {
+			t.Errorf("processEvent(%s) reported %v, want %v", tc.line, ok, want)
+		}
+		if ok && (pe.Kind != usecase.EventActivity || pe.Activity != tc.activity || pe.Remark != tc.remark) {
+			t.Errorf("processEvent(%s) = %+v, want activity %q and remark %q", tc.line, pe, tc.activity, tc.remark)
 		}
 	}
 }
