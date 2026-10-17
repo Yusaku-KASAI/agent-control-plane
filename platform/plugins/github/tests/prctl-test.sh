@@ -209,6 +209,11 @@ rerun 200 completed/success completed/success
 check "a check that failed and then passed in a later suite has passed" "$("$prctl" ci | sed -n 2p)" "passed"
 out=$(stop_hook)
 check "a check that failed and then passed in a later suite lets the turn end" "[$out]" "[]"
+checks completed/failure
+rerun 200 queued/
+check "a check that failed and is running again in a later suite is pending" "$("$prctl" ci | sed -n 2p)" "pending"
+out=$(stop_hook)
+check "a check that failed and is running again in a later suite lets the turn end" "[$out]" "[]"
 checks completed/success completed/success
 rerun 200 completed/failure completed/success
 check "a check that passed and then failed in a later suite has failed" "$("$prctl" ci | sed -n 2,3p)" \
