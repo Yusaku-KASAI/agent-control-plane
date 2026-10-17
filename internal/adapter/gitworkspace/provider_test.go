@@ -168,6 +168,16 @@ func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
 			},
 		},
 		{
+			name: "a subagent's worktree kept in the workspace", makefile: true, check: "pass", refspec: "HEAD:refs/heads/topic", wantPush: true, wantRan: true,
+			prepare: func(t *testing.T, ws string) string {
+				git(t, ws, "worktree", "add", "--quiet", "-b", "agent", filepath.Join(ws, ".claude", "worktrees", "agent-1"))
+				if err := os.WriteFile(filepath.Join(ws, ".claude", "worktrees", "agent-1", "work"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return ws
+			},
+		},
+		{
 			name: "an annotated tag on HEAD", makefile: true, check: "pass", refspec: "refs/tags/v1", wantPush: true, wantRan: true,
 			prepare: func(t *testing.T, ws string) string {
 				git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "tag", "-a", "-m", "v1", "v1")

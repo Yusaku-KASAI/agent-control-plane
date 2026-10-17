@@ -18,6 +18,7 @@ GitHub App のトークンは[認証情報](credentials.md "在りか")にある
   acp/<ID の先頭8文字> = リモートの既定のブランチ（なければターゲットの HEAD）から切ったブランチ
   .git/hooks/commit-msg = 依頼者を Co-authored-by に足す
   .git/hooks/pre-push   = push の前に make check を通す
+  .git/info/exclude     = サブエージェントの worktree の置き場所（/.claude/worktrees/）を ignore する
   │ push（エージェント）
   ▼
 GitHub のブランチと PR
@@ -56,6 +57,9 @@ GitHub のブランチと PR
      そこからセッションのブランチを切る。なければ clone した HEAD から切る。どちらも upstream は設定しない
      （[ADR 0013](../../adr/app/0013-session-branch-from-remote-default.md)）。
   5. [commit-msg フック](#commit-msg)と[pre-push フック](#pre-push)を置く。
+  6. `.git/info/exclude` に `/.claude/worktrees/` を足す。`isolation: worktree` のサブエージェント（ファイルを変えない
+     ロール）の worktree が変更を持ったまま残っても、作業ツリーのずれにならず、pre-push フックが push を断らない
+     （[platform の ADR 0016](../../../platform/docs/adr/0016-subagents-leave-the-work-area.md)）。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は

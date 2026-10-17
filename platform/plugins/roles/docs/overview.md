@@ -13,6 +13,9 @@ roles/
 
 - ロールは Claude Code のカスタムエージェント。control-plane は `--agent <ロール>` で起動し（[ハーネスの契約](../../../docs/reference/harness.md "在りか")）、
   対話ではサブエージェントとしても使う。
+- ファイルを変えないロール（guide、reviewer）は、定義の frontmatter に `isolation: worktree` を持つ。サブエージェント
+  として動くときは自分の worktree で動き、試すための編集もそこでするので、頼んだエージェントの作業ツリーには
+  触れない（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
 - ロールの定義は常に読み込まれるので、振る舞いだけを短く書く。動き方ごとの事実はハーネスの契約に、観点と手順は
   スキルに任せ、定義からはそれを指す。
 

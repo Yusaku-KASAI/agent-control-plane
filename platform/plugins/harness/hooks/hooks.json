@@ -40,11 +40,11 @@
         ]
       },
       {
-        "matcher": "Agent|Task|Bash|Edit|Write|NotebookEdit",
+        "matcher": "Agent|Task",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-tree"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/watch-tree"
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-tree"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/watch-tree"
           }
         ]
       }
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard-tree"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/watch-tree"
           }
         ]
       }

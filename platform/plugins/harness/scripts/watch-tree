@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# PreToolUse and PostToolUse hook for Agent. Under the control plane, the agent that runs the session
+# commits what is in the work area, so a change a subagent leaves there ends up in its commits unless
+# it tells it from its own. Around each subagent, the work area is compared, and a change is told to
+# the agent, whatever made it. Which subagents may change the work area is not decided here but in
+# the roles: one that must leave it alone runs in a worktree of its own (isolation in its definition).
+set -euo pipefail
+
+input=$(cat)
+[[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
+field() { jq -r "$1 // \"\"" <<<"$input"; }
+# A subagent's own tool use carries agent_id; only the session's agent is watched for.
+[[ -z $(field .agent_id) ]] || exit 0
+cwd=$(field .cwd)
+# The work area is the main worktree; linked ones (prctl worktree, isolation: worktree) are not it.
+common=$(git -C "${CLAUDE_PROJECT_DIR:-$cwd}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+common=$(cd "$common" && pwd -P)
+top=$(dirname "$common")
+
+# state: what the agent commits from: HEAD, the branch, the index, the stash, and each changed or
+# untracked file with its content.
+state() (
+  cd "$top"
+  export GIT_OPTIONAL_LOCKS=0
+  echo "HEAD $(git rev-parse --verify --quiet HEAD || echo none)"
+  echo "ブランチ $(git symbolic-ref --quiet --short HEAD || echo '(detached)')"
+  echo "index $(git ls-files --stage | git hash-object --stdin)"
+  echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
+  # A linked worktree inside the work area (isolation: worktree) is not its file.
+  local -a linked=()
+  mapfile -t linked < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
+  { git diff --name-only -z HEAD -- 2>/dev/null || true; git ls-files --others --exclude-standard -z; } \
+    | sort -zu | while IFS= read -r -d '' f; do
+      for w in "${linked[@]}"; do [[ $f == "$w" || $f == "$w"/* ]] && continue 2; done
+      if [[ -e $f || -L $f ]]; then
+        printf 'ファイル %s %s\n' "$(git hash-object --no-filters -- "$f" 2>/dev/null || echo unreadable)" "$f"
+      else
+        printf 'ファイル deleted %s\n' "$f"
+      fi
+    done
+)
+
+snapshot() { git -C "$top" rev-parse --path-format=absolute --git-path "acp-subagent-$(field .tool_use_id)"; }
+
+event=$(field .hook_event_name)
+case $event:$(field .tool_name) in
+  PreToolUse:Agent | PreToolUse:Task)
+    # A snapshot whose Agent call never ended (denied by another hook, say) is left behind.
+    find "$common" -maxdepth 1 -name 'acp-subagent-*' -mmin +1440 -delete 2>/dev/null || true
+    state >"$(snapshot)"
+    ;;
+  PostToolUse:Agent | PostToolUse:Task | PostToolUseFailure:Agent | PostToolUseFailure:Task)
+    file=$(snapshot)
+    [[ -f $file ]] || exit 0
+    before=$(cat "$file")
+    rm -f "$file"
+    after=$(state)
+    [[ $before != "$after" ]] || exit 0
+    changed=$(diff <(echo "$before") <(echo "$after") | sed -n 's/^< /前：/p; s/^> /今：/p' || true)
+    jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域が変わった。変わったもの：
+$changed
+サブエージェントに任せた変更か、自分の変更でなければ、git status と git diff で何が変わったかを確かめてから扱いを決める。コミットには、確かめたファイルだけを入れる。" \
+      '{hookSpecificOutput: {hookEventName: $event, additionalContext: $context}}'
+    ;;
+esac
