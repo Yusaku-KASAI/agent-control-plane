@@ -26,6 +26,9 @@ prctl draft                               # 追加の依頼で続けるとき、
 本文、コメント、レビューの JSON などの作業用のファイルは、作業ツリーの外（`mktemp -d` で作った場所）に置き、
 `prctl` には絶対パスで渡す。作業ツリーに置くと、コミットに紛れたり、control-plane 経由では push を断られたりする
 （[ハーネスの契約の push](../../../../docs/reference/harness.md#push "在りか")）。
+control-plane 経由では、そこ（`/tmp` の下）はコンテナが作り直されると消える
+（[ハーネスの契約のコンテナの寿命](../../../../docs/reference/harness.md#lifetime "在りか")）。本文を書き換えるときは、前に書いた
+下書きを探さず、`gh pr view <番号> --json body --jq .body` で今の本文を取り直して直す（古い印は `prctl` が外す）。
 
 ## 本文とコメント
 
