@@ -150,14 +150,18 @@ check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the hea
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
 
-# checks <status/conclusion>...: the head's check runs, named c0, c1, ..., in the form of GitHub's
-# (an id, and the app that made it).
+# check_run <name> <id> <status/conclusion> <url>: one check run in the form of GitHub's (an id, and
+# the app that made it).
+check_run() {
+  jq -n --arg n "$1" --argjson id "$2" --arg s "${3%/*}" --arg c "${3#*/}" --arg u "$4" \
+    '{id: $id, name: $n, status: $s, conclusion: (if $c == "" then null else $c end),
+      details_url: $u, app: {id: 15368, slug: "github-actions"}}'
+}
+# checks <status/conclusion>...: the head's check runs, named c0, c1, ...
 checks() {
   local i=0 r
   for r in "$@"; do
-    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" --argjson id "$((100 + i))" \
-      '{id: $id, name: $n, status: $s, conclusion: (if $c == "" then null else $c end),
-        details_url: "https://ci.invalid/\($n)", app: {id: 15368, slug: "github-actions"}}'
+    check_run "c$i" "$((100 + i))" "$r" "https://ci.invalid/c$i"
     i=$((i + 1))
   done | jq -s '{check_runs: .}' >"$state/checks.json"
 }
@@ -167,9 +171,7 @@ rerun() {
   local id=$1 i=0 r
   shift
   for r in "$@"; do
-    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" --argjson id "$((id + i))" \
-      '{id: $id, name: $n, status: $s, conclusion: (if $c == "" then null else $c end),
-        details_url: "https://ci.invalid/\($n)/\($id)", app: {id: 15368, slug: "github-actions"}}'
+    check_run "c$i" "$((id + i))" "$r" "https://ci.invalid/c$i/$((id + i))"
     i=$((i + 1))
   done | jq -s --slurpfile old "$state/checks.json" '{check_runs: ($old[0].check_runs + .)}' >"$state/checks.tmp"
   mv "$state/checks.tmp" "$state/checks.json"

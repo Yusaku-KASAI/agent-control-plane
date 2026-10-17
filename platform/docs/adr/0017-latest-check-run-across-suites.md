@@ -21,7 +21,7 @@ PR #149 で、head の最初の run は GitHub の支払いの制限でジョブ
 
 - `filter=latest` で読んだ check run を、app と名前ごとにまとめ、`id` が一番大きいものだけを残してから、ADR 0006 の
   分け方で判定する。GitHub の check run の `id` は、あとから作られたものほど大きい（API の説明にはなく、観察による）。
-  まとめ方は、GitHub の必須の status check が check を名前（と app）で照らし、一番新しいものを見るのに倣う。
+  まとめる鍵を app と名前だけにするのは、check run の答えだけで決められ、ワークフローを引かずに済むから。
 - 名前だけでなく app でもまとめる。ほかの app の同じ名前の check run が、失敗を隠さないようにする。
 - 偽の gh が返す check run にも、本物と同じく `id` と `app` を持たせ、二つの suite にまたがる場合を試験する。
 
