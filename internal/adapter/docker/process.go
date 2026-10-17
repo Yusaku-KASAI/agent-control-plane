@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/moby/moby/api/pkg/stdcopy"
@@ -29,10 +30,12 @@ type process struct {
 	creds  sessionCredentials
 
 	writeMu sync.Mutex
-	events  chan usecase.ProcessEvent
-	done    chan struct{}
-	err     error
-	stderr  tailBuffer
+	// interruptSent is set by Interrupt and taken by the next result, whose turn it stopped.
+	interruptSent atomic.Bool
+	events        chan usecase.ProcessEvent
+	done          chan struct{}
+	err           error
+	stderr        tailBuffer
 }
 
 func newProcess(api dockerAPI, id string, attach client.HijackedResponse, creds sessionCredentials) *process {
@@ -54,6 +57,7 @@ func (p *process) Send(_ context.Context, id, prompt string) error {
 }
 
 func (p *process) Interrupt(context.Context) error {
+	p.interruptSent.Store(true)
 	return p.control(map[string]any{"subtype": "interrupt", "cancel_queued": true})
 }
 
@@ -114,6 +118,10 @@ type streamEvent struct {
 	IsError bool `json:"is_error"`
 	// APIError is the typed kind of the API error that ended the turn, on a result.
 	APIError string `json:"api_error"`
+	// TerminalReason tells why the turn ended, on a result; aborted_* when it was stopped.
+	TerminalReason string `json:"terminal_reason"`
+	// Errors describes the errors of a result whose subtype starts with error; Result is then empty.
+	Errors []string `json:"errors"`
 	// RateLimitInfo is set on rate_limit_event, which reports a change in the account's usage limit.
 	RateLimitInfo *struct {
 		Status         string `json:"status"`
@@ -142,9 +150,17 @@ type contentBlock struct {
 	Input json.RawMessage `json:"input"`
 }
 
-// processEvent translates a stream-json line. limited tells whether the last rate_limit_event
-// said requests are refused, for a result that does not name its API error.
-func (e streamEvent) processEvent(limited bool) (usecase.ProcessEvent, bool) {
+// turnFacts is what the reader knows about the turn besides the line itself.
+type turnFacts struct {
+	// usageLimited tells whether the last rate_limit_event said requests are refused, for a
+	// result that does not name its API error.
+	usageLimited bool
+	// interruptSent tells whether Interrupt was called since the previous result.
+	interruptSent bool
+}
+
+// processEvent translates a stream-json line.
+func (e streamEvent) processEvent(f turnFacts) (usecase.ProcessEvent, bool) {
 	switch {
 	case e.Type == "system" && e.Subtype == "init":
 		return usecase.ProcessEvent{Kind: usecase.EventTurnStarted}, true
@@ -163,15 +179,28 @@ func (e streamEvent) processEvent(limited bool) (usecase.ProcessEvent, bool) {
 	case e.Type == "result":
 		r := usecase.TurnResult{Output: e.Result}
 		switch {
-		case e.Subtype == "error_during_execution":
+		case e.stopped(f.interruptSent):
 			r.Interrupted = true
 		case e.IsError || strings.HasPrefix(e.Subtype, "error"):
 			r.Error = true
-			r.UsageLimited = e.APIError == "usage_limit_reached" || (e.APIError == "" && limited)
+			r.UsageLimited = e.APIError == "usage_limit_reached" || (e.APIError == "" && f.usageLimited)
+			if strings.TrimSpace(r.Output) == "" {
+				r.Output = strings.Join(e.Errors, "\n")
+			}
 		}
 		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: r}, true
 	}
 	return usecase.ProcessEvent{}, false
+}
+
+// stopped tells whether a result ends a turn that was stopped rather than one that failed. Claude
+// Code also ends a turn with error_during_execution on an exception or a failed turn setup; only
+// its aborted_* terminal reasons mean the turn was stopped.
+func (e streamEvent) stopped(interruptSent bool) bool {
+	if e.Subtype != "error_during_execution" {
+		return false
+	}
+	return interruptSent || e.TerminalReason == "aborted_streaming" || e.TerminalReason == "aborted_tools"
 }
 
 // activity describes the last tool call or text in an assistant message.
@@ -246,7 +275,11 @@ func (p *process) read() {
 				resetsAt: e.RateLimitInfo.ResetsAt,
 			}
 		}
-		if pe, ok := e.processEvent(limit.refusing(time.Now())); ok {
+		f := turnFacts{usageLimited: limit.refusing(time.Now())}
+		if e.Type == "result" {
+			f.interruptSent = p.interruptSent.Swap(false)
+		}
+		if pe, ok := e.processEvent(f); ok {
 			p.events <- pe
 		}
 	}
