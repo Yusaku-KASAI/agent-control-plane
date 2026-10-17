@@ -109,6 +109,19 @@ const (
 	agentLabel   = "acp.agent"
 )
 
+// composeIdentityLabels are what Docker Compose, and VS Code through it, use to find a
+// project's containers. An image built by Compose carries them, and a container inherits its
+// image's labels, so they are blanked to keep agent containers out of the devcontainer's project.
+var composeIdentityLabels = []string{"com.docker.compose.project", "com.docker.compose.service"}
+
+func containerLabels(id domain.SessionID, agent domain.AgentName) map[string]string {
+	labels := map[string]string{sessionLabel: string(id), agentLabel: string(agent)}
+	for _, l := range composeIdentityLabels {
+		labels[l] = ""
+	}
+	return labels
+}
+
 const (
 	// workspaceDir holds the repository in the container, as in the devcontainer, where the
 	// repositories beside it are mounted too.
@@ -133,7 +146,7 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 				"ACP_CO_AUTHORS_FILE=" + path.Join(credentialsDir, coAuthorsFile),
 			}, credentialEnv(agent.Git, req.Credentials)...),
 			WorkingDir: workdir,
-			Labels:     map[string]string{sessionLabel: string(s.ID), agentLabel: string(agent.Name)},
+			Labels:     containerLabels(s.ID, agent.Name),
 			// Prompts are written to stdin; closing it ends the process.
 			OpenStdin:    true,
 			StdinOnce:    true,
