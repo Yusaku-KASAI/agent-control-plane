@@ -27,8 +27,8 @@
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
   サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` か
   `isolation: remote` があると、hook によらずバックグラウンドで動くので、そういう定義は使わない。
-- サブエージェントが動いている間に作業領域（主の worktree）の HEAD、index、ファイルが変わると、harness プラグインの
-  hook が、何が変わったかをセッションのエージェントに知らせる（[ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
+- サブエージェントが動いている間に作業領域（主の worktree）が変わると、harness プラグインの hook が、何が変わったかを
+  セッションのエージェントに知らせる（比べるものは [ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
   作業を任せたサブエージェントの変更でも知らせるので、コミットの前に確かめる。ファイルを変えないロール（reviewer、
   guide）は、自分の worktree（`.claude/worktrees/` の下）で動く。作業領域では、その置き場所は `.git/info/exclude` で
   ignore されている。

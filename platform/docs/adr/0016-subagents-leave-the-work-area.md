@@ -26,7 +26,8 @@ worktree で動く。hook の入力は、サブエージェントのツールの
 ## Decision
 
 - **ファイルを変えないロール（reviewer、guide）は、定義に `isolation: worktree` を持つ。** サブエージェントとして
-  動くときは自分の worktree で動き、試すための編集や検査もそこで行う。作業領域には触れない形にする。どのロールが
+  動くときは自分の worktree で動き、試すための編集や検査もそこで行う。隔離するのは作業する場所（今のディレクトリと
+  その worktree）で、作業領域の絶対パスへの書き込みまでは防がない。それに気づくのは次の比べの層。どのロールが
   作業領域を変えてよいかはロールの性質なので、ロールの定義に置く。
 - **harness プラグインの hook（`scripts/watch-tree`）は、control-plane 経由のとき、セッションのエージェントが動かす
   サブエージェントの前後で作業領域を比べ、変わっていれば何が変わったかを知らせる。** どのサブエージェントも止めない。
@@ -35,9 +36,11 @@ worktree で動く。hook の入力は、サブエージェントのツールの
   変わったかがセッションのエージェントに届く。
 - **control-plane は、作業領域の `.git/info/exclude` に `/.claude/worktrees/` を書く。** `isolation: worktree` の worktree が
   変更を持ったまま残ると、作業領域の追跡していないファイルに見え、push の前の検査のフック（control-plane の ADR
-  0032）が push を断るため。ターゲットの `.gitignore` は変えない。
+  0032）が push を断るため。target-template の `.gitignore` の共通の部分は変えない。devcontainer で直接動くときに
+  `git add -A` で worktree が入れ子のリポジトリとしてコミットに入らないよう、ターゲットごとの部分で
+  `/.claude/worktrees/` を ignore する（このリポジトリはそうする）。
 - review の手順に、範囲のファイルを `git diff --stat` で先に確かめることと、レビューするリポジトリを変えず、試すなら
-  その外を使うことを書く。変更の進め方に、コミットの前に `git status` で入れるファイルを確かめることを書く。
+  自分の worktree かその外を使うことを書く。変更の進め方に、コミットの前に `git status` で入れるファイルを確かめることを書く。
 
 ## Alternatives
 
@@ -49,8 +52,9 @@ worktree で動く。hook の入力は、サブエージェントのツールの
 - **hook の入力の `agent_type` で、ファイルを変えないロールのときだけ断る**：ロールの知識を harness に持ち込む点は
   同じ。断っても、レビューに要る試すための編集の場所は、案内に頼ることになる。隔離すれば、断らずに済む。
 - **ロールの定義の `hooks` で、そのロールのときだけ断る**：断る仕組みを持つ点で上と同じ。隔離で足りる。
-- **ターゲットの `.gitignore` に `.claude/worktrees/` を足す**：target-template の `.gitignore` の共通の部分になり、
-  すべてのターゲットを直すことになる。困るのは control-plane の作業領域の push だけなので、作業領域の中で除く。
+- **target-template の `.gitignore` の共通の部分に `.claude/worktrees/` を足す**：すべてのターゲットを直すことに
+  なる。control-plane の作業領域では、どのターゲットでも作業領域の中で除ける。devcontainer で直接動くときは、
+  ロールを使うターゲットがターゲットごとの部分に足す。
 - **devcontainer で直接動くときも比べて知らせる**：人が端末にいて、作業領域の変化を自分で見られる。
 
 ## Consequences

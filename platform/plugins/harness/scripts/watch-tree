@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# PreToolUse and PostToolUse hook for Agent. Under the control plane, the agent that runs the session
-# commits what is in the work area, so a change a subagent leaves there ends up in its commits unless
-# it tells it from its own. Around each subagent, the work area is compared, and a change is told to
-# the agent, whatever made it. Which subagents may change the work area is not decided here but in
-# the roles: one that must leave it alone runs in a worktree of its own (isolation in its definition).
+# PreToolUse, PostToolUse and PostToolUseFailure hook for Agent. Under the control plane, the agent
+# that runs the session commits what is in the work area, so a change a subagent leaves there ends up
+# in its commits unless it tells it from its own. Around each subagent, the work area is compared, and
+# a change is told to the agent, whatever made it.
 set -euo pipefail
 
 input=$(cat)

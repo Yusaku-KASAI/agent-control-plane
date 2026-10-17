@@ -4,6 +4,8 @@
 !.env.example
 .devcontainer/.env
 .claude/settings.local.json
+# Worktrees of subagents run with isolation: worktree.
+/.claude/worktrees/
 CLAUDE.local.md
 
 # Go
