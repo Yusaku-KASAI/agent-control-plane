@@ -33,9 +33,10 @@ worktree で動く。hook の入力は、サブエージェントのツールの
 - **harness プラグインの hook（`scripts/watch-tree`）は、control-plane 経由のとき、セッションのエージェントが動かす
   サブエージェントの前後で作業領域を比べ、変わっていれば変わったことだけを知らせる。** 何が変わったかは、
   セッションのエージェントが git で確かめる。どのサブエージェントも止めない。比べるのは HEAD、ブランチ、index、
-  stash、追跡していないものの一覧と、ファイル（`git add -A` で作る tree。一時的な index に作るので、作業領域の index は変えない。ignore された
-  ものと、作業領域の中の linked worktree は除く）。任せた変更でも、手段（リダイレクトやスクリプトの中など）によらず、
-  変わったことがセッションのエージェントに届く。
+  stash、追跡していないものの一覧と、ファイル（`git add -A` で作る tree。一時的な index に作るので、作業領域の
+  index は変えない）。ignore されたものは除き、隔離したエージェントの worktree もターゲットの `.gitignore` で除く。
+  hook では除かないので、ignore していないターゲットでは、コミットに紛れうる worktree として知らせる。任せた変更
+  でも、手段（リダイレクトやスクリプトの中など）によらず、変わったことがセッションのエージェントに届く。
 - **target-template の共通の部分に、隔離の前提を二つ置く。** `.claude/settings.json` の `worktree.baseRef` を `head` に
   する。既定（`fresh`）では worktree が origin の既定のブランチから作られ、レビューする人が PR の中身ではなく既定の
   ブランチを読んだり試したりすることになるため。`.gitignore` で `/.claude/worktrees/` を ignore する。変更の残った

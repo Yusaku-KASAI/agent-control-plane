@@ -67,8 +67,15 @@ g switch --quiet main
 check "a stash is told" yes "$(told "$(around 'echo s >README.md; git stash --quiet')")"
 check "a nested repository without a commit is told" yes "$(told "$(around 'git init --quiet RR')")"
 rm -rf "$repo/RR"
-check "a linked worktree made in the work area is not told" "" \
-  "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')"
+# Worktrees of isolated subagents are left out by the target's .gitignore, not by the hook: where
+# they are not ignored, git add -A would commit them.
+check "a linked worktree not ignored is told" yes \
+  "$(told "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')")"
+g worktree remove --force "$repo/.claude/worktrees/agent-1"
+echo /.claude/worktrees/ >>"$repo/.gitignore"
+g commit --quiet -am ignore
+check "an ignored linked worktree is not told" "" \
+  "$(around 'git worktree add --quiet -b inner2 .claude/worktrees/agent-2 && touch .claude/worktrees/agent-2/work')"
 check "an ignored file is not told" "" "$(around 'mkdir -p build && touch build/out')"
 touch "$repo/locked"
 chmod 000 "$repo/locked"

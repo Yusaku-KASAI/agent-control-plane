@@ -25,21 +25,16 @@ state() (
   echo "branch $(git symbolic-ref --quiet HEAD || echo detached)"
   echo "index $(git ls-files --stage | git hash-object --stdin)"
   echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
-  # A linked worktree inside the work area (isolation: worktree) is not its file.
-  local -a skip=()
-  local w
-  while IFS= read -r w; do skip+=(":(exclude,top)$w"); done \
-    < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
   # git add leaves out a nested repository without a commit (git init alone), so the untracked
   # paths are listed too.
-  echo "untracked $(git ls-files --others --exclude-standard -- . "${skip[@]}" | git hash-object --stdin)"
+  echo "untracked $(git ls-files --others --exclude-standard | git hash-object --stdin)"
   local dir
   dir=$(mktemp -d)
   trap 'rm -rf "$dir"' EXIT
   # Starting from a copy of the index only saves hashing the files whose stat it knows.
   cp "$(git rev-parse --git-path index)" "$dir/index" 2>/dev/null || true
   # --ignore-errors: a file it cannot read is left out, not the rest of the changes.
-  GIT_INDEX_FILE=$dir/index git add -A --ignore-errors -- . "${skip[@]}" 2>/dev/null || true
+  GIT_INDEX_FILE=$dir/index git add -A --ignore-errors 2>/dev/null || true
   echo "files $(GIT_INDEX_FILE=$dir/index git write-tree 2>/dev/null || echo unreadable)"
 )
 
