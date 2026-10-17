@@ -185,12 +185,24 @@ func (e streamEvent) processEvent(f turnFacts) (usecase.ProcessEvent, bool) {
 			r.Error = true
 			r.UsageLimited = e.APIError == "usage_limit_reached" || (e.APIError == "" && f.usageLimited)
 			if strings.TrimSpace(r.Output) == "" {
-				r.Output = strings.Join(e.Errors, "\n")
+				r.Output = e.errorMessage()
 			}
 		}
 		return usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: r}, true
 	}
 	return usecase.ProcessEvent{}, false
+}
+
+// errorMessage joins the errors of a result, leaving out the lines Claude Code adds for its own
+// diagnosis, which its own client does not show either.
+func (e streamEvent) errorMessage() string {
+	var lines []string
+	for _, s := range e.Errors {
+		if !strings.HasPrefix(s, "[ede_diagnostic]") && !strings.HasPrefix(s, "[session_crash]") {
+			lines = append(lines, s)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // stopped tells whether a result ends a turn that was stopped rather than one that failed. Claude

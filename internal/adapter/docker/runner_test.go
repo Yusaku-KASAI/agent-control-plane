@@ -309,6 +309,7 @@ func TestRunner_Start(t *testing.T) {
 		{"aborted while streaming", false, []string{`{"type":"result","subtype":"error_during_execution","terminal_reason":"aborted_streaming"}`}, true, ""},
 		{"failed setup", false, []string{`{"type":"result","subtype":"error_during_execution","terminal_reason":"turn_setup_failed","errors":["queryParams builder failed: boom"]}`}, false, "queryParams builder failed: boom"},
 		{"exception without a reason", false, []string{`{"type":"result","subtype":"error_during_execution","errors":["a","b"]}`}, false, "a\nb"},
+		{"exception with diagnostics", false, []string{`{"type":"result","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=assistant","boom","[session_crash] error_name=Error"]}`}, false, "boom"},
 		{"interrupt taken by a finished turn", true, []string{`{"type":"result","subtype":"success","result":"done"}`,
 			`{"type":"result","subtype":"error_during_execution","errors":["boom"]}`}, false, "boom"},
 	}
@@ -324,7 +325,7 @@ func TestRunner_Start(t *testing.T) {
 			api.emit(1, line+"\n")
 			e = receive(t, proc.Events())
 		}
-		if e.Result.Interrupted != s.stopped || e.Result.Error == s.stopped || (!s.stopped && e.Result.Output != s.output) {
+		if e.Result.Interrupted != s.stopped || e.Result.Error == s.stopped || e.Result.Output != s.output {
 			t.Errorf("%s: event = %+v, want stopped %v with output %q", s.name, e, s.stopped, s.output)
 		}
 	}

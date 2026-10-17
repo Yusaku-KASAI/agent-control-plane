@@ -17,6 +17,8 @@ Claude Code（2.1.292）の出力には、次のものがある。
   `aborted_tools`（ツールの実行中）。準備の失敗は `turn_setup_failed`。Claude Code 自身も、`error_during_execution`
   のうち `terminal_reason` が `aborted_*` ではないものを、エラーとして表示する。
 - `subtype` が `error` で始まる `result` には `result` の文面がなく、`errors` にエラーの説明の文字列が並ぶ。
+  `errors` には、Claude Code が自分の診断のために足す行（`[ede_diagnostic]` か `[session_crash]` で始まる）も
+  入る。Claude Code 自身は、これらの行を表示しない。
 
 ## Decision
 
@@ -24,8 +26,8 @@ Claude Code（2.1.292）の出力には、次のものがある。
   - control-plane が `interrupt` を送ってから、最初に届いた `result` のターン。
   - `terminal_reason` が `aborted_streaming` か `aborted_tools` のターン。
 - それ以外の `error_during_execution` は、ADR 0029 のエラーで終わったターンとして知らせる。
-- エラーで終わったターンの `result` の文面が空なら、`errors` を行ごとにつないだものを、エージェントの文面として
-  引用する。
+- エラーで終わったターンの `result` の文面が空なら、`errors` から診断の行を除き、行ごとにつないだものを、
+  エージェントの文面として引用する。
 
 ## Alternatives
 
