@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-18
-amends: [5]
+amends: [5, 11]
 ---
 
 # 0014. ターゲットに依存しない検査は、platform の複合アクションとして devcontainer の外で CI に回す
@@ -9,7 +9,8 @@ amends: [5]
 ## Context
 
 ADR 0005 で、CI は devcontainer のイメージの中で `make check` を実行すると決めた。ツールチェーンのバージョンを
-Dockerfile の一か所で固め、手元と CI の結果をそろえるためである。
+Dockerfile の一か所で固め、手元と CI の結果をそろえるためである。ADR 0011 で、CI のジョブは関心ごとに、同じ名前の
+Dockerfile のステージをビルドすると決めた。
 
 文書の検査は conventions プラグインのコマンドになり、ターゲットの共通のファイル（`tools/check-docs.py`）と
 `make check` から外れた（conventions の ADR 0019）。この検査が使うのは `python3` と `git` だけで、ターゲットの
@@ -21,7 +22,9 @@ Dockerfile の一か所で固め、手元と CI の結果をそろえるため�
   CI はそれを devcontainer のイメージの外で呼んでよい。今は文書の検査だけ
   （`platform/plugins/conventions/actions/check-docs`）。
 - ターゲットの `ci.yml` は、`check-docs` ジョブで `uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main`
-  の一行を書き、`check` ジョブはそのジョブも待つ。版は `main` にする（内部でだけ使うため）。
+  の一行を書き、`check` ジョブはそのジョブも待つ。このジョブは Dockerfile のステージを持たない。版は `main` にする
+  （内部でだけ使うため）。ほかのリポジトリのコードを動かすので、ジョブの権限は `contents: read` だけにし、アクションは
+  チェックアウトの認証情報を残さない。
 
 ## Alternatives
 

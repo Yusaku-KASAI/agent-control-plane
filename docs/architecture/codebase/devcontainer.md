@@ -25,8 +25,9 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、
   control-plane はこのリポジトリのエージェントも同じイメージで動かす（設定の `agents[].target.image`。例は [acp.example.yaml](../../../acp.example.yaml "在りか")）。
 - 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-docs` を足したもの。`check-docs` は、
-  このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。platform を
-  同じリポジトリに持つので、文書の検査も CI で回す（[conventions の ADR 0019](../../../platform/plugins/conventions/docs/adr/0019-document-check-as-plugin-command.md)）。CI には、
+  このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。CI では、
+  target-template の共通の部分（conventions の複合アクションを呼ぶ `check-docs` ジョブ）と違い、まだ Dockerfile の
+  `check-docs` のステージで `make check-docs` を回す。CI には、
   control-plane のイメージがビルドできることを確かめる `check-image` を足す。
 
 ## 構成要素

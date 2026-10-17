@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-17
 ---
 
-# 0019. 文書の検査を conventions のコマンドにし、Markdown を変えたターンの終わりに hook が回す
+# 0019. 文書の検査を conventions のコマンドにし、Markdown を変えたターンの終わりに hook が、CI では複合アクションが回す
 
 ## Context
 
@@ -26,7 +26,7 @@ date: 2026-10-17
   止めるのは一つのセッションで一度だけにし、通れば忘れる。止めたことを覚えられない（git dir に書けない）ときは
   止めない。ほかの Stop の hook で続けたターンの終わりにも回す。
 - CI 向けに、同じコマンドを回す GitHub Actions の複合アクション `actions/check-docs` を、このプラグインに置く。
-  ターゲットの CI は、それを `main` の版で呼ぶ一行だけを書く（target-template の ADR 0014）。
+  ターゲットの CI での呼び方と版は、target-template の [ADR 0014](../../../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md) にある。
 - ターゲットの契約からは、文書の検査を外す。ターゲットの `make check` は文書の検査を含まなくてよい。
 - platform を同じリポジトリに持つ control-plane は、`make check-docs` でもこのコマンドを呼ぶ。これは control-plane の
   リポジトリの選択で、契約ではない。
@@ -51,7 +51,6 @@ date: 2026-10-17
   ときは、報告でそれを伝えることになる。後のセッションでは、同じ失敗でもまた一度止める。
 - 人が Claude Code を通さずに変えた文書は、CI の複合アクションで見つかる。人が手元で回すときは、マーケットプレイスの
   `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。
-- 手元の hook は入れたマーケットプレイスの版で、CI は `main` の版で回るので、二つが食い違うことがある。
 - hook が回すのは、入れた conventions の版。ブランチが check-docs と形式を一緒に変えているとき（control-plane）は、
   入れた古い版が新しい形を誤りとして止めうる。そのときはリポジトリの `make check-docs` の結果に従う（止めるときの
   理由にも書く）。

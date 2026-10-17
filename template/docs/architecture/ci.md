@@ -20,7 +20,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 - ターゲットの検査の中身は Makefile の `check-<関心>` にだけあり、Dockerfile のステージと CI のジョブはそれを呼ぶ
   （[ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。
-- 関心ごとに、Makefile のルール、Dockerfile のステージ、CI のジョブが同じ名前で一つずつ並ぶ。
+- ターゲットの関心ごとに、Makefile のルール、Dockerfile のステージ、CI のジョブが同じ名前で一つずつ並ぶ。
 - ターゲットにほかのイメージ（アプリをデプロイするためのイメージなど）があれば、そのビルドも CI のジョブにする。
 - CI のジョブの結果は `check` ジョブにまとまる。
 - 文書の形式の検査は conventions プラグインのコマンドで、`make check` には含めない。CI では `check-docs` ジョブが
@@ -61,6 +61,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
   - 行列のジョブ（`check-<関心>` と、ほかのイメージのビルド）。一つが失敗してもほかは最後まで動かす。
   - `check-docs` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main`
     の一つのステップだけを持つ（チェックアウトもアクションが行う）。中身は platform に置き、ターゲットには書かない。
+    ほかのリポジトリのコードを動かすので、ジョブの `permissions` は `contents: read` だけにする。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
   - 毎週の定期実行では、選んだ検査のステージだけキャッシュを使わない。キャッシュが当たると、新しく公開された

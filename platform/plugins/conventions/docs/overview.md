@@ -22,8 +22,8 @@ conventions/
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
-- 文書の決まりのうち機械で確かめられるものは、このプラグインのコマンド `check-docs` が確かめる。ターゲットの契約や
-  共通のファイルにはしない（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
+- 文書の決まりのうち機械で確かめられるものは、このプラグインのコマンド `check-docs` が確かめる。検査の中身は、
+  ターゲットの契約や共通のファイルに置かない（ターゲットの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 
 ## 構成要素
 

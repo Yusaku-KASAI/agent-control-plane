@@ -30,7 +30,7 @@
 | `.devcontainer/devcontainer.json`、`.vscode/settings.json` | 埋める | ツールチェーンの拡張機能とその設定 |
 | `.devcontainer/Dockerfile.dockerignore` | 埋める | ツールチェーンが作るものの除外 |
 | `.devcontainer/.env.example` | 埋める | リポジトリ名を含む値 |
-| `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査。`check-docs` ジョブと、`check` ジョブがそれを待つことは共通 |
+| `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査。`check-docs` ジョブ（その権限を含む）と、`check` ジョブがそれを待つことは共通 |
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` は共通 |
 | `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](reference/contract.md#claudemd)にある） |
