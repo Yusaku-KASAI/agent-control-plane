@@ -162,12 +162,15 @@ check_run() {
       details_url: $u, app: {id: 15368, slug: "github-actions"}}'
 }
 # checks <status/conclusion>...: the head's check runs, named c0, c1, ...
-checks() {
-  local i=0 r
+checks() { checks_to "$state/checks.json" "$@"; }
+# checks_to <file> <status/conclusion>...: the same, written to <file>.
+checks_to() {
+  local file=$1 i=0 r
+  shift
   for r in "$@"; do
     check_run "c$i" "$((100 + i))" "$r" "https://ci.invalid/c$i"
     i=$((i + 1))
-  done | jq -s '{check_runs: .}' >"$state/checks.json"
+  done | jq -s '{check_runs: .}' >"$file"
 }
 # rerun <id> <status/conclusion>...: the check runs of another suite on the same head, with the
 # same names as before (c0, c1, ...) and ids from <id>, added to those already there.
@@ -249,9 +252,9 @@ sequence() {
   local i=1 runs
   rm -rf "$state/seq.new" && mkdir "$state/seq.new"
   for runs in "$@"; do
+    # Straight into the new sequence: checks.json is not touched, as a wait may be reading it.
     # shellcheck disable=SC2086 # the runs are words
-    checks $runs
-    mv "$state/checks.json" "$state/seq.new/$i.json"
+    checks_to "$state/seq.new/$i.json" $runs
     i=$((i + 1))
   done
   if [[ -d $state/seq ]]; then mv "$state/seq" "$state/seq.old"; fi
