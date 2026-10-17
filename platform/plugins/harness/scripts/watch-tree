@@ -16,27 +16,27 @@ common=$(git -C "${CLAUDE_PROJECT_DIR:-$cwd}" rev-parse --path-format=absolute -
 common=$(cd "$common" && pwd -P)
 top=$(dirname "$common")
 
-# state: what the agent commits from: HEAD, the branch, the index, the stash, and each changed or
-# untracked file with its content.
+# state: what the agent commits from: HEAD, the branch, the index, the stash, and the files, as the
+# tree that git add -A would make (in an index of its own, so that the work area's is left alone).
 state() (
   cd "$top"
   export GIT_OPTIONAL_LOCKS=0
   echo "HEAD $(git rev-parse --verify --quiet HEAD || echo none)"
-  echo "ブランチ $(git symbolic-ref --quiet --short HEAD || echo '(detached)')"
+  echo "branch $(git symbolic-ref --quiet HEAD || echo detached)"
   echo "index $(git ls-files --stage | git hash-object --stdin)"
   echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
   # A linked worktree inside the work area (isolation: worktree) is not its file.
-  local -a linked=()
-  mapfile -t linked < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
-  { git diff --name-only -z HEAD -- 2>/dev/null || true; git ls-files --others --exclude-standard -z; } \
-    | sort -zu | while IFS= read -r -d '' f; do
-      for w in "${linked[@]}"; do [[ $f == "$w" || $f == "$w"/* ]] && continue 2; done
-      if [[ -e $f || -L $f ]]; then
-        printf 'ファイル %s %s\n' "$(git hash-object --no-filters -- "$f" 2>/dev/null || echo unreadable)" "$f"
-      else
-        printf 'ファイル deleted %s\n' "$f"
-      fi
-    done
+  local -a skip=()
+  local w
+  while IFS= read -r w; do skip+=(":(exclude,top)$w"); done \
+    < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
+  local dir
+  dir=$(mktemp -d)
+  trap 'rm -rf "$dir"' EXIT
+  # Starting from a copy of the index only saves hashing the files whose stat it knows.
+  cp "$(git rev-parse --git-path index)" "$dir/index" 2>/dev/null || true
+  GIT_INDEX_FILE=$dir/index git add -A -- . "${skip[@]}" 2>/dev/null || true
+  echo "files $(GIT_INDEX_FILE=$dir/index git write-tree 2>/dev/null || echo unreadable)"
 )
 
 snapshot() { git -C "$top" rev-parse --path-format=absolute --git-path "acp-subagent-$(field .tool_use_id)"; }
@@ -55,10 +55,7 @@ case $event:$(field .tool_name) in
     rm -f "$file"
     after=$(state)
     [[ $before != "$after" ]] || exit 0
-    changed=$(diff <(echo "$before") <(echo "$after") | sed -n 's/^< /前：/p; s/^> /今：/p' || true)
-    jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域が変わった。変わったもの：
-$changed
-サブエージェントに任せた変更か、自分の変更でなければ、git status と git diff で何が変わったかを確かめてから扱いを決める。コミットには、確かめたファイルだけを入れる。" \
+    jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域（HEAD、ブランチ、index、stash、ファイルのどれか）が変わった。任せた変更でも、git status と git diff で何が変わったかを確かめてから扱いを決め、コミットには確かめたファイルだけを入れる。" \
       '{hookSpecificOutput: {hookEventName: $event, additionalContext: $context}}'
     ;;
 esac

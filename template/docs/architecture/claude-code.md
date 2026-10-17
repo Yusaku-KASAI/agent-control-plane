@@ -22,7 +22,7 @@
     （[platform の ADR 0016](../../../platform/docs/adr/0016-subagents-leave-the-work-area.md)）。
   - `permissions`（既定のモードと、確認せずに使えるツールの一覧）は、人が対話で使うときの設定。対話での
     使い方は devcontainer の[手順](../guides/devcontainer.md#permissions "在りか")にある。
-- **関係**：プラグインの宣言と `language` は[ターゲットの契約](../reference/contract.md#plugins)の一部で、control-plane も
+- **関係**：プラグインの宣言、`language`、`worktree.baseRef` は[ターゲットの契約](../reference/contract.md#plugins)の一部で、control-plane も
   エージェントもこれを読む（[ADR 0004](../adr/0004-plugins-declared-in-settings.md)）。
 - **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：プラグインの
   宣言の形と置き場所はターゲットの契約が先に決め、このファイルはそれに合わせる。

@@ -60,11 +60,11 @@ harness/
 ### `scripts/watch-tree`
 
 - **責務**：control-plane 経由のとき、セッションのエージェントが動かすサブエージェントの前後で作業領域（主の
-  worktree）を比べ、変わっていれば何が変わったかを知らせる（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
+  worktree）を比べ、変わっていれば変わったことだけを知らせる（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
 - **置くもの / 置かないもの**：Agent の前に、1 日より古い写しを消してから、作業領域の状態（HEAD、ブランチ、index、
-  stash、変更のあるファイルと ignore されていない追跡していないファイルの中身。作業領域の中の linked worktree は
-  除く）の写しを `.git` に置く。Agent のあと（失敗したときも）に今の状態と比べて、違いを文脈として足し、写しを
-  消す。サブエージェント自身の Agent の呼び出し（hook の入力に `agent_id` がある）、devcontainer で直接動くときは
+  stash と、一時的な index に `git add -A` して作る tree。作業領域の中の linked worktree は除く）の写しを `.git` に
+  置く。Agent のあと（失敗したときも）に今の状態と比べ、違えば、変わったことと git で確かめることを文脈として
+  足し、写しを消す。何が変わったかは並べない（git で見られ、数によらず短く済む）。サブエージェント自身の Agent の呼び出し（hook の入力に `agent_id` がある）、devcontainer で直接動くときは
   何もしない。どのサブエージェントが作業領域を変えてよいかは決めず、ツールの呼び出しも断らない。それはロールの
   定義（`isolation`）に任せる。
 - **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。ファイルを

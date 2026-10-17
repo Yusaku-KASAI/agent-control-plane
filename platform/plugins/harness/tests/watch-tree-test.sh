@@ -48,23 +48,29 @@ around() {
 snapshot=$(git -C "$repo" rev-parse --path-format=absolute --git-path acp-subagent-toolu_1)
 check "no change, nothing to tell" "" "$(around ':')"
 check "the snapshot is removed" no "$([[ -e $snapshot ]] && echo yes || echo no)"
-contains() { if [[ $2 == *"$1"* ]]; then echo yes; else echo "no: $2"; fi; }
-check "an untracked file is told" yes "$(contains '今：ファイル' "$(around 'touch "ait; } => |"')")"
+told() { if [[ -n $1 ]]; then echo yes; else echo no; fi; }
+check "an untracked file is told" yes "$(told "$(around 'touch "ait; } => |"')")"
 rm -f "$repo/ait; } => |"
 echo dirty >"$repo/README.md"
-check "a modified file changed again is told" yes "$(contains 'README.md' "$(around 'echo dirtier >README.md')")"
-check "staging is told" yes "$(contains '今：index' "$(around 'git add README.md')")"
+check "a modified file changed again is told" yes "$(told "$(around 'echo dirtier >README.md')")"
+check "staging is told" yes "$(told "$(around 'git add README.md')")"
 g reset --quiet --hard
-check "a detached HEAD is told" yes "$(contains '今：ブランチ (detached)' "$(around 'git checkout --quiet HEAD~1')")"
+check "a deleted file is told" yes "$(told "$(around 'rm README.md')")"
+g checkout --quiet -- README.md
+check "a commit on the same branch is told" yes \
+  "$(told "$(around 'git -c user.name=t -c user.email=t@example.com commit --quiet --allow-empty -m x')")"
+g reset --quiet --hard HEAD~1
+check "a detached HEAD at the same commit is told" yes "$(told "$(around 'git checkout --quiet --detach')")"
 g switch --quiet main
-check "a stash is told" yes "$(contains '今：stash' "$(around 'echo s >README.md; git stash --quiet')")"
+check "a stash is told" yes "$(told "$(around 'echo s >README.md; git stash --quiet')")"
 check "a linked worktree made in the work area is not told" "" \
   "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')"
 check "an ignored file is not told" "" "$(around 'mkdir -p build && touch build/out')"
+check "the work area's index is left as it was" "" "$(g status --porcelain --untracked-files=no)"
 out=$(run "" PreToolUse Agent '{"prompt":"p"}')
 touch "$repo/failed"
-check "a change around a failed subagent is told" yes "$(contains 'failed' \
-  "$(run "" PostToolUseFailure Agent '{"prompt":"p"}' | jq -r '.hookSpecificOutput.additionalContext // ""')")"
+check "a change around a failed subagent is told" yes \
+  "$(told "$(run "" PostToolUseFailure Agent '{"prompt":"p"}' | jq -r '.hookSpecificOutput.additionalContext // ""')")"
 rm -f "$repo/failed"
 stale=$(dirname "$snapshot")/acp-subagent-toolu_0
 touch -d '2 days ago' "$stale"
@@ -76,4 +82,14 @@ check "without a snapshot, nothing to tell" "" "$(run "" PostToolUse Agent '{"pr
 check "nothing is watched outside the control plane" "" "$(ACP_SESSION_BRANCH='' run "" PreToolUse Agent '{"prompt":"p"}')"
 check "outside the control plane, no snapshot is taken" no \
   "$([[ -e $snapshot ]] && echo yes || echo no)"
+# The hook is wired to the Agent and Task calls, before and after them, failed or not.
+hooks=$(cd "$(dirname "$0")/.." && pwd)/hooks/hooks.json
+for event in PreToolUse PostToolUse PostToolUseFailure; do
+  for tool in Agent Task; do
+    wired=$(jq -r --arg e "$event" --arg t "$tool" '[.hooks[$e][]? | . as $h
+      | select(any($h.hooks[]; .command | test("watch-tree"))) | select($t | test("^(" + $h.matcher + ")$"))]
+      | length' "$hooks")
+    check "watch-tree runs on $event of $tool" 1 "$wired"
+  done
+done
 exit $failed
