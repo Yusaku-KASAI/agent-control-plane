@@ -65,6 +65,8 @@ g reset --quiet --hard HEAD~1
 check "a detached HEAD at the same commit is told" yes "$(told "$(around 'git checkout --quiet --detach')")"
 g switch --quiet main
 check "a stash is told" yes "$(told "$(around 'echo s >README.md; git stash --quiet')")"
+check "a nested repository without a commit is told" yes "$(told "$(around 'git init --quiet RR')")"
+rm -rf "$repo/RR"
 check "a linked worktree made in the work area is not told" "" \
   "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')"
 check "an ignored file is not told" "" "$(around 'mkdir -p build && touch build/out')"

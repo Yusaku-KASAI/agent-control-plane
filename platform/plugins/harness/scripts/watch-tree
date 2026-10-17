@@ -30,6 +30,9 @@ state() (
   local w
   while IFS= read -r w; do skip+=(":(exclude,top)$w"); done \
     < <(git worktree list --porcelain | sed -n "s|^worktree $top/||p")
+  # git add leaves out a nested repository without a commit (git init alone), so the untracked
+  # paths are listed too.
+  echo "untracked $(git ls-files --others --exclude-standard -- . "${skip[@]}" | git hash-object --stdin)"
   local dir
   dir=$(mktemp -d)
   trap 'rm -rf "$dir"' EXIT
