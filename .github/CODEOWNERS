@@ -1,2 +1,4 @@
-# Approvals that count toward merging into the default branch must come from a human (app ADR 0027).
+# Approvals that count toward merging into the default branch must come from a human.
+# Personal repository: list only the human owner. Organization repository: delete this file and
+# require a human-only team in the ruleset instead (agent-control-plane template/docs/guides/github.md).
 * @Yusaku-KASAI
