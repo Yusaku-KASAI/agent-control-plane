@@ -18,5 +18,5 @@ jq -n --arg event "$1" --arg ctx "# ハーネス
 動き方：${how}
 ハーネスの契約（渡されるもの（環境変数、作業領域、認証情報）とその制約）：${docs}/reference/harness.md
 platform の文書の一覧（用語集、プラグインの構成など）：${docs}/README.md
-認証、push、マウント、環境変数などで詰まったとき：harness スキルで切り分ける" \
+認証、push、マウント、環境変数、ディスクの空きなどで詰まったとき、道具がエラーの文面と合わない失敗をするとき：harness スキルで切り分ける" \
   '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'
