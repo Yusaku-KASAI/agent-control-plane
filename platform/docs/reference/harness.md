@@ -64,6 +64,8 @@
 - 使われないまま一定期間（control-plane の設定で決まる）が過ぎたセッションは、作業領域ごと消される。push していないコミット、
   作業ツリーの変更、開いている PR があるあいだは残る。
 
+<a id="work-area"></a>
+
 ### 作業領域とブランチ
 
 - 作業ディレクトリ `/workspace/<名前>` は、このセッションのためにターゲットを clone した作業領域。`<名前>` は
@@ -128,4 +130,6 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 
 - 認証情報は、人が devcontainer の中で用意したもの（`gh auth login` など）。
 - `/workspace` には、ホストで並べたリポジトリ（[ターゲットの契約のホストでの配置](../../../template/docs/reference/contract.md#host)）が見える。
+- 作業するリポジトリも、ホストのディレクトリの bind mount。Docker Desktop では、[作業領域とブランチ](#work-area)にある
+  ロックの制約が同じく当てはまる。
 - ブランチや PR の進め方は、ターゲットの決まり（CLAUDE.md）と人の指示に従う。
