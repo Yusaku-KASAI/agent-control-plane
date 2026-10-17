@@ -42,7 +42,7 @@ CODEOWNERS を置いたときと変えたあとは、誤りがないことを確
 求められなくなる。
 
 ```bash
-gh api repos/<owner>/<repo>/codeowners/errors   # {"errors":[]} なら誤りはない
+gh api repos/<owner>/<repo>/codeowners/errors   # 個人のリポジトリだけ。{"errors":[]} なら誤りはない
 gh api repos/<owner>/<repo>/rulesets            # ルールセットの id
 gh api repos/<owner>/<repo>/rulesets/<id> --jq .rules   # 下の値を見る
 ```
