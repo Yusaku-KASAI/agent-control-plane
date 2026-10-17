@@ -1,8 +1,8 @@
 # このリポジトリの devcontainer と検査
 
 target-template の環境のファイルのうち、このリポジトリが埋める部分（[ファイルの分類](../../../template/docs/overview.md#files)）。
-Dockerfile の Go のツールチェーンと検査のステージ、Makefile の検査のルール、CI のジョブ、devcontainer.json と
-`.vscode/settings.json` の Go の部分を扱う。共通の部分の構成は target-template の
+Dockerfile の Go のツールチェーンと検査のステージ、compose.yaml の control-plane のネットワーク、Makefile の検査の
+ルール、CI のジョブ、devcontainer.json と `.vscode/settings.json` の Go の部分を扱う。共通の部分の構成は target-template の
 [devcontainer](../../../template/docs/architecture/devcontainer.md "在りか") と [CI](../../../template/docs/architecture/ci.md) にあり、
 ルール（make のルール）という言葉も CI の文書のとおりに使う。
 
@@ -48,6 +48,15 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   ボリューム（`go-mod`、`go-build`）に置く。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：このリポジトリのツールチェーンを、
   共有する base から分ける。
+
+### compose.yaml の control-plane のネットワーク
+
+- **責務**：devcontainer から control-plane を試せるよう、devcontainer を control-plane のネットワーク
+  `agent-control-plane-net` に入れ、`ACP_SERVER=http://control-plane:8787` で API を指す。control-plane を開発する
+  ターゲットだけが埋める部分（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
+- **置くもの / 置かないもの**：API のトークン（`ACP_API_TOKEN`）は置かない。試すときに人が手で渡す。
+- **関係**：ネットワークは外部のもので、compose は作らない。devcontainer を初めて起動する前に、
+  [運用の手順](../../guides/operations.md#setup-overall "在りか")の 1 段で作る。control-plane の側は[コンテナの構成](../app/containers.md "在りか")にある。
 
 ### `check-go`（ルール、ステージ、CI のジョブ）
 

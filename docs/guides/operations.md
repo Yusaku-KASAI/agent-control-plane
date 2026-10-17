@@ -7,6 +7,8 @@ control-plane のサーバーを手元で準備して動かす手順。
 設定は [acp.example.yaml](../../acp.example.yaml)（各項目の意味）と [.env.example](../../.env.example) をもとに、`acp.yaml` と
 `.env` を作る。どちらも gitignore の対象。以下は値の用意の仕方。
 
+<a id="setup-overall"></a>
+
 ### 1. 全体
 
 - ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを

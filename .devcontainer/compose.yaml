@@ -1,6 +1,6 @@
 # Names and paths come from .devcontainer/.env, written by init-host.sh, so that only the parts a
 # target fills in (the build target, the toolchain's cache volumes and, for the control plane, its
-# network) differ between targets.
+# network and ACP_SERVER) differ between targets.
 name: ${REPO_NAME:?run .devcontainer/init-host.sh}-dev
 
 services:
