@@ -109,7 +109,7 @@ const (
 	agentLabel   = "acp.agent"
 )
 
-// composeIdentityLabels are what Docker Compose, and VS Code through it, use to find a
+// composeIdentityLabels are what Docker Compose and VS Code's Dev Containers filter on to find a
 // project's containers. An image built by Compose carries them, and a container inherits its
 // image's labels, so they are blanked to keep agent containers out of the devcontainer's project.
 var composeIdentityLabels = []string{"com.docker.compose.project", "com.docker.compose.service"}
