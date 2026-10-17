@@ -15,7 +15,8 @@ description: 認証、push、gh、git、マウント、環境変数、プラグ�
 3. 契約にあるものが、契約どおりかを確かめる。値（トークン）は表示しない。
    - 環境変数があるか（`env | grep -E '^(ACP_|GH_CONFIG_DIR|SLACK_BOT_TOKEN_FILE|GIT_AUTHOR_)' | cut -d= -f1`）。
    - ファイルがあるか（`ls -la "$GH_CONFIG_DIR"`）。
-   - 道具が動くか（`gh --version`、`gh api rate_limit --jq .rate.remaining`、`git push --dry-run origin HEAD`）。
+   - 道具が動くか（`gh --version`、`gh api rate_limit --jq .rate.remaining`、`git push --dry-run --no-verify origin HEAD`）。
+     `--dry-run` でも pre-push のフックは働くので、認証と push の道だけを見るここでは `--no-verify` で避ける。
 4. 見分ける。
    - **ハーネスの問題**：契約で渡されるはずのものがない（渡される条件も契約にある）、契約どおりなのに道具が動かない（例：読み取り専用の設定を gh が
      書き換えようとして失敗する）、イメージに要る道具がない。
