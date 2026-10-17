@@ -92,7 +92,7 @@ func remarkList(remarks []string) string {
 	if len(items) == 0 {
 		return ""
 	}
-	return "これまでの発言（古い順）：\n" + strings.Join(items, "\n") + "\n\n"
+	return "エージェントの直近の発言（古い順）：\n" + strings.Join(items, "\n") + "\n\n"
 }
 
 // forgetAnswer drops the latest remarks that are part of the turn's answer, which reaches the
@@ -114,11 +114,7 @@ func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // remarkLine puts a remark on one line, cut to maxRemarkLength.
 func remarkLine(s string) string {
-	line := oneLine(s)
-	if r := []rune(line); len(r) > maxRemarkLength {
-		return string(r[:maxRemarkLength]) + "…"
-	}
-	return line
+	return truncate(oneLine(s), maxRemarkLength, "…")
 }
 
 // addRemark keeps the remark as the latest, pushing out the oldest.

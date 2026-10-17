@@ -104,7 +104,7 @@ func TestStatusViewRender(t *testing.T) {
 	}
 
 	running.remarks = remarks("原因が分かりました")
-	if got := running.render(start); !strings.Contains(got, "\nこれまでの発言（古い順）：\n- 原因が分かりました\n\n今の作業：") {
+	if got := running.render(start); !strings.Contains(got, "\nエージェントの直近の発言（古い順）：\n- 原因が分かりました\n\n今の作業：") {
 		t.Errorf("running render does not list the remark apart from the activity:\n%s", got)
 	}
 	running.remarks = remarks("一つ目", "二つ目")
