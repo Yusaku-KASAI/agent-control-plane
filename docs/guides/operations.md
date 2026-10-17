@@ -19,6 +19,14 @@ control-plane のサーバーを手元で準備して動かす手順。
   ```
 
 - `sessions.root` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
+- control-plane のネットワーク `agent-control-plane-net` を作る。`compose.yaml` は外部のネットワークとして使い、自分では
+  作らない。このリポジトリの devcontainer も同じネットワークに入る（[コンテナの構成](../architecture/app/containers.md "在りか")）ので、
+  devcontainer を初めて起動する前にも要る。
+
+  ```bash
+  docker network inspect agent-control-plane-net >/dev/null 2>&1 || docker network create agent-control-plane-net
+  ```
+
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
@@ -48,14 +56,6 @@ control-plane のサーバーを手元で準備して動かす手順。
   チャンネルはエージェントも読み書きできる（[認証情報](../architecture/app/credentials.md "在りか")）。
 
 ### 4. 起動
-
-`compose.yaml` は外部のネットワーク `agent-control-plane-net` を使い、自分では作らない。このリポジトリの devcontainer
-も同じネットワークに入る（[コンテナの構成](../architecture/app/containers.md "在りか")）。control-plane か、このリポジトリの devcontainer を
-初めて起動する前に、次で作る。
-
-```bash
-docker network inspect agent-control-plane-net >/dev/null 2>&1 || docker network create agent-control-plane-net
-```
 
 ```bash
 docker compose up -d --build
