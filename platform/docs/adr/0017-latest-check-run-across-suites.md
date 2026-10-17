@@ -20,7 +20,8 @@ PR #149 で、head の最初の run は GitHub の支払いの制限でジョブ
 ## Decision
 
 - `filter=latest` で読んだ check run を、app と名前ごとにまとめ、`id` が一番大きいものだけを残してから、ADR 0006 の
-  分け方で判定する。GitHub の check run の `id` は、あとから作られたものほど大きい。
+  分け方で判定する。GitHub の check run の `id` は、あとから作られたものほど大きい（API の説明にはなく、観察による）。
+  まとめ方は、GitHub の必須の status check が check を名前（と app）で照らし、一番新しいものを見るのに倣う。
 - 名前だけでなく app でもまとめる。ほかの app の同じ名前の check run が、失敗を隠さないようにする。
 - 偽の gh が返す check run にも、本物と同じく `id` と `app` を持たせ、二つの suite にまたがる場合を試験する。
 
@@ -35,5 +36,7 @@ PR #149 で、head の最初の run は GitHub の支払いの制限でジョブ
 ## Consequences
 
 - 同じ head で CI を流し直せば、古い失敗は判定から外れる。逆に、通ったあとの流し直しで失敗すれば、failed になる。
-- 同じ app が同じ名前の check run を、一つの suite の中で二つ作るワークフローでは、新しい方だけを見る。
+- 同じ app の同じ名前の check run は、別のワークフローのものでも、別のイベント（push と pull_request など）の
+  ものでも、一つとして扱い、新しい方だけを見る。古い方の失敗は、新しい方が通れば判定から外れる。分けるには、
+  Actions の run を引いてワークフローと結ぶ必要があり、今はそうしない。
 - `id` が作られた順に大きくなることは、GitHub の API の説明にはなく、これまでの観察によるもの。
