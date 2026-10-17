@@ -53,6 +53,11 @@ echo '[y](missing-too.md)' >>"$repo/README.md"
 check "another failure holds the turn again" block "$(run)"
 check "a later session is told the same failure again" block "$(run "$repo" s2)"
 forget
+nopy=$tmp/nopy
+mkdir "$nopy"
+for c in bash cat dirname env git jq rm; do ln -s "$(command -v "$c")" "$nopy/$c"; done
+check "without python3, the turn is not held" pass "$(PATH=$nopy run "$repo" s4)"
+forget
 chmod a-w "$(dirname "$held")"
 check "a failure that cannot be remembered does not hold the turn" pass "$(run "$repo" s3)"
 chmod u+w "$(dirname "$held")"

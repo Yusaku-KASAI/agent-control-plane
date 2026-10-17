@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Stop hook: when the branch or the working tree holds Markdown changes, runs check-docs and keeps the
-# turn going while it fails. Errors of the hook itself (no git, no jq) never stop the turn.
+# turn going while it fails. Errors of the hook itself (no git, jq or python3) never stop the turn.
 set -uo pipefail
 
+command -v python3 >/dev/null || exit 0
 input=$(cat)
 session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
 dir=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)
