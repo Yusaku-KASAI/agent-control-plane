@@ -199,11 +199,14 @@ func TestObserveKeepsLatestRemarks(t *testing.T) {
 	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
 		t.Errorf("remarks after the answer = %q, want %q without the answer", m.view.remarks, want)
 	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "四つ目"})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "終わりました。"})
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "PR は #1 です。" + strings.Repeat("い", maxRemarkLength)})
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "終わりました。\n\nPR は #1 です。" + strings.Repeat("い", maxRemarkLength+10)}})
-	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
-		t.Errorf("remarks after an answer that came in blocks = %q, want %q without its last block", m.view.remarks, want)
+	if want := [maxRemarks]string{"", ""}; m.view.remarks != want {
+		t.Errorf("remarks after an answer that came in blocks = %q, want %q without any of its blocks", m.view.remarks, want)
 	}
+	m.view.remarks = [maxRemarks]string{"", "三つ目"}
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "別の回答"}})
 	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
 		t.Errorf("remarks after an answer that no remark starts = %q, want %q", m.view.remarks, want)

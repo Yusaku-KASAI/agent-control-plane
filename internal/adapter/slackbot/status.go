@@ -94,17 +94,19 @@ func quote(remarks []string) string {
 	return strings.Join(paragraphs, "\n>\n") + "\n\n"
 }
 
-// forgetAnswer drops the last remark if it is part of the turn's answer, which reaches the thread
-// as an answer, so that a status message taken over by the agent's next turn does not show it
-// again. The answer's text may come as one remark or, block by block, as several.
+// forgetAnswer drops the latest remarks that are part of the turn's answer, which reaches the
+// thread as an answer, so that a status message taken over by the agent's next turn does not show
+// it again. The answer's text may come as one remark or, block by block, as several.
 func (v *statusView) forgetAnswer(output string) {
-	last := &v.remarks[maxRemarks-1]
 	answer := oneLine(output)
-	if *last == "" || answer == "" || !strings.Contains(answer, strings.TrimSuffix(*last, "…")) {
-		return
+	for range maxRemarks {
+		last := v.remarks[maxRemarks-1]
+		if last == "" || answer == "" || !strings.Contains(answer, strings.TrimSuffix(last, "…")) {
+			return
+		}
+		copy(v.remarks[1:], v.remarks[:maxRemarks-1])
+		v.remarks[0] = ""
 	}
-	copy(v.remarks[1:], v.remarks[:maxRemarks-1])
-	v.remarks[0] = ""
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
