@@ -16,7 +16,7 @@ platform と target-template の文書は、それぞれ [platform/docs/README.m
 | [architecture/app/credentials.md](architecture/app/credentials.md) | 解説 | 認証情報：Claude、GitHub App、Slack の発行と更新、セッションごとの置き場所 |
 | [architecture/app/containers.md](architecture/app/containers.md) | 解説 | エージェントのコンテナ：Docker のプロキシ、実行、プラグインの読み込み |
 | [architecture/codebase/layers.md](architecture/codebase/layers.md) | 解説 | Go のコードの層と依存の向き |
-| [architecture/codebase/devcontainer.md](architecture/codebase/devcontainer.md) | 解説 | target-template の環境のファイルのうち、このリポジトリが埋める部分（Go のツールチェーンと検査） |
+| [architecture/codebase/devcontainer.md](architecture/codebase/devcontainer.md) | 解説 | target-template の環境のファイルのうち、このリポジトリが埋める部分（Go のツールチェーン、検査、control-plane のネットワーク） |
 | [guides/operations.md](guides/operations.md) | 手順 | サーバーの準備と起動、Slack のトークンの取り直し、クライアントのビルド |
 | [reference/usage.md](reference/usage.md) | 参照 | 依頼の仕方（Slack、CLI） |
 | [reference/coding.md](reference/coding.md) | 参照 | Go の書き方 |
