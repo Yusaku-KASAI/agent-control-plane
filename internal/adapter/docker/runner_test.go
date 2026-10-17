@@ -377,6 +377,7 @@ func TestStreamEventActivity(t *testing.T) {
 		activity, remark string
 	}{
 		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Found the cause.\n\n  Fixing it next.\n"}]}}`, "", "Found the cause.\n\n  Fixing it next."},
+		{`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check"}}]}}`, "Bash: make check", ""},
 		{`{"type":"assistant","message":{"content":[{"type":"text","text":"Running the tests."},{"type":"tool_use","name":"Edit","input":{"file_path":"/w/a.go"}}]}}`, "Edit: /w/a.go", "Running the tests."},
 		{`{"type":"assistant","message":{"content":[{"type":"text","text":"One."},{"type":"text","text":"Two."}]}}`, "", "One.\n\nTwo."},
 		{`{"type":"assistant","parent_tool_use_id":"t1","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"Foo"}}]}}`, "（サブエージェント）Grep: Foo", ""},

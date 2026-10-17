@@ -18,10 +18,11 @@ const (
 	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
 	refreshInterval = 5 * time.Second
 	heldAnswerGrace = 15 * time.Second
-	// maxRemarks is how many of the agent's latest remarks a running status message shows, and
-	// maxRemarkLength the runes each is cut to, so that the message stays short.
-	maxRemarks      = 2
-	maxRemarkLength = 200
+	// maxRemarks is how many of the agent's latest remarks a running status message shows, so that
+	// the flow of the work can be followed, and maxRemarkLength the runes each is cut to, which most
+	// remarks other than answers fit in.
+	maxRemarks      = 10
+	maxRemarkLength = 100
 )
 
 type outcome int
@@ -53,7 +54,7 @@ func (v statusView) render(now time.Time) string {
 	switch v.outcome {
 	case running:
 		fmt.Fprintf(&b, "⏳ **実行中**（%s）\n", elapsed(v.startedAt, now))
-		b.WriteString(quote(v.remarks[:]))
+		b.WriteString(remarkList(v.remarks[:]))
 		if v.activity != "" {
 			fmt.Fprintf(&b, "今の作業：%s\n", v.activity)
 		}
@@ -79,19 +80,19 @@ func (v statusView) render(now time.Time) string {
 	return b.String()
 }
 
-// quote renders remarks as one block quote, a paragraph each. The blank line after it keeps the
-// next lines out of the quote, which Markdown would otherwise continue.
-func quote(remarks []string) string {
-	var paragraphs []string
+// remarkList renders remarks as a list, oldest first. The blank line after it keeps the next lines
+// out of the last item, which Markdown would otherwise continue.
+func remarkList(remarks []string) string {
+	var items []string
 	for _, r := range remarks {
 		if r != "" {
-			paragraphs = append(paragraphs, "> "+r)
+			items = append(items, "- "+r)
 		}
 	}
-	if len(paragraphs) == 0 {
+	if len(items) == 0 {
 		return ""
 	}
-	return strings.Join(paragraphs, "\n>\n") + "\n\n"
+	return "これまでの発言（古い順）：\n" + strings.Join(items, "\n") + "\n\n"
 }
 
 // forgetAnswer drops the latest remarks that are part of the turn's answer, which reaches the
