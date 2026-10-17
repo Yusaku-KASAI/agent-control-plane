@@ -51,11 +51,7 @@ func (v statusView) render(now time.Time) string {
 	switch v.outcome {
 	case running:
 		fmt.Fprintf(&b, "⏳ **実行中**（%s）\n", elapsed(v.startedAt, now))
-		for _, r := range v.remarks {
-			if r != "" {
-				fmt.Fprintf(&b, "> %s\n", r)
-			}
-		}
+		b.WriteString(quote(v.remarks[:]))
 		if v.activity != "" {
 			fmt.Fprintf(&b, "今の作業：%s\n", v.activity)
 		}
@@ -79,6 +75,34 @@ func (v statusView) render(now time.Time) string {
 		fmt.Fprintf(&b, "・止めるには、このメッセージに :%s: を付けてください", stopReaction)
 	}
 	return b.String()
+}
+
+// quote renders remarks as one block quote, a paragraph each. The blank line after it keeps the
+// next lines out of the quote, which Markdown would otherwise continue.
+func quote(remarks []string) string {
+	var paragraphs []string
+	for _, r := range remarks {
+		if r != "" {
+			paragraphs = append(paragraphs, "> "+r)
+		}
+	}
+	if len(paragraphs) == 0 {
+		return ""
+	}
+	return strings.Join(paragraphs, "\n>\n") + "\n\n"
+}
+
+// forgetAnswer drops the last remark if it is the start of the turn's answer, which reaches the
+// thread as an answer, so that a status message taken over by the agent's next turn does not
+// show it again.
+func (v *statusView) forgetAnswer(output string) {
+	last := &v.remarks[maxRemarks-1]
+	answer := strings.Join(strings.Fields(output), " ")
+	if *last == "" || answer == "" || !strings.HasPrefix(answer, strings.TrimSuffix(*last, "…")) {
+		return
+	}
+	copy(v.remarks[1:], v.remarks[:maxRemarks-1])
+	v.remarks[0] = ""
 }
 
 func (v statusView) stoppable() bool {
@@ -176,6 +200,7 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		if e.Kind == usecase.SessionTurnFinished {
 			m.view.finishedAt = time.Now()
 			m.view.outcome = outcomeOf(e.Result)
+			m.view.forgetAnswer(e.Result.Output)
 		}
 		if e.Remark != "" {
 			copy(m.view.remarks[:], m.view.remarks[1:])

@@ -103,8 +103,12 @@ func TestStatusViewRender(t *testing.T) {
 	}
 
 	running.remarks = [maxRemarks]string{"", "原因が分かりました"}
-	if got := running.render(start); !strings.Contains(got, "\n> 原因が分かりました\n今の作業：") {
-		t.Errorf("running render does not quote the remark above the activity:\n%s", got)
+	if got := running.render(start); !strings.Contains(got, "\n> 原因が分かりました\n\n今の作業：") {
+		t.Errorf("running render does not quote the remark apart from the activity:\n%s", got)
+	}
+	running.remarks = [maxRemarks]string{"一つ目", "二つ目"}
+	if got := running.render(start); !strings.Contains(got, "\n> 一つ目\n>\n> 二つ目\n\n今の作業：") {
+		t.Errorf("running render does not quote each remark as its own paragraph:\n%s", got)
 	}
 
 	finished := statusView{session: "sess", startedAt: start, finishedAt: start.Add(9 * time.Second), outcome: done, remarks: [maxRemarks]string{"A", "B"}}
@@ -185,6 +189,15 @@ func TestObserveKeepsLatestRemarks(t *testing.T) {
 	}
 	if want := [maxRemarks]string{"二つ目", "三つ目"}; m.view.remarks != want {
 		t.Errorf("remarks = %q, want %q", m.view.remarks, want)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "終わりました。 PR は #1 です。…"})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "終わりました。\nPR は #1 です。あとは CI を待ちます。"}})
+	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
+		t.Errorf("remarks after the answer = %q, want %q without the answer", m.view.remarks, want)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "別の回答"}})
+	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
+		t.Errorf("remarks after an answer that no remark starts = %q, want %q", m.view.remarks, want)
 	}
 	if b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true}).view.remarks[1] != "三つ目" {
 		t.Error("an agent-started turn dropped the remarks of the status message it took over")
