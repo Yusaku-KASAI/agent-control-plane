@@ -22,8 +22,9 @@ type Store struct {
 	flock func(fd int, how int) error
 
 	mu sync.Mutex
-	// held is who holds each session in this process. flock alone does not exclude on some bind
-	// mounts (Docker Desktop's fakeowner), even between descriptors of one process.
+	// held is who holds each session through this Store, which acp serve makes once and shares.
+	// flock alone does not exclude on some bind mounts (Docker Desktop's fakeowner), even between
+	// descriptors of one process.
 	held map[domain.SessionID]*holder
 }
 
@@ -114,8 +115,8 @@ func optionalTime(t time.Time) *time.Time {
 	return &t
 }
 
-// Lock is held in this process and with flock: the first excludes within the process wherever the
-// sessions are, the second excludes other processes where flock works, and neither outlives a
+// Lock is held in this Store and with flock: the first excludes among the users of this Store wherever
+// the sessions are, the second excludes other Stores and processes where flock works, and neither outlives a
 // crashed process. It creates the session's directory, so that the session can be locked before it
 // is created. Remove moves the directory away under the lock and lets the session go, so a lock
 // taken on the moved file is dropped and taken again, and the old holder no longer holds the new one.

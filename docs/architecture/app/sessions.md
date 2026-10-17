@@ -94,8 +94,8 @@
 ### ロック（`internal/adapter/filesession` の `Lock`、`<sessions.root>/<ID>/.lock`）
 
 - **責務**：一つのセッションのディレクトリを、同時に一つの処理だけが触るようにする。
-- **置くもの / 置かないもの**：プロセスの中の、セッションの ID ごとの持ち主と、`.lock` への flock の二重
-  （[ADR 0035](../../adr/app/0035-session-lock-held-in-process.md)）。プロセスの中のロックは、flock が取り合いに
+- **置くもの / 置かないもの**：ストア（`acp serve` が一つだけ作り、Dispatcher と片付けが共有する）の中の、セッションの ID ごとの持ち主と、
+  `.lock` への flock の二重（[ADR 0035](../../adr/app/0035-session-lock-held-in-store.md)）。ストアの中のロックは、flock が取り合いに
   ならない bind mount（Docker Desktop の fakeowner）の上でも守る。flock は、ほかのプロセスとの間を守る。どちらも
   待たずに取りにいき、取れなければセッションが使われていると返す。プロセスが落ちればロックは外れる。セッションの
   ディレクトリも作るので、記録を作る前に取れる。取ったあと、取ったファイルが今の `.lock` と同じかを確かめ、違えば
@@ -105,8 +105,8 @@
   [片付け](#cleaner)がセッションや記録のないディレクトリを消す間と `kept_notified_at` を書く間。取れなければ、
   依頼はセッションが使用中だと返し、片付けはそのセッションをその回は飛ばす。ロックを取ったら、記録を読み直してから使う。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同時に触らないことを
-  呼び出し側の気遣いではなく、ストアのロック（プロセスの中のロックと flock）で守る。[多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：
-  プロセスの中のロックと flock を重ね、片方が効かない所でももう片方で守る。
+  呼び出し側の気遣いではなく、ストアのロック（ストアの中のロックと flock）で守る。[多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：
+  ストアの中のロックと flock を重ね、片方が効かない所でももう片方で守る。
 
 <a id="worker"></a>
 

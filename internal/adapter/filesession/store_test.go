@@ -108,7 +108,28 @@ func TestStore_ListRemove(t *testing.T) {
 	}
 }
 
-// Where flock does not exclude, the lock still holds within the process.
+// Two Stores on the same sessions stand for two processes: flock excludes between them.
+func TestStore_LockAcrossStores(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	first, second := filesession.NewStore(root), filesession.NewStore(root)
+
+	unlock, err := first.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() error = %v", err)
+	}
+	if _, err := second.Lock(ctx, id); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Fatalf("Lock() through another Store error = %v, want ErrSessionBusy", err)
+	}
+	unlock()
+	again, err := second.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() through another Store after unlock error = %v", err)
+	}
+	again()
+}
+
+// Where flock does not exclude, the lock still holds within the Store.
 func TestStore_LockWithoutFlock(t *testing.T) {
 	ctx := context.Background()
 	store := filesession.NewStoreWithoutFlock(t.TempDir())
