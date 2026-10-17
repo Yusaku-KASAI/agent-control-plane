@@ -54,12 +54,19 @@ docker compose up -d --build
 docker compose logs control-plane   # 起動できなかった Bot は "slack bot stopped" として理由が出る
 ```
 
-API はホストの `127.0.0.1:8787` で届く。devcontainer から試すときだけ、その場で control-plane のネットワークにつなぎ、
-`acp run --server http://control-plane:8787` にトークンを渡す。試し終えたら外す。
+API はホストの `127.0.0.1:8787` で届く。このリポジトリの devcontainer から試すときだけ、ホストのリポジトリの
+ディレクトリでその場で control-plane のネットワークにつなぎ、試し終えたら外す。
 
 ```bash
-docker network connect agent-control-plane_default <devcontainer のコンテナ>
-docker network disconnect agent-control-plane_default <devcontainer のコンテナ>
+dev=$(docker compose -f .devcontainer/compose.yaml ps -q dev-container)
+docker network connect agent-control-plane_default "$dev"
+docker network disconnect agent-control-plane_default "$dev"   # 試し終えたら
+```
+
+つないでいる間は、devcontainer の中でトークンを渡して依頼する（[クライアントをビルドする](#build-client)）。
+
+```bash
+ACP_API_TOKEN=<トークン> bin/acp run --server http://control-plane:8787 --agent <name> "<指示>"
 ```
 
 ## Slack のトークンを取り直す
@@ -70,6 +77,8 @@ OAuth の認可からトークンを取る。手順は次のコマンドが表�
 ```bash
 docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>
 ```
+
+<a id="build-client"></a>
 
 ## クライアントをビルドする
 

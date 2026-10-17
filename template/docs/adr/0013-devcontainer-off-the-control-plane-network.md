@@ -18,12 +18,13 @@ devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。�
 イメージで動き（ターゲットの契約のイメージ）、同じ環境で検査し（ADR 0005）、外への通信の制限も同じものを置く
 （ADR 0008）。ネットワークだけ devcontainer が多くを持っていた。
 
+人とエージェントの環境は、なるべく同じ能力を持つようにしたい。ネットワークは、その差の一つだった。
+
 ## Decision
 
-- devcontainer とエージェントのコンテナには、作業の能力（イメージ、道具、プラグイン、検査、ネットワーク）を
-  同じだけ持たせる。認証情報と Claude Code の設定は、持ち主（人か、エージェントごとの App か）ごとに分ける。
-- その一つとして、どのターゲットの devcontainer も、control-plane のネットワークに入らず、`ACP_SERVER` も渡さない。
-  control-plane そのものを開発するこのリポジトリも例外にしない。ホストの準備（`init-host.sh`）はネットワークを作らない。
+- どのターゲットの devcontainer も、エージェントのコンテナと同じく、control-plane のネットワークに入らず、
+  `ACP_SERVER` も渡さない。control-plane そのものを開発するこのリポジトリも例外にしない。ホストの準備
+  （`init-host.sh`）はネットワークを作らない。
 - control-plane は、compose のプロジェクトの既定のネットワークを使う。外部のネットワークを手で作る手順をなくす。
 - devcontainer から control-plane を試すときだけ、人がその場でネットワークにつなぎ、トークンを手で渡す。
 - 将来、エージェントのコンテナに control-plane やサイドカーへの道を足すときは、devcontainer にも同じ仕組みで
@@ -31,8 +32,8 @@ devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。�
 
 ## Alternatives
 
-- **すべてのターゲットで残す**：使われていない経路で、devcontainer から control-plane の API に届く面を残し、
-  エージェントとの差も残る。
+- **すべてのターゲットで残す**：使われていない経路が残り、エージェントとの差も残る。API を守るのはネットワーク
+  ではなくトークンなので（app ADR 0014）、外すのは隔離のためというより、差と使われない設定をなくすため。
 - **control-plane を開発するターゲットの devcontainer だけ残す**：control-plane を試しやすいが、同じ control-plane
   のエージェントとの差が残り、ターゲットごとの部分が増える。試すのはまれなので、その場でつなげば足りる。
 - **残して、devcontainer 向けの権限を絞ったトークンを作る**：依頼者の識別（control-plane の #24）が要る。
@@ -42,7 +43,8 @@ devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。�
 
 - 今ある devcontainer は、作り直す（`docker compose up -d --force-recreate` など）まで `agent-control-plane-net` に
   つながったまま。control-plane も、作り直すと compose の既定のネットワーク（`agent-control-plane_default`）に移る。
-  どちらも作り直したあとは、`agent-control-plane-net` は誰も使わないので、`docker network rm agent-control-plane-net`
-  で消してよい。
+  ほかのターゲットが追従し（#131）、どの devcontainer も control-plane も作り直したあとは、`agent-control-plane-net`
+  は誰も使わないので、`docker network rm agent-control-plane-net` で消してよい。追従の前に消すと、追従していない
+  ターゲットの devcontainer が、外部のネットワークがなく起動できない。
 - target-template の `init-host.sh`（共通）と `.devcontainer/compose.yaml`（埋める）の共通の部分が変わるので、
   ほかのターゲットも追従する（#131）。
