@@ -88,7 +88,10 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
       から決まるもの。
     - マウントは、作業領域（書き込める）、エージェントの Claude Code の設定、セッションの認証情報（読み取り専用）、
       ターゲットの隣のマーケットプレイス（読み取り専用）。
-    - ラベル `acp.session`（セッション ID）と `acp.agent`（エージェント名）。
+    - ラベル `acp.session`（セッション ID）と `acp.agent`（エージェント名）。Docker Compose がプロジェクトのコンテナを探す
+      ラベル（`com.docker.compose.project`、`com.docker.compose.service`）は空にする。`docker compose build` で作った
+      イメージはこれを持ち、コンテナはイメージのラベルを引き継ぐので、空にしないとエージェントのコンテナが devcontainer の
+      compose のプロジェクトに数えられ、VS Code の Reopen in Container や `docker compose down` の対象になる。
     - 標準入力を開いておき、閉じるとプロセスが終わる。
   - `RemoveLeftovers`：ラベル `acp.session` の付いたコンテナを、動いているものも止まっているものもすべて消し、
     そのセッションを返す。いつ呼ばれるかは[依頼と知らせ](requests.md#shutdown "在りか")にある。

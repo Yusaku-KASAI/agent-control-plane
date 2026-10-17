@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
@@ -76,8 +77,15 @@ func TestContainerSpec(t *testing.T) {
 			t.Errorf("Env = %q, want %s", spec.Config.Env, want)
 		}
 	}
-	if l := spec.Config.Labels; l["acp.session"] != string(testSession.ID) || l["acp.agent"] != "repo-dev" {
-		t.Errorf("Labels = %v", l)
+	wantLabels := map[string]string{
+		"acp.session": string(testSession.ID),
+		"acp.agent":   "repo-dev",
+		// Blank, so that the labels the image got from docker compose build are not inherited.
+		"com.docker.compose.project": "",
+		"com.docker.compose.service": "",
+	}
+	if !maps.Equal(spec.Config.Labels, wantLabels) {
+		t.Errorf("Labels = %v, want %v", spec.Config.Labels, wantLabels)
 	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: "/sessions/0f8fad5b/workspace/repo", Target: "/workspace/repo"},
