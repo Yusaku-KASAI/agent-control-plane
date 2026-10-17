@@ -21,7 +21,6 @@ control-plane のサーバーを手元で準備して動かす手順。
 - `sessions.root` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - ターゲットのリポジトリの既定のブランチを、ルールセットで守っておく（[既定のブランチの守りの用意](../../template/docs/guides/github.md "在りか")）。
-  エージェントの GitHub App は、CODEOWNERS の持ち主にも承認する team にも入れない。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
 

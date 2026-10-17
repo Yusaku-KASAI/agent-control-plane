@@ -29,8 +29,8 @@
 | Restrict deletions、Block force pushes | オン |
 | Require a pull request before merging | オン。Required approvals は 1、Dismiss stale pull request approvals when new commits are pushed をオン |
 | 承認する人（個人のリポジトリ） | Require review from Code Owners をオン |
-| 承認する人（organization のリポジトリ） | Required reviewers に、上の team を指定する |
-| Require status checks to pass | オン。必須のチェックは `check` だけ（[CI](../architecture/ci.md "在りか")） |
+| 承認する人（organization のリポジトリ） | Required reviewers に上の team を足し、ファイルのパターンは `*`、必須の承認数は 1 にする。承認数が 0 だと team は通知されるだけで、承認は求められない |
+| Require status checks to pass | オン。必須のチェックは `check` だけで、報告する元は GitHub Actions にする（[CI](../architecture/ci.md "在りか")）。元を固定しないと、コミットの状態を書ける誰でも `check` の成功を付けられる |
 
 ルールセットの `require_extra_approval_for_unattributed_changes` は、オンでもオフでもよい。この守りには数えない。
 
@@ -44,7 +44,16 @@ CODEOWNERS を置いたときと変えたあとは、誤りがないことを確
 ```bash
 gh api repos/<owner>/<repo>/codeowners/errors   # {"errors":[]} なら誤りはない
 gh api repos/<owner>/<repo>/rulesets            # ルールセットの id
-gh api repos/<owner>/<repo>/rulesets/<id>       # rules の pull_request と required_status_checks を見る
+gh api repos/<owner>/<repo>/rulesets/<id> --jq .rules   # 下の値を見る
 ```
+
+`rules` が次を満たすことを見る。
+
+- `deletion` と `non_fast_forward` がある。
+- `pull_request` の `required_approving_review_count` が 1、`dismiss_stale_reviews_on_push` が `true`。
+  個人のリポジトリでは `require_code_owner_review` が `true`。organization のリポジトリでは `required_reviewers` に
+  team が `file_patterns: ["*"]`、`minimum_approvals: 1` で入っている。
+- `required_status_checks` の `required_status_checks` が、`context` が `check` で `integration_id` が GitHub Actions
+  （15368）のものだけ。
 
 ルールセットの `bypass_actors` は、読む認証情報の権限によっては空（`null`）で返る。バイパスの設定は画面で確かめる。
