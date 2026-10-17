@@ -113,10 +113,13 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     `stop_task`。
   - 読む：標準出力の行を、ターンの始まり（`system/init`）、終わり（`result`）、バックグラウンドの処理の変化、依頼の
     取り込み（`--replay-user-messages` で返る依頼）、今していること（最後のツール呼び出しかテキスト）の出来事にする。
-    ターンの終わりは、`subtype` が `error_during_execution` なら中断（中断ではないエラーも含む）、`is_error` が立つか
-    `subtype` が `error` で始まればエラーとする。エラーのうち、`api_error` が `usage_limit_reached` のもの、`api_error`
-    がなく最後に受けた `rate_limit_event` が上限に達していることを示している（`rejected` で、追加の利用分を使って
-    おらず、戻る時刻の前）ものを、使用上限によるものとする（[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。
+    ターンの終わりは、`subtype` が `error_during_execution` で、`interrupt` を送ってから最初の `result` か、
+    `terminal_reason` が `aborted_streaming` か `aborted_tools` なら中断とする
+    （[ADR 0033](../../adr/app/0033-stopped-turns-by-terminal-reason.md)）。ほかに `is_error` が立つか `subtype` が
+    `error` で始まればエラーとし、`result` の文面がなければ、`errors` から診断の行を除いたものを文面にする。
+    エラーのうち、`api_error` が `usage_limit_reached` のもの、`api_error` がなく最後に受けた `rate_limit_event` が
+    上限に達していることを示している（`rejected` で、追加の利用分を使っておらず、戻る時刻の前）ものを、使用上限に
+    よるものとする（[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。
     標準エラーは最後の 8 KiB を持ち、異常終了の理由に添える。
   - `UpdateCredentials` と `SetCoAuthors`：セッションの認証情報のディレクトリのファイルを書き換える。
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを

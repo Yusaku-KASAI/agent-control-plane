@@ -295,8 +295,39 @@ func TestRunner_Start(t *testing.T) {
 		t.Errorf("stdin got %s, want a stop_task request", line)
 	}
 	api.emit(1, `{"type":"result","subtype":"error_during_execution","result":""}`+"\n")
-	if e := receive(t, proc.Events()); !e.Result.Interrupted {
+	if e := receive(t, proc.Events()); !e.Result.Interrupted || e.Result.Error {
 		t.Errorf("event = %+v, want an interrupted result", e)
+	}
+	stops := []struct {
+		name      string
+		interrupt bool
+		lines     []string
+		stopped   bool
+		output    string
+	}{
+		{"aborted without an interrupt", false, []string{`{"type":"result","subtype":"error_during_execution","terminal_reason":"aborted_tools","errors":["turn_handoff"]}`}, true, ""},
+		{"aborted while streaming", false, []string{`{"type":"result","subtype":"error_during_execution","terminal_reason":"aborted_streaming"}`}, true, ""},
+		{"failed setup", false, []string{`{"type":"result","subtype":"error_during_execution","terminal_reason":"turn_setup_failed","errors":["queryParams builder failed: boom"]}`}, false, "queryParams builder failed: boom"},
+		{"exception without a reason", false, []string{`{"type":"result","subtype":"error_during_execution","errors":["a","b"]}`}, false, "a\nb"},
+		{"exception with diagnostics", false, []string{`{"type":"result","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=assistant","boom","[session_crash] error_name=Error"]}`}, false, "boom"},
+		{"interrupt taken by a finished turn", true, []string{`{"type":"result","subtype":"success","result":"done"}`,
+			`{"type":"result","subtype":"error_during_execution","errors":["boom"]}`}, false, "boom"},
+	}
+	for _, s := range stops {
+		if s.interrupt {
+			if err := proc.Interrupt(context.Background()); err != nil {
+				t.Fatalf("Interrupt() error = %v", err)
+			}
+			api.readStdin(t)
+		}
+		var e usecase.ProcessEvent
+		for _, line := range s.lines {
+			api.emit(1, line+"\n")
+			e = receive(t, proc.Events())
+		}
+		if e.Result.Interrupted != s.stopped || e.Result.Error == s.stopped || e.Result.Output != s.output {
+			t.Errorf("%s: event = %+v, want stopped %v with output %q", s.name, e, s.stopped, s.output)
+		}
 	}
 
 	api.emit(1, `{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}`+"\n")
