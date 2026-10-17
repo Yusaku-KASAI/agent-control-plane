@@ -18,8 +18,10 @@ const (
 	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
 	refreshInterval = 5 * time.Second
 	heldAnswerGrace = 15 * time.Second
-	// maxRemarks is how many of the agent's latest remarks a running status message shows.
-	maxRemarks = 2
+	// maxRemarks is how many of the agent's latest remarks a running status message shows, and
+	// maxRemarkLength the runes each is cut to, so that the message stays short.
+	maxRemarks      = 2
+	maxRemarkLength = 200
 )
 
 type outcome int
@@ -92,17 +94,36 @@ func quote(remarks []string) string {
 	return strings.Join(paragraphs, "\n>\n") + "\n\n"
 }
 
-// forgetAnswer drops the last remark if it is the start of the turn's answer, which reaches the
-// thread as an answer, so that a status message taken over by the agent's next turn does not
-// show it again.
+// forgetAnswer drops the last remark if it is part of the turn's answer, which reaches the thread
+// as an answer, so that a status message taken over by the agent's next turn does not show it
+// again. The answer's text may come as one remark or, block by block, as several.
 func (v *statusView) forgetAnswer(output string) {
 	last := &v.remarks[maxRemarks-1]
-	answer := strings.Join(strings.Fields(output), " ")
-	if *last == "" || answer == "" || !strings.HasPrefix(answer, strings.TrimSuffix(*last, "…")) {
+	answer := oneLine(output)
+	if *last == "" || answer == "" || !strings.Contains(answer, strings.TrimSuffix(*last, "…")) {
 		return
 	}
 	copy(v.remarks[1:], v.remarks[:maxRemarks-1])
 	v.remarks[0] = ""
+}
+
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// remarkLine puts a remark on one line, cut to maxRemarkLength.
+func remarkLine(s string) string {
+	line := oneLine(s)
+	if r := []rune(line); len(r) > maxRemarkLength {
+		return string(r[:maxRemarkLength]) + "…"
+	}
+	return line
+}
+
+// addRemark keeps the remark as the latest, pushing out the oldest.
+func (v *statusView) addRemark(remark string) {
+	if line := remarkLine(remark); line != "" {
+		copy(v.remarks[:], v.remarks[1:])
+		v.remarks[maxRemarks-1] = line
+	}
 }
 
 func (v statusView) stoppable() bool {
@@ -202,10 +223,7 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 			m.view.outcome = outcomeOf(e.Result)
 			m.view.forgetAnswer(e.Result.Output)
 		}
-		if e.Remark != "" {
-			copy(m.view.remarks[:], m.view.remarks[1:])
-			m.view.remarks[maxRemarks-1] = e.Remark
-		}
+		m.view.addRemark(e.Remark)
 		m.mu.Unlock()
 		m.apply(e.Status)
 		b.refresh(m)

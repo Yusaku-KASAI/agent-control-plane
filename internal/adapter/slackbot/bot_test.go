@@ -184,16 +184,25 @@ func TestObserveKeepsLatestRemarks(t *testing.T) {
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
 	m.updating = true // keeps observe from starting to write to Slack
-	for _, r := range []string{"一つ目", "二つ目", "三つ目", ""} {
+	for _, r := range []string{"一つ目", "二つ目", "三つ目", " \n "} {
 		b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: r, Status: usecase.SessionStatus{Running: true}})
 	}
 	if want := [maxRemarks]string{"二つ目", "三つ目"}; m.view.remarks != want {
 		t.Errorf("remarks = %q, want %q", m.view.remarks, want)
 	}
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "終わりました。 PR は #1 です。…"})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "終わりました。\nPR は #1 です。あとは CI を待ちます。"}})
+	answer := "終わりました。\n\nPR は #1 です。" + strings.Repeat("あ", maxRemarkLength)
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: answer})
+	if last := m.view.remarks[maxRemarks-1]; last != remarkLine(answer) || !strings.HasPrefix(last, "終わりました。 PR は #1 です。あ") || !strings.HasSuffix(last, "あ…") {
+		t.Errorf("long remark = %q, want it on one line and cut", last)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: answer}})
 	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
 		t.Errorf("remarks after the answer = %q, want %q without the answer", m.view.remarks, want)
+	}
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "PR は #1 です。" + strings.Repeat("い", maxRemarkLength)})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "終わりました。\n\nPR は #1 です。" + strings.Repeat("い", maxRemarkLength+10)}})
+	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {
+		t.Errorf("remarks after an answer that came in blocks = %q, want %q without its last block", m.view.remarks, want)
 	}
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "別の回答"}})
 	if want := [maxRemarks]string{"", "三つ目"}; m.view.remarks != want {

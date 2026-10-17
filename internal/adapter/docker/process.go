@@ -201,7 +201,7 @@ func (e streamEvent) activity() (activity, remark string) {
 	if activity != "" && subagent {
 		activity = "（サブエージェント）" + activity
 	}
-	return activity, oneLine(strings.Join(texts, " "), maxRemark)
+	return activity, strings.Join(texts, "\n\n")
 }
 
 func toolActivity(name string, input json.RawMessage) string {
@@ -221,24 +221,13 @@ func toolActivity(name string, input json.RawMessage) string {
 	return name
 }
 
-// maxRemark is the length a remark is cut to, so that the status message stays short.
-const maxRemark = 200
-
 func firstLine(s string) string {
 	line, _, _ := strings.Cut(s, "\n")
-	return cut(line, 120)
-}
-
-// oneLine puts text on one line, cut to max runes.
-func oneLine(s string, max int) string {
-	return cut(strings.Join(strings.Fields(s), " "), max)
-}
-
-func cut(s string, max int) string {
-	if r := []rune(s); len(r) > max {
+	const max = 120
+	if r := []rune(line); len(r) > max {
 		return string(r[:max]) + "…"
 	}
-	return s
+	return line
 }
 
 func (p *process) read() {

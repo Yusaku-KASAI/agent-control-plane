@@ -171,8 +171,7 @@ type ProcessEvent struct {
 	BackgroundTasks []string
 	// Activity is what the agent is doing now, for EventActivity; empty when it did not change.
 	Activity string
-	// Remark is what the agent said to people, on one line, for EventActivity; empty when it
-	// said nothing.
+	// Remark is what the agent said to people, for EventActivity; empty when it said nothing.
 	Remark string
 	// PromptID is set for EventPromptAccepted.
 	PromptID string
