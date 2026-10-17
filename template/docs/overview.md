@@ -35,7 +35,7 @@
 | `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査 |
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` と `check-docs` は共通 |
 | `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
-| `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0014](adr/0014-codeowners-by-default.md)） |
+| `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](reference/contract.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 

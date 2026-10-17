@@ -2,7 +2,7 @@
 
 ターゲットのリポジトリで、既定のブランチへの変更を PR 経由に限り、マージに数える承認を人に限る手順。何を守るか
 は[ターゲットの契約](../reference/contract.md#protection "在りか")に、理由は [app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)
-と [ADR 0014](../adr/0014-codeowners-by-default.md) にある。
+と [ADR 0015](../adr/0015-codeowners-by-default.md) にある。
 
 <a id="approvers"></a>
 
