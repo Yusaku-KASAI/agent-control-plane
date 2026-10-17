@@ -87,9 +87,9 @@ conventions/
 - **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる
   （`scripts/context`）。ターンの終わりに、Markdown を変えていれば文書の検査を回し、落ちていればターンを止める
   （`scripts/check-docs-at-stop`、[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
-- **置くもの / 置かないもの**：ターンの終わりの hook は、ブランチが既定のブランチから分かれてから変えた Markdown と、
-  作業ツリーで変えたか足した Markdown があるときだけ回す。既定のブランチが分からないときは作業ツリーだけを見る。
-  ほかの Stop の hook ですでに続けたターンでは止めない。何を確かめるかは置かず、`check-docs` に任せる。
+- **置くもの / 置かないもの**：ターンの終わりの hook は、ブランチが既定のブランチから分かれてから変えた Markdown か、
+  作業ツリーで変えたか足した Markdown があるときだけ回す。誰が変えたかは区別しない。既定のブランチが分からないときは
+  作業ツリーだけを見る。同じ出力で止めるのは一度だけ。何を確かめるかは置かず、`check-docs` に任せる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
   相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/check-docs-at-stop-test.sh`。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
@@ -117,9 +117,11 @@ conventions/
   `--map` で、すべての地図から設計構造行列を出す。
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や置き場所の
   良し悪しは確かめない（レビューの観点に任せる）。
-- **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。ターンの終わりの hook が回す。
+- **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
+  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。
   リポジトリが自分の `make` や CI から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
-- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)。
+  [Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)：ただし検査は CI ではなく、ターンの終わりの hook で回す。
 
 <a id="map-conventions"></a>
 
