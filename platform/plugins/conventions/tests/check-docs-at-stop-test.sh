@@ -28,11 +28,11 @@ g "$origin" commit --quiet -m v1
 git clone --quiet "$origin" "$repo"
 g "$repo" switch --quiet -c work
 
-# run [cwd]: whether the hook holds the turn, and with check-docs' errors.
+# run [cwd] [session]: whether the hook holds the turn, and with check-docs' errors.
 run() {
   local out
-  out=$(jq -nc --arg cwd "${1:-$repo}" \
-    '{session_id: "s", cwd: $cwd, hook_event_name: "Stop", stop_hook_active: false}' | "$hook")
+  out=$(jq -nc --arg cwd "${1:-$repo}" --arg session "${2:-s}" \
+    '{session_id: $session, cwd: $cwd, hook_event_name: "Stop", stop_hook_active: false}' | "$hook" 2>/dev/null)
   if [[ -z $out ]]; then
     echo pass
   elif jq -e '.decision == "block" and (.reason | contains("broken link"))' <<<"$out" >/dev/null; then
@@ -51,6 +51,11 @@ check "a broken link in the working tree holds the turn" block "$(run)"
 check "the same failure holds a turn only once" pass "$(run)"
 echo '[y](missing-too.md)' >>"$repo/README.md"
 check "another failure holds the turn again" block "$(run)"
+check "a later session is told the same failure again" block "$(run "$repo" s2)"
+forget
+chmod a-w "$(dirname "$held")"
+check "a failure that cannot be remembered does not hold the turn" pass "$(run "$repo" s3)"
+chmod u+w "$(dirname "$held")"
 forget
 mkdir -p "$repo/sub"
 check "from a subdirectory, the whole repository is looked at" block "$(run "$repo/sub")"
@@ -64,10 +69,12 @@ echo '[z](missing-3.md)' >>"$repo/README.md"
 check "without the default branch, the working tree still is" block "$(run)"
 g "$repo" remote set-head origin main
 g "$repo" reset --quiet --hard origin/main
-check "a branch back to the default passes" pass "$(run)"
-check "passing forgets the held failure" no "$([[ -e $held ]] && echo yes || echo no)"
 echo '[x](missing.md)' >>"$repo/README.md"
-check "a failure held before is told again after a pass" block "$(run)"
+check "a failure to be fixed holds the turn" block "$(run)"
+g "$repo" checkout --quiet README.md
+check "the fixed branch passes" pass "$(run)"
+echo '[x](missing.md)' >>"$repo/README.md"
+check "the same failure after a pass holds the turn again" block "$(run)"
 forget
 g "$repo" reset --quiet --hard origin/main
 echo '[x](missing.md)' >"$repo/new.md"

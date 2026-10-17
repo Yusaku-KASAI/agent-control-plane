@@ -89,7 +89,8 @@ conventions/
   （`scripts/check-docs-at-stop`、[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **置くもの / 置かないもの**：ターンの終わりの hook は、ブランチが既定のブランチから分かれてから変えた Markdown か、
   作業ツリーで変えたか足した Markdown があるときだけ回す。誰が変えたかは区別しない。既定のブランチが分からないときは
-  作業ツリーだけを見る。同じ出力で止めるのは一度だけ。何を確かめるかは置かず、`check-docs` に任せる。
+  作業ツリーだけを見る。同じ出力で止めるのは一つのセッションで一度だけで、
+  止めたことを覚えられなければ止めない。何を確かめるかは置かず、`check-docs` に任せる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
   相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/check-docs-at-stop-test.sh`。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
