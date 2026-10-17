@@ -61,11 +61,5 @@ volumes:
     name: acp-state
 
 networks:
-  # Shared only with this repository's dev container, where the control plane is developed
-  # (docs/architecture/app/containers.md). Created by hand, before either starts
-  # (docs/guides/operations.md).
-  default:
-    name: agent-control-plane-net
-    external: true
   docker-proxy:
     internal: true

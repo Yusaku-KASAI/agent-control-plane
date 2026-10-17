@@ -95,8 +95,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ネットワーク）を決める。
 - **置くもの / 置かないもの**：名前とパスは `.env` の値から決め、値そのものは置かない。値がなければ `init-host.sh`
   を実行するよう言って止まる。
-  - ネットワークは compose のプロジェクトの既定のものだけにし、control-plane のネットワークには入らない。
-    control-plane を開発するターゲットが、ターゲットごとの部分として入れる場合を除く
+  - ネットワークは compose のプロジェクトの既定のものだけにし、control-plane のネットワークには入らない
     （[ターゲットの契約](../reference/contract.md#control-plane)）。
 - **関係**：`.env` を読み、Dockerfile のツールチェーンのステージをビルドする。devcontainer.json がこれを参照する。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。

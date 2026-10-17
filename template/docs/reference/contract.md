@@ -57,13 +57,12 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 
 ## devcontainer と control-plane
 
-ターゲットの devcontainer は、control-plane の Docker ネットワーク（`agent-control-plane-net`）に入らない
-（[ADR 0013](../adr/0013-devcontainer-off-the-control-plane-network.md)）。依頼は Slack と、ホストの `acp run` から行う。
+ターゲットの devcontainer は、エージェントのコンテナと同じく、control-plane の Docker ネットワークに入らず、
+control-plane の API を指さない（[ADR 0013](../adr/0013-devcontainer-off-the-control-plane-network.md)）。依頼は Slack と、
+ホストの `acp run` から行う。
 
 - devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
   エージェントを起動できてしまう。
-- control-plane そのものを開発するターゲットは、自分の devcontainer を、そのターゲットごとの部分としてネットワークに
-  入れてよい（[ファイルの分類](../overview.md#files "在りか")の `.devcontainer/compose.yaml`）。
 
 ## CLAUDE.md
 

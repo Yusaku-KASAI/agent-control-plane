@@ -50,9 +50,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）。名前は固定する（`acp-credentials` と `acp-claude` は、
     エージェントのコンテナから名前で指す）。
-  - API は、ホストからは `127.0.0.1:8787`、このリポジトリの devcontainer からはネットワーク `agent-control-plane-net` の
-    `control-plane:8787` で届く。ほかのターゲットの devcontainer はこのネットワークに入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
-    リクエストには `ACP_API_TOKEN` を要求する。devcontainer には渡さないので、そこから試すときは人が手で渡す。
+  - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
+    （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
+    リクエストには `ACP_API_TOKEN` を要求する。
   - 止めるときの猶予は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。実行中のターンを中断して
     スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
 - **関係**：プロキシにだけ、内部ネットワーク `docker-proxy` でつながる。秘密のファイルとボリュームの中身は

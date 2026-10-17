@@ -7,8 +7,6 @@ control-plane のサーバーを手元で準備して動かす手順。
 設定は [acp.example.yaml](../../acp.example.yaml)（各項目の意味）と [.env.example](../../.env.example) をもとに、`acp.yaml` と
 `.env` を作る。どちらも gitignore の対象。以下は値の用意の仕方。
 
-<a id="setup-overall"></a>
-
 ### 1. 全体
 
 - ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを
@@ -21,14 +19,6 @@ control-plane のサーバーを手元で準備して動かす手順。
   ```
 
 - `sessions.root` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
-- control-plane のネットワーク `agent-control-plane-net` を作る。`compose.yaml` は外部のネットワークとして使い、自分では
-  作らない。このリポジトリの devcontainer も同じネットワークに入る（[コンテナの構成](../architecture/app/containers.md "在りか")）ので、
-  devcontainer を初めて起動する前にも要る。
-
-  ```bash
-  docker network inspect agent-control-plane-net >/dev/null 2>&1 || docker network create agent-control-plane-net
-  ```
-
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
@@ -62,6 +52,14 @@ control-plane のサーバーを手元で準備して動かす手順。
 ```bash
 docker compose up -d --build
 docker compose logs control-plane   # 起動できなかった Bot は "slack bot stopped" として理由が出る
+```
+
+API はホストの `127.0.0.1:8787` で届く。devcontainer から試すときだけ、その場で control-plane のネットワークにつなぎ、
+`acp run --server http://control-plane:8787` にトークンを渡す。試し終えたら外す。
+
+```bash
+docker network connect agent-control-plane_default <devcontainer のコンテナ>
+docker network disconnect agent-control-plane_default <devcontainer のコンテナ>
 ```
 
 ## Slack のトークンを取り直す

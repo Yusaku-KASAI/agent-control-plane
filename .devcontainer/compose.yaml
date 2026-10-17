@@ -1,6 +1,5 @@
 # Names and paths come from .devcontainer/.env, written by init-host.sh, so that only the parts a
-# target fills in (the build target, the toolchain's cache volumes and, for the control plane, its
-# network and ACP_SERVER) differ between targets.
+# target fills in (the build target and the toolchain's cache volumes) differ between targets.
 name: ${REPO_NAME:?run .devcontainer/init-host.sh}-dev
 
 services:
@@ -35,18 +34,8 @@ services:
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - PROMPT_COMMAND=history -a
       - HISTFILE=/commandhistory/.bash_history
-      # The control plane is developed here, so this container is on its network (the part this
-      # target fills in, per the target contract). The API token is deliberately not passed: it
-      # would let this container start agents that hold GitHub credentials.
-      - ACP_SERVER=http://control-plane:8787
 
 volumes:
   vscode-server:
   go-mod:
   go-build:
-
-networks:
-  # The control plane's network; docs/guides/operations.md creates it.
-  default:
-    name: agent-control-plane-net
-    external: true

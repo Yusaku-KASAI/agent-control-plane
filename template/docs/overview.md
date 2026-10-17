@@ -27,7 +27,7 @@
 | `tools/check-docs.py` | 共通 | — |
 | `.devcontainer/Dockerfile` | 埋める | ツールチェーンのステージ（`base` を元にするもの）の中身と、それが使うステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）、`check-base` が元にするステージの名前、`check-<関心>` のステージ。`uv-source`、`base`、ツールチェーンのステージのうちホストに依存する値を足す部分、`check-base`、`check-target`、`check-docs` は共通 |
 | `.claude/settings.json` | 埋める | 使うプラグインの宣言（`extraKnownMarketplaces`、`enabledPlugins`）、回答の言語（`language`）、対話のときの権限（`permissions`）。`worktree` は共通 |
-| `.devcontainer/compose.yaml` | 埋める | ビルドするステージの名前と、ツールチェーンのキャッシュのボリューム。control-plane を開発するターゲットでは、control-plane のネットワークとその API を指す環境変数（[ターゲットの契約](reference/contract.md#control-plane)） |
+| `.devcontainer/compose.yaml` | 埋める | ビルドするステージの名前と、ツールチェーンのキャッシュのボリューム |
 | `.devcontainer/devcontainer.json`、`.vscode/settings.json` | 埋める | ツールチェーンの拡張機能とその設定 |
 | `.devcontainer/Dockerfile.dockerignore` | 埋める | ツールチェーンが作るものの除外 |
 | `.devcontainer/.env.example` | 埋める | リポジトリ名を含む値 |
