@@ -30,7 +30,7 @@ type process struct {
 	creds  sessionCredentials
 
 	writeMu sync.Mutex
-	// interruptSent is set by Interrupt and taken by the next result, whose turn it stopped.
+	// interruptSent is set by Interrupt and taken by the next result, which may be of the turn it stopped.
 	interruptSent atomic.Bool
 	events        chan usecase.ProcessEvent
 	done          chan struct{}
