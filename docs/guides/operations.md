@@ -49,9 +49,9 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 ### 4. 起動
 
-`compose.yaml` は外部のネットワーク `agent-control-plane-net`（[ターゲットの契約](../../template/docs/reference/contract.md#control-plane "在りか")）を
-使い、自分では作らない。ネットワークは、ターゲットのホストの準備（このリポジトリなら `.devcontainer/init-host.sh`、
-[ホストの準備](../../template/docs/guides/devcontainer.md#host "在りか")）が作る。どのターゲットのホストもまだ準備していなければ、起動の前に次で作る。
+`compose.yaml` は外部のネットワーク `agent-control-plane-net` を使い、自分では作らない。このリポジトリの devcontainer
+も同じネットワークに入る（[コンテナの構成](../architecture/app/containers.md "在りか")）。control-plane か、このリポジトリの devcontainer を
+初めて起動する前に、次で作る。
 
 ```bash
 docker network inspect agent-control-plane-net >/dev/null 2>&1 || docker network create agent-control-plane-net

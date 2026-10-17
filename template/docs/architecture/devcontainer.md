@@ -95,8 +95,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ネットワーク）を決める。
 - **置くもの / 置かないもの**：名前とパスは `.env` の値から決め、値そのものは置かない。値がなければ `init-host.sh`
   を実行するよう言って止まる。
-  - control-plane への接続（共有のネットワークと、API を指す環境変数）は、[ターゲットの契約](../reference/contract.md#control-plane)の
-    とおりにする。
+  - ネットワークは compose のプロジェクトの既定のものだけにし、control-plane のネットワークには入らない
+    （[ターゲットの契約](../reference/contract.md#control-plane)）。
 - **関係**：`.env` を読み、Dockerfile のツールチェーンのステージをビルドする。devcontainer.json がこれを参照する。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。
   [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：コンテナの振る舞いを VS Code の配線から分ける。
@@ -112,7 +112,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 ### `.devcontainer/init-host.sh`
 
-- **責務**：ホストを devcontainer のために準備する（`.env`、状態を置くディレクトリ、control-plane と共有するネットワーク）。
+- **責務**：ホストを devcontainer のために準備する（`.env`、状態を置くディレクトリ）。
 - **置くもの / 置かないもの**：何度実行しても同じになる処理。`.env` にすでにある値は変えない。いつ実行するかは
   [手順](../guides/devcontainer.md "在りか")にある。
 - **関係**：`.env.example` の項目を `.env` に書く。

@@ -61,8 +61,9 @@ volumes:
     name: acp-state
 
 networks:
-  # Shared with targets' dev containers so `acp run` reaches http://control-plane:8787 from there
-  # (the target contract). A target's host setup, such as .devcontainer/init-host.sh, creates it.
+  # Shared only with this repository's dev container, where the control plane is developed
+  # (docs/architecture/app/containers.md). Created by hand, before either starts
+  # (docs/guides/operations.md).
   default:
     name: agent-control-plane-net
     external: true
