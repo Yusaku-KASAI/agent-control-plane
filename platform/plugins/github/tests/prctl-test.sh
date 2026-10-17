@@ -306,7 +306,8 @@ set_pr "$c2"
 # A wait outlives an edit of prctl in place (bash reads a script as it goes).
 cp "$prctl" "$tmp/prctl-copy"
 sequence "in_progress/"
-PRCTL_CI_POLL=1 "$tmp/prctl-copy" ci --wait >"$tmp/edited.out" 2>&1 &
+# A bound, so that a wait that never gets its answer fails the check instead of stalling the tests.
+PRCTL_CI_POLL=1 PRCTL_CI_TIMEOUT=60 "$tmp/prctl-copy" ci --wait >"$tmp/edited.out" 2>&1 &
 waiter=$!
 sleep 2
 script=$(cat "$tmp/prctl-copy")
