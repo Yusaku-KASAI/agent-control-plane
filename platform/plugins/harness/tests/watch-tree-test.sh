@@ -49,6 +49,8 @@ snapshot=$(git -C "$repo" rev-parse --path-format=absolute --git-path acp-subage
 check "no change, nothing to tell" "" "$(around ':')"
 check "the snapshot is removed" no "$([[ -e $snapshot ]] && echo yes || echo no)"
 told() { if [[ -n $1 ]]; then echo yes; else echo no; fi; }
+check "the context points to where each change shows" yes \
+  "$(m=$(around 'touch probe'); rm -f "$repo/probe"; [[ $m == *"git log"* && $m == *"git stash list"* ]] && echo yes || echo no)"
 check "an untracked file is told" yes "$(told "$(around 'touch "ait; } => |"')")"
 rm -f "$repo/ait; } => |"
 echo dirty >"$repo/README.md"
@@ -66,6 +68,11 @@ check "a stash is told" yes "$(told "$(around 'echo s >README.md; git stash --qu
 check "a linked worktree made in the work area is not told" "" \
   "$(around 'git worktree add --quiet -b inner .claude/worktrees/agent-1 && touch .claude/worktrees/agent-1/work')"
 check "an ignored file is not told" "" "$(around 'mkdir -p build && touch build/out')"
+touch "$repo/locked"
+chmod 000 "$repo/locked"
+check "a change beside an unreadable file is told" yes "$(told "$(around 'echo beside >README.md')")"
+rm -f "$repo/locked"
+g checkout --quiet -- README.md
 check "the work area's index is left as it was" "" "$(g status --porcelain --untracked-files=no)"
 out=$(run "" PreToolUse Agent '{"prompt":"p"}')
 touch "$repo/failed"
