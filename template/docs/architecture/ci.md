@@ -1,7 +1,8 @@
 # CI
 
 PR と main への push のたびと、毎週の定期実行で、devcontainer のイメージの中で `make check` と同じ検査を行う
-（[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
+（[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて、ターゲットに依存しない文書の検査を、platform の
+複合アクションで devcontainer の外で行う（[ADR 0014](../adr/0014-target-independent-checks-as-platform-actions.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
 Makefile の `check-<関心>` のように `make` で実行する単位を、make のルール（以下、ルール）と呼ぶ。
 
 ## 構成
@@ -10,18 +11,21 @@ Makefile の `check-<関心>` のように `make` で実行する単位を、mak
 Makefile                .devcontainer/Dockerfile   .github/workflows/ci.yml
 check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>   ジョブ ─┐
        └─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┼─▶ check ジョブ（必須）
-                            ほかの Dockerfile  ◀─ イメージのビルドのジョブ ─┘
+                            ほかの Dockerfile  ◀─ イメージのビルドのジョブ ─┤
+                            check-docs アクション ◀─ check-docs ジョブ ─┘
 ```
 
-◀─ は実行する向き（ジョブがステージをビルドし、ステージが `make` を実行する）、─▶ は結果をまとめる向き。
+◀─ は実行する向き（ジョブがステージをビルドし、ステージが `make` を実行する。`check-docs` ジョブはアクションを呼ぶ）、
+─▶ は結果をまとめる向き。
 
-- 検査の中身は Makefile の `check-<関心>` にだけあり、Dockerfile のステージと CI のジョブはそれを呼ぶ
+- ターゲットの検査の中身は Makefile の `check-<関心>` にだけあり、Dockerfile のステージと CI のジョブはそれを呼ぶ
   （[ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。
 - 関心ごとに、Makefile のルール、Dockerfile のステージ、CI のジョブが同じ名前で一つずつ並ぶ。
 - ターゲットにほかのイメージ（アプリをデプロイするためのイメージなど）があれば、そのビルドも CI のジョブにする。
 - CI のジョブの結果は `check` ジョブにまとまる。
-- 文書の形式の検査は conventions プラグインのコマンドで、Markdown を変えたターンの終わりに conventions の hook が回す
-  （[conventions の全体像](../../../platform/plugins/conventions/docs/overview.md "在りか")）。ターゲットの検査には含めない。
+- 文書の形式の検査は conventions プラグインのコマンドで、`make check` には含めない。CI では `check-docs` ジョブが
+  conventions の複合アクションを呼ぶ。エージェントが Markdown を変えたターンの終わりには、conventions の hook も回す
+  （[conventions の全体像](../../../platform/plugins/conventions/docs/overview.md "在りか")）。
 
 ## 構成要素
 
@@ -52,9 +56,11 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 ### `.github/workflows/ci.yml`
 
-- **責務**：`check-<関心>` ごとのジョブでステージをビルドし、結果を `check` ジョブにまとめる。
+- **責務**：`check-<関心>` ごとのジョブでステージをビルドし、文書の検査のジョブとあわせて、結果を `check` ジョブにまとめる。
 - **置くもの / 置かないもの**：
   - 行列のジョブ（`check-<関心>` と、ほかのイメージのビルド）。一つが失敗してもほかは最後まで動かす。
+  - `check-docs` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main`
+    の一つのステップだけを持つ（チェックアウトもアクションが行う）。中身は platform に置き、ターゲットには書かない。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
   - 毎週の定期実行では、選んだ検査のステージだけキャッシュを使わない。キャッシュが当たると、新しく公開された

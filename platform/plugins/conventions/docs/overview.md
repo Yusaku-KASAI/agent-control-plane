@@ -16,6 +16,7 @@ conventions/
                    Markdown を変えたターンの終わりに、文書の検査を回す
   skills/          届け方：docs/guides/ の手順を、必要なときに要約か案内で読ませる（write-docs、design、review）
   bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド
+  actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
   tests/           ターンの終わりの hook の試験
 ```
 
@@ -120,9 +121,17 @@ conventions/
   良し悪しは確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
   `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。
-  リポジトリが自分の `make` や CI から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
-- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)。
-  [Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)：ただし検査は CI ではなく、ターンの終わりの hook で回す。
+  CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
+
+### CI の文書の検査（[`actions/check-docs/`](../actions/check-docs/action.yml "在りか")）
+
+- **責務**：ターゲットの CI で、そのリポジトリをチェックアウトし、アクションと同じ版の `bin/check-docs` を回す。
+- **置くもの / 置かないもの**：チェックアウトと `check-docs` の呼び出しだけ。何を確かめるかは置かない。
+- **関係**：ターゲットの `ci.yml` が `@main` で呼ぶ（target-template の [CI](../../../../template/docs/architecture/ci.md "在りか")）。
+  devcontainer のイメージを使わず、ランナーの `python3` と `git` で動く。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を platform の一か所に置き、ターゲットは
+  呼ぶ一行だけを書く。
 
 <a id="map-conventions"></a>
 

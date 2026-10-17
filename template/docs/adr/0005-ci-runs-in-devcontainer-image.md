@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-04
-amended_by: [11]
+amended_by: [11, 14]
 ---
 
 # 0005. CI は devcontainer のイメージの中で make check を実行する

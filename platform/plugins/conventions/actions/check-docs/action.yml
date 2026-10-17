@@ -1,0 +1,10 @@
+name: check-docs
+description: Checks the Markdown of the repository the workflow runs for against the conventions plugin's document formats.
+runs:
+  using: composite
+  steps:
+    # Checked out here, so that a target's job needs only this one step.
+    - uses: actions/checkout@v5
+    # The action's own repository is fetched at the ref the target asked for, so check-docs comes from it.
+    - shell: bash
+      run: '"$GITHUB_ACTION_PATH/../../bin/check-docs"'
