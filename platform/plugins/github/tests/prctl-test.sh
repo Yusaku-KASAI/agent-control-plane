@@ -150,14 +150,29 @@ check "reviewed up to the head" "$("$prctl" unreviewed)" "reviewed up to the hea
 out=$(stop_hook)
 check "stop lets the turn end" "[$out]" "[]"
 
-# checks <status/conclusion>...: the head's check runs, named c0, c1, ...
+# checks <status/conclusion>...: the head's check runs, named c0, c1, ..., in the form of GitHub's
+# (an id, and the app that made it).
 checks() {
   local i=0 r
   for r in "$@"; do
-    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" \
-      '{name: $n, status: $s, conclusion: (if $c == "" then null else $c end), details_url: "https://ci.invalid/\($n)"}'
+    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" --argjson id "$((100 + i))" \
+      '{id: $id, name: $n, status: $s, conclusion: (if $c == "" then null else $c end),
+        details_url: "https://ci.invalid/\($n)", app: {id: 15368, slug: "github-actions"}}'
     i=$((i + 1))
   done | jq -s '{check_runs: .}' >"$state/checks.json"
+}
+# rerun <id> <status/conclusion>...: the check runs of another suite on the same head, with the
+# same names as before (c0, c1, ...) and ids from <id>, added to those already there.
+rerun() {
+  local id=$1 i=0 r
+  shift
+  for r in "$@"; do
+    jq -n --arg n "c$i" --arg s "${r%/*}" --arg c "${r#*/}" --argjson id "$((id + i))" \
+      '{id: $id, name: $n, status: $s, conclusion: (if $c == "" then null else $c end),
+        details_url: "https://ci.invalid/\($n)/\($id)", app: {id: 15368, slug: "github-actions"}}'
+    i=$((i + 1))
+  done | jq -s --slurpfile old "$state/checks.json" '{check_runs: ($old[0].check_runs + .)}' >"$state/checks.tmp"
+  mv "$state/checks.tmp" "$state/checks.json"
 }
 settled() { cat "$(git rev-parse --git-path prctl-settled)" 2>/dev/null || true; }
 
@@ -186,6 +201,25 @@ checks completed/failure completed/success completed/timed_out
 check "failures are listed with their URLs" "$(stop_hook)" "c0 https://ci.invalid/c0; c2 https://ci.invalid/c2."
 check "the post-tool-use hook leaves CI out" \
   "[$(rm -f "$(git rev-parse --git-path prctl-notified)"; jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)]" "[]"
+# A head can have more than one check suite; of the runs of the same check, the latest one counts.
+checks completed/failure completed/failure
+rerun 200 completed/success completed/success
+check "a check that failed and then passed in a later suite has passed" "$("$prctl" ci | sed -n 2p)" "passed"
+out=$(stop_hook)
+check "a check that failed and then passed in a later suite lets the turn end" "[$out]" "[]"
+checks completed/success completed/success
+rerun 200 completed/failure completed/success
+check "a check that passed and then failed in a later suite has failed" "$("$prctl" ci | sed -n 2,3p)" \
+  "failed
+c0 https://ci.invalid/c0/200"
+checks completed/failure
+rerun 50 completed/success
+check "of the same check, the greatest id counts, not the order of the answer" "$("$prctl" ci | sed -n 2p)" "failed"
+checks completed/failure
+jq '.check_runs += [.check_runs[0] | .id = 300 | .app = {id: 1, slug: "another-app"} | .conclusion = "success"]' \
+  "$state/checks.json" >"$state/checks.tmp" && mv "$state/checks.tmp" "$state/checks.json"
+check "a check of the same name from another app does not hide a failure" "$("$prctl" ci | sed -n 2p)" "failed"
+
 checks
 check "no check run is none" "$("$prctl" ci | sed -n 2p)" "none"
 out=$(stop_hook)

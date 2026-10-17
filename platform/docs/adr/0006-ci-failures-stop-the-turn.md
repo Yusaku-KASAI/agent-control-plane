@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-13
-amended_by: [10]
+amended_by: [10, 17]
 ---
 
 # 0006. CI は待たずに進み、今の head の CI が失敗していればターンの終わりに止める
