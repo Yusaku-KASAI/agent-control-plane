@@ -139,7 +139,8 @@ type StartRequest struct {
 
 type TurnResult struct {
 	Output string
-	// Interrupted is set when the turn ended because of Process.Interrupt.
+	// Interrupted is set when the turn was stopped, by Process.Interrupt or otherwise, rather than
+	// ended on an error.
 	Interrupted bool
 	// Failed is set when the process ended before the turn did.
 	Failed bool

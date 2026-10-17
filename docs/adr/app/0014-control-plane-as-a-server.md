@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-01
+amended_by: ["../../../template/docs/adr/0013-devcontainer-off-the-control-plane-network.md"]
 ---
 
 # 0014. control-plane は常駐するサーバーとしてコンテナで動き、CLI はそのクライアントになる

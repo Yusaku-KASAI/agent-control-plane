@@ -28,7 +28,7 @@
 | 設計 | 今の形の中での、構成要素の責務の分け方、依存の向き | [設計の原則](../../../principles/docs/reference/principles.md)と[設計のパターン](../../../principles/docs/reference/patterns.md) |
 | セキュリティ | 秘密の扱い、渡す権限の広さ、許可の既定、守りの重ね方、外から入る値（エージェントが読む内容を含む）の確かめ方 | [守り方の原則](../../../principles/docs/reference/principles.md#security)と、そのリポジトリの契約と ADR |
 | 文書とコメント | 今の姿だけか、一か所か、言葉が用語集どおりか、文書の置き場所、文書（地図や構成要素の説明を含む）が実装と食い違っていないか | [書き方](writing.md)、[文書の体系](../architecture/documentation.md)、[文書の形式](formats.md) |
-| 検査 | 変更を確かめる検査があるか。機械で確かめられるのに、人が読むことに頼っていないか | [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms) |
+| 検査 | 変更を確かめる検査があるか。機械で確かめられるのに、人が読むことに頼っていないか。足したり変えたりした検査が、守りたい性質を壊した版で落ちるか | [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)、[壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing) |
 
 - 機械で確かめられることは、そのリポジトリの検査（CI と同じもの）に任せる。読む人は、検査では見つからないものを探す。
 - 検査で見つけられたはずの指摘は、検査を足す案も一緒に出す。

@@ -49,17 +49,32 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 ### 4. 起動
 
-`compose.yaml` は外部のネットワーク `agent-control-plane-net`（[ターゲットの契約](../../template/docs/reference/contract.md#control-plane "在りか")）を
-使い、自分では作らない。ネットワークは、ターゲットのホストの準備（このリポジトリなら `.devcontainer/init-host.sh`、
-[ホストの準備](../../template/docs/guides/devcontainer.md#host "在りか")）が作る。どのターゲットのホストもまだ準備していなければ、起動の前に次で作る。
-
-```bash
-docker network inspect agent-control-plane-net >/dev/null 2>&1 || docker network create agent-control-plane-net
-```
-
 ```bash
 docker compose up -d --build
 docker compose logs control-plane   # 起動できなかった Bot は "slack bot stopped" として理由が出る
+```
+
+API はホストの `127.0.0.1:8787` で届く。このリポジトリの devcontainer から試すときだけ、ホストのリポジトリの
+ディレクトリでその場で control-plane のネットワークにつなぎ、試し終えたら外す。
+
+```bash
+dev=$(docker compose -f .devcontainer/compose.yaml ps -q dev-container)
+docker network connect agent-control-plane_default "$dev"
+```
+
+つないでいる間は、devcontainer の中でトークンを渡して依頼する（[クライアントをビルドする](#build-client)）。トークンは
+シェルの履歴に残らないよう、コマンド行に書かずに読み込み、試し終えたら消す。
+
+```bash
+read -rs ACP_API_TOKEN && export ACP_API_TOKEN
+bin/acp run --server http://control-plane:8787 --agent <name> "<指示>"
+unset ACP_API_TOKEN
+```
+
+試し終えたら、ホストで外す。
+
+```bash
+docker network disconnect agent-control-plane_default "$dev"
 ```
 
 ## Slack のトークンを取り直す
@@ -70,6 +85,8 @@ OAuth の認可からトークンを取る。手順は次のコマンドが表�
 ```bash
 docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>
 ```
+
+<a id="build-client"></a>
 
 ## クライアントをビルドする
 

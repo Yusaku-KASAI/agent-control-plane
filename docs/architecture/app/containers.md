@@ -50,8 +50,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）。名前は固定する（`acp-credentials` と `acp-claude` は、
     エージェントのコンテナから名前で指す）。
-  - API は、ホストからは `127.0.0.1:8787`、ターゲットの devcontainer からは共有ネットワーク `agent-control-plane-net` の
-    `control-plane:8787` で届く（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。リクエストには `ACP_API_TOKEN` を要求する。
+  - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
+    （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
+    リクエストには `ACP_API_TOKEN` を要求する。
   - 止めるときの猶予は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。実行中のターンを中断して
     スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
 - **関係**：プロキシにだけ、内部ネットワーク `docker-proxy` でつながる。秘密のファイルとボリュームの中身は
@@ -113,10 +114,13 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - 読む：標準出力の行を、ターンの始まり（`system/init`）、終わり（`result`）、バックグラウンドの処理の変化、依頼の
     取り込み（`--replay-user-messages` で返る依頼）、今していること（最後のツール呼び出しかサブエージェントの
     テキスト）とエージェントの発言（エージェント本体のテキスト）の出来事にする。
-    ターンの終わりは、`subtype` が `error_during_execution` なら中断（中断ではないエラーも含む）、`is_error` が立つか
-    `subtype` が `error` で始まればエラーとする。エラーのうち、`api_error` が `usage_limit_reached` のもの、`api_error`
-    がなく最後に受けた `rate_limit_event` が上限に達していることを示している（`rejected` で、追加の利用分を使って
-    おらず、戻る時刻の前）ものを、使用上限によるものとする（[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。
+    ターンの終わりは、`subtype` が `error_during_execution` で、`interrupt` を送ってから最初の `result` か、
+    `terminal_reason` が `aborted_streaming` か `aborted_tools` なら中断とする
+    （[ADR 0033](../../adr/app/0033-stopped-turns-by-terminal-reason.md)）。ほかに `is_error` が立つか `subtype` が
+    `error` で始まればエラーとし、`result` の文面がなければ、`errors` から診断の行を除いたものを文面にする。
+    エラーのうち、`api_error` が `usage_limit_reached` のもの、`api_error` がなく最後に受けた `rate_limit_event` が
+    上限に達していることを示している（`rejected` で、追加の利用分を使っておらず、戻る時刻の前）ものを、使用上限に
+    よるものとする（[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。
     標準エラーは最後の 8 KiB を持ち、異常終了の理由に添える。
   - `UpdateCredentials` と `SetCoAuthors`：セッションの認証情報のディレクトリのファイルを書き換える。
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを
