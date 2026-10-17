@@ -41,6 +41,10 @@ case $args in
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   *" pr view 1 "*) cat "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
+  *" -X PATCH "*"/pulls/"*)
+    for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-edit"; done
+    echo "https://example.invalid/pull/1"
+    ;;
   *" -X POST "*"/reviews "*)
     [[ ! -f $dir/fail ]] || exit 1
     commit="" body=""
@@ -670,16 +674,16 @@ check "fixes of nitpicks after the whole review let the PR end" "[$out]" "[]"
 git checkout -q stacked
 touch "$state/nopr-stacked"
 check "a PR is opened as a draft" "$("$prctl" create t - <<<"$good" >/dev/null && cat "$state/last-create")" "pr create --draft"
-# A body read back from GitHub carries its old marker; only the marker of the head is sent.
-old=$(printf '%040d' 0)
-"$prctl" create t - <<<"$good"$'\n\n<!-- prctl: head='"$old"$' -->' >/dev/null
-check "a body's old marker is dropped" "[$(grep -o 'prctl: head=[0-9a-f]*' "$state/last-create" | tr '\n' ' ')]" \
-  "[prctl: head=$(git rev-parse HEAD) ]"
 rm "$state/nopr-stacked"
 git checkout -q feature
 c20=$(commit twenty)
 git push -q
 set_pr "$c20"
+# A body read back from GitHub carries its old marker; only the marker of the head is sent.
+old=$(printf '%040d' 0)
+"$prctl" update - <<<"$good"$'\n\n<!-- prctl: head='"$old"$' -->' >/dev/null
+check "a body's old marker is dropped" "[$(grep -o 'prctl: head=[0-9a-f]*' "$state/last-edit" | tr '\n' ' ')]" \
+  "[prctl: head=$(git rev-parse HEAD) ]"
 "$prctl" review "$c20" - <<<"$must" >/dev/null
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 out=$(stop_hook)
