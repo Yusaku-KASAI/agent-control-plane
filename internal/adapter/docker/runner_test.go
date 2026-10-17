@@ -389,8 +389,12 @@ func TestStreamEventActivity(t *testing.T) {
 		if err := json.Unmarshal([]byte(tc.line), &e); err != nil {
 			t.Fatal(err)
 		}
-		if a, r := e.activity(); a != tc.activity || r != tc.remark {
-			t.Errorf("activity(%s) = %q, %q, want %q, %q", tc.line, a, r, tc.activity, tc.remark)
+		pe, ok := e.processEvent(turnFacts{})
+		if want := tc.activity != "" || tc.remark != ""; ok != want {
+			t.Errorf("processEvent(%s) reported %v, want %v", tc.line, ok, want)
+		}
+		if ok && (pe.Kind != usecase.EventActivity || pe.Activity != tc.activity || pe.Remark != tc.remark) {
+			t.Errorf("processEvent(%s) = %+v, want activity %q and remark %q", tc.line, pe, tc.activity, tc.remark)
 		}
 	}
 }
