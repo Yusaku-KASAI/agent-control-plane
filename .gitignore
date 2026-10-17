@@ -4,7 +4,7 @@
 !.env.example
 .devcontainer/.env
 .claude/settings.local.json
-# Worktrees of subagents run with isolation: worktree.
+# Worktrees of subagents run with isolation: worktree (target-template).
 /.claude/worktrees/
 CLAUDE.local.md
 

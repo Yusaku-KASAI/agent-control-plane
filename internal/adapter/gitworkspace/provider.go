@@ -66,9 +66,6 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if err := installHooks(dest); err != nil {
 		return domain.Workspace{}, err
 	}
-	if err := excludeAgentWorktrees(dest); err != nil {
-		return domain.Workspace{}, err
-	}
 	return domain.Workspace{Path: dest}, nil
 }
 
@@ -132,24 +129,6 @@ func installHooks(repo string) error {
 		}
 	}
 	return nil
-}
-
-// agentWorktrees is where Claude Code puts the worktrees of subagents run with isolation: worktree.
-// Kept there, a worktree with changes would show as untracked files of the workspace, and prePushHook
-// would refuse every push. Excluding it in the workspace's .git leaves the target's .gitignore alone.
-const agentWorktrees = "/.claude/worktrees/"
-
-func excludeAgentWorktrees(repo string) error {
-	path := filepath.Join(repo, ".git", "info", "exclude")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	_, err = f.WriteString("\n" + agentWorktrees + "\n")
-	return errors.Join(err, f.Close())
 }
 
 // gitRunner ignores the host user's git configuration, credential helpers and SSH keys, so the

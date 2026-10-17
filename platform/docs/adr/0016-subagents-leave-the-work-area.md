@@ -34,11 +34,12 @@ worktree で動く。hook の入力は、サブエージェントのツールの
   比べるのは HEAD、ブランチ、index、stash、変更のあるファイルと追跡していないファイル（ignore されたものと、作業領域の
   中の linked worktree は除く）の中身。任せた変更でも、手段（リダイレクトやスクリプトの中など）によらず、何が
   変わったかがセッションのエージェントに届く。
-- **control-plane は、作業領域の `.git/info/exclude` に `/.claude/worktrees/` を書く。** `isolation: worktree` の worktree が
-  変更を持ったまま残ると、作業領域の追跡していないファイルに見え、push の前の検査のフック（control-plane の ADR
-  0032）が push を断るため。target-template の `.gitignore` の共通の部分は変えない。devcontainer で直接動くときに
-  `git add -A` で worktree が入れ子のリポジトリとしてコミットに入らないよう、ターゲットごとの部分で
-  `/.claude/worktrees/` を ignore する（このリポジトリはそうする）。
+- **target-template の共通の部分に、隔離の前提を二つ置く。** `.claude/settings.json` の `worktree.baseRef` を `head` に
+  する。既定（`fresh`）では worktree が origin の既定のブランチから作られ、レビューする人が PR の中身ではなく既定の
+  ブランチを読んだり試したりすることになるため。`.gitignore` で `/.claude/worktrees/` を ignore する。変更の残った
+  worktree は、ignore しないと作業領域の追跡していないファイルに見え、`git add -A` で入れ子のリポジトリとして
+  コミットに入り、control-plane の作業領域では push の前の検査のフック（control-plane の ADR 0032）が push を断る。
+  どちらも control-plane 経由と devcontainer で直接の両方で要るので、ターゲットのファイルに置く。
 - review の手順に、範囲のファイルを `git diff --stat` で先に確かめることと、レビューするリポジトリを変えず、試すなら
   自分の worktree かその外を使うことを書く。変更の進め方に、コミットの前に `git status` で入れるファイルを確かめることを書く。
 
@@ -52,19 +53,19 @@ worktree で動く。hook の入力は、サブエージェントのツールの
 - **hook の入力の `agent_type` で、ファイルを変えないロールのときだけ断る**：ロールの知識を harness に持ち込む点は
   同じ。断っても、レビューに要る試すための編集の場所は、案内に頼ることになる。隔離すれば、断らずに済む。
 - **ロールの定義の `hooks` で、そのロールのときだけ断る**：断る仕組みを持つ点で上と同じ。隔離で足りる。
-- **target-template の `.gitignore` の共通の部分に `.claude/worktrees/` を足す**：すべてのターゲットを直すことに
-  なる。control-plane の作業領域では、どのターゲットでも作業領域の中で除ける。devcontainer で直接動くときは、
-  ロールを使うターゲットがターゲットごとの部分に足す。
+- **control-plane が、作業領域の `.git/info/exclude` と起動の設定（`--settings`）で済ませる**：ターゲットを直さずに
+  済むが、devcontainer で直接ロールをサブエージェントとして使うときに効かない。
 - **devcontainer で直接動くときも比べて知らせる**：人が端末にいて、作業領域の変化を自分で見られる。
 
 ## Consequences
 
-- reviewer と guide をサブエージェントとして頼むと、作業領域の HEAD から作った worktree で動く。自分の変更のレビューは
-  コミットしてから頼むので、worktree に変更が入る。変更のない worktree は Claude Code が消し、変更のあるものは残る。
+- reviewer と guide をサブエージェントとして頼むと、今の HEAD から作った worktree で動く（`worktree.baseRef: head`）。
+  自分の変更のレビューはコミットしてから頼むので、worktree に変更が入る。コミットしていない変更は入らない。変更のない worktree は Claude Code が消し、変更のあるものは残る。
 - 作業を任せたサブエージェントは、作業領域を編集できる。そのときも、セッションのエージェントには何が変わったかが
   届くので、コミットの前に確かめる材料になる。
 - 比べるのは前後の状態なので、サブエージェントが変えてから戻したものは知らせない。並べて動かしたサブエージェントの
   どれが変えたかは分からない。比べるための写しを作業領域の `.git` に一時的に置き、1 日より古いものは次の Agent の
   前に消す。
+- target-template の共通の部分を変えるので、ほかのターゲットも `.claude/settings.json` と `.gitignore` を直す。
 - control-plane がセッションの主のエージェントとしてロールを起動するとき（`--agent reviewer`）に `isolation` が
   どう扱われるかは、確かめていない。

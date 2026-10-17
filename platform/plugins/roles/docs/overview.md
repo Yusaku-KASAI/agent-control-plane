@@ -3,6 +3,8 @@
 ## 構成
 
 roles は harness、github と conventions を前提にする。roles を有効にするリポジトリは、この三つも有効にする。
+ファイルを変えないロールの隔離は、ターゲットの `.claude/settings.json` の `worktree.baseRef: head` と、`.gitignore` の
+`/.claude/worktrees/`（どちらも target-template の共通の部分）を前提にする。
 
 ```
 roles/
@@ -16,7 +18,8 @@ roles/
 - ファイルを変えないロール（guide、reviewer）は、定義の frontmatter に `isolation: worktree` を持つ。サブエージェント
   として動くときは自分の worktree で動き、試すための編集もそこでする（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
   隔離するのは作業する場所で、頼んだエージェントの作業ツリーの絶対パスへの書き込みまでは防がない。worktree は
-  HEAD から作られるので、コミットしていない変更は、頼んだエージェントの作業ツリーを読んで見る。
+  HEAD から作られる（`worktree.baseRef: head`）ので、コミットしていない変更は、頼んだエージェントの作業ツリーを
+  読んで見る。
 - ロールの定義は常に読み込まれるので、振る舞いだけを短く書く。動き方ごとの事実はハーネスの契約に、観点と手順は
   スキルに任せ、定義からはそれを指す。
 
