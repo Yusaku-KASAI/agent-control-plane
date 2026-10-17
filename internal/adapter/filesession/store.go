@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,10 +18,20 @@ import (
 // Store keeps each session as <root>/<id>/session.json.
 type Store struct {
 	root string
+	// flock locks a file; replaced in tests to stand for a filesystem where it does not exclude.
+	flock func(fd int, how int) error
+
+	mu sync.Mutex
+	// held is who holds each session in this process. flock alone does not exclude on some bind
+	// mounts (Docker Desktop's fakeowner), even between descriptors of one process.
+	held map[domain.SessionID]*holder
 }
 
+// holder tells holders apart by address; it is not empty, as pointers to zero-size values may be equal.
+type holder struct{ _ byte }
+
 func NewStore(root string) *Store {
-	return &Store{root: root}
+	return &Store{root: root, flock: syscall.Flock, held: map[domain.SessionID]*holder{}}
 }
 
 type record struct {
@@ -103,16 +114,49 @@ func optionalTime(t time.Time) *time.Time {
 	return &t
 }
 
-// Lock uses flock, so a crashed process never leaves the session locked. It creates the session's
-// directory, so that the session can be locked before it is created. Remove moves the directory
-// away under the lock, so a lock taken on the moved file is dropped and taken again.
+// Lock is held in this process and with flock: the first excludes within the process wherever the
+// sessions are, the second excludes other processes where flock works, and neither outlives a
+// crashed process. It creates the session's directory, so that the session can be locked before it
+// is created. Remove moves the directory away under the lock and lets the session go, so a lock
+// taken on the moved file is dropped and taken again, and the old holder no longer holds the new one.
 func (s *Store) Lock(_ context.Context, id domain.SessionID) (func(), error) {
+	h, ok := s.hold(id)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", domain.ErrSessionBusy, id)
+	}
 	for {
 		unlock, current, err := s.lockOnce(id)
-		if err != nil || current {
-			return unlock, err
+		if err != nil {
+			s.release(id, h)
+			return nil, err
+		}
+		if current {
+			return func() {
+				unlock()
+				s.release(id, h)
+			}, nil
 		}
 		unlock()
+	}
+}
+
+func (s *Store) hold(id domain.SessionID) (*holder, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.held[id] != nil {
+		return nil, false
+	}
+	h := &holder{}
+	s.held[id] = h
+	return h, true
+}
+
+// release lets id go only if h still holds it: after Remove, a new holder may hold it.
+func (s *Store) release(id domain.SessionID, h *holder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.held[id] == h {
+		delete(s.held, id)
 	}
 }
 
@@ -125,7 +169,7 @@ func (s *Store) lockOnce(id domain.SessionID) (unlock func(), current bool, err 
 	if err != nil {
 		return nil, false, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := s.flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, false, fmt.Errorf("%w: %s", domain.ErrSessionBusy, id)
@@ -133,7 +177,7 @@ func (s *Store) lockOnce(id domain.SessionID) (unlock func(), current bool, err 
 		return nil, false, err
 	}
 	unlock = func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = s.flock(int(f.Fd()), syscall.LOCK_UN)
 		_ = f.Close()
 	}
 	locked, err := f.Stat()
@@ -177,6 +221,12 @@ func (s *Store) Remove(_ context.Context, id domain.SessionID) error {
 	err := os.Rename(s.file(id), trash)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
+	}
+	if err == nil {
+		// The session is gone; whoever held it no longer holds a new one with the same ID.
+		s.mu.Lock()
+		delete(s.held, id)
+		s.mu.Unlock()
 	}
 	removed, err := filepath.Glob(filepath.Join(s.root, removedPrefix+"*"))
 	if err != nil {

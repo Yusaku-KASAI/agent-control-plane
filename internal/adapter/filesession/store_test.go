@@ -108,6 +108,79 @@ func TestStore_ListRemove(t *testing.T) {
 	}
 }
 
+// Where flock does not exclude, the lock still holds within the process.
+func TestStore_LockWithoutFlock(t *testing.T) {
+	ctx := context.Background()
+	store := filesession.NewStoreWithoutFlock(t.TempDir())
+
+	unlock, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() error = %v", err)
+	}
+	if _, err := store.Lock(ctx, id); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Fatalf("second Lock() error = %v, want ErrSessionBusy", err)
+	}
+	unlock()
+
+	again, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() after unlock error = %v", err)
+	}
+	// Unlocking twice must not let go of a lock someone else has taken since.
+	unlock()
+	if _, err := store.Lock(ctx, id); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Errorf("Lock() after a stale unlock error = %v, want ErrSessionBusy", err)
+	}
+	again()
+}
+
+// Where flock does not exclude, Remove still lets a new session be locked, and the old holder's
+// unlock does not let go of the new one.
+func TestStore_LockAfterRemoveWithoutFlock(t *testing.T) {
+	ctx := context.Background()
+	store := filesession.NewStoreWithoutFlock(t.TempDir())
+	if err := store.Save(ctx, domain.Session{ID: id}); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Remove(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() after Remove while the old lock is held error = %v", err)
+	}
+	unlock()
+	if _, err := store.Lock(ctx, id); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Errorf("Lock() after the old holder let go error = %v, want ErrSessionBusy", err)
+	}
+	second()
+}
+
+// A Lock that fails lets the session go, so that it does not stay busy.
+func TestStore_FailedLockLetsGo(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "sessions")
+	if err := os.WriteFile(root, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := filesession.NewStore(root)
+	if _, err := store.Lock(ctx, id); err == nil || errors.Is(err, domain.ErrSessionBusy) {
+		t.Fatalf("Lock() under a file error = %v, want a failure to make the directory", err)
+	}
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := store.Lock(ctx, id)
+	if err != nil {
+		t.Fatalf("Lock() after a failed Lock error = %v", err)
+	}
+	unlock()
+}
+
 func TestStore_LockBeforeCreation(t *testing.T) {
 	store := filesession.NewStore(filepath.Join(t.TempDir(), "sessions"))
 	unlock, err := store.Lock(context.Background(), id)
