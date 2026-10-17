@@ -11,8 +11,12 @@ amends: ["../../../docs/adr/app/0014-control-plane-as-a-server.md"]
 ターゲットの devcontainer は、人が devcontainer から `acp run` で依頼できるよう、control-plane と外部の Docker
 ネットワーク `agent-control-plane-net` を共有し、`ACP_SERVER` で API を指していた（[app ADR 0014](../../../docs/adr/app/0014-control-plane-as-a-server.md)）。ところが
 devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
-エージェントを起動できてしまうため。その結果、devcontainer から `acp run` は使えず、ネットワークは使われていな
-かった。依頼は Slack と、ホストの `acp run` で足りている。
+エージェントを起動できてしまうため。その結果、ほかのターゲットの devcontainer から `acp run` は使えず、
+ネットワークは使われていなかった。依頼は Slack と、ホストの `acp run` で足りている。
+
+ただし control-plane を開発するこのリポジトリでは、control-plane の compose が読むリポジトリの直下の `.env` に
+トークンがあり、devcontainer はリポジトリをマウントするので、中からトークンが読める。ここではネットワークを
+共有していると、devcontainer の中（Claude Code を含む）から API に依頼できた。
 
 一方、エージェントのコンテナはこのネットワークに入っていない。devcontainer とエージェントのコンテナは、同じ
 イメージで動き（ターゲットの契約のイメージ）、同じ環境で検査し（ADR 0005）、外への通信の制限も同じものを置く
@@ -32,10 +36,11 @@ devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。�
 
 ## Alternatives
 
-- **すべてのターゲットで残す**：使われていない経路が残り、エージェントとの差も残る。API を守るのはネットワーク
-  ではなくトークンなので（app ADR 0014）、外すのは隔離のためというより、差と使われない設定をなくすため。
+- **すべてのターゲットで残す**：使われていない経路が残り、エージェントとの差も残る。ほかのターゲットでは、API を
+  守るのはトークンなので（app ADR 0014）、外すのは隔離のためというより、差と使われない設定をなくすため。
 - **control-plane を開発するターゲットの devcontainer だけ残す**：control-plane を試しやすいが、同じ control-plane
-  のエージェントとの差が残り、ターゲットごとの部分が増える。試すのはまれなので、その場でつなげば足りる。
+  のエージェントとの差が残り、ターゲットごとの部分が増える。このリポジトリでは、トークンを読める devcontainer から
+  API への道も残る。試すのはまれなので、その場でつなげば足りる。
 - **残して、devcontainer 向けの権限を絞ったトークンを作る**：依頼者の識別（control-plane の #24）が要る。
   エージェントに control-plane への道を渡すときに、同じ仕組みで devcontainer にも渡す。
 

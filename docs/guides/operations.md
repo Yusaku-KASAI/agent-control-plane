@@ -60,13 +60,21 @@ API はホストの `127.0.0.1:8787` で届く。このリポジトリの devcon
 ```bash
 dev=$(docker compose -f .devcontainer/compose.yaml ps -q dev-container)
 docker network connect agent-control-plane_default "$dev"
-docker network disconnect agent-control-plane_default "$dev"   # 試し終えたら
 ```
 
-つないでいる間は、devcontainer の中でトークンを渡して依頼する（[クライアントをビルドする](#build-client)）。
+つないでいる間は、devcontainer の中でトークンを渡して依頼する（[クライアントをビルドする](#build-client)）。トークンは
+シェルの履歴に残らないよう、コマンド行に書かずに読み込み、試し終えたら消す。
 
 ```bash
-ACP_API_TOKEN=<トークン> bin/acp run --server http://control-plane:8787 --agent <name> "<指示>"
+read -rs ACP_API_TOKEN && export ACP_API_TOKEN
+bin/acp run --server http://control-plane:8787 --agent <name> "<指示>"
+unset ACP_API_TOKEN
+```
+
+試し終えたら、ホストで外す。
+
+```bash
+docker network disconnect agent-control-plane_default "$dev"
 ```
 
 ## Slack のトークンを取り直す

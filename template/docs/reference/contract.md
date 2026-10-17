@@ -62,7 +62,7 @@ control-plane の API を指さない（[ADR 0013](../adr/0013-devcontainer-off-
 ホストの `acp run` から行う。
 
 - devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
-  エージェントを起動できてしまう。
+  エージェントを起動できてしまう。control-plane を試すときに、人がその場で渡すのは除く。
 
 ## CLAUDE.md
 
