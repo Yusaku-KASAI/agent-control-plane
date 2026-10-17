@@ -1,7 +1,6 @@
 #!/bin/sh
-# Prepares the host for the devcontainer: .env (see .env.example), the state directories and the
-# network shared with the control plane (per the target contract). Run it before the first start;
-# values already in .env are kept.
+# Prepares the host for the devcontainer: .env (see .env.example) and the state directories. Run it
+# before the first start; values already in .env are kept.
 set -eu
 cd "$(dirname "$0")"
 repo=$(basename "$(cd .. && pwd)")
@@ -17,5 +16,3 @@ add DEV_STATE_DIR "$HOME/.local/state/devcontainers/$repo"
 
 state=$(sed -n 's/^DEV_STATE_DIR=//p' .env)
 mkdir -p "$state/claude" "$state/gh" "$state/history"
-docker network inspect agent-control-plane-net >/dev/null 2>&1 ||
-    docker network create agent-control-plane-net >/dev/null
