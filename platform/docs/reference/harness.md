@@ -27,6 +27,10 @@
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
   サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` か
   `isolation: remote` があると、hook によらずバックグラウンドで動くので、そういう定義は使わない。
+- サブエージェントが動いている間に作業領域（主の worktree）が変わると、harness プラグインの hook が、変わったことを
+  セッションのエージェントに知らせる（比べるものは [ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
+  作業を任せたサブエージェントの変更でも知らせるので、コミットの前に git で何が変わったかを確かめる。どのロールが自分の worktree で
+  動くかは roles の定義にある。
 - バックグラウンドの処理が終わると、知らせが届く（動いているターンに入るか、自分で始めるターンになる）。終わりを
   待つために、Monitor、ScheduleWakeup、`sleep` の繰り返し、同じ処理のフォアグラウンドでの実行で見張らない。見張りも
   ターンやバックグラウンドの処理を増やし、そのぶん回答が増える（[ADR 0010](../adr/0010-one-ci-wait-per-branch.md)）。
@@ -94,13 +98,17 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 作業領域の `.git/hooks/commit-msg` が、一覧の人を `Co-authored-by` としてコミットに足す。ターゲットが
 `core.hooksPath` を設定しているときや、`--no-verify` でコミットしたときは足されない。
 
+<a id="push"></a>
+
 ### push
 
 作業領域の `.git/hooks/pre-push` が、push の前に[ターゲットの検査](../../../template/docs/reference/contract.md#checks)（`make check`）を
 回し、落ちれば push を断る。push する ref（消すものは除く）が今の HEAD でないときと、作業ツリーにコミットしていない
 変更か ignore されていない追跡していないファイルがあるときも、検査を回さずに断る。
 
-- push は検査の時間だけかかるので、Bash の `timeout` をそれに合わせる。`--dry-run` の push でもフックは働く。
+- push は検査の時間だけかかるので、Bash の `timeout` をそれに合わせる。検査が Bash の `timeout` の上限（10 分）より
+  長いターゲットでは、push を `run_in_background` で始め、終わりの知らせで結果を確かめる。`--dry-run` の push でも
+  フックは働く。
 - push に入れない作業用のファイル（PR の本文やコメント、レビューの JSON）は、作業ツリーの外（`mktemp -d` で
   作った場所）に置く。作業ツリーに置くと、ずれとして断られる。
 - 断られたら、出力で理由を確かめて直し、コミットしてから push し直す。`--no-verify` で避けない。

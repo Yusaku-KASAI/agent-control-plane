@@ -4,11 +4,12 @@
 
 ```
 harness/
-  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground と scripts/detach を呼ぶ
+  hooks/hooks.json     SessionStart と SubagentStart で scripts/context を、PreToolUse で scripts/foreground と scripts/detach を、Agent の前後（PreToolUse、PostToolUse、PostToolUseFailure）で scripts/watch-tree を呼ぶ
   scripts/context      動き方の要約と、ハーネスの契約と platform の文書の一覧の在りかを返す
   scripts/foreground   control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす
   scripts/detach       control-plane 経由のとき、処理を手放す Bash と、Monitor、ScheduleWakeup、CronCreate を断る
-  tests/               scripts/foreground と scripts/detach の試験
+  scripts/watch-tree   control-plane 経由のとき、サブエージェントの間に作業領域が変わったら知らせる
+  tests/               scripts/foreground、scripts/detach、scripts/watch-tree の試験
   skills/harness/      詰まったときに、どこの問題かを切り分ける手順
 ```
 
@@ -55,6 +56,23 @@ harness/
   `prctl ci --wait` を `run_in_background` で始める。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：決まりだけでは二度破られたので、
   hook で断る。
+
+### `scripts/watch-tree`
+
+- **責務**：control-plane 経由のとき、セッションのエージェントが動かすサブエージェントの前後で作業領域（主の
+  worktree）を比べ、変わっていれば変わったことだけを知らせる（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
+- **置くもの / 置かないもの**：Agent の前に、1 日より古い写しを消してから、作業領域の状態（HEAD、ブランチ、index、
+  stash、追跡していないものの一覧（`git add` が飛ばす、コミットのない入れ子のリポジトリのため）と、一時的な index に
+  `git add -A` して作る tree。ignore されたもの（隔離したエージェントの worktree を含む）は除く）の写しを `.git` に
+  置く。Agent のあと（失敗したときも）に今の状態と比べ、違えば、変わったことと git で確かめることを文脈として
+  足し、写しを消す。何が変わったかは並べない（git で見られ、数によらず短く済む）。サブエージェント自身の Agent の呼び出し（hook の入力に `agent_id` がある）、devcontainer で直接動くときは
+  何もしない。どのサブエージェントが作業領域を変えてよいかは決めず、ツールの呼び出しも断らない。それはロールの
+  定義（`isolation`）に任せる。
+- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。ファイルを
+  変えないロールの隔離は roles の定義にある。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：サブエージェントの変更が
+  コミットに紛れないよう、依頼文の念押しではなく hook で気づかせる。[多層防御](../../principles/docs/reference/principles.md#defense-in-depth)：
+  ロールの隔離で防ぎ、すり抜けたものと任せた変更を、比べて拾う。
 
 ### `skills/harness/`
 

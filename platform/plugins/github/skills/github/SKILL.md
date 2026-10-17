@@ -23,6 +23,10 @@ prctl ready                               # 終えてよいときだけ、PR の
 prctl draft                               # 追加の依頼で続けるとき、PR を下書きに戻す
 ```
 
+本文、コメント、レビューの JSON などの作業用のファイルは、作業ツリーの外（`mktemp -d` で作った場所）に置き、
+`prctl` には絶対パスで渡す。作業ツリーに置くと、コミットに紛れたり、control-plane 経由では push を断られたりする
+（[ハーネスの契約の push](../../../../docs/reference/harness.md#push "在りか")）。
+
 ## 本文とコメント
 
 本文とコメントに何を書くかは、conventions の[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)に

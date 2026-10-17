@@ -3,6 +3,8 @@
 ## 構成
 
 roles は harness、github と conventions を前提にする。roles を有効にするリポジトリは、この三つも有効にする。
+ファイルを変えないロールの隔離は、ターゲットの `.claude/settings.json` の `worktree.baseRef: head` と、`.gitignore` の
+`/.claude/worktrees/` を前提にする（[ターゲットの契約](../../../../template/docs/reference/contract.md#plugins "在りか")）。
 
 ```
 roles/
@@ -13,6 +15,17 @@ roles/
 
 - ロールは Claude Code のカスタムエージェント。control-plane は `--agent <ロール>` で起動し（[ハーネスの契約](../../../docs/reference/harness.md "在りか")）、
   対話ではサブエージェントとしても使う。
+- ファイルを変えないロール（guide、reviewer）は、定義の frontmatter に `isolation: worktree` を持つ。サブエージェント
+  として動くときは自分の worktree で動き、試すための編集もそこでする（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
+  隔離するのは作業する場所で、Claude Code（2.1.292 で確かめた）は、隔離されたエージェントのコマンドのうち、字面から
+  頼んだエージェントの作業ツリーを指すと分かる git（`cd` してからや `git -C`）と、字面で確かめられない複雑なコマンド
+  （ヒアドキュメント、ループなど）を断る。スクリプトのファイルの中の git は見ない。ファイルを読むことはできる。
+  git 以外の手段での書き込みまで防ぐかは確かめていない。
+  - worktree は頼まれたときの HEAD から作られる（`worktree.baseRef: head`）。ターゲットがこの設定を持たなければ、
+    既定のブランチから作られる。頼んだ側の HEAD は、自分の worktree で `git worktree list --porcelain` を流すと、
+    頼んだ側の作業ツリーの行に出る（自分の HEAD は `git rev-parse HEAD`）。
+  - コミットしていない変更は、自分の worktree には入らない。頼んだ側の作業ツリーのファイルを読むか、差分を渡して
+    もらう。
 - ロールの定義は常に読み込まれるので、振る舞いだけを短く書く。動き方ごとの事実はハーネスの契約に、観点と手順は
   スキルに任せ、定義からはそれを指す。
 

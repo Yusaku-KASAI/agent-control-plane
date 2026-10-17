@@ -1,5 +1,8 @@
 {
   "language": "japanese",
+  "worktree": {
+    "baseRef": "head"
+  },
   "permissions": {
     "defaultMode": "acceptEdits",
     "additionalDirectories": [

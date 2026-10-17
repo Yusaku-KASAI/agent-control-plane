@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# PreToolUse, PostToolUse and PostToolUseFailure hook for Agent. Under the control plane, the agent
+# that runs the session commits what is in the work area, so a change a subagent leaves there ends up
+# in its commits unless it tells it from its own. Around each subagent, the work area is compared, and
+# a change is told to the agent, whatever made it.
+set -euo pipefail
+
+input=$(cat)
+[[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
+field() { jq -r "$1 // \"\"" <<<"$input"; }
+# A subagent's own tool use carries agent_id; only the session's agent is watched for.
+[[ -z $(field .agent_id) ]] || exit 0
+cwd=$(field .cwd)
+# The work area is the main worktree; linked ones (prctl worktree, isolation: worktree) are not it.
+common=$(git -C "${CLAUDE_PROJECT_DIR:-$cwd}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+common=$(cd "$common" && pwd -P)
+top=$(dirname "$common")
+
+# state: what the agent commits from: HEAD, the branch, the index, the stash, and the files, as the
+# tree that git add -A would make (in an index of its own, so that the work area's is left alone).
+state() (
+  cd "$top"
+  export GIT_OPTIONAL_LOCKS=0
+  echo "HEAD $(git rev-parse --verify --quiet HEAD || echo none)"
+  echo "branch $(git symbolic-ref --quiet HEAD || echo detached)"
+  echo "index $(git ls-files --stage | git hash-object --stdin)"
+  echo "stash $(git rev-parse --verify --quiet refs/stash || echo none)"
+  # git add leaves out a nested repository without a commit (git init alone), so the untracked
+  # paths are listed too.
+  echo "untracked $(git ls-files --others --exclude-standard | git hash-object --stdin)"
+  local dir
+  dir=$(mktemp -d)
+  trap 'rm -rf "$dir"' EXIT
+  # Starting from a copy of the index only saves hashing the files whose stat it knows.
+  cp "$(git rev-parse --git-path index)" "$dir/index" 2>/dev/null || true
+  # --ignore-errors: a file it cannot read is left out, not the rest of the changes.
+  GIT_INDEX_FILE=$dir/index git add -A --ignore-errors 2>/dev/null || true
+  echo "files $(GIT_INDEX_FILE=$dir/index git write-tree 2>/dev/null || echo unreadable)"
+)
+
+snapshot() { git -C "$top" rev-parse --path-format=absolute --git-path "acp-subagent-$(field .tool_use_id)"; }
+
+event=$(field .hook_event_name)
+case $event:$(field .tool_name) in
+  PreToolUse:Agent | PreToolUse:Task)
+    # A snapshot whose Agent call never ended (denied by another hook, say) is left behind.
+    find "$common" -maxdepth 1 -name 'acp-subagent-*' -mmin +1440 -delete 2>/dev/null || true
+    state >"$(snapshot)"
+    ;;
+  PostToolUse:Agent | PostToolUse:Task | PostToolUseFailure:Agent | PostToolUseFailure:Task)
+    file=$(snapshot)
+    [[ -f $file ]] || exit 0
+    before=$(cat "$file")
+    rm -f "$file"
+    after=$(state)
+    [[ $before != "$after" ]] || exit 0
+    jq -n --arg event "$event" --arg context "サブエージェントが動いている間に、作業領域（HEAD、ブランチ、index、stash、ファイルのどれか）が変わった。任せた変更でも、git status、git diff、git log（HEAD とブランチ）、git stash list で何が変わったかを確かめてから扱いを決め、コミットには確かめたファイルだけを入れる。" \
+      '{hookSpecificOutput: {hookEventName: $event, additionalContext: $context}}'
+    ;;
+esac

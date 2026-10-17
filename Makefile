@@ -15,6 +15,7 @@ check-platform:
 	platform/plugins/github/tests/prctl-test.sh
 	platform/plugins/harness/tests/foreground-test.sh
 	platform/plugins/harness/tests/detach-test.sh
+	platform/plugins/harness/tests/watch-tree-test.sh
 	# The injected rules link their sources by path; each must exist.
 	platform/plugins/conventions/scripts/context SessionStart | jq -r .hookSpecificOutput.additionalContext \
 		| grep -o '](/[^)#"]*' | cut -c3- | sed 's/ *$$//' | while read -r f; do test -e "$$f" || { echo "missing: $$f"; exit 1; }; done
