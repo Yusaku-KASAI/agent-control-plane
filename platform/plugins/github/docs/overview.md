@@ -10,7 +10,8 @@ PR の本文は、追記ではなく今のブランチの姿に合わせて書�
 CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
 一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。レビューの結果と答えは決まった
 形の JSON で受け、表と機械で読む写しを作る（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。このプラグインは、
-それを `prctl` と hook で守らせる。
+それを `prctl` と hook で守らせる。あわせて、ターゲットの既定のブランチの守りが外れていないことを確かめる
+`check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)）。
 
 ## 構成
 
@@ -19,6 +20,9 @@ github/
   bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体
   lib/review.jq        レビューの結果と答えの形の検査と、Markdown の表の作り方
   tests/prctl-test.sh  prctl の振る舞いの検査（make check-platform が回す）
+  bin/check-protection 既定のブランチの守り（ルールセットと CODEOWNERS）が外れていないかの検査
+  actions/check-protection/  check-protection を CI で回す GitHub Actions の複合アクション
+  tests/check-protection-test.sh  check-protection の振る舞いの検査（make check-platform が回す）
   hooks/hooks.json     Bash のあと（PostToolUse）とターンの終わり（Stop）に prctl hook を呼ぶ
   skills/github/       PR の本文とコメントの書き方、差分のレビューの残し方、レビューと CI への対応
 ```
@@ -118,6 +122,37 @@ github/
 - **関係**：`bin/prctl` を呼ぶ。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：本文を書き換えること、差分を
   レビューさせること、CI の失敗を直すことをプロンプトに頼らず、hook で見つけて促す。[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)。
+
+### `bin/check-protection`
+
+- **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、target-template の
+  [既定のブランチの守りの用意](../../../../template/docs/guides/github.md "在りか")の設定を満たすかを確かめる。満たさない項目を
+  `NG` の行で出し、終了コードは 0 が通過、1 が抜け、2 が GitHub を読めない。
+- **置くもの / 置かないもの**：
+  - 確かめる値は、その手順の設定の API の側の写しで、手順を変えたらここも直す。
+  - ルールは `rules/branches/<既定のブランチ>` から読む。リポジトリと organization のどのルールセットから来たものでも、
+    効いているものだけを数える。
+  - 承認を人に限る仕組みは、コードオーナーの承認（CODEOWNERS が誤りなく、最初の規則が `*` で、持ち主のない規則が
+    ない）か、すべてのファイル（`*`）に承認を 1 件以上求める team の、どちらかがあればよい。CODEOWNERS は、指定した
+    ref（CI では `GITHUB_SHA`、PR ではマージしたときの版）のものを見る。CODEOWNERS がない（404）ことは、team の側で
+    守っていれば抜けではない。
+  - バイパスは、ルールセットが `bypass_actors` を返したときだけ確かめる（管理者の役割 `RepositoryRole` 5 か
+    `OrganizationAdmin` で、`pull_request` のときだけ）。返さないとき（ルールセットを書けない認証情報、CI の
+    `GITHUB_TOKEN`）は、確かめていないと出して失敗にしない。
+  - リポジトリの設定は変えない。読むだけ。
+- **関係**：`gh` と `jq` を使う。振る舞いは `tests/check-protection-test.sh`（偽の `gh`）で確かめる。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：守りが黙って外れることを、
+  CI の必須の検査で見つける。
+
+### CI の守りの検査（[`actions/check-protection/`](../actions/check-protection/action.yml "在りか")）
+
+- **責務**：ターゲットの CI で、そのリポジトリについて、アクションと同じ版の `bin/check-protection` を回す。
+- **置くもの / 置かないもの**：`gh` に渡すトークン（既定は `github.token`）と、`check-protection` の呼び出しだけ。
+  リポジトリはチェックアウトしない（GitHub を読むだけ）。
+- **関係**：ターゲットの `ci.yml` が `@main` で呼ぶ（target-template の [CI](../../../../template/docs/architecture/ci.md "在りか")）。
+  ランナーの `gh` と `jq` で動く。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を platform の一か所に置き、ターゲットは
+  呼ぶ一行だけを書く。
 
 ### `skills/github/`
 

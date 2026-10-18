@@ -20,7 +20,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
        ├─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┼─▶ check ジョブ
        └─ check-docs（手元）                                           │
                             ルートの Dockerfile ◀─ check-image ジョブ ─┤
-                            check-docs アクション ◀─ check-docs ジョブ ─┘
+                            check-docs アクション ◀─ check-docs ジョブ ─┤
+                      check-protection アクション ◀─ check-protection ジョブ ─┘
 ```
 
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、
@@ -28,7 +29,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-docs` を足したもの。`check-docs` は、
   このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。手元では
   `make check-docs` で、CI ではターゲットと同じく conventions の複合アクションで回す。CI では `@main` ではなく
-  リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。CI には、
+  リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。`check-protection`
+  ジョブも同じく、リポジトリの中のパスで github の複合アクションを呼ぶ（中のパスで呼ぶため、チェックアウトしてから）。CI には、
   control-plane のイメージがビルドできることを確かめる `check-image` を足す。
 
 ## 構成要素

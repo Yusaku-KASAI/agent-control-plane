@@ -1,0 +1,14 @@
+name: check-protection
+description: Checks that the default branch of the repository the workflow runs for is protected so that only humans' approvals count toward merging.
+inputs:
+  token:
+    description: A token that reads the repository's metadata and contents.
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    # Reads GitHub only, so nothing is checked out. The CODEOWNERS checked is the one at $GITHUB_SHA.
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: '"$GITHUB_ACTION_PATH/../../bin/check-protection"'

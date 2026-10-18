@@ -44,7 +44,8 @@ plugins/
 
 - **責務**：PR の本文と差分のレビューを今のブランチに追いつかせ続け、GitHub での作業（PR、レビュー、CI）の手順を届ける
   （[ADR 0002](../adr/0002-pr-body-tracks-head.md)、[ADR 0005](../adr/0005-self-review-tracks-head.md)、
-  [ADR 0006](../adr/0006-ci-failures-stop-the-turn.md)）。
+  [ADR 0006](../adr/0006-ci-failures-stop-the-turn.md)）。ターゲットの既定のブランチの守りが外れていないことを確かめる
+  コマンドと、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../template/docs/adr/0016-protection-checked-in-ci.md)）。
 - **関係**：ハーネスの契約で渡される `gh` の認証を前提にする（[ハーネスの契約](../reference/harness.md)）。roles が
   前提にする。中の構成は [github の文書](../../plugins/github/docs/README.md "在りか")。
 - **当てはめた原則・パターン**：[仕組みで守る](../../plugins/principles/docs/reference/principles.md#mechanisms)：本文が古いことを hook が見つけ、

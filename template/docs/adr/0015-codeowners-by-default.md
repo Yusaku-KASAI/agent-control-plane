@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-18
+amended_by: [16]
 ---
 
 # 0015. 承認を人に限る CODEOWNERS を target-template に既定で置き、organization のターゲットでは消す

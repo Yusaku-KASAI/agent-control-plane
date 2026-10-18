@@ -14,6 +14,7 @@ check-platform:
 	# Only the shell scripts: a command may be written in another language (conventions' check-docs).
 	shellcheck $$(grep -lE '^#!.*[/ ](ba)?sh$$' $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/* platform/plugins/*/tests/*))
 	platform/plugins/github/tests/prctl-test.sh
+	platform/plugins/github/tests/check-protection-test.sh
 	platform/plugins/harness/tests/foreground-test.sh
 	platform/plugins/harness/tests/detach-test.sh
 	platform/plugins/harness/tests/watch-tree-test.sh
