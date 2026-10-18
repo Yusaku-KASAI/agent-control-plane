@@ -439,6 +439,11 @@ func eventually(t *testing.T, cond func() bool) {
 	}
 }
 
+// placements records what Execute tells RunAgentInput.Placed. Read it after Execute returns.
+type placements []usecase.Placement
+
+func (p *placements) record(pl usecase.Placement) { *p = append(*p, pl) }
+
 func TestDispatcher_NewSession(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	thread := domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"}
@@ -466,11 +471,12 @@ func TestDispatcher_NewSession(t *testing.T) {
 
 func TestDispatcher_QueuesBehindRunningTurn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
-	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	var firstPlaced, secondPlaced placements
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", Placed: firstPlaced.record})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
 
-	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second"})
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second", Placed: secondPlaced.record})
 	time.Sleep(20 * time.Millisecond)
 	if got := p.sent(); len(got) != 1 {
 		t.Fatalf("sent %q while the first turn was running, want only the first prompt", got)
@@ -484,6 +490,9 @@ func TestDispatcher_QueuesBehindRunningTurn(t *testing.T) {
 	p.finish("two")
 	if o := wait(t, second); o.err != nil || o.out.Output != "two" || o.out.Session.Turns != 3 {
 		t.Fatalf("second = %+v, %v", o.out, o.err)
+	}
+	if len(firstPlaced) != 0 || !slices.Equal(secondPlaced, placements{usecase.PlacedInInbox}) {
+		t.Errorf("placed first %v, second %v; want nothing for the first and the inbox for the second", firstPlaced, secondPlaced)
 	}
 	if n := len(e.runner.starts()); n != 1 {
 		t.Errorf("started %d processes, want 1", n)
@@ -499,7 +508,8 @@ func TestDispatcher_InjectsIntoRunningTurn(t *testing.T) {
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
 
-	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also this", Inject: true})
+	var steerPlaced placements
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also this", Inject: true, Placed: steerPlaced.record})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("both")
 
@@ -509,6 +519,9 @@ func TestDispatcher_InjectsIntoRunningTurn(t *testing.T) {
 	}
 	if o2.err != nil || o2.out.Output != "both" || !o2.out.Shared {
 		t.Errorf("injected = %+v, %v; want the same output marked as shared", o2.out, o2.err)
+	}
+	if !slices.Equal(steerPlaced, placements{usecase.PlacedInTurn}) {
+		t.Errorf("placed %v, want the running turn", steerPlaced)
 	}
 }
 

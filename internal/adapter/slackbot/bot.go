@@ -208,6 +208,14 @@ func (b *Bot) Acknowledge(ctx context.Context, msg usecase.IncomingMessage) erro
 	return b.react(ctx, msg, "eyes")
 }
 
+func (b *Bot) MarkQueued(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "inbox_tray")
+}
+
+func (b *Bot) MarkInjected(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "zap")
+}
+
 func (b *Bot) MarkStopped(ctx context.Context, msg usecase.IncomingMessage) error {
 	return b.react(ctx, msg, stopReaction)
 }

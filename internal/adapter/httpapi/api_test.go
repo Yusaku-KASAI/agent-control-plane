@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
@@ -62,7 +63,7 @@ func TestRunTurn(t *testing.T) {
 		t.Errorf("RunTurn() = %+v, want %+v", got, want)
 	}
 	wantIn := usecase.RunAgentInput{AgentName: "repo-dev", SessionID: sessionID, Prompt: "fix it", Inject: true}
-	if turns.got != wantIn {
+	if !reflect.DeepEqual(turns.got, wantIn) {
 		t.Errorf("usecase got %+v, want %+v", turns.got, wantIn)
 	}
 }

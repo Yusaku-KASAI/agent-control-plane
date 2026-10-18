@@ -31,6 +31,10 @@ type ChatResponder interface {
 	Acknowledge(ctx context.Context, msg IncomingMessage) error
 	// MarkStopped signals that the request was stopped or withdrawn. Platforms that cannot may do nothing.
 	MarkStopped(ctx context.Context, msg IncomingMessage) error
+	// MarkQueued signals that the request waits behind the running turn. Platforms that cannot may do nothing.
+	MarkQueued(ctx context.Context, msg IncomingMessage) error
+	// MarkInjected signals that the request was injected into the running turn. Platforms that cannot may do nothing.
+	MarkInjected(ctx context.Context, msg IncomingMessage) error
 	// MarkAnsweredTogether signals that the reply to an earlier request also answers this one.
 	MarkAnsweredTogether(ctx context.Context, msg IncomingMessage) error
 	Reply(ctx context.Context, msg IncomingMessage, text string) error
@@ -59,6 +63,14 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 			u.responder.Reply(ctx, msg, "この依頼者からの依頼は受け付けていません。"))
 	}
 	ackErr := u.responder.Acknowledge(ctx, msg)
+	placed := func(p Placement) {
+		switch p {
+		case PlacedInInbox:
+			ackErr = errors.Join(ackErr, u.responder.MarkQueued(ctx, msg))
+		case PlacedInTurn:
+			ackErr = errors.Join(ackErr, u.responder.MarkInjected(ctx, msg))
+		}
+	}
 
 	out, err := u.turns.Execute(ctx, RunAgentInput{
 		AgentName:       msg.Agent,
@@ -68,6 +80,7 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		Inject:          msg.Inject,
 		Conversation:    msg.Conversation,
 		Requester:       msg.Requester,
+		Placed:          placed,
 	})
 	switch {
 	case errors.Is(err, ErrStopped):

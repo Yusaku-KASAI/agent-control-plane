@@ -35,7 +35,22 @@ type RunAgentInput struct {
 	Conversation domain.Conversation
 	// Requester is credited in the commits of the turn that answers the prompt.
 	Requester domain.Requester
+	// Placed, when set, is told where the prompt went if the session was running a turn. Execute
+	// calls it on the caller's goroutine before it returns.
+	Placed func(Placement)
 }
+
+// Placement is where a prompt went because the session was running a turn. A prompt that the
+// session could take at once has no placement.
+type Placement int
+
+const (
+	// PlacedInInbox: the prompt waits in the inbox and is sent after the running turn.
+	PlacedInInbox Placement = iota + 1
+	// PlacedInTurn: the prompt was injected into the running turn. The agent takes it into that
+	// turn or the next one.
+	PlacedInTurn
+)
 
 type RunAgentOutput struct {
 	Output      string
@@ -106,7 +121,8 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
 	reply := make(chan turnReply, 1)
-	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply}
+	placed := make(chan Placement, 1)
+	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply, placed: placed}
 	session, err := d.openSession(ctx, agent, in)
 	if err != nil {
 		return RunAgentOutput{}, err
@@ -122,18 +138,38 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	if err != nil {
 		return RunAgentOutput{Session: session}, err
 	}
-	select {
-	case r := <-reply:
-		if r.err != nil {
-			return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent.Name, r.err)
+	tellPlacement := func(p Placement) {
+		if in.Placed != nil {
+			in.Placed(p)
 		}
-		return RunAgentOutput{
-			Output: r.result.Output, Interrupted: r.result.Interrupted, Error: r.result.Error, UsageLimited: r.result.UsageLimited,
-			Shared: r.shared, Session: r.session,
-		}, nil
-	case <-ctx.Done():
-		return RunAgentOutput{Session: session}, ctx.Err()
 	}
+	for {
+		select {
+		case p := <-placed:
+			tellPlacement(p)
+			continue
+		case r := <-reply:
+			// The worker places a prompt before it can reply to it.
+			select {
+			case p := <-placed:
+				tellPlacement(p)
+			default:
+			}
+			return r.output(agent.Name)
+		case <-ctx.Done():
+			return RunAgentOutput{Session: session}, ctx.Err()
+		}
+	}
+}
+
+func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
+	if r.err != nil {
+		return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent, r.err)
+	}
+	return RunAgentOutput{
+		Output: r.result.Output, Interrupted: r.result.Interrupted, Error: r.result.Error, UsageLimited: r.result.UsageLimited,
+		Shared: r.shared, Session: r.session,
+	}, nil
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
@@ -306,6 +342,16 @@ type request struct {
 	inject    bool
 	requester domain.Requester
 	reply     chan<- turnReply
+	placed    chan<- Placement
+}
+
+// place tells the requester where the prompt went. The channel holds one placement, and a
+// prompt is placed at most once, so this never blocks the worker.
+func (r request) place(p Placement) {
+	select {
+	case r.placed <- p:
+	default:
+	}
 }
 
 type turnReply struct {
@@ -430,11 +476,14 @@ func (w *worker) accept(r request) {
 	if w.running && r.inject {
 		if err := w.send(r); err != nil {
 			r.reply <- w.reply(TurnResult{}, err)
+			return
 		}
+		r.place(PlacedInTurn)
 		return
 	}
 	w.queue = append(w.queue, r)
 	if w.running {
+		r.place(PlacedInInbox)
 		w.notifyStatus()
 	}
 }

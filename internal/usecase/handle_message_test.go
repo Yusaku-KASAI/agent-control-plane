@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,13 +14,20 @@ import (
 type fakeTurns struct {
 	out     usecase.RunAgentOutput
 	err     error
+	placed  usecase.Placement
 	called  bool
 	got     usecase.RunAgentInput
 	stopped domain.SessionID
 }
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
-	f.called, f.got = true, in
+	f.called = true
+	if f.placed != 0 {
+		in.Placed(f.placed)
+	}
+	// The callback is checked through the responder; drop it so the input can be compared.
+	in.Placed = nil
+	f.got = in
 	return f.out, f.err
 }
 
@@ -34,9 +42,21 @@ func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return 
 
 type fakeResponder struct {
 	acked    bool
+	queued   bool
+	injected bool
 	stopped  bool
 	together bool
 	replies  []string
+}
+
+func (f *fakeResponder) MarkQueued(context.Context, usecase.IncomingMessage) error {
+	f.queued = true
+	return nil
+}
+
+func (f *fakeResponder) MarkInjected(context.Context, usecase.IncomingMessage) error {
+	f.injected = true
+	return nil
 }
 
 func (f *fakeResponder) MarkAnsweredTogether(context.Context, usecase.IncomingMessage) error {
@@ -76,11 +96,36 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 		AgentName: "repo-dev", SessionID: thread.SessionID("repo-dev"), CreateIfMissing: true, Prompt: "fix it", Conversation: thread,
 		Requester: alice,
 	}
-	if turns.got != want {
+	if !reflect.DeepEqual(turns.got, want) {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)
 	}
 	if !responder.acked || len(responder.replies) != 1 || responder.replies[0] != "done" {
 		t.Errorf("acked = %v, replies = %q", responder.acked, responder.replies)
+	}
+}
+
+func TestHandleMessage_MarksWhereTheRequestWent(t *testing.T) {
+	tests := []struct {
+		name           string
+		placed         usecase.Placement
+		queued, inject bool
+	}{
+		{name: "taken at once"},
+		{name: "waits in the inbox", placed: usecase.PlacedInInbox, queued: true},
+		{name: "injected into the running turn", placed: usecase.PlacedInTurn, inject: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done"}, placed: tt.placed}
+			responder := &fakeResponder{}
+			if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !responder.acked || responder.queued != tt.queued || responder.injected != tt.inject {
+				t.Errorf("acked = %v, queued = %v, injected = %v; want acked, queued = %v, injected = %v",
+					responder.acked, responder.queued, responder.injected, tt.queued, tt.inject)
+			}
+		})
 	}
 }
 
