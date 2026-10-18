@@ -3,8 +3,11 @@
 どのリポジトリでも、いつも守ること（conventions プラグインが、セッションとサブエージェントの始めに読み込ませる）。
 リポジトリの CLAUDE.md と食い違うときは CLAUDE.md に従う（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 
+変更するときは、始めに[変更する](../docs/guides/change.md "在りか")、[文書の体系](../docs/architecture/documentation.md "在りか")、
+[変更の扱い方](../docs/reference/changes.md "在りか")の三つを全体まで読み、変更するの段に沿う（[変更する](../docs/guides/change.md)の 1 段）。
+
 ここは要約と案内で、定義は括弧の中のリンクの先にある。特定の作業（文書を書く、変更する）にだけ要る決まりは、定義の文書と、
-その作業のスキルにある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の
+その作業の手順（場面の手順か、部品の手順のスキル）にある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の
 中に、場面が当てはまる「（全体を読む）」があれば、それもたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
 
 - 何かを決めるときは、まず一般に良いとされる確立した原則やパターンを探して沿い、その名前を挙げる
@@ -20,7 +23,5 @@
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
 - 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
 - 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更する](../docs/guides/change.md)）。
-- 変更するときは、始めに[変更する](../docs/guides/change.md "在りか")（全体を読む）を読み、その段に沿う。文書を書くときは
-  write-docs スキルに従う。
-  決まりや文書を足す・変える・消す・移すとき、その置き場所を決めるとき、その差分をレビューするときは、
-  [文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。
+- 文書を書くときは write-docs スキルに従う。変更しない作業で、決まりや文書の置き場所を決めるとき（ほかの人の差分を
+  レビューするときを含む）は、[文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。
