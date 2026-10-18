@@ -25,8 +25,8 @@
    意味、条件、範囲が変わらず、別の読み方ができないときだけにし、迷ったら長いままにする
    （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
    言い直しを外すときは、外す決まりの持ち主がほかにあるかを先に確かめる。なければ、その決まりを置くべき文書（3 段の
-   持ち主）に定義として移してから外す。同じ事実を細部まで持つ所は一つに絞り、ほかは要約か案内にする。細部をいくつもの
-   所に並べると、直すたびにどこかが古いまま残る。
+   持ち主）に定義として移してから外す。同じ事実を細部まで持つ所は一つに絞り、ほかは要約か案内にする
+   （[要約と案内](../architecture/documentation.md#summaries-and-guides)、[SSOT](../../../principles/docs/reference/principles.md#ssot)）。
    決まりを守るためなら、まとめ直す、移す、構成を変えるなど、破壊的に書き換えてよい
    （[書き換え](../architecture/documentation.md#rewrite)）。
 8. **確かめる**：`check-docs`（conventions のコマンド）を通す。Markdown を変えたターンの終わりには hook も回す。
