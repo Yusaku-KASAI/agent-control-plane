@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-18
 amends: [5, 11]
+amended_by: [16]
 ---
 
 # 0014. ターゲットに依存しない検査は、platform の複合アクションとして devcontainer の外で CI に回す

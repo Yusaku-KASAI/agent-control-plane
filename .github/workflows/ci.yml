@@ -47,11 +47,28 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./platform/plugins/conventions/actions/check-docs
 
+  # The github plugin's action, as check-docs is. It reads the repository's settings and CODEOWNERS
+  # through the API, so it also fails when the protection is lost outside any pull request (as on the
+  # weekly run).
+  check-protection:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Only for the action's own path; the action itself reads GitHub, not the checkout.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: ./platform/plugins/github/actions/check-protection
+
   # The one required status check. A job skipped because a need failed would count as passed, so
   # this one always runs and fails on its own.
   check:
-    needs: [check-concern, check-docs]
+    needs: [check-concern, check-docs, check-protection]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.check-concern.result }}" = success && test "${{ needs.check-docs.result }}" = success
+      - run: |
+          test "${{ needs.check-concern.result }}" = success
+          test "${{ needs.check-docs.result }}" = success
+          test "${{ needs.check-protection.result }}" = success

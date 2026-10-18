@@ -38,22 +38,13 @@
 
 ## 確かめる
 
-CODEOWNERS を置いたときと変えたあとは、誤りがないことを確かめる。誤った行は黙って無視され、コードオーナーの承認が
-求められなくなる。
+github プラグインの `check-protection` が、上の設定と CODEOWNERS を確かめる。ターゲットの CI の `check-protection`
+ジョブが毎回回すので（[CI](../architecture/ci.md "在りか")）、設定したあとは CI を回し直して通ることを見る。手元では
+リポジトリの中で回す（エージェントは `check-protection`、人は platform の `plugins/github/bin/check-protection`）。
 
 ```bash
-gh api repos/<owner>/<repo>/codeowners/errors   # 個人のリポジトリだけ。{"errors":[]} なら誤りはない
-gh api repos/<owner>/<repo>/rulesets            # ルールセットの id
-gh api repos/<owner>/<repo>/rulesets/<id> --jq .rules   # 下の値を見る
+check-protection [<owner>/<repo> [<ref>]]   # NG の行が守りの抜け。終了コードは 0 が通過、1 が抜け、2 が読めない
 ```
 
-`rules` が次を満たすことを見る。
-
-- `deletion` と `non_fast_forward` がある。
-- `pull_request` の `required_approving_review_count` が 1、`dismiss_stale_reviews_on_push` が `true`。
-  個人のリポジトリでは `require_code_owner_review` が `true`。organization のリポジトリでは `required_reviewers` に
-  team が `file_patterns: ["*"]`、`minimum_approvals: 1` で入っている。
-- `required_status_checks` の `required_status_checks` が、`context` が `check` で `integration_id` が GitHub Actions
-  （15368）のものだけ。
-
-ルールセットの `bypass_actors` は、読む認証情報の権限によっては空（`null`）で返る。バイパスの設定は画面で確かめる。
+バイパスの設定（`bypass_actors`）は、ルールセットを書ける認証情報でしか読めず、CI では確かめない。管理者の認証情報で
+回すか、設定の画面で確かめる。
