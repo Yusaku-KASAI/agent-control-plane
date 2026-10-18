@@ -408,7 +408,7 @@ type worker struct {
 	// running is true from a prompt or a turn start until the turn's result; current may be
 	// empty when the agent started the turn by itself. forPrompts tells that the running turn was
 	// started for sent prompts rather than by the agent.
-	// latest is the ID of the latest request the worker received, empty if it has none.
+	// latest is the ID of the request last given to the agent, empty if that request has none.
 	latest     string
 	running    bool
 	forPrompts bool
@@ -519,7 +519,6 @@ func (w *worker) handle(e ProcessEvent) {
 }
 
 func (w *worker) accept(r request) {
-	w.latest = r.id
 	if w.running && r.inject {
 		r.injectedInto = w.turn
 		if err := w.send(r); err != nil {
@@ -560,6 +559,7 @@ func (w *worker) send(r request) error {
 		w.sent = make(map[string]request)
 	}
 	w.sent[id] = r
+	w.latest = r.id
 	return nil
 }
 

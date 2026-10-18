@@ -315,6 +315,8 @@ type fakeRunner struct {
 	leftovers []domain.SessionID
 	// holdPrompts makes the processes it starts hold prompts from the start.
 	holdPrompts bool
+	// gate, when set, keeps Start from returning until it is closed.
+	gate chan struct{}
 }
 
 func newFakeRunner() *fakeRunner { return &fakeRunner{procs: make(chan *fakeProcess, 8)} }
@@ -323,7 +325,11 @@ func (f *fakeRunner) Start(_ context.Context, r usecase.StartRequest) (usecase.P
 	f.mu.Lock()
 	p := &fakeProcess{events: make(chan usecase.ProcessEvent, 8), holdPrompts: f.holdPrompts}
 	f.started = append(f.started, r)
+	gate := f.gate
 	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	f.procs <- p
 	return p, nil
 }
@@ -846,6 +852,64 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 	p.finish("next done")
 	if o := wait(t, kept); o.err != nil || o.out.Output != "next done" {
 		t.Errorf("kept = %+v, %v; want the waiting request to go on", o.out, o.err)
+	}
+}
+
+// A request still in the inbox channel, as while the worker starts a process, is withdrawn too.
+// The worker may take the stop before the request, so the test repeats.
+func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
+	for range 20 {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		e.runner.gate = make(chan struct{})
+		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+		eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+		withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
+		time.Sleep(5 * time.Millisecond)
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+			t.Fatal(err)
+		}
+		close(e.runner.gate)
+		p := e.runner.next(t)
+		if o := wait(t, withdrawn); !errors.Is(o.err, usecase.ErrStopped) {
+			t.Fatalf("request stopped in the inbox channel = %+v, %v; want ErrStopped", o.out, o.err)
+		}
+		eventually(t, func() bool { return len(p.sent()) == 1 })
+		p.finish("one")
+		wait(t, first)
+	}
+}
+
+// While the agent works on its own after answering, a request waiting behind it or withdrawn does
+// not take the place of the latest request given to the agent: stopping that one stops the work,
+// and the waiting request goes on.
+func TestDispatcher_StopOwnWorkWithRequestWaiting(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "watch CI", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("watching")
+	wait(t, first)
+	p.startTurn()
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
+	withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
+	waiting := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next", RequestID: "3.0"})
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) >= 2 })
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, withdrawn)
+	if p.wasInterrupted() {
+		t.Fatal("withdrawing a waiting request interrupted the agent's own turn")
+	}
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, p.wasInterrupted)
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finish("next done")
+	if o := wait(t, waiting); o.err != nil || o.out.Output != "next done" {
+		t.Errorf("waiting = %+v, %v; want it to go on", o.out, o.err)
 	}
 }
 
