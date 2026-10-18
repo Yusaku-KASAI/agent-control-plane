@@ -149,8 +149,9 @@ gh run view <run ID> --log-failed                               # 失敗した�
 - `check-protection` ジョブ（既定のブランチの守りの検査）が失敗したら、ログで分ける
   （[既定のブランチの守りの用意](../../../../../template/docs/guides/github.md "在りか")）。
   - PR が CODEOWNERS を変えていて、`NG` の行がその CODEOWNERS のことなら、PR の中で直す。
-  - 読めない（`cannot read`、終了コード 2）なら、設定の問題ではない。PR では直さず、`NG` の行ではないことを添えて、
-    回し直しを依頼者に頼む（developer の App は Actions を読むだけで、回し直せない）。
+  - 読めない（`cannot read`、終了コード 2）なら、守りの抜け（`NG` の行）ではない。PR では直さず、そのことを添えて、
+    回し直しを依頼者に頼む（developer の App は Actions を読むだけで、回し直せない）。回し直しても読めなければ、CI の
+    トークンで読めないことでありうる（target-template の ADR 0016）ので、`cannot read` の行を添えて報告する。
   - それ以外（PR が触れていないリポジトリの設定や、CODEOWNERS の持ち主）は PR の変更では直らない。PR では直さず
     （CODEOWNERS や検査を書き換えて通さない）、`NG` の行を添えて依頼者に報告する。
 
