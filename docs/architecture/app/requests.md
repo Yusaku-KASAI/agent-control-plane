@@ -57,7 +57,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所だけを書く。本文は、
     `:zap:` で始まるか（流し込み）を見るためだけに使う（[ADR 0020](../../adr/app/0020-slack-requests-by-reference.md)）。
   - Bot が書いたメッセージは依頼にしない。Slack が送り直した同じメッセージ（チャンネルと ts が同じ）は、
-    1 時間のあいだ一度だけ扱う。
+    1 時間のあいだ一度だけ扱い、送り直されたものには何も返さない。
   - 依頼ごとにゴルーチンで `HandleMessage` を動かす。サーバーが止まるときも依頼の処理は取り消さず、
     `Dispatcher` が閉じて依頼が終わるのを待つ。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
@@ -176,7 +176,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   | `POST /v1/sessions/{id}/stop` | セッションを停止する |
 
   - `/v1/` は `Authorization: Bearer <ACP_API_TOKEN>` を求める。依頼者の確認はこのトークンだけで、
-    `allowed_users` は見ない。
+    `allowed_users` は見ない。トークンを持つ人を依頼者として扱い、誰が依頼したかは区別しない
+    （[ADR 0014](../../adr/app/0014-control-plane-as-a-server.md)）。
   - エージェントがエラーで終えたターンは、ターンの応答（200）に `error` を、使用上限で止まったときは `usage_limited` も
     立てて返す。
   - エラーは HTTP の状態と `code`（`session_busy`、`inbox_full`、`unavailable` など）で返し、セッションが

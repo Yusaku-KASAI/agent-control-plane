@@ -32,7 +32,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   チャンネルを読み書きできる。
 - 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
-  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。
+  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。ADR 0006 が決めた、拡張が要る機能を
+  宣言して control-plane が方式を割り当てる仕組みはなく、拡張が使う外部サービス（GitHub、Slack）は提供方式が一つずつ。
 
 <a id="secrets"></a>
 
