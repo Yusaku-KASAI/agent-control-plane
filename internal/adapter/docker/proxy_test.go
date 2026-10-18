@@ -64,8 +64,10 @@ var dockerCalls = map[string]func(ctx context.Context, api dockerAPI) error{
 // neverAllowed are requests the runner does not send and the proxy must refuse. It samples the
 // operations that give more than the runner needs (exec, writing into or reading out of containers,
 // images and builds), so an entry widened with a wildcard cannot let them through while still
-// counting as used.
+// counting as used. Every method the proxy allows needs at least one sample.
 var neverAllowed = []engineRequest{
+	{http.MethodHead, "/v1.56/containers/c1/archive"},
+	{http.MethodPost, "/v1.56/containers/prune"},
 	{http.MethodPost, "/v1.56/containers/c1/exec"},
 	{http.MethodPost, "/v1.56/exec/e1/start"},
 	{http.MethodPost, "/v1.56/containers/c1/kill"},
@@ -132,11 +134,18 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 			}
 		}
 	}
+	sampled := make(map[string]bool)
 	for _, req := range neverAllowed {
+		sampled[req.method] = true
 		for _, re := range allow[req.method] {
 			if re.MatchString(req.path) {
 				t.Errorf("the proxy allows %s %s through %s, which the runner never sends", req.method, req.path, re)
 			}
+		}
+	}
+	for method := range allow {
+		if !sampled[method] {
+			t.Errorf("the proxy allows %s, but neverAllowed has no %s request to check its entries against", method, method)
 		}
 	}
 }
