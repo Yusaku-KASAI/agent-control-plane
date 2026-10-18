@@ -11,5 +11,6 @@
 | [architecture/claude-code.md](architecture/claude-code.md) | 解説 | Claude Code の設定（プラグインの宣言、回答の言語、対話のときの権限） |
 | [architecture/ci.md](architecture/ci.md) | 解説 | CI の構成 |
 | [guides/devcontainer.md](guides/devcontainer.md) | 手順 | ホストの準備、devcontainer のビルド、起動、停止、root での作業、Claude Code の権限の確認と画面のコピー |
-| [reference/contract.md](reference/contract.md) | 参照 | ターゲットの契約（イメージ、ホストでの配置、プラグイン、ロール、Claude Code の設定、検査、devcontainer と control-plane、CLAUDE.md の節） |
+| [guides/github.md](guides/github.md) | 手順 | 既定のブランチの守りの用意（CODEOWNERS か team、ルールセット、確かめ方） |
+| [reference/contract.md](reference/contract.md) | 参照 | ターゲットの契約（イメージ、ホストでの配置、プラグイン、ロール、Claude Code の設定、検査、devcontainer と control-plane、既定のブランチの守り、CLAUDE.md の節） |
 | [adr/](adr) | 判断 | |

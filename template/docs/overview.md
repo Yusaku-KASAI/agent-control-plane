@@ -5,6 +5,7 @@
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
+| 既定のブランチの守り | `.github/CODEOWNERS`（承認する人）と、リポジトリの設定のルールセット | [guides/github.md](guides/github.md "在りか") |
 | devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "在りか")、[guides/devcontainer.md](guides/devcontainer.md "在りか") |
 | Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "在りか") |
 | CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml` | [architecture/ci.md](architecture/ci.md "在りか") |
@@ -18,7 +19,7 @@
 | 分類 | 意味 |
 | --- | --- |
 | 共通 | どのターゲットでも同じ。ターゲットで変えない。変えるときは target-template とすべてのターゲットで変える |
-| 埋める | 形は共通で、ターゲットごとの部分を持つ。共通の部分は変えず、決まった場所だけを埋める |
+| 埋める | 形は共通で、ターゲットごとの部分を持つ。共通の部分は変えず、決まった場所だけを埋める。下の表のターゲットごとの部分が消すことを挙げていれば、ファイルごと消すことも埋め方に含む |
 | 固有 | ターゲットだけのもの |
 
 | ファイル | 分類 | ターゲットごとの部分 |
@@ -33,6 +34,7 @@
 | `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査。`check-docs` ジョブ（その権限を含む）と、`check` ジョブがそれを待つことは共通 |
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` は共通 |
 | `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
+| `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](reference/contract.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
@@ -49,3 +51,4 @@ target-template の中の項目と前提の向き（[形式](../../platform/plug
 | devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
 | Claude Code の設定 | target-template | `architecture/claude-code.md` | |
 | CI | target-template | `architecture/ci.md` | devcontainer |
+| 既定のブランチの守り | target-template | `guides/github.md` | CI |

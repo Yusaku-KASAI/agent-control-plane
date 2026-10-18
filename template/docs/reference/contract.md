@@ -63,6 +63,21 @@ control-plane の API を指さない（[ADR 0013](../adr/0013-devcontainer-off-
 - devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
   エージェントを起動できてしまう。control-plane を試すときに、人がその場で渡すのは除く。
 
+<a id="protection"></a>
+
+## 既定のブランチの守り
+
+ターゲットのリポジトリは、既定のブランチをルールセットで守る（[app ADR 0025](../../../docs/adr/app/0025-pr-review-as-the-last-line.md)、
+[app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。エージェントの認証情報だけでは既定の
+ブランチに入れないことを、ロールと control-plane は前提にする。用意の仕方は
+[既定のブランチの守りの用意](../guides/github.md "在りか")にある。
+
+- 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。
+- PR に承認を 1 件求め、承認する主体を人に限る。個人のリポジトリでは `.github/CODEOWNERS` に人だけを書いて
+  コードオーナーの承認を求め、organization のリポジトリでは人だけの team を必須のレビュアーにする。エージェントの
+  GitHub App は、CODEOWNERS の持ち主にも team にも入れない。
+- 新しいコミットが push されたら承認を取り消す。バイパスは、リポジトリの管理者に PR のときだけ許す。
+
 ## CLAUDE.md
 
 エージェントに常に読み込まれる入口（[ADR 0012](../adr/0012-claude-md-sections.md)）。次の節をこの順に持ち、どの節も
