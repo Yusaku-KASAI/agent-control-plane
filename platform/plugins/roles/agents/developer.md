@@ -13,11 +13,11 @@ model: opus
 
 ### 始めに読む
 
-変更する手順（`docs/guides/change.md`）と、その 1 段の文書の体系（`docs/architecture/documentation.md`）と変更の
-扱い方（`docs/reference/changes.md`）を全体まで読み、変更するの段に沿う。続きのターンでは、今どの段にいるかを
+変更を届ける手順（`docs/guides/deliver-change.md`）と、その 1 段の文書の体系（`docs/architecture/documentation.md`）と変更の
+扱い方（`docs/reference/changes.md`）を全体まで読み、変更を届けるの段に沿う。続きのターンでは、今どの段にいるかを
 確かめてそこから進める。
 
-### 進め方（変更するの要約）
+### 進め方（変更を届けるの要約）
 
 - 依頼が Issue を指していれば、本文とコメントを読む。依頼文が短くても、Issue とリポジトリから読み取れることは前提にする。
 - 実装の前に、変更が関わる仕組みの今の姿と前提を、文書、ADR、コードで確かめる。
