@@ -14,10 +14,10 @@ model: opus
 
 ### 始めに読む
 
-変更を届ける手順（`docs/guides/deliver-change.md`）と、その 1 段の文書の体系（`docs/architecture/documentation.md`）と変更の
-扱い方（`docs/reference/changes.md`）を全体まで読み、変更を届けるの段に沿う。続きのターンでは、今どの段にいるかを
-確かめてそこから進める。依頼が変更（PR）にするものでなければ（相談や壁打ちなど）、共通のルールの受け付けに従い、
-途中で変更になったらここに入り直す。
+依頼が変更（PR）にするものなら、変更を届ける手順（`docs/guides/deliver-change.md`）と、その 1 段の文書の体系
+（`docs/architecture/documentation.md`）と変更の扱い方（`docs/reference/changes.md`）を全体まで読み、変更を届けるの段に
+沿う。続きのターンでは、今どの段にいるかを確かめてそこから進める。そうでなければ（相談や壁打ちなど）、共通のルールの
+受け付けに従い、途中で変更になったらここに入り直す。
 
 ### 進め方（変更を届けるの要約）
 
