@@ -25,6 +25,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackauth"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/slackbot"
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/usagelog"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
@@ -92,6 +93,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		cfg.People,
 		docker.NewRunner(dockerClient, runnerOpts),
 		observer,
+		usagelog.New(cfg.UsageLog, log),
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
 			// Installation tokens live for an hour.

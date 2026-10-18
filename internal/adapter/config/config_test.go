@@ -21,6 +21,7 @@ credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
 state_dir: /var/lib/acp/state
+usage_log: /var/acp/usage.jsonl
 claude:
   oauth_token_path: /keys/claude-oauth-token
   config_dir: /var/lib/acp/claude
@@ -92,6 +93,9 @@ func TestParse(t *testing.T) {
 		app.Rotation == nil || *app.Rotation != (config.SlackRotation{ClientID: "123.456", ClientSecretPath: "/keys/repo-dev.slack-client-secret"}) {
 		t.Errorf("SlackApps = %+v", cfg.SlackApps)
 	}
+	if cfg.UsageLog != "/var/acp/usage.jsonl" {
+		t.Errorf("UsageLog = %q", cfg.UsageLog)
+	}
 	if cfg.StateDir != "/var/lib/acp/state" {
 		t.Errorf("StateDir = %q", cfg.StateDir)
 	}
@@ -114,34 +118,52 @@ func TestParse_Invalid(t *testing.T) {
 		"unknown field": validYAML + "extra: 1\n",
 		"no claude credential": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {config_dir: /cc}
 `,
 		"two claude credentials": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, api_key_path: /k, config_dir: /cc}
 `,
 		"bad idle timeout": `
 sessions: {root: /w, idle_timeout: soon}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"bad retention": `
 sessions: {root: /w, retention: 30d}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"missing credentials dir": `
 sessions: {root: /w}
+usage_log: /u.jsonl
+claude: {oauth_token_path: /t, config_dir: /cc}
+`,
+		"missing usage_log": `
+sessions: {root: /w}
+credentials: {dir: /c}
+claude: {oauth_token_path: /t, config_dir: /cc}
+`,
+		"relative usage_log": `
+sessions: {root: /w}
+usage_log: usage.jsonl
+credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"relative sessions root": `
 sessions: {root: w}
+usage_log: /u.jsonl
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"invalid agent": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -149,6 +171,7 @@ agents:
 `,
 		"sessions root inside a target": `
 sessions: {root: /src/repo/sessions}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -156,6 +179,7 @@ agents:
 `,
 		"sessions root is a target": `
 sessions: {root: /src/repo}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -163,6 +187,7 @@ agents:
 `,
 		"incomplete github app": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -170,6 +195,7 @@ agents:
 `,
 		"slack without allowed users": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -177,6 +203,7 @@ agents:
 `,
 		"rotation without state_dir": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -187,6 +214,7 @@ agents:
 `,
 		"incomplete person": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 people:
@@ -194,6 +222,7 @@ people:
 `,
 		"duplicate agent": `
 sessions: {root: /w}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
@@ -213,6 +242,7 @@ agents:
 func TestParse_SessionsRootBesideTarget(t *testing.T) {
 	in := `
 sessions: {root: /src/repo-sessions}
+usage_log: /u.jsonl
 credentials: {dir: /c}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:

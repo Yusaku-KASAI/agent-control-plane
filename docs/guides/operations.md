@@ -18,7 +18,7 @@ control-plane のサーバーを手元で準備して動かす手順。
   cd <親ディレクトリ> && ln -s agent-control-plane/platform agent-platform
   ```
 
-- `sessions.root` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
+- `sessions.root` と `usage_log` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
 - ターゲットのイメージをビルドしておく（このリポジトリなら devcontainer をビルドする）。
 - ターゲットのリポジトリの既定のブランチを、ルールセットで守っておく（[既定のブランチの守りの用意](../../template/docs/guides/github.md "在りか")）。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
@@ -85,6 +85,19 @@ OAuth の認可からトークンを取る。手順は次のコマンドが表�
 
 ```bash
 docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>
+```
+
+<a id="usage"></a>
+
+## 使用量を見る
+
+ターンごとの使用量は `usage_log` のファイルに 1 行ずつ残る（項目は[使用量の記録](../architecture/app/sessions.md#usage "在りか")）。
+たとえば、エージェントと依頼者ごとの見積もりの費用は次で足し合わせる。使用量の分からないターン（`usage` が `null`）は
+入らない。
+
+```bash
+jq -s 'map(select(.usage != null)) | group_by([.agent, (.requesters | map(.id) | join(","))])
+  | map({agent: .[0].agent, requesters: (.[0].requesters | map(.id)), turns: length, cost_usd: (map(.usage.cost_usd) | add)})' <usage_log のパス>
 ```
 
 <a id="build-client"></a>

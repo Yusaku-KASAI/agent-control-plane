@@ -58,6 +58,18 @@ type Session struct {
 	LastUsedAt time.Time
 	// KeptNotifiedAt is when the thread was last told that the session is kept for the work it holds.
 	KeptNotifiedAt time.Time
+	// ReportedUsage is the session's total that Claude Code reported at the end of the last turn; nil
+	// when it is unknown, as after a process that ended by itself, which may not have saved it.
+	ReportedUsage *Usage
+}
+
+// UsageBefore is the session's total to compare the next turn's with: nothing was spent before the
+// first turn.
+func (s Session) UsageBefore() *Usage {
+	if s.ReportedUsage == nil && s.IsNew() {
+		return &Usage{}
+	}
+	return s.ReportedUsage
 }
 
 func (s Session) IsNew() bool {

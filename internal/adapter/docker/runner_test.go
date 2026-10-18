@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -265,7 +266,9 @@ func TestRunner_Start(t *testing.T) {
 	api.emit(1, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check","description":"Run lint and tests"}}]}}`+"\n")
 	api.emit(2, "some noise\n")
 	api.emit(1, `{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"b1"}]}`+"\n")
-	api.emit(1, `{"type":"result","subtype":"success","result":"done"}`+"\n")
+	api.emit(1, `{"type":"result","subtype":"success","result":"done","total_cost_usd":0.75,"usage":{"input_tokens":9},`+
+		`"modelUsage":{"claude-opus":{"inputTokens":1,"outputTokens":2,"cacheReadInputTokens":3,"cacheCreationInputTokens":4,"webSearchRequests":0,"costUSD":0.5,"contextWindow":200000},`+
+		`"claude-haiku":{"inputTokens":5,"outputTokens":6,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"costUSD":0.25}}}`+"\n")
 	if e := receive(t, proc.Events()); e.Kind != usecase.EventTurnStarted {
 		t.Errorf("event = %+v, want the turn start", e)
 	}
@@ -278,8 +281,16 @@ func TestRunner_Start(t *testing.T) {
 	if e := receive(t, proc.Events()); e.Kind != usecase.EventBackgroundTasks || !slices.Equal(e.BackgroundTasks, []string{"b1"}) {
 		t.Errorf("event = %+v, want one background task", e)
 	}
-	if e := receive(t, proc.Events()); e.Kind != usecase.EventTurnFinished || e.Result.Output != "done" || e.Result.Interrupted {
-		t.Errorf("event = %+v, want the result", e)
+	finished := receive(t, proc.Events())
+	if finished.Kind != usecase.EventTurnFinished || finished.Result.Output != "done" || finished.Result.Interrupted {
+		t.Errorf("event = %+v, want the result", finished)
+	}
+	wantUsage := domain.Usage{CostUSD: 0.75, Models: map[string]domain.ModelUsage{
+		"claude-opus":  {InputTokens: 1, OutputTokens: 2, CacheReadInputTokens: 3, CacheCreationInputTokens: 4, CostUSD: 0.5},
+		"claude-haiku": {InputTokens: 5, OutputTokens: 6, CostUSD: 0.25},
+	}}
+	if !reflect.DeepEqual(finished.Result.Usage, wantUsage) {
+		t.Errorf("usage = %+v, want %+v", finished.Result.Usage, wantUsage)
 	}
 
 	if err := proc.Interrupt(context.Background()); err != nil {
@@ -552,5 +563,19 @@ func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
 				t.Errorf("harness.md does not give the path of %s (%s)", name, value)
 			}
 		}
+	}
+}
+
+func TestProcess_CloseStopsProcessThatDoesNotExit(t *testing.T) {
+	api := newFakeAPI()
+	runner := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: t.TempDir()})
+	proc, err := runner.Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: testSession})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := proc.Close(ctx); err == nil || !api.removed {
+		t.Errorf("Close() error = %v, removed = %v; want an error and the container removed", err, api.removed)
 	}
 }

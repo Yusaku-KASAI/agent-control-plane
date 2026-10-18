@@ -149,6 +149,31 @@ type TurnResult struct {
 	Error bool
 	// UsageLimited is set with Error when the account's usage limit refused the turn's requests.
 	UsageLimited bool
+	// Usage is the session's total that the agent reported at the end of the turn.
+	Usage domain.Usage
+}
+
+// TurnRecord is what one finished turn spent, and on whose behalf.
+type TurnRecord struct {
+	Agent        domain.AgentName
+	Session      domain.SessionID
+	Conversation domain.Conversation
+	StartedAt    time.Time
+	FinishedAt   time.Time
+	// Requesters asked for the turn. For a turn the agent started by itself, they are those of the
+	// work it continues, as for co-authors, or in a new process those of the prompts it holds.
+	Requesters   []domain.Requester
+	AgentStarted bool
+	Result       TurnResult
+	// Usage is what the turn spent; nil when it cannot be told from the session's totals.
+	Usage *domain.Usage
+}
+
+// UsageLog keeps what turns spent.
+type UsageLog interface {
+	// Record keeps the turn's usage. Recording never fails the turn, so the implementation reports
+	// its own failures.
+	Record(ctx context.Context, r TurnRecord)
 }
 
 type EventKind int
@@ -242,6 +267,7 @@ type Process interface {
 	UpdateCredentials(ctx context.Context, creds domain.Credentials) error
 	// SetCoAuthors sets who is credited in commits the agent makes from now on.
 	SetCoAuthors(ctx context.Context, people []domain.GitIdentity) error
-	// Close asks the process to exit, stops it when ctx expires first, and releases it.
+	// Close asks the process to exit, stops it when ctx expires first, and releases it. It returns an
+	// error when the process did not exit by itself.
 	Close(ctx context.Context) error
 }

@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -65,6 +67,7 @@ type Dispatcher struct {
 	people      People
 	runner      Runner
 	observer    SessionObserver
+	usage       UsageLog
 	opts        DispatcherOptions
 
 	ctx     context.Context
@@ -82,12 +85,13 @@ func NewDispatcher(
 	people People,
 	runner Runner,
 	observer SessionObserver,
+	usage UsageLog,
 	opts DispatcherOptions,
 ) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Dispatcher{
 		agents: agents, sessions: sessions, workspaces: workspaces, credentials: credentials, people: people, runner: runner,
-		observer: observer, opts: opts,
+		observer: observer, usage: usage, opts: opts,
 		ctx: ctx, cancel: cancel, workers: make(map[domain.SessionID]*worker),
 	}
 }
@@ -164,8 +168,30 @@ func (d *Dispatcher) Recover(ctx context.Context) (int, error) {
 			continue
 		}
 		d.observer.Observe(s, SessionEvent{Kind: SessionAbandoned})
+		if forgetErr := d.forgetUsage(ctx, id); forgetErr != nil {
+			err = errors.Join(err, forgetErr)
+		}
 	}
 	return len(ids), err
+}
+
+// forgetUsage marks the session's total as unknown: a process removed without exiting may not
+// have saved it for the next one to carry over.
+func (d *Dispatcher) forgetUsage(ctx context.Context, id domain.SessionID) error {
+	unlock, err := d.sessions.Lock(ctx, id)
+	if err != nil {
+		return fmt.Errorf("lock session %s: %w", id, err)
+	}
+	defer unlock()
+	s, err := d.sessions.Find(ctx, id)
+	if err != nil {
+		return fmt.Errorf("find session %s: %w", id, err)
+	}
+	s.ReportedUsage = nil
+	if err := d.sessions.Save(ctx, s); err != nil {
+		return fmt.Errorf("save session %s: %w", id, err)
+	}
+	return nil
 }
 
 // Close stops every session's process and waits for them.
@@ -312,6 +338,10 @@ type worker struct {
 	// into the running turn.
 	sent    map[string]request
 	current []request
+	// requesters are credited with the process's turns that have no requests of their own: those
+	// of the latest turn that had requests, or of the prompts held when the process began with
+	// a turn of its own.
+	requesters []domain.Requester
 }
 
 func (w *worker) run() {
@@ -495,17 +525,20 @@ func (w *worker) ensureProcess() error {
 }
 
 func (w *worker) finishTurn(res TurnResult) {
+	turnUsage, total := domain.TurnUsage(w.session.UsageBefore(), res.Usage)
 	w.session.Turns++
 	w.session.LastUsedAt = time.Now()
+	w.session.ReportedUsage = total
 	err := w.d.sessions.Save(w.d.ctx, w.session)
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
+	w.recordUsage(res, turnUsage)
 	if w.forPrompts && len(w.current) == 0 && len(w.sent) > 0 {
 		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
 		// resumed session does to report the background tasks its previous process left. The
 		// requests' turn is still to come and its answer replaces this one, so it keeps running.
-		w.activity = ""
+		w.startedAt, w.activity = time.Now(), ""
 		w.notifyStatus()
 		return
 	}
@@ -525,6 +558,51 @@ func (w *worker) finishTurn(res TurnResult) {
 		// The agent holds prompts it will take into its next turn.
 		w.startTurn(false)
 	}
+}
+
+func (w *worker) recordUsage(res TurnResult, usage *domain.Usage) {
+	switch {
+	case len(w.current) > 0:
+		w.requesters = requesters(w.current)
+	case len(w.requesters) == 0:
+		// A new process's own turn continues the work of the prompts it holds, from the same thread.
+		w.requesters = requesters(slices.Collect(maps.Values(w.sent)))
+	}
+	w.d.usage.Record(w.d.ctx, TurnRecord{
+		Agent:        w.agent.Name,
+		Session:      w.session.ID,
+		Conversation: w.session.Conversation,
+		StartedAt:    w.startedAt,
+		FinishedAt:   w.session.LastUsedAt,
+		Requesters:   slices.Clone(w.requesters),
+		AgentStarted: len(w.current) == 0,
+		Result:       res,
+		Usage:        usage,
+	})
+}
+
+func requesters(rs []request) []domain.Requester {
+	var people []domain.Requester
+	for _, r := range rs {
+		if !slices.Contains(people, r.requester) {
+			people = append(people, r.requester)
+		}
+	}
+	// Held prompts come in no order; the same people are listed the same way.
+	slices.SortFunc(people, func(a, b domain.Requester) int {
+		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.ID, b.ID))
+	})
+	return people
+}
+
+// forgetUsage marks the session's total as unknown, for a process that may not have saved it for
+// the next one to carry over.
+func (w *worker) forgetUsage() error {
+	w.session.ReportedUsage = nil
+	if err := w.d.sessions.Save(w.d.ctx, w.session); err != nil {
+		return fmt.Errorf("save session: %w", err)
+	}
+	return nil
 }
 
 func (w *worker) stop() {
@@ -555,6 +633,9 @@ func (w *worker) processExited() {
 	if err == nil {
 		err = errProcessExited
 	}
+	if forgetErr := w.forgetUsage(); forgetErr != nil {
+		err = errors.Join(err, forgetErr)
+	}
 	w.stopProcess(err)
 }
 
@@ -578,10 +659,13 @@ func (w *worker) stopProcess(cause error) {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(w.d.ctx), w.d.opts.StopTimeout)
 	defer cancel()
-	_ = w.proc.Close(ctx)
+	if w.proc.Close(ctx) != nil {
+		// The next turn is told as unknown rather than wrong; failing to save only risks the latter.
+		_ = w.forgetUsage()
+	}
 	w.proc = nil
 	wasRunning, hadBackground := w.running, len(w.background) > 0
-	w.running, w.background = false, nil
+	w.running, w.background, w.requesters = false, nil, nil
 	if cause == nil {
 		return
 	}

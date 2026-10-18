@@ -43,6 +43,48 @@ type record struct {
 	Turns          int           `json:"turns"`
 	LastUsedAt     *time.Time    `json:"last_used_at,omitempty"`
 	KeptNotifiedAt *time.Time    `json:"kept_notified_at,omitempty"`
+	ReportedUsage  *usage        `json:"reported_usage,omitempty"`
+}
+
+type usage struct {
+	CostUSD float64               `json:"cost_usd"`
+	Models  map[string]modelUsage `json:"models,omitempty"`
+}
+
+type modelUsage struct {
+	InputTokens              int64   `json:"input_tokens"`
+	OutputTokens             int64   `json:"output_tokens"`
+	CacheReadInputTokens     int64   `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int64   `json:"cache_creation_input_tokens"`
+	CostUSD                  float64 `json:"cost_usd"`
+}
+
+func fromUsage(u *domain.Usage) *usage {
+	if u == nil {
+		return nil
+	}
+	r := &usage{CostUSD: u.CostUSD}
+	for name, m := range u.Models {
+		if r.Models == nil {
+			r.Models = make(map[string]modelUsage, len(u.Models))
+		}
+		r.Models[name] = modelUsage(m)
+	}
+	return r
+}
+
+func (r *usage) toDomain() *domain.Usage {
+	if r == nil {
+		return nil
+	}
+	u := &domain.Usage{CostUSD: r.CostUSD}
+	for name, m := range r.Models {
+		if u.Models == nil {
+			u.Models = make(map[string]domain.ModelUsage, len(r.Models))
+		}
+		u.Models[name] = domain.ModelUsage(m)
+	}
+	return u
 }
 
 type conversation struct {
@@ -69,6 +111,8 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 		AgentName: domain.AgentName(r.Agent),
 		Workspace: domain.Workspace{Path: r.WorkspacePath},
 		Turns:     r.Turns,
+
+		ReportedUsage: r.ReportedUsage.toDomain(),
 	}
 	if r.LastUsedAt != nil {
 		sess.LastUsedAt = *r.LastUsedAt
@@ -90,6 +134,7 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 		Turns:          sess.Turns,
 		LastUsedAt:     optionalTime(sess.LastUsedAt),
 		KeptNotifiedAt: optionalTime(sess.KeptNotifiedAt),
+		ReportedUsage:  fromUsage(sess.ReportedUsage),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
 		r.Conversation = &conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}

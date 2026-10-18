@@ -31,7 +31,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   usecase の dispatcher が決め、runner はその指示でコンテナを操作する。段階ごとに起きることは
   [セッション](sessions.md "在りか")にある。
 - control-plane とエージェントのコンテナは、どちらもホストのパスで bind する。設定に書くパス（ターゲット、
-  `sessions.root`、秘密のファイル）は、control-plane のコンテナにもホストと同じパスでマウントする。エージェントの
+  `sessions.root`、`usage_log`、秘密のファイル）は、control-plane のコンテナにもホストと同じパスでマウントする。エージェントの
   コンテナのマウントはホストの Docker が解決するので、パスを読み替えずに済む。
 
 ## 構成要素
