@@ -9,7 +9,7 @@
 - どの作業でも、始めに[文書の体系](../docs/architecture/documentation.md "在りか")を全体まで読む。このプロジェクト群の
   文書と決まりがどこにあり、この共通のルール、ロール、スキルが自分に何をどう届けているかを知るため
   （[起点](../docs/architecture/documentation.md#starting-points)）。
-- ファイルを変える作業に入るときは（セッションの途中からでも）、その前に[変更する](../docs/guides/change.md "在りか")と
+- 変更（PR）にする作業に入るときは（セッションの途中からでも）、その前に[変更する](../docs/guides/change.md "在りか")と
   [変更の扱い方](../docs/reference/changes.md "在りか")を全体まで読み、変更するの段の順に進める
   （[変更する](../docs/guides/change.md)の 1 段）。
 
