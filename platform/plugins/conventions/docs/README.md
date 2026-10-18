@@ -20,4 +20,4 @@
 | [guides/request-review.md](guides/request-review.md) | 手順 | レビューを頼んで答える（部品の手順）：頼む、答える、終える |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
 
-エージェントには、場面の手順（変更する、レビューする）は共通のルールと役割ごとの指示が、ほかの手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
+エージェントには、場面の手順は起点（変更するは共通のルールと developer の指示、レビューするは reviewer の指示）が、部品の手順とロールの外から入る場面の手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
