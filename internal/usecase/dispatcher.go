@@ -35,21 +35,21 @@ type RunAgentInput struct {
 	Conversation domain.Conversation
 	// Requester is credited in the commits of the turn that answers the prompt.
 	Requester domain.Requester
-	// Placed, when set, is told where the prompt went if the session was running a turn. Execute
-	// calls it on the caller's goroutine before it returns.
-	Placed func(Placement)
+	// Taken, when set, is told when the agent takes the prompt in. Execute calls it on the
+	// caller's goroutine before it returns.
+	Taken func(Uptake)
 }
 
-// Placement is where a prompt went because the session was running a turn. A prompt that the
-// session could take at once has no placement.
-type Placement int
+// Uptake is how the agent took a prompt in.
+type Uptake int
 
 const (
-	// PlacedInInbox: the prompt waits in the inbox and is sent after the running turn.
-	PlacedInInbox Placement = iota + 1
-	// PlacedInTurn: the prompt was injected into the running turn. The agent takes it into that
-	// turn or the next one.
-	PlacedInTurn
+	// TakenIntoNewTurn: the prompt began a turn, or the agent took it into a turn it started
+	// after the prompt was sent.
+	TakenIntoNewTurn Uptake = iota + 1
+	// TakenIntoRunningTurn: the prompt was injected into the running turn and the agent took it
+	// into that same turn.
+	TakenIntoRunningTurn
 )
 
 type RunAgentOutput struct {
@@ -121,8 +121,8 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
 	reply := make(chan turnReply, 1)
-	placed := make(chan Placement, 1)
-	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply, placed: placed}
+	taken := make(chan Uptake, 1)
+	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply, taken: taken}
 	session, err := d.openSession(ctx, agent, in)
 	if err != nil {
 		return RunAgentOutput{}, err
@@ -138,21 +138,21 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	if err != nil {
 		return RunAgentOutput{Session: session}, err
 	}
-	tellPlacement := func(p Placement) {
-		if in.Placed != nil {
-			in.Placed(p)
+	tellUptake := func(u Uptake) {
+		if in.Taken != nil {
+			in.Taken(u)
 		}
 	}
 	for {
 		select {
-		case p := <-placed:
-			tellPlacement(p)
+		case u := <-taken:
+			tellUptake(u)
 			continue
 		case r := <-reply:
-			// The worker places a prompt before it can reply to it.
+			// The worker tells the uptake of a prompt before it replies to it.
 			select {
-			case p := <-placed:
-				tellPlacement(p)
+			case u := <-taken:
+				tellUptake(u)
 			default:
 			}
 			return r.output(agent.Name)
@@ -342,14 +342,17 @@ type request struct {
 	inject    bool
 	requester domain.Requester
 	reply     chan<- turnReply
-	placed    chan<- Placement
+	taken     chan<- Uptake
+	// injectedInto is the worker's turn the prompt was injected into while it ran; zero if the
+	// prompt was not injected into a running turn.
+	injectedInto int
 }
 
-// place tells the requester where the prompt went. The channel holds one placement, and a
-// prompt is placed at most once, so this never blocks the worker.
-func (r request) place(p Placement) {
+// tellTaken tells the requester how the agent took the prompt in. The channel holds one uptake,
+// and a prompt is taken in at most once, so this never blocks the worker.
+func (r request) tellTaken(u Uptake) {
 	select {
-	case r.placed <- p:
+	case r.taken <- u:
 	default:
 	}
 }
@@ -376,6 +379,9 @@ type worker struct {
 	// started for sent prompts rather than by the agent.
 	running    bool
 	forPrompts bool
+	// turn counts the turns started, so a prompt injected into one can tell whether the agent
+	// took it into that turn.
+	turn       int
 	startedAt  time.Time
 	activity   string
 	background []string
@@ -463,6 +469,11 @@ func (w *worker) handle(e ProcessEvent) {
 	case EventPromptAccepted:
 		if r, ok := w.sent[e.PromptID]; ok {
 			delete(w.sent, e.PromptID)
+			if w.running && r.injectedInto == w.turn && r.injectedInto != 0 {
+				r.tellTaken(TakenIntoRunningTurn)
+			} else {
+				r.tellTaken(TakenIntoNewTurn)
+			}
 			w.current = append(w.current, r)
 			if !w.running {
 				w.startTurn(false)
@@ -474,16 +485,14 @@ func (w *worker) handle(e ProcessEvent) {
 
 func (w *worker) accept(r request) {
 	if w.running && r.inject {
+		r.injectedInto = w.turn
 		if err := w.send(r); err != nil {
 			r.reply <- w.reply(TurnResult{}, err)
-			return
 		}
-		r.place(PlacedInTurn)
 		return
 	}
 	w.queue = append(w.queue, r)
 	if w.running {
-		r.place(PlacedInInbox)
 		w.notifyStatus()
 	}
 }
@@ -519,6 +528,7 @@ func (w *worker) send(r request) error {
 }
 
 func (w *worker) startTurn(agentStarted bool) {
+	w.turn++
 	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
 	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 type fakeTurns struct {
 	out     usecase.RunAgentOutput
 	err     error
-	placed  usecase.Placement
+	taken   usecase.Uptake
 	called  bool
 	got     usecase.RunAgentInput
 	stopped domain.SessionID
@@ -22,11 +23,11 @@ type fakeTurns struct {
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
 	f.called = true
-	if f.placed != 0 {
-		in.Placed(f.placed)
+	if f.taken != 0 {
+		in.Taken(f.taken)
 	}
 	// The callback is checked through the responder; drop it so the input can be compared.
-	in.Placed = nil
+	in.Taken = nil
 	f.got = in
 	return f.out, f.err
 }
@@ -40,38 +41,39 @@ type allowList map[domain.Requester]bool
 
 func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return a[r] }
 
+// fakeResponder records the marks on the message, in order, as their names.
 type fakeResponder struct {
-	acked    bool
-	queued   bool
-	injected bool
-	stopped  bool
-	together bool
-	replies  []string
+	marks   []string
+	replies []string
 }
 
-func (f *fakeResponder) MarkQueued(context.Context, usecase.IncomingMessage) error {
-	f.queued = true
-	return nil
-}
-
-func (f *fakeResponder) MarkInjected(context.Context, usecase.IncomingMessage) error {
-	f.injected = true
-	return nil
-}
-
-func (f *fakeResponder) MarkAnsweredTogether(context.Context, usecase.IncomingMessage) error {
-	f.together = true
-	return nil
-}
-
-func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) error {
-	f.stopped = true
+func (f *fakeResponder) mark(name string) error {
+	f.marks = append(f.marks, name)
 	return nil
 }
 
 func (f *fakeResponder) Acknowledge(context.Context, usecase.IncomingMessage) error {
-	f.acked = true
-	return nil
+	return f.mark("received")
+}
+
+func (f *fakeResponder) MarkStarted(context.Context, usecase.IncomingMessage) error {
+	return f.mark("started")
+}
+
+func (f *fakeResponder) MarkInjected(context.Context, usecase.IncomingMessage) error {
+	return f.mark("injected")
+}
+
+func (f *fakeResponder) MarkAnswered(context.Context, usecase.IncomingMessage) error {
+	return f.mark("answered")
+}
+
+func (f *fakeResponder) MarkFailed(context.Context, usecase.IncomingMessage) error {
+	return f.mark("failed")
+}
+
+func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) error {
+	return f.mark("stopped")
 }
 
 func (f *fakeResponder) Reply(_ context.Context, _ usecase.IncomingMessage, text string) error {
@@ -99,31 +101,30 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	if !reflect.DeepEqual(turns.got, want) {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)
 	}
-	if !responder.acked || len(responder.replies) != 1 || responder.replies[0] != "done" {
-		t.Errorf("acked = %v, replies = %q", responder.acked, responder.replies)
+	if !slices.Equal(responder.marks, []string{"received", "answered"}) || !slices.Equal(responder.replies, []string{"done"}) {
+		t.Errorf("marks = %q, replies = %q", responder.marks, responder.replies)
 	}
 }
 
-func TestHandleMessage_MarksWhereTheRequestWent(t *testing.T) {
+func TestHandleMessage_MarksHowTheRequestWasTaken(t *testing.T) {
 	tests := []struct {
-		name           string
-		placed         usecase.Placement
-		queued, inject bool
+		name  string
+		taken usecase.Uptake
+		want  []string
 	}{
-		{name: "taken at once"},
-		{name: "waits in the inbox", placed: usecase.PlacedInInbox, queued: true},
-		{name: "injected into the running turn", placed: usecase.PlacedInTurn, inject: true},
+		{name: "never told", want: []string{"received", "answered"}},
+		{name: "began a turn", taken: usecase.TakenIntoNewTurn, want: []string{"received", "started", "answered"}},
+		{name: "taken into the running turn", taken: usecase.TakenIntoRunningTurn, want: []string{"received", "injected", "answered"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done"}, placed: tt.placed}
+			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done"}, taken: tt.taken}
 			responder := &fakeResponder{}
 			if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
-			if !responder.acked || responder.queued != tt.queued || responder.injected != tt.inject {
-				t.Errorf("acked = %v, queued = %v, injected = %v; want acked, queued = %v, injected = %v",
-					responder.acked, responder.queued, responder.injected, tt.queued, tt.inject)
+			if !slices.Equal(responder.marks, tt.want) {
+				t.Errorf("marks = %q, want %q", responder.marks, tt.want)
 			}
 		})
 	}
@@ -137,8 +138,8 @@ func TestHandleMessage_RejectsUnknownRequester(t *testing.T) {
 	if !errors.Is(err, domain.ErrRequesterNotAllowed) {
 		t.Fatalf("Execute() error = %v, want ErrRequesterNotAllowed", err)
 	}
-	if turns.called || responder.acked || len(responder.replies) != 1 {
-		t.Errorf("turn called = %v, acked = %v, replies = %q", turns.called, responder.acked, responder.replies)
+	if turns.called || len(responder.marks) != 0 || len(responder.replies) != 1 {
+		t.Errorf("turn called = %v, marks = %q, replies = %q", turns.called, responder.marks, responder.replies)
 	}
 }
 
@@ -168,6 +169,9 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 			if len(responder.replies) != 1 || !strings.Contains(responder.replies[0], tt.want) {
 				t.Errorf("replies = %q, want one containing %q", responder.replies, tt.want)
 			}
+			if !slices.Equal(responder.marks, []string{"received", "failed"}) {
+				t.Errorf("marks = %q, want received and failed", responder.marks)
+			}
 		})
 	}
 }
@@ -189,8 +193,8 @@ func TestHandleMessage_Stopped(t *testing.T) {
 				Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
-			if !responder.stopped || len(responder.replies) != 1 {
-				t.Errorf("stopped = %v, replies = %q", responder.stopped, responder.replies)
+			if !slices.Equal(responder.marks, []string{"received", "stopped"}) || len(responder.replies) != 1 {
+				t.Errorf("marks = %q, replies = %q", responder.marks, responder.replies)
 			}
 		})
 	}
@@ -210,13 +214,24 @@ func TestHandleMessage_Stop(t *testing.T) {
 }
 
 func TestHandleMessage_AnsweredTogether(t *testing.T) {
-	responder := &fakeResponder{}
-	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "both answers", Shared: true}}
-	if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
-		t.Fatalf("Execute() error = %v", err)
+	tests := []struct {
+		name string
+		out  usecase.RunAgentOutput
+		want []string
+	}{
+		{name: "answered", out: usecase.RunAgentOutput{Output: "both answers", Shared: true}, want: []string{"received", "answered"}},
+		{name: "ended on an error", out: usecase.RunAgentOutput{Output: "API Error: 500", Shared: true, Error: true}, want: []string{"received", "failed"}},
 	}
-	if !responder.together || len(responder.replies) != 0 {
-		t.Errorf("together = %v, replies = %q; want a mark and no repeated reply", responder.together, responder.replies)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			responder := &fakeResponder{}
+			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out}, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !slices.Equal(responder.marks, tt.want) || len(responder.replies) != 0 {
+				t.Errorf("marks = %q, replies = %q; want %q and no repeated reply", responder.marks, responder.replies, tt.want)
+			}
+		})
 	}
 }
 
@@ -238,6 +253,9 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 		}
 		if len(responder.replies) != 1 {
 			t.Fatalf("%s: replies = %q, want one", tc.name, responder.replies)
+		}
+		if !slices.Equal(responder.marks, []string{"received", "failed"}) {
+			t.Errorf("%s: marks = %q, want received and failed", tc.name, responder.marks)
 		}
 		for _, w := range tc.want {
 			if !strings.Contains(responder.replies[0], w) {
