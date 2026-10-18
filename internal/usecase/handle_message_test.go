@@ -41,7 +41,8 @@ type allowList map[domain.Requester]bool
 
 func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return a[r] }
 
-// fakeResponder records the marks on the message, in order, as their names.
+// fakeResponder records the marks on the message and the replies, in order, as their names; a
+// reply is recorded as "reply" in marks and by its text in replies.
 type fakeResponder struct {
 	marks   []string
 	replies []string
@@ -78,7 +79,7 @@ func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) er
 
 func (f *fakeResponder) Reply(_ context.Context, _ usecase.IncomingMessage, text string) error {
 	f.replies = append(f.replies, text)
-	return nil
+	return f.mark("reply")
 }
 
 var (
@@ -101,7 +102,7 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	if !reflect.DeepEqual(turns.got, want) {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)
 	}
-	if !slices.Equal(responder.marks, []string{"received", "answered"}) || !slices.Equal(responder.replies, []string{"done"}) {
+	if !slices.Equal(responder.marks, []string{"received", "reply", "answered"}) || !slices.Equal(responder.replies, []string{"done"}) {
 		t.Errorf("marks = %q, replies = %q", responder.marks, responder.replies)
 	}
 }
@@ -112,9 +113,9 @@ func TestHandleMessage_MarksHowTheRequestWasTaken(t *testing.T) {
 		taken usecase.Uptake
 		want  []string
 	}{
-		{name: "never told", want: []string{"received", "answered"}},
-		{name: "began a turn", taken: usecase.TakenIntoNewTurn, want: []string{"received", "started", "answered"}},
-		{name: "taken into the running turn", taken: usecase.TakenIntoRunningTurn, want: []string{"received", "injected", "answered"}},
+		{name: "never told", want: []string{"received", "reply", "answered"}},
+		{name: "began a turn", taken: usecase.TakenIntoNewTurn, want: []string{"received", "started", "reply", "answered"}},
+		{name: "taken into the running turn", taken: usecase.TakenIntoRunningTurn, want: []string{"received", "injected", "reply", "answered"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -138,7 +139,7 @@ func TestHandleMessage_RejectsUnknownRequester(t *testing.T) {
 	if !errors.Is(err, domain.ErrRequesterNotAllowed) {
 		t.Fatalf("Execute() error = %v, want ErrRequesterNotAllowed", err)
 	}
-	if turns.called || len(responder.marks) != 0 || len(responder.replies) != 1 {
+	if turns.called || !slices.Equal(responder.marks, []string{"reply"}) || len(responder.replies) != 1 {
 		t.Errorf("turn called = %v, marks = %q, replies = %q", turns.called, responder.marks, responder.replies)
 	}
 }
@@ -169,8 +170,8 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 			if len(responder.replies) != 1 || !strings.Contains(responder.replies[0], tt.want) {
 				t.Errorf("replies = %q, want one containing %q", responder.replies, tt.want)
 			}
-			if !slices.Equal(responder.marks, []string{"received", "failed"}) {
-				t.Errorf("marks = %q, want received and failed", responder.marks)
+			if !slices.Equal(responder.marks, []string{"received", "reply", "failed"}) {
+				t.Errorf("marks = %q, want received, the reply and then failed", responder.marks)
 			}
 		})
 	}
@@ -193,7 +194,7 @@ func TestHandleMessage_Stopped(t *testing.T) {
 				Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
-			if !slices.Equal(responder.marks, []string{"received", "stopped"}) || len(responder.replies) != 1 {
+			if !slices.Equal(responder.marks, []string{"received", "reply", "stopped"}) || len(responder.replies) != 1 {
 				t.Errorf("marks = %q, replies = %q", responder.marks, responder.replies)
 			}
 		})
@@ -254,8 +255,8 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 		if len(responder.replies) != 1 {
 			t.Fatalf("%s: replies = %q, want one", tc.name, responder.replies)
 		}
-		if !slices.Equal(responder.marks, []string{"received", "failed"}) {
-			t.Errorf("%s: marks = %q, want received and failed", tc.name, responder.marks)
+		if !slices.Equal(responder.marks, []string{"received", "reply", "failed"}) {
+			t.Errorf("%s: marks = %q, want received, the reply and then failed", tc.name, responder.marks)
 		}
 		for _, w := range tc.want {
 			if !strings.Contains(responder.replies[0], w) {
