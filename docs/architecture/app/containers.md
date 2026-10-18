@@ -62,7 +62,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 - **責務**：Docker ソケットを持つ唯一のコンテナとして、control-plane が使う Docker API だけを通す。
 - **置くもの / 置かないもの**：`wollomatic/socket-proxy` に、HTTP メソッドごとのパスの正規表現で許可を書く。
-  通すのは、`_ping` と `version`、コンテナの一覧、作成、attach、起動、終了待ち、削除だけ。接続を受けるのは
+  通すのは、`_ping` と `version`、コンテナの一覧、作成、attach、起動、終了待ち、削除だけ。エージェントの出力は
+  attach で受け、コンテナのログの API は通さない（[ADR 0038](../../adr/app/0038-docker-proxy-without-logs.md)）。接続を受けるのは
   `control-plane` からだけで、プロキシ自身は読み取り専用のファイルシステムで、capability をすべて落として動く。
   作成するコンテナの中身（マウント、イメージ、特権）は検査しない。
 - **関係**：許可の一覧にない API はプロキシが拒むので、runner が使う Docker API とこの一覧は一致している。

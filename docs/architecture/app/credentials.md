@@ -31,6 +31,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 - Slack の Bot トークンは、control-plane の Bot とエージェントが同じものを使う。エージェントは Bot が招待された
   チャンネルを読み書きできる。
 - 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
+  拡張が要る機能を宣言して control-plane が方式を割り当てる仕組みはなく、外部サービスごとの提供方式は一つだけ
+  （[ADR 0039](../../adr/app/0039-capability-declaration-after-second-method.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
   （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。
 

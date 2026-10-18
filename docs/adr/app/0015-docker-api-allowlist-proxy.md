@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-01
+amended_by: [38]
 ---
 
 # 0015. Docker ソケットはプロキシに持たせ、使う API だけを通す
