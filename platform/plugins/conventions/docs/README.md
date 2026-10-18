@@ -19,4 +19,4 @@
 | [guides/review.md](guides/review.md) | 手順 | レビューする：差分のレビュー、指摘への答え方、全体のレビューの各段の道具 |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
 
-エージェントには、スキルが手順を届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
+エージェントには、場面の手順（変更する）は共通のルールと役割ごとの指示が、ほかの手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）。
