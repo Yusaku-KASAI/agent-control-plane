@@ -188,8 +188,12 @@ func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppM
 	}, true
 }
 
-// injectPrefix marks a message to be sent into the running turn.
-const injectPrefix = ":zap:"
+// injectPrefix marks a message to be sent into the running turn; the same emoji, as a reaction,
+// tells that it was.
+const (
+	injectReaction = "zap"
+	injectPrefix   = ":" + injectReaction + ":"
+)
 
 // requestPrompt points the agent at the message instead of quoting it: the agent reads the
 // request, and the thread around it, from Slack (docs/adr/app/0020).
@@ -204,16 +208,29 @@ slack スキルの手順で次のメッセージを読み、その依頼に応�
 最後の回答は control-plane がこのスレッドに投稿します。回答を自分で投稿しないでください。`, user, channel, ts, channel, thread)
 }
 
+// The reactions on a request's message tell how far it has come (docs/adr/app/0038).
 func (b *Bot) Acknowledge(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "inbox_tray")
+}
+
+func (b *Bot) MarkStarted(ctx context.Context, msg usecase.IncomingMessage) error {
 	return b.react(ctx, msg, "eyes")
+}
+
+func (b *Bot) MarkInjected(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, injectReaction)
+}
+
+func (b *Bot) MarkAnswered(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "white_check_mark")
+}
+
+func (b *Bot) MarkFailed(ctx context.Context, msg usecase.IncomingMessage) error {
+	return b.react(ctx, msg, "warning")
 }
 
 func (b *Bot) MarkStopped(ctx context.Context, msg usecase.IncomingMessage) error {
 	return b.react(ctx, msg, stopReaction)
-}
-
-func (b *Bot) MarkAnsweredTogether(ctx context.Context, msg usecase.IncomingMessage) error {
-	return b.react(ctx, msg, "white_check_mark")
 }
 
 func (b *Bot) react(ctx context.Context, msg usecase.IncomingMessage, name string) error {

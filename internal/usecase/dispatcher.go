@@ -35,7 +35,23 @@ type RunAgentInput struct {
 	Conversation domain.Conversation
 	// Requester is credited in the commits of the turn that answers the prompt.
 	Requester domain.Requester
+	// Taken, when set, is told when the agent takes the prompt in. Execute calls it on the
+	// caller's goroutine before it returns.
+	Taken func(Uptake)
 }
+
+// Uptake is how the agent took a prompt in.
+type Uptake int
+
+const (
+	// TakenIntoNewTurn: the prompt began a turn, or the agent took it into a turn it started
+	// after the prompt was sent.
+	TakenIntoNewTurn Uptake = iota + 1
+	// TakenIntoRunningTurn: the prompt was injected into the running turn and the agent took it
+	// into that same turn. A turn the agent runs before taking in the prompts sent for a request
+	// is part of the request's turn (docs/adr/app/0031), so it does not end the running turn.
+	TakenIntoRunningTurn
+)
 
 type RunAgentOutput struct {
 	Output      string
@@ -105,8 +121,8 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	if err != nil {
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
-	reply := make(chan turnReply, 1)
-	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, reply: reply}
+	events := make(chan requestEvent, 2)
+	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, events: events}
 	session, err := d.openSession(ctx, agent, in)
 	if err != nil {
 		return RunAgentOutput{}, err
@@ -122,18 +138,29 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 	if err != nil {
 		return RunAgentOutput{Session: session}, err
 	}
-	select {
-	case r := <-reply:
-		if r.err != nil {
-			return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent.Name, r.err)
+	for {
+		select {
+		case e := <-events:
+			if e.reply != nil {
+				return e.reply.output(agent.Name)
+			}
+			if in.Taken != nil {
+				in.Taken(e.uptake)
+			}
+		case <-ctx.Done():
+			return RunAgentOutput{Session: session}, ctx.Err()
 		}
-		return RunAgentOutput{
-			Output: r.result.Output, Interrupted: r.result.Interrupted, Error: r.result.Error, UsageLimited: r.result.UsageLimited,
-			Shared: r.shared, Session: r.session,
-		}, nil
-	case <-ctx.Done():
-		return RunAgentOutput{Session: session}, ctx.Err()
 	}
+}
+
+func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
+	if r.err != nil {
+		return RunAgentOutput{Session: r.session}, fmt.Errorf("run agent %q: %w", agent, r.err)
+	}
+	return RunAgentOutput{
+		Output: r.result.Output, Interrupted: r.result.Interrupted, Error: r.result.Error, UsageLimited: r.result.UsageLimited,
+		Shared: r.shared, Session: r.session,
+	}, nil
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
@@ -305,7 +332,28 @@ type request struct {
 	prompt    string
 	inject    bool
 	requester domain.Requester
-	reply     chan<- turnReply
+	// events carries, in order, the uptake of the prompt (if the agent takes it in) and then the
+	// reply. It holds both, so the worker never blocks on it.
+	events chan<- requestEvent
+	// injectedInto is the worker's turn the prompt was injected into while it ran; zero if the
+	// prompt was not injected into a running turn.
+	injectedInto int
+}
+
+// requestEvent is either the uptake of a request or its reply.
+type requestEvent struct {
+	uptake Uptake
+	reply  *turnReply
+}
+
+// tellTaken tells the requester how the agent took the prompt in; a prompt is taken in at most once.
+func (r request) tellTaken(u Uptake) {
+	r.events <- requestEvent{uptake: u}
+}
+
+// answer replies to the request; a request gets one reply, after its uptake if any.
+func (r request) answer(reply turnReply) {
+	r.events <- requestEvent{reply: &reply}
 }
 
 type turnReply struct {
@@ -330,6 +378,9 @@ type worker struct {
 	// started for sent prompts rather than by the agent.
 	running    bool
 	forPrompts bool
+	// turn counts the turns started, so a prompt injected into one can tell whether the agent
+	// took it into that turn.
+	turn       int
 	startedAt  time.Time
 	activity   string
 	background []string
@@ -417,6 +468,11 @@ func (w *worker) handle(e ProcessEvent) {
 	case EventPromptAccepted:
 		if r, ok := w.sent[e.PromptID]; ok {
 			delete(w.sent, e.PromptID)
+			if w.running && r.injectedInto == w.turn && r.injectedInto != 0 {
+				r.tellTaken(TakenIntoRunningTurn)
+			} else {
+				r.tellTaken(TakenIntoNewTurn)
+			}
 			w.current = append(w.current, r)
 			if !w.running {
 				w.startTurn(false)
@@ -428,8 +484,9 @@ func (w *worker) handle(e ProcessEvent) {
 
 func (w *worker) accept(r request) {
 	if w.running && r.inject {
+		r.injectedInto = w.turn
 		if err := w.send(r); err != nil {
-			r.reply <- w.reply(TurnResult{}, err)
+			r.answer(w.reply(TurnResult{}, err))
 		}
 		return
 	}
@@ -444,11 +501,11 @@ func (w *worker) sendNext() {
 		r := w.queue[0]
 		w.queue = w.queue[1:]
 		if err := w.ensureProcess(); err != nil {
-			r.reply <- w.reply(TurnResult{}, err)
+			r.answer(w.reply(TurnResult{}, err))
 			continue
 		}
 		if err := w.send(r); err != nil {
-			r.reply <- w.reply(TurnResult{}, err)
+			r.answer(w.reply(TurnResult{}, err))
 			w.stopProcess(nil)
 			continue
 		}
@@ -470,6 +527,7 @@ func (w *worker) send(r request) error {
 }
 
 func (w *worker) startTurn(agentStarted bool) {
+	w.turn++
 	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
 	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }
@@ -547,12 +605,12 @@ func (w *worker) finishTurn(res TurnResult) {
 	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: len(w.current) == 0, Spent: spent})
 	for i, r := range w.current {
 		if err != nil {
-			r.reply <- w.reply(TurnResult{}, err)
+			r.answer(w.reply(TurnResult{}, err))
 			continue
 		}
 		reply := w.reply(res, nil)
 		reply.shared = i > 0
-		r.reply <- reply
+		r.answer(reply)
 	}
 	w.current = nil
 	if len(w.sent) > 0 {
@@ -608,10 +666,10 @@ func (w *worker) forgetUsage() error {
 
 func (w *worker) stop() {
 	for _, r := range w.queue {
-		r.reply <- w.reply(TurnResult{}, ErrStopped)
+		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
 	for _, r := range w.sent {
-		r.reply <- w.reply(TurnResult{}, ErrStopped)
+		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
 	w.queue, w.sent = nil, nil
 	if w.proc == nil {
@@ -677,10 +735,10 @@ func (w *worker) stopProcess(cause error) {
 		w.observe(SessionEvent{Kind: SessionUpdated})
 	}
 	for _, r := range w.current {
-		r.reply <- w.reply(TurnResult{}, cause)
+		r.answer(w.reply(TurnResult{}, cause))
 	}
 	for _, r := range w.sent {
-		r.reply <- w.reply(TurnResult{}, cause)
+		r.answer(w.reply(TurnResult{}, cause))
 	}
 	w.current, w.sent = nil, nil
 }
@@ -706,13 +764,13 @@ func (w *worker) shutdown() {
 
 func (w *worker) failAll(err error) {
 	for _, r := range append(w.current, w.queue...) {
-		r.reply <- w.reply(TurnResult{}, err)
+		r.answer(w.reply(TurnResult{}, err))
 	}
 	w.current, w.queue = nil, nil
 	for {
 		select {
 		case r := <-w.inbox:
-			r.reply <- w.reply(TurnResult{}, err)
+			r.answer(w.reply(TurnResult{}, err))
 		default:
 			return
 		}
