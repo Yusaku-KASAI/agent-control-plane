@@ -15,8 +15,8 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 
 ブランチに効くルール（`rules/branches/<ブランチ>`）、CODEOWNERS の誤り（`codeowners/errors`）と中身（`contents`）、
 ルールセット（`rulesets/<id>`）は、読み取りの権限の GitHub App のトークンでも、個人のリポジトリの CI の
-`GITHUB_TOKEN`（`contents: read`）でも読めた。organization のリポジトリでは確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
-呼び手にしか返らないので、`GITHUB_TOKEN` では読めない。
+`GITHUB_TOKEN`（`contents: read`）でも読めた。organization のリポジトリでは確かめていない。
+ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける呼び手にしか返らないので、`GITHUB_TOKEN` では読めない。
 
 ## Decision
 
