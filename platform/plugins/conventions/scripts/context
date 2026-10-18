@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Loads the rules, then tells where the documents they summarize are.
+# Loads the rules, then tells where they and the documents they summarize are.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -12,5 +12,6 @@ principles=$(dirname "$root")/principles/docs/README.md
 plugins=$(dirname "$root")
 ctx="$(sed -e "s#](\.\./\.\./#](${plugins}/#g" -e "s#](\.\./#](${root}/#g" "$root"/rules/*.md)
 
+この共通のルールの在りか：[共通のルール](${root}/rules/common.md)。作業の途中で立ち返るときは、ここを読み直す。
 文書の在りか：決まりは ${root}/docs/README.md、原則とパターンは ${principles}。"
 jq -n --arg event "$1" --arg ctx "$ctx" '{hookSpecificOutput: {hookEventName: $event, additionalContext: $ctx}}'

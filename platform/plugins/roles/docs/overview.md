@@ -34,11 +34,11 @@ roles/
 ### [`agents/developer.md`](../agents/developer.md "在りか")
 
 - **責務**：依頼された変更をターゲットのリポジトリに実装し、PR にして届ける。
-- **置くもの / 置かないもの**：「使う決まり」の節に使う決まりの要約と案内（変更の進め方、書き方、スキル）を、「固有の振る舞い」の
+- **置くもの / 置かないもの**：「使う決まり」の節に使う決まりの要約と案内（変更する手順、書き方、スキル）を、「固有の振る舞い」の
   節に developer だけの定義（PR にすること、報告）を置き、使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）を持つ。
   要約には出典（conventions の定義）を付ける（conventions の起点の決まりに沿う）。ハーネスの事実とターゲット固有の事実は置かない。
-- **関係**：conventions の変更の扱い方と書き方、ハーネスの契約、conventions の design スキル、github スキル、harness スキルを
-  前提にする。
+- **関係**：conventions の変更する手順と書き方、ハーネスの契約、conventions の design、write-docs、review の各スキル、
+  github スキル、harness スキルを前提にする。
 - **当てはめた原則・パターン**：[一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)：役割ごとの指示は決まりを要約か案内で載せ、要約には出典を付ける。
   [関心の分離](../../principles/docs/reference/principles.md#soc)：事実は契約とターゲットの CLAUDE.md に任せる。
 
