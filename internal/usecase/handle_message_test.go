@@ -13,12 +13,13 @@ import (
 )
 
 type fakeTurns struct {
-	out     usecase.RunAgentOutput
-	err     error
-	taken   usecase.Uptake
-	called  bool
-	got     usecase.RunAgentInput
-	stopped domain.SessionID
+	out            usecase.RunAgentOutput
+	err            error
+	taken          usecase.Uptake
+	called         bool
+	got            usecase.RunAgentInput
+	stopped        domain.SessionID
+	stoppedRequest string
 }
 
 func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecase.RunAgentOutput, error) {
@@ -32,8 +33,8 @@ func (f *fakeTurns) Execute(_ context.Context, in usecase.RunAgentInput) (usecas
 	return f.out, f.err
 }
 
-func (f *fakeTurns) Stop(_ context.Context, _ domain.AgentName, id domain.SessionID) error {
-	f.stopped = id
+func (f *fakeTurns) StopRequest(_ context.Context, _ domain.AgentName, id domain.SessionID, requestID string) error {
+	f.stopped, f.stoppedRequest = id, requestID
 	return nil
 }
 
@@ -97,7 +98,7 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	}
 	want := usecase.RunAgentInput{
 		AgentName: "repo-dev", SessionID: thread.SessionID("repo-dev"), CreateIfMissing: true, Prompt: "fix it", Conversation: thread,
-		Requester: alice,
+		Requester: alice, RequestID: "1.000",
 	}
 	if !reflect.DeepEqual(turns.got, want) {
 		t.Errorf("turn input = %+v, want %+v", turns.got, want)
@@ -201,16 +202,15 @@ func TestHandleMessage_Stopped(t *testing.T) {
 	}
 }
 
-func TestHandleMessage_Stop(t *testing.T) {
+func TestHandleMessage_StopRequest(t *testing.T) {
 	turns := &fakeTurns{}
 	h := usecase.NewHandleMessage(turns, allowList{alice: true}, &fakeResponder{})
-	id := thread.SessionID("repo-dev")
 
-	if err := h.Stop(context.Background(), "repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, id); !errors.Is(err, domain.ErrRequesterNotAllowed) || turns.stopped != "" {
-		t.Errorf("Stop(unknown requester) error = %v, stopped %q", err, turns.stopped)
+	if err := h.StopRequest(context.Background(), "repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, thread, "2.000"); !errors.Is(err, domain.ErrRequesterNotAllowed) || turns.stopped != "" {
+		t.Errorf("StopRequest(unknown requester) error = %v, stopped %q", err, turns.stopped)
 	}
-	if err := h.Stop(context.Background(), "repo-dev", alice, id); err != nil || turns.stopped != id {
-		t.Errorf("Stop() error = %v, stopped %q", err, turns.stopped)
+	if err := h.StopRequest(context.Background(), "repo-dev", alice, thread, "2.000"); err != nil || turns.stopped != thread.SessionID("repo-dev") || turns.stoppedRequest != "2.000" {
+		t.Errorf("StopRequest() error = %v, stopped %q request %q", err, turns.stopped, turns.stoppedRequest)
 	}
 }
 

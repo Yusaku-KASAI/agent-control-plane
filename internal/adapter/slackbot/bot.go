@@ -34,9 +34,11 @@ type Bot struct {
 	statusMu sync.Mutex
 	status   map[domain.SessionID]*statusMessage
 	// limited holds the sessions whose last turn stopped at the usage limit.
-	limited    map[domain.SessionID]bool
-	byStatusTS map[string]domain.SessionID
-	mentions   *seenMessages
+	limited  map[domain.SessionID]bool
+	mentions *seenMessages
+	// requests remembers the conversation of each request message, so a stop reaction on it can
+	// find the session.
+	requests *requestMessages
 	// writes tracks messages written outside a request, such as status updates.
 	writes sync.WaitGroup
 	// post writes outside a request; tests replace it.
@@ -61,12 +63,12 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		botTokens: botTokens,
 		log:       log.With("agent", agent),
 
-		status:     make(map[domain.SessionID]*statusMessage),
-		limited:    make(map[domain.SessionID]bool),
-		byStatusTS: make(map[string]domain.SessionID),
-		mentions:   newSeenMessages(time.Hour),
-		heldGrace:  heldAnswerGrace,
-		releases:   make(map[*time.Timer]func()),
+		status:    make(map[domain.SessionID]*statusMessage),
+		limited:   make(map[domain.SessionID]bool),
+		mentions:  newSeenMessages(time.Hour),
+		requests:  newRequestMessages(requestMemory),
+		heldGrace: heldAnswerGrace,
+		releases:  make(map[*time.Timer]func()),
 	}
 	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, policy, b)
@@ -103,6 +105,7 @@ func (b *Bot) Run(ctx context.Context) error {
 				if !ok || !b.mentions.first(e.Channel+"/"+e.TimeStamp, time.Now()) {
 					continue
 				}
+				b.requests.remember(msg.Conversation, msg.MessageID, time.Now())
 				turns.Go(func() {
 					if err := b.handler.Execute(context.WithoutCancel(ctx), msg); err != nil {
 						b.log.Warn("message handling failed", "session", msg.Conversation.SessionID(b.agent), "err", err)
@@ -151,12 +154,12 @@ func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEv
 	if e.Reaction != stopReaction || e.Item.Type != "message" {
 		return
 	}
-	id, ok := b.sessionForStatus(e.Item.Channel, e.Item.Timestamp)
+	c, ok := b.requests.find(e.Item.Channel, e.Item.Timestamp, time.Now())
 	if !ok {
 		return
 	}
-	if err := b.handler.Stop(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, id); err != nil {
-		b.log.Warn("stop failed", "session", id, "user", e.User, "err", err)
+	if err := b.handler.StopRequest(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, e.Item.Timestamp); err != nil {
+		b.log.Warn("stop failed", "session", c.SessionID(b.agent), "message", e.Item.Timestamp, "user", e.User, "err", err)
 	}
 }
 

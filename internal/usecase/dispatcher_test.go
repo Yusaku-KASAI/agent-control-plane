@@ -741,6 +741,139 @@ func TestDispatcher_StopRunningTurn(t *testing.T) {
 	}
 }
 
+func (p *fakeProcess) wasInterrupted() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.interrupted
+}
+
+func (p *fakeProcess) stoppedTasks() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.stoppedTask)
+}
+
+// A request waiting in the inbox is withdrawn alone; the running turn and the other waiting
+// requests go on.
+func TestDispatcher_StopRequestWaitingInInbox(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
+	kept := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next", RequestID: "3.0"})
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) >= 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	if o := wait(t, withdrawn); !errors.Is(o.err, usecase.ErrStopped) {
+		t.Errorf("withdrawn request error = %v, want ErrStopped", o.err)
+	}
+	if p.wasInterrupted() {
+		t.Error("withdrawing a waiting request interrupted the running turn")
+	}
+	p.finish("done")
+	if o := wait(t, running); o.err != nil || o.out.Output != "done" {
+		t.Errorf("running = %+v, %v", o.out, o.err)
+	}
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	if got := p.sent(); got[1] != "next" {
+		t.Errorf("sent %q after the turn, want the request still waiting", got)
+	}
+	p.finish("next done")
+	if o := wait(t, kept); o.err != nil || o.out.Output != "next done" {
+		t.Errorf("kept = %+v, %v", o.out, o.err)
+	}
+}
+
+// A request the agent works on stops the agent's work: the running turn and the background
+// tasks. Requests waiting in the inbox stay and go on after it.
+func TestDispatcher_StopRequestTheAgentWorksOn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("b1")
+	kept := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next", RequestID: "2.0"})
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) >= 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	if o := wait(t, running); o.err != nil || !o.out.Interrupted {
+		t.Errorf("stopped request = %+v, %v; want its turn interrupted", o.out, o.err)
+	}
+	if got := p.stoppedTasks(); !slices.Equal(got, []string{"b1"}) {
+		t.Errorf("stopped tasks %q, want the background task", got)
+	}
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finish("next done")
+	if o := wait(t, kept); o.err != nil || o.out.Output != "next done" {
+		t.Errorf("kept = %+v, %v; want the waiting request to go on", o.out, o.err)
+	}
+}
+
+// A request sent into the running turn but not yet taken in is given to the agent, so stopping it
+// stops the agent's work and withdraws it.
+func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.hold()
+	var steerTaken uptakes
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0", Taken: steerTaken.record})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	if o := wait(t, steer); !errors.Is(o.err, usecase.ErrStopped) {
+		t.Errorf("stopped request error = %v, want ErrStopped", o.err)
+	}
+	if o := wait(t, running); o.err != nil || !o.out.Interrupted {
+		t.Errorf("running = %+v, %v; want its turn interrupted", o.out, o.err)
+	}
+	if len(steerTaken) != 0 {
+		t.Errorf("taken %v, want nothing", steerTaken)
+	}
+}
+
+// A request that has ended stops nothing, unless it is the latest request and the agent still
+// works on its own after it.
+func TestDispatcher_StopRequestThatEnded(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build", RequestID: "2.0"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.background("b1")
+	p.finish("building")
+	wait(t, second)
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if got := p.stoppedTasks(); len(got) != 0 {
+		t.Fatalf("stopping an earlier request stopped tasks %q, want nothing", got)
+	}
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	eventually(t, func() bool { return slices.Equal(p.stoppedTasks(), []string{"b1"}) })
+	if p.wasInterrupted() {
+		t.Error("an interrupt was sent although no turn was running")
+	}
+	if err := e.d.StopRequest(context.Background(), pm.Name, existingID, "2.0"); !errors.Is(err, domain.ErrSessionAgentMismatch) {
+		t.Errorf("StopRequest(other agent) error = %v, want ErrSessionAgentMismatch", err)
+	}
+}
+
 func TestDispatcher_StopWaitingBackgroundTasks(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start builds"})
