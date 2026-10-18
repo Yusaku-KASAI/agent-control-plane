@@ -12,13 +12,18 @@ conventions/
   docs/            定義：文書（文書の体系、形式）、変更と課題（書き方、変更の扱い方、課題の扱い方）、レビュー、用語集、手順（guides/）
                    （README.md が一覧）
   rules/           届け方：いつも守ること（共通のルール）。定義を要約か案内で載せる
-  hooks/、scripts/ 届け方：rules と、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる
+  hooks/、scripts/ 届け方：rules と、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる。
+                   Markdown を変えたターンの終わりに、文書の検査を回す
   skills/          届け方：docs/guides/ の手順を、必要なときに要約か案内で読ませる（write-docs、design、review）
+  bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド
+  actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
+  tests/           ターンの終わりの hook の試験
 ```
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
-- 文書の決まりのうち機械で確かめられるものは、各リポジトリに置く `tools/check-docs.py` が確かめる。
+- 文書の決まりのうち機械で確かめられるものは、このプラグインのコマンド `check-docs` が確かめる。検査の中身は、
+  ターゲットの契約や共通のファイルに置かない（ターゲットの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 
 ## 構成要素
 
@@ -42,7 +47,7 @@ conventions/
 ### 形式（`docs/reference/formats.md`）
 
 - **責務**：文書の根、構成要素の説明、ADR、リンク、量の上限、地図の形を決める。
-- **関係**：check-docs.py がこの形を確かめる。
+- **関係**：`check-docs` がこの形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
 
 ### 書き方（`docs/reference/writing.md`）
@@ -78,11 +83,17 @@ conventions/
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読まれるので短くする。
   [仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：常に読み込む決まりの段。
 
-### hook（`hooks/`、`scripts/context`）
+### hook（`hooks/`、`scripts/`）
 
-- **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる。
+- **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる
+  （`scripts/context`）。ターンの終わりに、Markdown を変えていれば文書の検査を回し、落ちていればターンを止める
+  （`scripts/check-docs-at-stop`、[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
+- **置くもの / 置かないもの**：ターンの終わりの hook は、ブランチが既定のブランチから分かれてから変えた Markdown か、
+  作業ツリーで変えたか足した Markdown があるときだけ回す。誰が変えたかは区別しない。既定のブランチが分からないときは
+  作業ツリーだけを見る。同じ出力で止めるのは一つのセッションで一度だけで、
+  止めたことを覚えられなければ止めない。何を確かめるかは置かず、`check-docs` に任せる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
-  相対リンクは、読み込ませるときに絶対パスに書き換える。
+  相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/check-docs-at-stop-test.sh`。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
@@ -102,13 +113,25 @@ conventions/
 - **責務**：差分のレビューと全体のレビューのときに、[レビューする](guides/review.md "在りか")の手順を読ませる。
 - **置くもの / 置かないもの**：手順への案内と、その要約と、github スキルへの案内（PR のレビューの残し方）。
 
-### 文書の検査（`tools/check-docs.py`）
+### 文書の検査（`bin/check-docs`）
 
-- **責務**：形式と器の決まりのうち、機械で確かめられるものを `make check-docs` で確かめる。
+- **責務**：形式と器の決まりのうち、機械で確かめられるものを、作業ディレクトリを含むリポジトリの Markdown について確かめる。
+  `--map` で、すべての地図から設計構造行列を出す。
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や置き場所の
   良し悪しは確かめない（レビューの観点に任せる）。
-- **関係**：形式に沿う。どのリポジトリにも同じものを置く。
+- **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
+  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。
+  CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
+
+### CI の文書の検査（[`actions/check-docs/`](../actions/check-docs/action.yml "在りか")）
+
+- **責務**：ターゲットの CI で、そのリポジトリをチェックアウトし、アクションと同じ版の `bin/check-docs` を回す。
+- **置くもの / 置かないもの**：チェックアウトと `check-docs` の呼び出しだけ。何を確かめるかは置かない。
+- **関係**：ターゲットの `ci.yml` が `@main` で呼ぶ（target-template の [CI](../../../../template/docs/architecture/ci.md "在りか")）。
+  devcontainer のイメージを使わず、ランナーの `python3` と `git` で動く。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を platform の一か所に置き、ターゲットは
+  呼ぶ一行だけを書く。
 
 <a id="map-conventions"></a>
 

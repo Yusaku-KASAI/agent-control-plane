@@ -1,6 +1,6 @@
 # 文書の形式
 
-どのリポジトリでも同じにする文書の形。形が合っていることは `make check-docs`（`tools/check-docs.py`）が確かめる
+どのリポジトリでも同じにする文書の形。形が合っていることは conventions のコマンド `check-docs` が確かめる
 （確かめるものは各節に書く）。
 
 <a id="layout"></a>
@@ -152,4 +152,4 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
   - リポジトリのすべての Markdown がどれかの項目に属すること。
   - 文書から文書へのリンクが、二つの項目が初めて同じ親の下に入る階層で、前提の向きに沿っていること。索引からのリンク、
     ADR へのリンク、ADR からのリンク（ADR は書き換えない）、在りかのリンクは除く。
-- `python3 tools/check-docs.py --map` は、すべての地図から設計構造行列を出す。
+- `check-docs --map` は、すべての地図から設計構造行列を出す。

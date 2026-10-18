@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Stop hook: when the branch or the working tree holds Markdown changes, runs check-docs and keeps the
+# turn going while it fails. Errors of the hook itself (no git, jq or python3) never stop the turn.
+set -uo pipefail
+
+command -v python3 >/dev/null || exit 0
+input=$(cat)
+session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
+dir=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)
+cd "${dir:-.}" 2>/dev/null || exit 0
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$top" || exit 0
+# Reading must not take index.lock from a person running git beside the agent.
+export GIT_OPTIONAL_LOCKS=0
+
+# What this branch changed: since it left the default branch when that is known here, else only the
+# working tree. Documents already broken on the default branch do not hold a turn that left them alone.
+base=$(git merge-base HEAD refs/remotes/origin/HEAD 2>/dev/null) || base=HEAD
+changed=$({
+  git diff --name-only "$base" -- '*.md'
+  git ls-files --others --exclude-standard -- '*.md'
+} 2>/dev/null)
+state=$(git rev-parse --git-path conventions-check-docs-held 2>/dev/null) || exit 0
+if [[ -z $changed ]] || errors=$("$(dirname "$0")/../bin/check-docs" 2>&1); then
+  rm -f "$state"
+  exit 0
+fi
+# The same failure holds a session once: a turn that went on for another Stop hook is still checked,
+# a failure the agent could not fix does not hold it forever, and a later session is told again. A
+# failure that cannot be remembered does not hold the turn, as it would hold every end of it.
+held="$session $(git hash-object --stdin <<<"$errors")"
+[[ $(cat "$state" 2>/dev/null) != "$held" ]] || exit 0
+echo "$held" 2>/dev/null >"$state" || exit 0
+# The turn's last message is the answer the requester reads, so it has to be the whole report again.
+jq -n --arg errors "$errors" '{decision: "block", reason: ("check-docs (the conventions plugin'"'"'s document check, as installed) fails. This branch changed Markdown, so every document in the repository was checked. Fix these, then end with your full answer to the request again, not only this update. If this branch changes check-docs itself, the repository'"'"'s own run of it decides instead.\n" + $errors)}'

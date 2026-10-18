@@ -18,13 +18,17 @@ Makefile                .devcontainer/Dockerfile   .github/workflows/ci.yml
 check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジョブ ─┐
        ├─ check-platform ◀─ check-platform   ◀─ check-platform ジョブ ─┤
        ├─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┼─▶ check ジョブ
-       └─ check-docs     ◀─ check-docs       ◀─ check-docs     ジョブ ─┤
-                            ルートの Dockerfile ◀─ check-image    ジョブ ─┘
+       └─ check-docs（手元）                                           │
+                            ルートの Dockerfile ◀─ check-image ジョブ ─┤
+                            check-docs アクション ◀─ check-docs ジョブ ─┘
 ```
 
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、
   control-plane はこのリポジトリのエージェントも同じイメージで動かす（設定の `agents[].target.image`。例は [acp.example.yaml](../../../acp.example.yaml "在りか")）。
-- 検査の関心は、共通の `check-target` と `check-docs` に、`check-go` と `check-platform` を足したもの。CI には、
+- 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-docs` を足したもの。`check-docs` は、
+  このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。手元では
+  `make check-docs` で、CI ではターゲットと同じく conventions の複合アクションで回す。CI では `@main` ではなく
+  リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。CI には、
   control-plane のイメージがビルドできることを確かめる `check-image` を足す。
 
 ## 構成要素
