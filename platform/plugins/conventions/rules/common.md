@@ -13,7 +13,8 @@
 ## 受け付け
 
 依頼を受けたら、どの目的の手順に当たるかを決める。作業の途中で目的が変わったら（相談から変更へなど）、その手順に
-入り直す（[目的の手順と共通の手順](../docs/architecture/documentation.md#procedures)）。
+入り直す。ロールの指示に「受け持つ手順」の節があれば、その扱いに従う
+（[目的の手順と共通の手順](../docs/architecture/documentation.md#procedures)）。
 
 - 変更（PR）にする：その前に[変更を届ける](../docs/guides/deliver-change.md "在りか")と[変更の扱い方](../docs/reference/changes.md "在りか")を
   全体まで読み、変更を届けるの段の順に進める（[変更を届ける](../docs/guides/deliver-change.md)の 1 段）。
