@@ -1,20 +1,32 @@
 # 共通のルール
 
-どのリポジトリでも、いつも守ること（conventions プラグインが、セッションとサブエージェントの始めに読み込ませる）。
+どのリポジトリでも、いつも守ること。conventions プラグインが、セッションとサブエージェントの始めに読み込ませる。
 リポジトリの CLAUDE.md と食い違うときは CLAUDE.md に従う（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
+ここは要約と案内で、定義は括弧の中のリンクの先にある。
 
-変更するときは、始めに[変更する](../docs/guides/change.md "在りか")、[文書の体系](../docs/architecture/documentation.md "在りか")、
-[変更の扱い方](../docs/reference/changes.md "在りか")の三つを全体まで読む（[変更する](../docs/guides/change.md)の 1 段）。
-そのあとは、変更するの段の順に進める。
+## 始めに読む
 
-ここは要約と案内で、定義は括弧の中のリンクの先にある。上の段落のほか、特定の作業（文書を書く、変更する）にだけ
-要る決まりは、定義の文書と、その作業の手順（場面の手順か、部品の手順のスキル）にある。リンクの直後に
-「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の中に、場面が当てはまる
-「（全体を読む）」があれば、それもたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
+- どの作業でも、始めに[文書の体系](../docs/architecture/documentation.md "在りか")を全体まで読む。このプロジェクト群の
+  文書と決まりがどこにあり、この共通のルール、ロール、スキルが自分に何をどう届けているかを知るため
+  （[場面の手順と部品の手順](../docs/architecture/documentation.md#procedures)）。
+- 変更するときは、加えて[変更する](../docs/guides/change.md "在りか")と[変更の扱い方](../docs/reference/changes.md "在りか")を
+  全体まで読み、変更するの段の順に進める（[変更する](../docs/guides/change.md)の 1 段）。
 
-- 何かを決めるときは、まず一般に良いとされる確立した原則やパターンを探して沿い、その名前を挙げる
-  （[原則：確立した考え方に拠る](../../principles/docs/reference/principles.md#established)）。今の形や頼まれた手段も、目的、
-  より単純な形、より大きな枠組みから問い直す（[原則：前提を問い直す](../../principles/docs/reference/principles.md#double-loop)）。
+## 読む範囲
+
+- 特定の作業（文書を書く、変更する）にだけ要る決まりは、その作業の手順（場面の手順か、部品の手順のスキル）にある。
+- リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の中に、場面が
+  当てはまる「（全体を読む）」があれば、それもたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
+
+## 決めるとき
+
+- まず一般に良いとされる確立した原則やパターンを探して沿い、その名前を挙げる
+  （[原則：確立した考え方に拠る](../../principles/docs/reference/principles.md#established)）。
+- 今の形や頼まれた手段も、目的、より単純な形、より大きな枠組みから問い直す
+  （[原則：前提を問い直す](../../principles/docs/reference/principles.md#double-loop)）。
+
+## 書くとき
+
 - コードは自己説明的に書き、コメントはコードで表しきれない制約や理由だけにする。構成、方針、使い方は文書に書く
   （[書き方：コメント](../docs/reference/writing.md#comments)）。
 - 変更の理由と経緯はコミットメッセージと PR に書き、コードと文書には今の姿だけを書く
@@ -23,7 +35,9 @@
   conventions の `docs/` で定義し、ルール、ロール、スキルには、決まりを出典付きの要約か、在りかを示す案内として書く（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 - 一つの言葉は一つの意味で使い、その言葉を定める用語集に従う
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
+- 文書を書くときは write-docs スキルに従う。
+
+## 変更と報告
+
 - 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
 - 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更する](../docs/guides/change.md)）。
-- 文書を書くときは write-docs スキルに従う。ほかの人の差分をレビューするとき（置き場所の判断がなくても）と、変更しない
-  作業で決まりや文書の置き場所を決めるときは、[文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。

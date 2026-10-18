@@ -86,7 +86,7 @@ conventions/
 
 ### hook（`hooks/`、`scripts/`）
 
-- **責務**：セッションとサブエージェントの始めに、共通のルールと、conventions と principles の文書の在りかを読み込ませる
+- **責務**：セッションとサブエージェントの始めに、共通のルールと、その在りか（途中で立ち返るため）と、conventions と principles の文書の在りかを読み込ませる
   （`scripts/context`）。ターンの終わりに、Markdown を変えていれば文書の検査を回し、落ちていればターンを止める
   （`scripts/check-docs-at-stop`、[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **置くもの / 置かないもの**：ターンの終わりの hook は、ブランチが既定のブランチから分かれてから変えた Markdown か、
