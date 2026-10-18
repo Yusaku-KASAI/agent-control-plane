@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../guides/write-docs.md "在りか")にある。
 
@@ -176,7 +176,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 - 作業の始めに読み込まれる起点は、[形式](../reference/formats.md#size "在りか")の量の上限の中に収める
   （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
 - その場面では必ず全体まで読ませたい文書は、起点のリンクに[「（全体を読む）」](#reading-scope)を付ける。起点は丸ごと読まれるので、
-  必ず読み手の目に入る。
+  必ず読み手の目に入る。作業の場面ごとに全体まで読ませたい文書は、起点ではなく、その場面の手順の最初の段に置き、
+  起点からはその手順を指す（[場面の手順と部品の手順](#procedures)）。
 
 <a id="reading-scope"></a>
 
@@ -190,6 +191,24 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 - 「（全体を読む）」は、場面を限って付ける（例：決まりや文書を足す・移すとき）。いつも要るものは要約にするか、共通の
   ルールに載せる。
 - 読む範囲は、どれだけ読むかだけを表す。大事さは表さない。
+
+<a id="procedures"></a>
+
+#### 場面の手順と部品の手順
+
+手順（`guides/`）は、二つの層に分ける（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
+
+| 層 | 何の手順か | 例 |
+| --- | --- | --- |
+| 場面の手順 | 依頼を受けてから終えるまでの、一つの作業の場面の全体 | 変更する |
+| 部品の手順 | 場面の手順の段の中で使う、作業の一部分 | 文書を書く、パターンを当てはめる |
+
+- 場面の手順は、段の中で、その段で使う部品の手順を案内する。部品の手順は、場面の手順を前提にしない。
+- 場面の手順の最初の段は「始めに読む」にし、その場面で全体まで読む文書を並べる。「（全体を読む）」のリンクは、
+  読み手がそのリンクに目を向けないと飛ばされるので、その場面で必ず要る文書は、文中の印ではなく、省かない段として書く。
+- 起点（共通のルール、役割ごとの指示）は、その場面の手順を、最初に全体まで読むものとして指す。スキルは、部品の手順への
+  入口として、使うと決めたときに読み込まれる。
+- 決まりとして守る順序も手順に置く。参照の文書は、手順の段が使う決まり（条件、表、形）を持ち、順序は持たない。
 
 <a id="rewrite"></a>
 
@@ -245,7 +264,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 ### `docs/guides/`
 
-- **責務**：手順。目的を果たすために何をどの順で行うか（準備、追加、移行、復旧）。
+- **責務**：手順。目的を果たすために何をどの順で行うか（準備、追加、移行、復旧）。決まりとして守る順序も含む。
+  場面の手順と部品の手順に分ける（[場面の手順と部品の手順](#procedures)）。
 - **置くもの / 置かないもの**：手順と、その場で要る最小の説明。仕組みの説明は `architecture/` へリンクする。
   プラグインでは、スキルがその手順を要約か案内で載せて、エージェントに届ける。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の手順。
@@ -253,7 +273,7 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 ### `docs/reference/`
 
 - **責務**：引くための事実。契約、設定、コマンド、形式、用語、決まり、原則の一覧。
-- **置くもの / 置かないもの**：一覧や表。決まりとして守る順序（変更の進め方、全体のレビューの手順）も置く。目的を果たすための操作の手順と、理由は置かない。設定の既定値は、例の設定ファイルを正にする。
+- **置くもの / 置かないもの**：一覧や表。手順の段が使う決まり（条件、表、形）。手順（守る順序を含む）と、理由は置かない。設定の既定値は、例の設定ファイルを正にする。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の参照。
   [スキーマを先に](../../../principles/docs/reference/principles.md#schema-first)：契約と形式はここに先に書く。
 

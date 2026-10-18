@@ -25,6 +25,7 @@
 | 起点 | エージェントがリンクをたどって選ぶのではなく、丸ごと読み込む文書。どれが起点かは[起点](../architecture/documentation.md#starting-points "在りか")にある |
 | 要約 | ほかの文書の中身を短く言い直して書いたもの。書き方は[要約と案内](../architecture/documentation.md#summaries-and-guides "在りか")にある |
 | 案内 | ほかの文書の中身を言い直さず、どの場面で、どこを読むかだけを示すもの |
+| 場面の手順 / 部品の手順 | 場面の手順は、依頼を受けてから終えるまでの一つの作業の場面の手順（変更するなど）。部品の手順は、その段の中で使う作業の一部分の手順（文書を書くなど）。分け方は[場面の手順と部品の手順](../architecture/documentation.md#procedures "在りか")にある |
 | 読む範囲 | その場面でリンク先をどこまで読むか。示し方は[読む範囲](../architecture/documentation.md#reading-scope "在りか")にある |
 | 役割 | エージェントの用語集の「ロール」と同じ意味（[エージェントの用語集](../../../../docs/reference/glossary.md "在りか")）。developer、guide、reviewer など |
 | 役割ごとの指示 | 役割ごとに、その役割で動くエージェントに読み込ませる指示。プラグインの `agents/` の文書（Claude Code のカスタムエージェントの定義）。何を持ち、どう分けるかは[起点](../architecture/documentation.md#starting-points "在りか")にある |

@@ -19,7 +19,8 @@
 - 一つの言葉は一つの意味で使い、その言葉を定める用語集に従う
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
 - 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
-- 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更の進め方](../docs/reference/changes.md#how-to-change)）。
-- 変更するときは変更の進め方に、文書を書くときは write-docs スキルに従う（[変更の進め方](../docs/reference/changes.md#how-to-change)）。
+- 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更する](../docs/guides/change.md)）。
+- 変更するときは、始めに[変更する](../docs/guides/change.md "在りか")（全体を読む）を読み、その段に沿う。文書を書くときは
+  write-docs スキルに従う。
   決まりや文書を足す・変える・消す・移すとき、その置き場所を決めるとき、その差分をレビューするときは、
   [文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。
