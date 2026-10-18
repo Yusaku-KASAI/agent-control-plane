@@ -25,14 +25,22 @@ type AccessPolicy interface {
 	Allows(agent domain.AgentName, r domain.Requester) bool
 }
 
-// ChatResponder answers in the conversation the message came from.
+// ChatResponder answers in the conversation the message came from. The Mark methods signal, on
+// the message, how far the request has come; platforms that cannot may do nothing.
 type ChatResponder interface {
-	// Acknowledge signals that the message was received. Platforms that cannot may do nothing.
+	// Acknowledge signals that the request was received and waits for the agent to take it in.
 	Acknowledge(ctx context.Context, msg IncomingMessage) error
-	// MarkStopped signals that the request was stopped or withdrawn. Platforms that cannot may do nothing.
+	// MarkStarted signals that the agent took the request in and is working on it.
+	MarkStarted(ctx context.Context, msg IncomingMessage) error
+	// MarkInjected signals that the agent took the request into the turn it was injected into.
+	MarkInjected(ctx context.Context, msg IncomingMessage) error
+	// MarkAnswered signals that the request is done: it was answered, by its own reply or by the
+	// reply to an earlier request taken into the same turn.
+	MarkAnswered(ctx context.Context, msg IncomingMessage) error
+	// MarkFailed signals that the request ended on an error.
+	MarkFailed(ctx context.Context, msg IncomingMessage) error
+	// MarkStopped signals that the request was stopped or withdrawn.
 	MarkStopped(ctx context.Context, msg IncomingMessage) error
-	// MarkAnsweredTogether signals that the reply to an earlier request also answers this one.
-	MarkAnsweredTogether(ctx context.Context, msg IncomingMessage) error
 	Reply(ctx context.Context, msg IncomingMessage, text string) error
 }
 
@@ -58,7 +66,15 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		return errors.Join(domain.ErrRequesterNotAllowed,
 			u.responder.Reply(ctx, msg, "この依頼者からの依頼は受け付けていません。"))
 	}
-	ackErr := u.responder.Acknowledge(ctx, msg)
+	markErr := u.responder.Acknowledge(ctx, msg)
+	taken := func(up Uptake) {
+		switch up {
+		case TakenIntoNewTurn:
+			markErr = errors.Join(markErr, u.responder.MarkStarted(ctx, msg))
+		case TakenIntoRunningTurn:
+			markErr = errors.Join(markErr, u.responder.MarkInjected(ctx, msg))
+		}
+	}
 
 	out, err := u.turns.Execute(ctx, RunAgentInput{
 		AgentName:       msg.Agent,
@@ -68,26 +84,30 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		Inject:          msg.Inject,
 		Conversation:    msg.Conversation,
 		Requester:       msg.Requester,
+		Taken:           taken,
 	})
+	// Each outcome replies first and then marks the message, so the mark follows its reply.
 	switch {
 	case errors.Is(err, ErrStopped):
-		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, "停止したため、この依頼は取り消しました。"))
+		return errors.Join(markErr, u.responder.Reply(ctx, msg, "停止したため、この依頼は取り消しました。"), u.responder.MarkStopped(ctx, msg))
 	case errors.Is(err, ErrShuttingDown):
-		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, ShutdownNotice))
+		return errors.Join(markErr, u.responder.Reply(ctx, msg, ShutdownNotice), u.responder.MarkStopped(ctx, msg))
 	case err != nil:
-		return errors.Join(err, ackErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)))
+		return errors.Join(err, markErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)), u.responder.MarkFailed(ctx, msg))
 	case out.Interrupted:
 		text := "依頼を中断しました。"
 		if strings.TrimSpace(out.Output) != "" {
 			text = out.Output
 		}
-		return errors.Join(ackErr, u.responder.MarkStopped(ctx, msg), u.responder.Reply(ctx, msg, text))
-	case out.Shared:
-		return errors.Join(ackErr, u.responder.MarkAnsweredTogether(ctx, msg))
+		return errors.Join(markErr, u.responder.Reply(ctx, msg, text), u.responder.MarkStopped(ctx, msg))
+	case out.Error && out.Shared:
+		return errors.Join(markErr, u.responder.MarkFailed(ctx, msg))
 	case out.Error:
-		return errors.Join(ackErr, u.responder.Reply(ctx, msg, TurnErrorText(out.Output, out.UsageLimited)))
+		return errors.Join(markErr, u.responder.Reply(ctx, msg, TurnErrorText(out.Output, out.UsageLimited)), u.responder.MarkFailed(ctx, msg))
+	case out.Shared:
+		return errors.Join(markErr, u.responder.MarkAnswered(ctx, msg))
 	}
-	return errors.Join(ackErr, u.responder.Reply(ctx, msg, out.Output))
+	return errors.Join(markErr, u.responder.Reply(ctx, msg, out.Output), u.responder.MarkAnswered(ctx, msg))
 }
 
 // TurnErrorText tells that the agent ended a turn on an error, quoting the agent's message, which
