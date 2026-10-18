@@ -62,12 +62,16 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 - **責務**：Docker ソケットを持つ唯一のコンテナとして、control-plane が使う Docker API だけを通す。
 - **置くもの / 置かないもの**：`wollomatic/socket-proxy` に、HTTP メソッドごとのパスの正規表現で許可を書く。
-  通すのは、`_ping` と `version`、コンテナの一覧、作成、attach、起動、終了待ち、削除だけ。接続を受けるのは
-  `control-plane` からだけで、プロキシ自身は読み取り専用のファイルシステムで、capability をすべて落として動く。
+  許可は API ごとに 1 行にする。通すのは、`_ping`（HEAD と、クライアントが代わりに使う GET）、コンテナの一覧、作成、
+  attach、起動、終了待ち、削除だけ。プロキシはパス（クエリを除く）だけを照らすので、どのコンテナへの操作かは
+  絞れない。接続を受けるのは `control-plane` からだけで、プロキシ自身は読み取り専用のファイルシステムで、capability をすべて落として動く。
   作成するコンテナの中身（マウント、イメージ、特権）は検査しない。
-- **関係**：許可の一覧にない API はプロキシが拒むので、runner が使う Docker API とこの一覧は一致している。
+- **関係**：許可の一覧にない API はプロキシが拒む。runner が使う Docker API（`runner.go` の `dockerAPI`）とこの一覧が
+  一致していることは、`proxy_test.go` が確かめる。本物の Docker のクライアントで `dockerAPI` のメソッドをすべて呼び、
+  送られた要求がどれも許可に当たり、どの許可もどれかの要求に当たることを見る。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：control-plane が
-  できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。
+  できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。許可と runner の呼び出しのずれも、人が読むのでは
+  なく試験で見つける。
   [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)、[拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：通すのは使う API だけで、
   一覧にないものはすべて拒む。
 

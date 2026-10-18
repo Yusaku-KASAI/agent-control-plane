@@ -43,9 +43,15 @@ services:
     command:
       - -listenip=0.0.0.0
       - -allowfrom=control-plane
-      - -allowHEAD=^/(v[0-9.]+/)?_ping$
-      - -allowGET=^/(v[0-9.]+/)?(_ping|version|containers/json)$
-      - -allowPOST=^/(v[0-9.]+/)?containers/(create|[a-zA-Z0-9_.-]+/(attach|start|wait))$
+      # One entry per API, so the test in internal/adapter/docker/proxy_test.go can tell that each is used.
+      # The client pings with HEAD and falls back to GET.
+      - -allowHEAD=^/_ping$
+      - -allowGET=^/_ping$
+      - -allowGET=^/(v[0-9.]+/)?containers/json$
+      - -allowPOST=^/(v[0-9.]+/)?containers/create$
+      - -allowPOST=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+/attach$
+      - -allowPOST=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+/start$
+      - -allowPOST=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+/wait$
       - -allowDELETE=^/(v[0-9.]+/)?containers/[a-zA-Z0-9_.-]+$
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
