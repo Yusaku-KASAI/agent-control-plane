@@ -26,7 +26,7 @@
 | 要約 | ほかの文書の中身を短く言い直して書いたもの。書き方は[要約と案内](../architecture/documentation.md#summaries-and-guides "在りか")にある |
 | 案内 | ほかの文書の中身を言い直さず、どの場面で、どこを読むかだけを示すもの |
 | 目的の手順 / 共通の手順 | 目的の手順は、依頼者が何をしてほしいかの単位で、依頼を受けてから終えるまでの手順（変更を届けるなど）。共通の手順は、目的の手順の段の中で使う、作業の一部分の手順（文書を書くなど）。読む範囲などで言う「場面」は、どの作業をしているときか（共通の手順の作業のときも含む）を指す。分け方は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")にある |
-| 受け付け | 依頼を受けたら、どの目的の手順に当たるかを決めること。決め方は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")にある |
+| 振り分け | 依頼を受けたら、どの目的の手順に当たるかを決めること（トリアージ）。control-plane が依頼を受け付けることとは別。決め方は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")にある |
 | 読む範囲 | その場面でリンク先をどこまで読むか。示し方は[読む範囲](../architecture/documentation.md#reading-scope "在りか")にある |
 | 役割 | エージェントの用語集の「ロール」と同じ意味（[エージェントの用語集](../../../../docs/reference/glossary.md "在りか")）。developer、guide、reviewer など |
 | 役割ごとの指示 | 役割ごとに、その役割で動くエージェントに読み込ませる指示。プラグインの `agents/` の文書（Claude Code のカスタムエージェントの定義）。何を持ち、どう分けるかは[起点](../architecture/documentation.md#starting-points "在りか")にある |
