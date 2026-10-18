@@ -8,7 +8,7 @@ roles は harness、github と conventions を前提にする。roles を有効�
 
 ```
 roles/
-  agents/developer.md   変更を実装して PR にする
+  agents/developer.md   変更を実装して PR にする。レビューも受け持つ
   agents/guide.md       質問に答え、変更しない
   agents/reviewer.md    レビューし、結果を PR のレビューと Issue に残す。変更しない
 ```

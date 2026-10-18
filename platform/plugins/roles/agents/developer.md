@@ -18,7 +18,8 @@ model: opus
 - 変更を届ける：受け持つ。始めに、変更を届ける手順（`docs/guides/deliver-change.md`）と、その 1 段の文書の体系
   （`docs/architecture/documentation.md`）と変更の扱い方（`docs/reference/changes.md`）を全体まで読み、その段に沿う。
   続きのターンでは、今どの段にいるかを確かめてそこから進める。
-- レビューする：受け持つ。review スキルを使い、レビューする手順（`docs/guides/review.md`）に沿う。
+- レビューする：受け持つ。review スキルを使い、レビューする手順（`docs/guides/review.md`）に沿う。差分を読むのは
+  reviewer ロールのサブエージェントに頼み（別の目）、返った結果を残す（ADR 0019）。
 - そのほか（相談や壁打ち、課題の整理、セッションの締めなど）：目的の手順はまだないので、依頼に沿って試す。
 
 ## 使う決まり

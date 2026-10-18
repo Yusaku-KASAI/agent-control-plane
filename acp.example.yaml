@@ -49,7 +49,7 @@ people:
     git_email: 1234567+you@users.noreply.github.com # your GitHub noreply address
 
 agents:
-  # Makes changes and delivers them as pull requests.
+  # Makes changes and delivers them as pull requests; also reviews.
   - name: control-plane-dev
     role: developer # a Claude Code agent from platform/plugins/roles, or the target's .claude/agents/
     target:
