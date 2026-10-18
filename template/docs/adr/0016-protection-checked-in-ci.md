@@ -14,8 +14,8 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 すると、ファイルを変えなくても外れる。ADR 0015 では、それを見つけるのは人が手順の確かめ方を回したときだけだった。
 
 ブランチに効くルール（`rules/branches/<ブランチ>`）、CODEOWNERS の誤り（`codeowners/errors`）と中身（`contents`）、
-ルールセット（`rulesets/<id>`）は、読み取りの権限の GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`
-（`contents: read`）でも読めるはずだが、確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
+ルールセット（`rulesets/<id>`）は、読み取りの権限の GitHub App のトークンでも、個人のリポジトリの CI の
+`GITHUB_TOKEN`（`contents: read`）でも読めた。organization のリポジトリでは確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
 呼び手にしか返らないので、`GITHUB_TOKEN` では読めない。
 
 ## Decision
@@ -44,7 +44,8 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 
 - PR が触れていない設定や CODEOWNERS の持ち主で守りが外れると、どの PR の CI も落ちる。直すのは設定で、PR の中では
   直らない。PR が CODEOWNERS を変えて外したときは、その PR の中で直る。
-- `GITHUB_TOKEN` で読めなければ、正しい設定のターゲットでも、このジョブが読めないこと（終了コード 2）で落ちる。
+- organization のリポジトリで `GITHUB_TOKEN` で読めなければ、正しい設定のターゲットでも、このジョブが読めないこと
+  （終了コード 2）で落ちる。
 - 新しいターゲットは、ルールセットを設定するまで CI が通らない。
 - CI で確かめるのは、手順の設定のうちバイパスを除いたもの。バイパスは人が確かめる。
 - バイパスの役割の番号（管理者が 5）は、GitHub の文書の値ではなく、ルールセットの書き出しで使われている値に拠る。
