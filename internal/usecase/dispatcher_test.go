@@ -626,6 +626,40 @@ func TestDispatcher_AgentTurnBeforeSentPrompt(t *testing.T) {
 	}
 }
 
+// A prompt injected while the agent runs a turn of its own before taking in the sent prompt joins
+// the request's turn: that early turn is hidden as part of it, so the injected prompt counts as
+// taken into the turn it was injected into.
+func TestDispatcher_InjectedDuringAgentTurnBeforeSentPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+
+	p.hold()
+	var queuedTaken, steerTaken uptakes
+	queued := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second", Taken: queuedTaken.record})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.startTurn()
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, Taken: steerTaken.record})
+	eventually(t, func() bool { return len(p.sent()) == 3 })
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{Output: "noted the stopped tasks"}}
+	p.startTurn()
+	p.accept(1)
+	p.accept(2)
+	p.finish("both")
+	if o := wait(t, queued); o.err != nil || o.out.Output != "both" || o.out.Shared {
+		t.Fatalf("queued = %+v, %v", o.out, o.err)
+	}
+	if o := wait(t, steer); o.err != nil || !o.out.Shared {
+		t.Fatalf("injected = %+v, %v; want the request's answer, shared", o.out, o.err)
+	}
+	if !slices.Equal(queuedTaken, uptakes{usecase.TakenIntoNewTurn}) || !slices.Equal(steerTaken, uptakes{usecase.TakenIntoRunningTurn}) {
+		t.Errorf("taken %v for the queued prompt and %v for the injected one; want a new turn and the running turn", queuedTaken, steerTaken)
+	}
+}
+
 // A prompt injected into the agent's own turn but left for the next turn does not hide that
 // turn: it was shown as the agent's, and the request's turn starts after it.
 func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
@@ -639,7 +673,8 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	p.startTurn()
 	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
 	p.hold()
-	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true})
+	var steerTaken uptakes
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true, Taken: steerTaken.record})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("build passed")
 	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
@@ -655,6 +690,9 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	}
 	if got := e.observer.agentTurns(); len(got) != 1 {
 		t.Errorf("observer got agent turns %+v, want only the one the prompt was injected into", got)
+	}
+	if !slices.Equal(steerTaken, uptakes{usecase.TakenIntoNewTurn}) {
+		t.Errorf("taken %v, want into a new turn: the agent's turn it was injected into ended without it", steerTaken)
 	}
 	started := e.observer.of(usecase.SessionTurnStarted)
 	if len(started) != 3 || started[0].AgentStarted || !started[1].AgentStarted || started[2].AgentStarted {
