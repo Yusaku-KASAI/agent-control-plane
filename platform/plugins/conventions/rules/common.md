@@ -4,7 +4,8 @@
 リポジトリの CLAUDE.md と食い違うときは CLAUDE.md に従う（[定義と届け方](../docs/architecture/documentation.md#delivery)）。
 
 変更するときは、始めに[変更する](../docs/guides/change.md "在りか")、[文書の体系](../docs/architecture/documentation.md "在りか")、
-[変更の扱い方](../docs/reference/changes.md "在りか")の三つを全体まで読み、変更するの段に沿う（[変更する](../docs/guides/change.md)の 1 段）。
+[変更の扱い方](../docs/reference/changes.md "在りか")の三つを全体まで読む（[変更する](../docs/guides/change.md)の 1 段）。
+そのあとは、変更するの段の順に進める。
 
 ここは要約と案内で、定義は括弧の中のリンクの先にある。特定の作業（文書を書く、変更する）にだけ要る決まりは、定義の文書と、
 その作業の手順（場面の手順か、部品の手順のスキル）にある。リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の
