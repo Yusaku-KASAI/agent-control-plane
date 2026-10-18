@@ -393,3 +393,62 @@ func TestWaitPostsHeldAnswers(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusViewRenderSpent(t *testing.T) {
+	start := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		view  statusView
+		want  string
+		shown bool
+	}{
+		{"finished", statusView{outcome: done, spent: spentView{reported: true, costUSD: 0.42, sessionCostUSD: 3.1}}, "費用の見積もり：この依頼 $0.42・セッションの合計 $3.10\n", true},
+		{"unknown turn", statusView{outcome: interrupted, spent: spentView{reported: true, unknown: true, sessionCostUSD: 3.1}}, "費用の見積もり：この依頼 不明・セッションの合計 $3.10\n", true},
+		{"tiny", statusView{outcome: done, spent: spentView{reported: true, costUSD: 0.004, sessionCostUSD: 0}}, "この依頼 $0.01 未満・セッションの合計 $0.00", true},
+		{"nothing reported", statusView{outcome: failed, spent: spentView{unknown: true}}, "費用", false},
+		{"running", statusView{outcome: running, spent: spentView{reported: true, costUSD: 1}}, "費用", false},
+	}
+	for _, tc := range tests {
+		tc.view.session, tc.view.startedAt, tc.view.finishedAt = "sess", start, start
+		got := tc.view.render(start)
+		if strings.Contains(got, tc.want) != tc.shown {
+			t.Errorf("%s: render shows %q = %v, want %v:\n%s", tc.name, tc.want, !tc.shown, tc.shown, got)
+		}
+	}
+}
+
+func TestObserveSumsSpent(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	spent := func(turn, session float64) *usecase.Spent {
+		return &usecase.Spent{Turn: &domain.Usage{CostUSD: turn}, Session: domain.Usage{CostUSD: session}}
+	}
+	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	m.updating = true // keeps observe from starting to write to Slack
+
+	// The agent's own turn that the request's turn hides counts toward the request.
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Spent: spent(0.25, 1.25), Status: usecase.SessionStatus{Running: true}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnUpdated, Remark: "作業中", Status: usecase.SessionStatus{Running: true}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Spent: spent(0.5, 1.75)})
+	if want := (spentView{reported: true, costUSD: 0.75, sessionCostUSD: 1.75}); m.view.spent != want {
+		t.Errorf("spent = %+v, want %+v", m.view.spent, want)
+	}
+
+	// The agent's own turn takes the message over and adds to it.
+	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Spent: spent(0.25, 2)})
+	if want := (spentView{reported: true, costUSD: 1, sessionCostUSD: 2}); m.view.spent != want {
+		t.Errorf("spent after the agent's own turn = %+v, want %+v", m.view.spent, want)
+	}
+
+	// A turn without the agent's result leaves the request's cost unknown.
+	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}})
+	if want := (spentView{reported: true, costUSD: 1, unknown: true, sessionCostUSD: 2}); m.view.spent != want {
+		t.Errorf("spent after a failed turn = %+v, want %+v", m.view.spent, want)
+	}
+
+	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next.view.spent != (spentView{}) {
+		t.Errorf("a requested turn's new status message carries earlier costs: %+v", next.view.spent)
+	}
+}

@@ -1181,6 +1181,20 @@ func TestDispatcher_RecordsAgentTurnBeforeSentPrompt(t *testing.T) {
 	if req := got[2]; req.AgentStarted || req.StartedAt.Before(got[1].FinishedAt) {
 		t.Errorf("request's turn = %+v, want it to start after the agent's own turn finished at %v", req, got[1].FinishedAt)
 	}
+	// The observer is told what each turn spent, the hidden one included.
+	var spent []usecase.Spent
+	for _, ev := range e.observer.of(usecase.SessionTurnUpdated) {
+		if ev.Spent != nil {
+			spent = append(spent, *ev.Spent)
+		}
+	}
+	finished := e.observer.of(usecase.SessionTurnFinished)
+	if len(spent) != 1 || spent[0].Turn == nil || spent[0].Turn.CostUSD != 0.5 || spent[0].Session.CostUSD != 1.5 {
+		t.Errorf("hidden turn spent %+v, want 0.5 of 1.5", spent)
+	}
+	if last := finished[len(finished)-1].Spent; last == nil || last.Turn == nil || last.Turn.CostUSD != 1.5 || last.Session.CostUSD != 3 {
+		t.Errorf("request's turn spent %+v, want 1.5 of 3", last)
+	}
 }
 
 // When the process is replaced in the same worker, the new process's own turn before it takes the

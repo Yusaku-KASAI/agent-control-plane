@@ -534,16 +534,17 @@ func (w *worker) finishTurn(res TurnResult) {
 		err = fmt.Errorf("save session: %w", err)
 	}
 	w.recordUsage(res, turnUsage)
+	spent := &Spent{Turn: turnUsage, Session: *total}
 	if w.forPrompts && len(w.current) == 0 && len(w.sent) > 0 {
 		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
 		// resumed session does to report the background tasks its previous process left. The
 		// requests' turn is still to come and its answer replaces this one, so it keeps running.
 		w.startedAt, w.activity = time.Now(), ""
-		w.notifyStatus()
+		w.observe(SessionEvent{Kind: SessionTurnUpdated, Spent: spent})
 		return
 	}
 	w.running = false
-	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: len(w.current) == 0})
+	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: len(w.current) == 0, Spent: spent})
 	for i, r := range w.current {
 		if err != nil {
 			r.reply <- w.reply(TurnResult{}, err)

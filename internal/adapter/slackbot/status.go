@@ -47,6 +47,50 @@ type statusView struct {
 	remarks    [maxRemarks]string
 	queued     int
 	background int
+	spent      spentView
+}
+
+// spentView is what the turns a status message followed spent, by the agent's estimate.
+type spentView struct {
+	// reported is set once one of the turns ended with the agent's result.
+	reported bool
+	// costUSD sums the turns' costs; unknown is set when any turn's cost cannot be told.
+	costUSD        float64
+	unknown        bool
+	sessionCostUSD float64
+}
+
+// add counts a turn that ended; sp is nil for one that ended without the agent's result.
+func (v *spentView) add(sp *usecase.Spent) {
+	if sp == nil {
+		v.unknown = true
+		return
+	}
+	v.reported = true
+	if sp.Turn == nil {
+		v.unknown = true
+	} else {
+		v.costUSD += sp.Turn.CostUSD
+	}
+	v.sessionCostUSD = sp.Session.CostUSD
+}
+
+func (v spentView) render() string {
+	if !v.reported {
+		return ""
+	}
+	turns := "不明"
+	if !v.unknown {
+		turns = dollars(v.costUSD)
+	}
+	return fmt.Sprintf("費用の見積もり：この依頼 %s・セッションの合計 %s\n", turns, dollars(v.sessionCostUSD))
+}
+
+func dollars(usd float64) string {
+	if usd > 0 && usd < 0.005 {
+		return "$0.01 未満"
+	}
+	return fmt.Sprintf("$%.2f", usd)
 }
 
 func (v statusView) render(now time.Time) string {
@@ -66,6 +110,9 @@ func (v statusView) render(now time.Time) string {
 		fmt.Fprintf(&b, "⚠️ **失敗**（%s）\n", elapsed(v.startedAt, v.finishedAt))
 	case usageLimited:
 		fmt.Fprintf(&b, "⚠️ **使用上限で停止**（%s）\n", elapsed(v.startedAt, v.finishedAt))
+	}
+	if v.outcome != running {
+		b.WriteString(v.spent.render())
 	}
 	if v.queued > 0 {
 		fmt.Fprintf(&b, "待っている依頼：%d 件\n", v.queued)
@@ -221,6 +268,9 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 			m.view.finishedAt = time.Now()
 			m.view.outcome = outcomeOf(e.Result)
 			m.view.forgetAnswer(e.Result.Output)
+		}
+		if e.Kind == usecase.SessionTurnFinished || e.Spent != nil {
+			m.view.spent.add(e.Spent)
 		}
 		m.view.addRemark(e.Remark)
 		m.mu.Unlock()

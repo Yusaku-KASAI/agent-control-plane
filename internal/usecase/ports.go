@@ -228,6 +228,19 @@ type SessionEvent struct {
 	AgentStarted bool
 	// Remark is set for SessionTurnUpdated when the agent said something to people as it works.
 	Remark string
+	// Spent is set when a turn ended with the agent's result: for SessionTurnFinished, and for the
+	// SessionTurnUpdated of an agent's own turn that the running request's turn hides. It is nil for
+	// a turn that ended without one, whose usage is unknown.
+	Spent *Spent
+}
+
+// Spent is what a turn spent and the session's total after it.
+type Spent struct {
+	// Turn is nil when it cannot be told.
+	Turn *domain.Usage
+	// Session is the session's total the agent reported, or the last known one when it reported
+	// none.
+	Session domain.Usage
 }
 
 type SessionStatus struct {
