@@ -825,6 +825,9 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 	var steerTaken uptakes
 	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0", Taken: steerTaken.record})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
+	// A later request, so the stopped one is not the latest.
+	kept := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next", RequestID: "3.0"})
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) >= 1 })
 
 	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
 		t.Fatalf("StopRequest() error = %v", err)
@@ -838,6 +841,74 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 	if len(steerTaken) != 0 {
 		t.Errorf("taken %v, want nothing", steerTaken)
 	}
+	eventually(t, func() bool { return len(p.sent()) == 3 })
+	p.accept(2)
+	p.finish("next done")
+	if o := wait(t, kept); o.err != nil || o.out.Output != "next done" {
+		t.Errorf("kept = %+v, %v; want the waiting request to go on", o.out, o.err)
+	}
+}
+
+// The latest request, once answered, stops the turn the agent then starts on its own.
+func TestDispatcher_StopRequestWhileTheAgentWorksOnItsOwn(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "watch CI", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("watching")
+	wait(t, first)
+	p.startTurn()
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	eventually(t, p.wasInterrupted)
+}
+
+// An ended request that is still the latest the worker knows stops nothing while the running turn
+// is another request's: one withdrawn before, or one without an ID (from the HTTP API).
+func TestDispatcher_StopEndedRequestLeavesOtherRequestsTurn(t *testing.T) {
+	t.Run("withdrawn again", func(t *testing.T) {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+		p := e.runner.next(t)
+		eventually(t, func() bool { return len(p.sent()) == 1 })
+		withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
+		eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnUpdated)) >= 1 })
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+			t.Fatal(err)
+		}
+		wait(t, withdrawn)
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+		if p.wasInterrupted() {
+			t.Error("stopping the withdrawn request again interrupted the other request's turn")
+		}
+		p.finish("done")
+		wait(t, running)
+	})
+	t.Run("request without an ID", func(t *testing.T) {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+		p := e.runner.next(t)
+		eventually(t, func() bool { return len(p.sent()) == 1 })
+		p.finish("one")
+		wait(t, first)
+		fromAPI := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "from the CLI"})
+		eventually(t, func() bool { return len(p.sent()) == 2 })
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+		if p.wasInterrupted() {
+			t.Error("stopping the ended Slack request interrupted the turn of a request from the HTTP API")
+		}
+		p.finish("two")
+		wait(t, fromAPI)
+	})
 }
 
 // A request that has ended stops nothing, unless it is the latest request and the agent still

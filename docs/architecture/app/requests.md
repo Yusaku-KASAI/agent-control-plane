@@ -105,6 +105,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 ### `usecase.HandleMessage`（`handle_message.go`）
 
 - **責務**：チャットから届いた依頼を、受信方式に関係なく、依頼者の確認、受付の合図、ターンの実行、返事の順に扱う。
+  依頼のメッセージへの停止の指示を、依頼者を確かめてから、その依頼の停止として `Dispatcher.StopRequest` に渡す
+  （[ADR 0039](../../adr/app/0039-stop-by-reacting-to-request-messages.md)）。
 - **置くもの / 置かないもの**：結果ごとの合図と文面。
   - 許可されていない依頼者には、受け付けないと返す。依頼できるのは、エージェントごとの `allowed_users` に
     載っている人だけ。

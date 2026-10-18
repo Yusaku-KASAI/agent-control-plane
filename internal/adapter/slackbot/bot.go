@@ -112,7 +112,7 @@ func (b *Bot) Run(ctx context.Context) error {
 					}
 				})
 			case *slackevents.ReactionAddedEvent:
-				b.handleReaction(ctx, e)
+				b.handleReaction(ctx, e, auth.UserID)
 			}
 		}
 	}
@@ -150,8 +150,10 @@ func (b *Bot) team(evt socketmode.Event) string {
 	return api.TeamID
 }
 
-func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent) {
-	if e.Reaction != stopReaction || e.Item.Type != "message" {
+// handleReaction takes a stop reaction on a request's message as stopping that request. The
+// bot's own reactions, such as the stop mark it puts on stopped requests, are not instructions.
+func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent, botUserID string) {
+	if e.Reaction != stopReaction || e.Item.Type != "message" || e.User == botUserID {
 		return
 	}
 	c, ok := b.requests.find(e.Item.Channel, e.Item.Timestamp, time.Now())

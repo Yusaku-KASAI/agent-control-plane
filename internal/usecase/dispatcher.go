@@ -408,7 +408,7 @@ type worker struct {
 	// running is true from a prompt or a turn start until the turn's result; current may be
 	// empty when the agent started the turn by itself. forPrompts tells that the running turn was
 	// started for sent prompts rather than by the agent.
-	// latest is the ID of the latest request the worker received.
+	// latest is the ID of the latest request the worker received, empty if it has none.
 	latest     string
 	running    bool
 	forPrompts bool
@@ -519,9 +519,7 @@ func (w *worker) handle(e ProcessEvent) {
 }
 
 func (w *worker) accept(r request) {
-	if r.id != "" {
-		w.latest = r.id
-	}
+	w.latest = r.id
 	if w.running && r.inject {
 		r.injectedInto = w.turn
 		if err := w.send(r); err != nil {
@@ -712,6 +710,15 @@ func (w *worker) stop() {
 }
 
 func (w *worker) stopRequest(id string) {
+	// A request may still wait in the inbox channel, as while the worker started a process.
+	for drained := false; !drained; {
+		select {
+		case r := <-w.inbox:
+			w.accept(r)
+		default:
+			drained = true
+		}
+	}
 	if i := slices.IndexFunc(w.queue, func(r request) bool { return r.id == id }); i >= 0 {
 		r := w.queue[i]
 		w.queue = slices.Delete(w.queue, i, i+1)
@@ -721,7 +728,7 @@ func (w *worker) stopRequest(id string) {
 	}
 	has := func(r request) bool { return r.id == id }
 	agentHasIt := slices.ContainsFunc(w.current, has) || slices.ContainsFunc(slices.Collect(maps.Values(w.sent)), has)
-	ownWorkAfterIt := id == w.latest && (w.running || len(w.background) > 0)
+	ownWorkAfterIt := id == w.latest && len(w.current) == 0 && len(w.sent) == 0 && (w.running || len(w.background) > 0)
 	if agentHasIt || ownWorkAfterIt {
 		w.stopWork()
 	}
