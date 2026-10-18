@@ -30,8 +30,9 @@ roles/
   観点と共通の手順はスキルに任せ、定義からはそれを指す。ロールは権限と隔離の境界で、手順とは多対多になる。定義には、
   書ける範囲と振り分けの目的の手順ごとの扱いを並べる「受け持つ手順」の節を置く（形は conventions の
   [目的の手順と共通の手順](../../conventions/docs/architecture/documentation.md#procedures)）。書ける範囲を認証情報で守れるのは、
-  control-plane がそのロールを自分の GitHub App で起動するときだけで、サブエージェントとして動くときは頼んだ側の
-  認証情報を使うので、ロールの指示だけが守る。
+  control-plane がそのロールを自分の GitHub App で起動するときに、App の権限で分けられる粒度（Contents、Pull requests、
+  Issues の読み書き）までだけ。それより細かい範囲（reviewer のレビューを COMMENT だけにすること、PR を書き換えないこと）と、
+  サブエージェントとして動くとき（頼んだ側の認証情報を使う）は、ロールの指示（と、COMMENT だけを付ける `prctl review`）が守る。
 
 ## 構成要素
 
