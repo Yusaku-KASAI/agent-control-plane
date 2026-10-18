@@ -1182,3 +1182,43 @@ func TestDispatcher_RecordsAgentTurnBeforeSentPrompt(t *testing.T) {
 		t.Errorf("request's turn = %+v, want it to start after the agent's own turn finished at %v", req, got[1].FinishedAt)
 	}
 }
+
+// When the process is replaced in the same worker, the new process's own turn before it takes the
+// held prompts in is credited to their requesters, not to the previous process's, listed in order.
+func TestDispatcher_RecordsAgentTurnInReplacedProcess(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", Requester: stranger})
+	p1 := e.runner.next(t)
+	eventually(t, func() bool { return len(p1.sent()) == 1 })
+	p1.finishSpending("one", 1)
+	wait(t, first)
+	p1.err = errors.New("exit status 1")
+	close(p1.events)
+	eventually(t, p1.isClosed)
+
+	e.runner.mu.Lock()
+	e.runner.holdPrompts = true
+	e.runner.mu.Unlock()
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second", Requester: bob})
+	p2 := e.runner.next(t)
+	eventually(t, func() bool { return len(p2.sent()) == 1 })
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "third", Requester: alice, Inject: true})
+	time.Sleep(20 * time.Millisecond)
+	p2.startTurn()
+	eventually(t, func() bool { return len(p2.sent()) == 2 })
+	p2.finishSpending("noted the stopped tasks", 1.5)
+	p2.startTurn()
+	p2.accept(0)
+	p2.accept(1)
+	p2.finishSpending("two", 3)
+	wait(t, second)
+	wait(t, steer)
+
+	got := e.usage.all()
+	if len(got) != 3 {
+		t.Fatalf("recorded %d turns, want 3: %+v", len(got), got)
+	}
+	if own := got[1]; !own.AgentStarted || !slices.Equal(own.Requesters, []domain.Requester{alice, bob}) {
+		t.Errorf("agent's own turn = %+v, want it credited to alice and bob in order", own)
+	}
+}

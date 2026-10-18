@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -337,7 +338,9 @@ type worker struct {
 	// into the running turn.
 	sent    map[string]request
 	current []request
-	// requesters asked for the latest turn that had requests.
+	// requesters are credited with the process's turns that have no requests of their own: those
+	// of the latest turn that had requests, or of the prompts held when the process began with
+	// a turn of its own.
 	requesters []domain.Requester
 }
 
@@ -585,6 +588,10 @@ func requesters(rs []request) []domain.Requester {
 			people = append(people, r.requester)
 		}
 	}
+	// Held prompts come in no order; the same people are listed the same way.
+	slices.SortFunc(people, func(a, b domain.Requester) int {
+		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.ID, b.ID))
+	})
 	return people
 }
 
@@ -658,7 +665,7 @@ func (w *worker) stopProcess(cause error) {
 	}
 	w.proc = nil
 	wasRunning, hadBackground := w.running, len(w.background) > 0
-	w.running, w.background = false, nil
+	w.running, w.background, w.requesters = false, nil, nil
 	if cause == nil {
 		return
 	}

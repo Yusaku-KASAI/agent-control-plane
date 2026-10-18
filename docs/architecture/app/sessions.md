@@ -153,7 +153,7 @@
     | `finished_at`、`started_at` | ターンを終えた時刻と始めた時刻（UTC） |
     | `agent`、`session` | エージェント名とセッション ID |
     | `conversation` | セッションが始まったスレッド（記録の `conversation` と同じ形）。スレッドで始まっていなければ書かない |
-    | `requesters` | 依頼者（`platform` と `id`）。エージェントが自分で始めたターンは、続けている依頼の依頼者。新しいプロセスが依頼を取り込む前に自分で始めたターンは、その依頼の依頼者 |
+    | `requesters` | 依頼者（`platform` と `id`）。エージェントが自分で始めたターンは、続けている依頼の依頼者。新しいプロセスが依頼を取り込む前に自分で始めたターンは、その依頼の依頼者。`platform` と `id` の順に並べる |
     | `agent_started` | エージェントが自分で始めたターンか |
     | `outcome` | `succeeded`、`error`、`usage_limited`（使用上限で断られた）、`interrupted`（止めた） |
     | `usage` | ターンの使用量（`cost_usd` と、モデルごとの `input_tokens`、`output_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens`、`cost_usd`）。分からなければ `null` |
