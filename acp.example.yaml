@@ -49,7 +49,7 @@ people:
     git_email: 1234567+you@users.noreply.github.com # your GitHub noreply address
 
 agents:
-  # Makes changes and delivers them as pull requests.
+  # Makes changes and delivers them as pull requests; also reviews.
   - name: control-plane-dev
     role: developer # a Claude Code agent from platform/plugins/roles, or the target's .claude/agents/
     target:
@@ -62,8 +62,8 @@ agents:
       author_email: 7654321+control-plane-dev-agent[bot]@users.noreply.github.com
     # The agent's own GitHub App, installed on the target repository with webhooks off. Optional;
     # without it the agent cannot push and its branches start from the target's local HEAD.
-    # Permissions for a developer: Contents and Pull requests read and write; Issues, Actions,
-    # Checks and Commit statuses read-only (to read issues and the pull request's CI results and logs).
+    # Permissions for a developer: Contents, Pull requests and Issues read and write; Actions, Checks
+    # and Commit statuses read-only (to read the pull request's CI results and logs).
     github:
       app_id: 123456
       installation_id: 12345678
