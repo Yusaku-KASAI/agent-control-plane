@@ -153,15 +153,15 @@ type TurnResult struct {
 	Usage domain.Usage
 }
 
-// TurnUsage is what one finished turn spent, and on whose behalf.
-type TurnUsage struct {
+// TurnRecord is what one finished turn spent, and on whose behalf.
+type TurnRecord struct {
 	Agent        domain.AgentName
 	Session      domain.SessionID
 	Conversation domain.Conversation
 	StartedAt    time.Time
 	FinishedAt   time.Time
-	// Requesters asked for the turn; for a turn the agent started by itself, they are those of the
-	// work it continues, as for co-authors.
+	// Requesters asked for the turn. For a turn the agent started by itself, they are those of the
+	// work it continues, as for co-authors, or in a new process those of the prompts it holds.
 	Requesters   []domain.Requester
 	AgentStarted bool
 	Result       TurnResult
@@ -173,7 +173,7 @@ type TurnUsage struct {
 type UsageLog interface {
 	// Record keeps the turn's usage. Recording never fails the turn, so the implementation reports
 	// its own failures.
-	Record(ctx context.Context, u TurnUsage)
+	Record(ctx context.Context, r TurnRecord)
 }
 
 type EventKind int
@@ -267,6 +267,7 @@ type Process interface {
 	UpdateCredentials(ctx context.Context, creds domain.Credentials) error
 	// SetCoAuthors sets who is credited in commits the agent makes from now on.
 	SetCoAuthors(ctx context.Context, people []domain.GitIdentity) error
-	// Close asks the process to exit, stops it when ctx expires first, and releases it.
+	// Close asks the process to exit, stops it when ctx expires first, and releases it. It returns an
+	// error when the process did not exit by itself.
 	Close(ctx context.Context) error
 }

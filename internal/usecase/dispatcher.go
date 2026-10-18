@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -534,7 +535,7 @@ func (w *worker) finishTurn(res TurnResult) {
 		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
 		// resumed session does to report the background tasks its previous process left. The
 		// requests' turn is still to come and its answer replaces this one, so it keeps running.
-		w.activity = ""
+		w.startedAt, w.activity = time.Now(), ""
 		w.notifyStatus()
 		return
 	}
@@ -557,15 +558,14 @@ func (w *worker) finishTurn(res TurnResult) {
 }
 
 func (w *worker) recordUsage(res TurnResult, usage *domain.Usage) {
-	if len(w.current) > 0 {
-		w.requesters = nil
-		for _, r := range w.current {
-			if !slices.Contains(w.requesters, r.requester) {
-				w.requesters = append(w.requesters, r.requester)
-			}
-		}
+	switch {
+	case len(w.current) > 0:
+		w.requesters = requesters(w.current)
+	case len(w.requesters) == 0:
+		// A new process's own turn continues the work of the prompts it holds, from the same thread.
+		w.requesters = requesters(slices.Collect(maps.Values(w.sent)))
 	}
-	w.d.usage.Record(w.d.ctx, TurnUsage{
+	w.d.usage.Record(w.d.ctx, TurnRecord{
 		Agent:        w.agent.Name,
 		Session:      w.session.ID,
 		Conversation: w.session.Conversation,
@@ -576,6 +576,26 @@ func (w *worker) recordUsage(res TurnResult, usage *domain.Usage) {
 		Result:       res,
 		Usage:        usage,
 	})
+}
+
+func requesters(rs []request) []domain.Requester {
+	var people []domain.Requester
+	for _, r := range rs {
+		if !slices.Contains(people, r.requester) {
+			people = append(people, r.requester)
+		}
+	}
+	return people
+}
+
+// forgetUsage marks the session's total as unknown, for a process that may not have saved it for
+// the next one to carry over.
+func (w *worker) forgetUsage() error {
+	w.session.ReportedUsage = nil
+	if err := w.d.sessions.Save(w.d.ctx, w.session); err != nil {
+		return fmt.Errorf("save session: %w", err)
+	}
+	return nil
 }
 
 func (w *worker) stop() {
@@ -606,10 +626,8 @@ func (w *worker) processExited() {
 	if err == nil {
 		err = errProcessExited
 	}
-	// A process that ended by itself may not have saved the session's total for the next one.
-	w.session.ReportedUsage = nil
-	if saveErr := w.d.sessions.Save(w.d.ctx, w.session); saveErr != nil {
-		err = errors.Join(err, fmt.Errorf("save session: %w", saveErr))
+	if forgetErr := w.forgetUsage(); forgetErr != nil {
+		err = errors.Join(err, forgetErr)
 	}
 	w.stopProcess(err)
 }
@@ -634,7 +652,10 @@ func (w *worker) stopProcess(cause error) {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(w.d.ctx), w.d.opts.StopTimeout)
 	defer cancel()
-	_ = w.proc.Close(ctx)
+	if w.proc.Close(ctx) != nil {
+		// The next turn is told as unknown rather than wrong; failing to save only risks the latter.
+		_ = w.forgetUsage()
+	}
 	w.proc = nil
 	wasRunning, hadBackground := w.running, len(w.background) > 0
 	w.running, w.background = false, nil

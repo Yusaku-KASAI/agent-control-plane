@@ -87,7 +87,7 @@ OAuth の認可からトークンを取る。手順は次のコマンドが表�
 docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --agent <名前>
 ```
 
-<a id="build-client"></a>
+<a id="usage"></a>
 
 ## 使用量を見る
 
@@ -99,6 +99,8 @@ docker compose run --rm control-plane slack-auth --config /etc/acp/acp.yaml --ag
 jq -s 'map(select(.usage != null)) | group_by([.agent, (.requesters | map(.id) | join(","))])
   | map({agent: .[0].agent, requesters: (.[0].requesters | map(.id)), turns: length, cost_usd: (map(.usage.cost_usd) | add)})' <usage_log のパス>
 ```
+
+<a id="build-client"></a>
 
 ## クライアントをビルドする
 

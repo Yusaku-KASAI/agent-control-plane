@@ -175,13 +175,13 @@ func Parse(data []byte) (Config, error) {
 	if !filepath.IsAbs(f.Sessions.Root) {
 		return Config{}, fmt.Errorf("sessions.root %q is not absolute", f.Sessions.Root)
 	}
-	idle := defaultIdleTimeout
 	if f.UsageLog == "" {
 		return Config{}, errors.New("usage_log is not set")
 	}
 	if !filepath.IsAbs(f.UsageLog) {
 		return Config{}, fmt.Errorf("usage_log %q is not absolute", f.UsageLog)
 	}
+	idle := defaultIdleTimeout
 	if f.Sessions.IdleTimeout != "" {
 		d, err := time.ParseDuration(f.Sessions.IdleTimeout)
 		if err != nil || d <= 0 {

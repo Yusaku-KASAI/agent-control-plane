@@ -565,3 +565,17 @@ func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
 		}
 	}
 }
+
+func TestProcess_CloseStopsProcessThatDoesNotExit(t *testing.T) {
+	api := newFakeAPI()
+	runner := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: t.TempDir()})
+	proc, err := runner.Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: testSession})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := proc.Close(ctx); err == nil || !api.removed {
+		t.Errorf("Close() error = %v, removed = %v; want an error and the container removed", err, api.removed)
+	}
+}

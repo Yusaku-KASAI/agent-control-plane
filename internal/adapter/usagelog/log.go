@@ -87,7 +87,7 @@ func outcome(r usecase.TurnResult) string {
 	}
 }
 
-func newLine(u usecase.TurnUsage) line {
+func newLine(u usecase.TurnRecord) line {
 	l := line{
 		FinishedAt:    u.FinishedAt.UTC(),
 		StartedAt:     u.StartedAt.UTC(),
@@ -111,7 +111,7 @@ func newLine(u usecase.TurnUsage) line {
 	return l
 }
 
-func (l *Log) Record(_ context.Context, u usecase.TurnUsage) {
+func (l *Log) Record(_ context.Context, u usecase.TurnRecord) {
 	if err := l.append(newLine(u)); err != nil {
 		l.log.Error("recording a turn's usage failed", "agent", u.Agent, "session", u.Session, "err", err)
 	}

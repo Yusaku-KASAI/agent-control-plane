@@ -89,13 +89,15 @@ func (p *process) SetCoAuthors(_ context.Context, people []domain.GitIdentity) e
 
 func (p *process) Close(ctx context.Context) error {
 	_ = p.attach.CloseWrite()
+	var exitErr error
 	select {
 	case <-p.done:
 	case <-ctx.Done():
+		exitErr = errors.New("agent did not exit in time")
 	}
 	_, err := p.api.ContainerRemove(context.WithoutCancel(ctx), p.id, client.ContainerRemoveOptions{Force: true})
 	p.attach.Close()
-	return err
+	return errors.Join(exitErr, err)
 }
 
 func (p *process) write(msg any) error {

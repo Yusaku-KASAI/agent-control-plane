@@ -47,6 +47,7 @@ usecase.SessionCleaner（起動時と定期的に）
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |
 | `SessionBranches` | `ports.go` | `githubapp.Branches` |
 | `SessionObserver`、`SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
+| `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
 

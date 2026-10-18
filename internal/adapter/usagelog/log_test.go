@@ -24,7 +24,7 @@ func TestLog_Record(t *testing.T) {
 	total := domain.Usage{CostUSD: 1.5, Models: map[string]domain.ModelUsage{"claude-opus": {InputTokens: 10, OutputTokens: 20, CostUSD: 1.5}}}
 	turn := domain.Usage{CostUSD: 0.5, Models: map[string]domain.ModelUsage{"claude-opus": {InputTokens: 4, OutputTokens: 5, CostUSD: 0.5}}}
 
-	log.Record(context.Background(), usecase.TurnUsage{
+	log.Record(context.Background(), usecase.TurnRecord{
 		Agent: "repo-dev", Session: "0f8fad5b-d9cb-469f-a165-70867728950e",
 		Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
 		StartedAt:    started, FinishedAt: started.Add(time.Minute),
@@ -32,7 +32,7 @@ func TestLog_Record(t *testing.T) {
 		Result:     usecase.TurnResult{Output: "secret answer", Usage: total},
 		Usage:      &turn,
 	})
-	log.Record(context.Background(), usecase.TurnUsage{
+	log.Record(context.Background(), usecase.TurnRecord{
 		Agent: "repo-dev", Session: "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
 		StartedAt: started, FinishedAt: started.Add(time.Minute), AgentStarted: true,
 		Result: usecase.TurnResult{Error: true, UsageLimited: true, Usage: total},
@@ -74,7 +74,7 @@ func TestLog_RecordFailureIsLogged(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := usagelog.New(path, slog.New(slog.NewTextHandler(&logged, nil)))
-	log.Record(context.Background(), usecase.TurnUsage{Agent: "repo-dev"})
+	log.Record(context.Background(), usecase.TurnRecord{Agent: "repo-dev"})
 	if !strings.Contains(logged.String(), "recording a turn's usage failed") {
 		t.Errorf("log = %q, want the failure", logged.String())
 	}

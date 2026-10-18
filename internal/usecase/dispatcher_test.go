@@ -145,8 +145,10 @@ type fakeProcess struct {
 	updated     int
 	coAuthors   []domain.GitIdentity
 	closed      bool
-	events      chan usecase.ProcessEvent
-	err         error
+	// closeErr is what Close returns, as when the process had to be stopped.
+	closeErr error
+	events   chan usecase.ProcessEvent
+	err      error
 }
 
 // Send records the prompt last, so a test that has seen it may close the events channel.
@@ -220,7 +222,7 @@ func (p *fakeProcess) Close(context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.closed = true
-	return nil
+	return p.closeErr
 }
 
 func (p *fakeProcess) sent() []string {
@@ -286,19 +288,19 @@ func (f *fakeObserver) agentTurns() []usecase.TurnResult {
 
 type fakeUsage struct {
 	mu       sync.Mutex
-	recorded []usecase.TurnUsage
+	recorded []usecase.TurnRecord
 }
 
-func (f *fakeUsage) Record(_ context.Context, u usecase.TurnUsage) {
+func (f *fakeUsage) Record(_ context.Context, u usecase.TurnRecord) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.recorded = append(f.recorded, u)
 }
 
-func (f *fakeUsage) all() []usecase.TurnUsage {
+func (f *fakeUsage) all() []usecase.TurnRecord {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]usecase.TurnUsage(nil), f.recorded...)
+	return append([]usecase.TurnRecord(nil), f.recorded...)
 }
 
 type fakeRunner struct {
@@ -306,13 +308,15 @@ type fakeRunner struct {
 	started   []usecase.StartRequest
 	procs     chan *fakeProcess
 	leftovers []domain.SessionID
+	// holdPrompts makes the processes it starts hold prompts from the start.
+	holdPrompts bool
 }
 
 func newFakeRunner() *fakeRunner { return &fakeRunner{procs: make(chan *fakeProcess, 8)} }
 
 func (f *fakeRunner) Start(_ context.Context, r usecase.StartRequest) (usecase.Process, error) {
-	p := &fakeProcess{events: make(chan usecase.ProcessEvent, 8)}
 	f.mu.Lock()
+	p := &fakeProcess{events: make(chan usecase.ProcessEvent, 8), holdPrompts: f.holdPrompts}
 	f.started = append(f.started, r)
 	f.mu.Unlock()
 	f.procs <- p
@@ -1098,5 +1102,83 @@ func TestDispatcher_RecoverForgetsTotal(t *testing.T) {
 	}
 	if e.sessions.isLocked(existingID) {
 		t.Error("Recover kept the session locked")
+	}
+}
+
+func TestDispatcher_TotalAcrossProcesses(t *testing.T) {
+	for name, tc := range map[string]struct {
+		closeErr error
+		want     []any
+	}{
+		"closed": {nil, []any{1.0, 2.0}},
+		// A process stopped because it did not exit may not have saved its total.
+		"stopped": {errors.New("agent did not exit in time"), []any{1.0, nil}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, usecase.DispatcherOptions{IdleTimeout: 30 * time.Millisecond})
+			first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, Prompt: "first", Requester: alice})
+			p1 := e.runner.next(t)
+			p1.mu.Lock()
+			p1.closeErr = tc.closeErr
+			p1.mu.Unlock()
+			eventually(t, func() bool { return len(p1.sent()) == 1 })
+			p1.finishSpending("one", 1)
+			id := wait(t, first).out.Session.ID
+			eventually(t, p1.isClosed)
+
+			second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: id, Prompt: "second", Requester: alice})
+			p2 := e.runner.next(t)
+			eventually(t, func() bool { return len(p2.sent()) == 1 })
+			p2.finishSpending("two", 3)
+			wait(t, second)
+
+			var got []any
+			for _, u := range e.usage.all() {
+				if u.Usage == nil {
+					got = append(got, nil)
+				} else {
+					got = append(got, u.Usage.CostUSD)
+				}
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("recorded costs %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A new process's own turn before it takes the sent prompt in is credited to the prompt's
+// requester, and the request's turn starts when that turn ends.
+func TestDispatcher_RecordsAgentTurnBeforeSentPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{IdleTimeout: 30 * time.Millisecond})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, Prompt: "first", Requester: alice})
+	p1 := e.runner.next(t)
+	eventually(t, func() bool { return len(p1.sent()) == 1 })
+	p1.finishSpending("one", 1)
+	id := wait(t, first).out.Session.ID
+	eventually(t, p1.isClosed)
+
+	e.runner.mu.Lock()
+	e.runner.holdPrompts = true
+	e.runner.mu.Unlock()
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: id, Prompt: "second", Requester: bob})
+	p2 := e.runner.next(t)
+	eventually(t, func() bool { return len(p2.sent()) == 1 })
+	p2.startTurn()
+	p2.finishSpending("noted the stopped tasks", 1.5)
+	p2.startTurn()
+	p2.accept(0)
+	p2.finishSpending("two", 3)
+	wait(t, second)
+
+	got := e.usage.all()
+	if len(got) != 3 {
+		t.Fatalf("recorded %d turns, want 3: %+v", len(got), got)
+	}
+	if own := got[1]; !own.AgentStarted || !slices.Equal(own.Requesters, []domain.Requester{bob}) || own.Usage == nil || own.Usage.CostUSD != 0.5 {
+		t.Errorf("agent's own turn = %+v, want it credited to bob costing 0.5", own)
+	}
+	if req := got[2]; req.AgentStarted || req.StartedAt.Before(got[1].FinishedAt) {
+		t.Errorf("request's turn = %+v, want it to start after the agent's own turn finished at %v", req, got[1].FinishedAt)
 	}
 }
