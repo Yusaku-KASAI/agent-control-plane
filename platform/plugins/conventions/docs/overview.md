@@ -14,7 +14,8 @@ conventions/
   rules/           届け方：いつも守ること（共通のルール）。定義を要約か案内で載せる
   hooks/、scripts/ 届け方：rules と、その在りかと、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる。
                    Markdown を変えたターンの終わりに、文書の検査を回す
-  skills/          届け方：docs/guides/ の部品の手順を、必要なときに要約か案内で読ませる（write-docs、design、review）
+  skills/          届け方：docs/guides/ の部品の手順（と、ロールの外から入る場面の手順）を、必要なときに要約か案内で
+                   読ませる（write-docs、design、review）
   bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド
   actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
   tests/           ターンの終わりの hook の試験
