@@ -61,9 +61,31 @@ var dockerCalls = map[string]func(ctx context.Context, api dockerAPI) error{
 	},
 }
 
+// neverAllowed are requests the runner does not send and the proxy must refuse. It samples the
+// operations that give more than the runner needs (exec, writing into or reading out of containers,
+// images and builds), so an entry widened with a wildcard cannot let them through while still
+// counting as used.
+var neverAllowed = []engineRequest{
+	{http.MethodPost, "/v1.56/containers/c1/exec"},
+	{http.MethodPost, "/v1.56/exec/e1/start"},
+	{http.MethodPost, "/v1.56/containers/c1/kill"},
+	{http.MethodPost, "/v1.56/containers/c1/stop"},
+	{http.MethodPost, "/v1.56/containers/c1/restart"},
+	{http.MethodPost, "/v1.56/containers/c1/update"},
+	{http.MethodPut, "/v1.56/containers/c1/archive"},
+	{http.MethodGet, "/v1.56/containers/c1/archive"},
+	{http.MethodGet, "/v1.56/containers/c1/logs"},
+	{http.MethodGet, "/v1.56/containers/c1/json"},
+	{http.MethodPost, "/v1.56/images/create"},
+	{http.MethodPost, "/v1.56/build"},
+	{http.MethodDelete, "/v1.56/images/i1"},
+	{http.MethodGet, "/version"},
+}
+
 // TestProxyAllowsWhatTheRunnerCalls drives the real Docker client through every dockerAPI method
 // against a fake engine, and checks the requests it sends against the proxy's allowlist in
-// compose.yaml: each request must be allowed, and each allow entry must be used.
+// compose.yaml: each request must be allowed, each allow entry must be used, and none may let
+// through the requests in neverAllowed.
 func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	allow := proxyAllowlist(t)
 
@@ -107,6 +129,13 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 		for _, re := range res {
 			if !used[re] {
 				t.Errorf("the proxy allows %s %s, which the runner never sends", method, re)
+			}
+		}
+	}
+	for _, req := range neverAllowed {
+		for _, re := range allow[req.method] {
+			if re.MatchString(req.path) {
+				t.Errorf("the proxy allows %s %s through %s, which the runner never sends", req.method, req.path, re)
 			}
 		}
 	}

@@ -69,7 +69,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **関係**：許可の一覧にない API はプロキシが拒む。runner が使う Docker API（`runner.go` の `dockerAPI`）とこの一覧が
   一致していることは、`proxy_test.go` が確かめる。本物の Docker のクライアントで `dockerAPI` のメソッドをすべて呼び、
   送られた要求がどれも許可に当たり、どの許可もどれかの要求に当たることを、socket-proxy と同じ照らし方で見る。
-  許可の正規表現に選択（`|`）があると落ちる。
+  許可の正規表現に選択（`|`）があるときと、使わない操作の見本（exec、コンテナへの書き込みと読み出し、イメージ、
+  ビルドなど）がどれかの許可に当たるときも落ちる。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：control-plane が
   できる Docker の操作を、コードの約束ではなくプロキシの許可で絞る。許可と runner の呼び出しのずれも、人が読むのでは
   なく試験で見つける。
