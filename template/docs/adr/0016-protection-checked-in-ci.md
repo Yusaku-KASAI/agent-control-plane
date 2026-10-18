@@ -13,8 +13,9 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 何も失敗しない。CODEOWNERS の誤った行は黙って無視され、持ち主のユーザー名が変わったり書き込みの権限を失ったり
 すると、ファイルを変えなくても外れる。ADR 0015 では、それを見つけるのは人が手順の確かめ方を回したときだけだった。
 
-ブランチに効くルール（`rules/branches/<ブランチ>`）と CODEOWNERS の誤り（`codeowners/errors`）は、読み取りの権限の
-GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`（`contents: read`）でも読めるはずだが、確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
+ブランチに効くルール（`rules/branches/<ブランチ>`）、CODEOWNERS の誤り（`codeowners/errors`）と中身（`contents`）、
+ルールセット（`rulesets/<id>`）は、読み取りの権限の GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`
+（`contents: read`）でも読めるはずだが、確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
 呼び手にしか返らないので、`GITHUB_TOKEN` では読めない。
 
 ## Decision
@@ -24,8 +25,9 @@ GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`（`contents: read
   チェックアウトせず、GitHub の API だけを読む）。ターゲットの `ci.yml` は
   `check-protection` ジョブでそれを呼び、`check` ジョブはそのジョブも待つ。権限は `contents: read` だけにする。
 - 確かめる値は target-template の手順（`guides/github.md`）の設定で、コマンドはその API の側の写しを持つ。
-- CODEOWNERS は、CI が確かめるコミット（PR では、マージしたときの版）のものを確かめる。誤りがないこと、最初の規則が
-  `*` であること、持ち主のない規則がないこと。
+- CODEOWNERS は、CI が確かめるコミット（PR では、マージしたときの版）のものを確かめる。コードオーナーの承認で人に
+  限るときは、誤りがないこと、最初の規則が `*` であること、持ち主のない規則がないこと。team で人に限るときは、
+  CODEOWNERS はなくてよく、あってもその問題は知らせるだけにする。
 - バイパスは、読めれば確かめ（管理者の役割か organization の管理者だけ、PR のときだけ）、読めなければ読めないと
   出して失敗にしない。CI では読めないので、管理者が手元でコマンドを回すか、設定の画面で確かめる。
 - 守りが外れていれば、PR の変更と関わりなく、必須のチェック `check` が落ちる。毎週の定期実行でも回る。
@@ -40,7 +42,8 @@ GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`（`contents: read
 
 ## Consequences
 
-- ターゲットのリポジトリの設定を誤ると、どの PR の CI も落ちる。直すのは設定で、PR の中では直らない。
+- PR が触れていない設定や CODEOWNERS の持ち主で守りが外れると、どの PR の CI も落ちる。直すのは設定で、PR の中では
+  直らない。PR が CODEOWNERS を変えて外したときは、その PR の中で直る。
 - `GITHUB_TOKEN` で読めなければ、正しい設定のターゲットでも、このジョブが読めないこと（終了コード 2）で落ちる。
 - 新しいターゲットは、ルールセットを設定するまで CI が通らない。
 - CI で確かめるのは、手順の設定のうちバイパスを除いたもの。バイパスは人が確かめる。

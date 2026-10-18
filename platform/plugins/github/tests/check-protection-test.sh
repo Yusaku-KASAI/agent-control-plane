@@ -27,6 +27,10 @@ case $args in
     [[ -f $dir/CODEOWNERS ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     cat "$dir/CODEOWNERS"
     ;;
+  *" repos/o/r/contents/CODEOWNERS?ref="*)
+    [[ -f $dir/CODEOWNERS.root ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    cat "$dir/CODEOWNERS.root"
+    ;;
   *" repos/o/r/contents/"*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
   *" repos/o/r/rulesets/1 "*) cat "$dir/ruleset.json" ;;
   *" repos/o/r/rulesets/2 "*) cat "$dir/ruleset2.json" ;;
@@ -99,6 +103,10 @@ reset; rm "$state/errors.json" "$state/CODEOWNERS"; rules "${team/\[\"\*\"\]/[\"
 expect "a required team on some files only fails" 1 "not limited to humans"
 reset; rm "$state/errors.json" "$state/CODEOWNERS"; rules '{"require_code_owner_review": false}'; run
 expect "neither CODEOWNERS nor a team fails" 1 "not limited to humans"
+reset; mv "$state/CODEOWNERS" "$state/CODEOWNERS.root"; run; expect "a CODEOWNERS at the root is read" 0 "approvals count only from the code owners"
+reset; printf 'docs/\n' >"$state/CODEOWNERS.root"; run; expect "the CODEOWNERS in .github/ wins over the root's" 0 "approvals count only from the code owners"
+reset; echo '{"errors": [{"line": 1, "kind": "Unknown owner", "path": ".github/CODEOWNERS", "message": "Unknown owner on line 1"}]}' >"$state/errors.json"
+rules "$team"; run; expect "CODEOWNERS errors beside a required team are only told about" 0 "--   CODEOWNERS at main has errors"
 reset; printf 'docs/ @someone\n' >"$state/CODEOWNERS"; rules "$team"; run
 expect "a CODEOWNERS left beside a required team is only told about" 0 "--   the first rule of CODEOWNERS"
 reset; jq '. + [{type: "pull_request", ruleset_id: 2, parameters: {required_approving_review_count: 0, dismiss_stale_reviews_on_push: true}}]

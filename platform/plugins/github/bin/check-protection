@@ -62,9 +62,8 @@ shape() { if [[ $codeowners_review == 1 ]]; then ng "$@"; else note "$@"; fi; ow
 if errors=$(gh api "repos/$repo/codeowners/errors?ref=$ref" 2>"$err"); then
   owners_ok=1
   if [[ $(jq '.errors | length' <<<"$errors") -gt 0 ]]; then
-    ng "CODEOWNERS at $ref has errors; such lines are ignored:"
+    shape "CODEOWNERS at $ref has errors; such lines are ignored:"
     jq -r '.errors[] | "       \(.path):\(.line): \(.message // .kind)"' <<<"$errors"
-    owners_ok=0
   else
     ok "CODEOWNERS at $ref has no errors"
   fi
