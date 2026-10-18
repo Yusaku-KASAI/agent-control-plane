@@ -146,6 +146,9 @@ gh run view <run ID> --log-failed                               # 失敗した�
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。
+- `check-protection` ジョブ（既定のブランチの守りの検査）の失敗は、リポジトリの設定か CODEOWNERS の持ち主の問題で、
+  PR の変更では直らない。PR では直さず（CODEOWNERS や検査を書き換えて通さない）、`NG` の行を添えて依頼者に報告する
+  （[既定のブランチの守りの用意](../../../../../template/docs/guides/github.md "在りか")）。
 
 ## 注意
 

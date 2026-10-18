@@ -22,9 +22,14 @@ case $args in
     elif [[ -f $dir/fail-errors ]]; then echo "gh: Server Error (HTTP 500)" >&2; exit 1
     else echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi
     ;;
-  *" repos/o/r/contents/.github/CODEOWNERS?ref="*) [[ -f $dir/CODEOWNERS ]] || exit 1; cat "$dir/CODEOWNERS" ;;
-  *" repos/o/r/contents/"*) exit 1 ;;
+  *" repos/o/r/contents/.github/CODEOWNERS?ref="*)
+    [[ ! -f $dir/fail-contents ]] || { echo "gh: Server Error (HTTP 500)" >&2; exit 1; }
+    [[ -f $dir/CODEOWNERS ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    cat "$dir/CODEOWNERS"
+    ;;
+  *" repos/o/r/contents/"*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
   *" repos/o/r/rulesets/1 "*) cat "$dir/ruleset.json" ;;
+  *" repos/o/r/rulesets/2 "*) cat "$dir/ruleset2.json" ;;
   *" repos/o/r --jq .default_branch "*) echo main ;;
   *) echo "unexpected: $*" >&2; exit 3 ;;
 esac
@@ -80,7 +85,10 @@ reset; printf 'docs/ @someone\n' >"$state/CODEOWNERS"; run
 expect "CODEOWNERS not starting with '*' fails" 1 "first rule of CODEOWNERS is not '*'"
 reset; printf '* @someone # the owner\n' >"$state/CODEOWNERS"; run
 expect "a comment after the owners is not an owner nor a missing one" 0
-reset; rm "$state/CODEOWNERS"; run; expect "CODEOWNERS that cannot be read fails" 1 "cannot be read"
+reset; rm "$state/CODEOWNERS"; run; expect "CODEOWNERS reported but in none of its places stops with 2" 2 "in none of its places"
+reset; touch "$state/fail-contents"; run; expect "CODEOWNERS that cannot be read stops with 2" 2 ".github/CODEOWNERS at"
+reset; printf '# only a comment\n' >"$state/CODEOWNERS"; run; expect "CODEOWNERS of comments only fails with an NG line" 1 "NG   CODEOWNERS at main has no rules"
+reset; : >"$state/CODEOWNERS"; run; expect "an empty CODEOWNERS fails as having no rules" 1 "has no rules"
 
 team='{"require_code_owner_review": false, "required_reviewers": [{"minimum_approvals": 1, "file_patterns": ["*"], "reviewer": {"id": 7, "type": "Team"}}]}'
 reset; rm "$state/errors.json" "$state/CODEOWNERS"; rules "$team"; run
@@ -91,6 +99,13 @@ reset; rm "$state/errors.json" "$state/CODEOWNERS"; rules "${team/\[\"\*\"\]/[\"
 expect "a required team on some files only fails" 1 "not limited to humans"
 reset; rm "$state/errors.json" "$state/CODEOWNERS"; rules '{"require_code_owner_review": false}'; run
 expect "neither CODEOWNERS nor a team fails" 1 "not limited to humans"
+reset; printf 'docs/ @someone\n' >"$state/CODEOWNERS"; rules "$team"; run
+expect "a CODEOWNERS left beside a required team is only told about" 0 "--   the first rule of CODEOWNERS"
+reset; jq '. + [{type: "pull_request", ruleset_id: 2, parameters: {required_approving_review_count: 0, dismiss_stale_reviews_on_push: true}}]
+  | map(if .type == "pull_request" and .ruleset_id == 1 then .parameters.dismiss_stale_reviews_on_push = false else . end)' \
+  "$state/rules.json" >"$state/x" && mv "$state/x" "$state/rules.json"
+echo '{"id": 2}' >"$state/ruleset2.json"; run
+expect "requirements split over two rulesets pass" 0 "approvals are dismissed on push"
 reset; rm "$state/errors.json"; touch "$state/fail-errors"; run
 expect "CODEOWNERS errors that cannot be read stop with 2" 2
 
@@ -104,6 +119,9 @@ reset; echo "$admin" >"$state/ruleset.json"; run; expect "bypass by admins for p
 reset; echo "${admin/pull_request/always}" >"$state/ruleset.json"; run; expect "bypass always fails" 1 "RepositoryRole 5 always"
 reset; echo "${admin/\"actor_id\": 5/\"actor_id\": 4}" >"$state/ruleset.json"; run; expect "bypass by a role that writes fails" 1 "RepositoryRole 4"
 reset; echo "${admin/RepositoryRole/Integration}" >"$state/ruleset.json"; run; expect "bypass by an app fails" 1 "Integration 5"
+orgadmin='{"id": 1, "bypass_actors": [{"actor_type": "OrganizationAdmin", "bypass_mode": "pull_request"}]}'
+reset; echo "$orgadmin" >"$state/ruleset.json"; run; expect "bypass by organization admins for pull requests passes" 0 "only by admins"
+reset; echo "${orgadmin/pull_request/always}" >"$state/ruleset.json"; run; expect "bypass always by organization admins fails" 1 "OrganizationAdmin - always"
 
 reset; touch "$state/fail-rules"; run; expect "rules that cannot be read stop with 2" 2
 

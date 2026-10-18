@@ -7,7 +7,8 @@
 # Usage: check-protection [<owner>/<repo> [<ref>]]
 #   The repository defaults to $GITHUB_REPOSITORY, else the one gh sees here. The ref whose
 #   CODEOWNERS is checked defaults to $GITHUB_SHA, else the default branch.
-# Exits 0 when every check passes, 1 when one fails, 2 when GitHub cannot be read.
+# Exits 0 when every check passes, 1 when one fails, 2 when GitHub cannot be read. Each failure is
+# an NG line.
 set -euo pipefail
 
 # The app id of GitHub Actions, the only source the required check may come from.
@@ -37,13 +38,14 @@ has() { jq -e "$1" >/dev/null <<<"$rules"; }
 if has 'any(.[]; .type == "deletion")'; then ok "$branch cannot be deleted"; else ng "$branch can be deleted (Restrict deletions)"; fi
 if has 'any(.[]; .type == "non_fast_forward")'; then ok "$branch cannot be force-pushed"; else ng "$branch can be force-pushed (Block force pushes)"; fi
 
+# Every rule of every ruleset that applies is enforced, so each requirement may come from any of them.
 pr='[.[] | select(.type == "pull_request") | .parameters]'
 if has "$pr | any(.required_approving_review_count >= 1)"; then
   ok "a pull request needs an approval"
 else
   ng "a pull request is not required, or needs no approval (Require a pull request before merging, Required approvals 1)"
 fi
-if has "$pr | any(.required_approving_review_count >= 1 and .dismiss_stale_reviews_on_push)"; then
+if has "$pr | any(.dismiss_stale_reviews_on_push)"; then
   ok "approvals are dismissed on push"
 else
   ng "approvals stay after a push (Dismiss stale pull request approvals when new commits are pushed)"
@@ -53,54 +55,58 @@ fi
 # a team that must approve every file. Neither can hold the agents' GitHub Apps.
 humans=0
 codeowners_review=0
-has "$pr | any(.required_approving_review_count >= 1 and .require_code_owner_review)" && codeowners_review=1
+has "$pr | any(.require_code_owner_review)" && codeowners_review=1
+# Problems of the CODEOWNERS that only matter when its owners are what limits approvals to humans.
+shape() { if [[ $codeowners_review == 1 ]]; then ng "$@"; else note "$@"; fi; owners_ok=0; }
 
 if errors=$(gh api "repos/$repo/codeowners/errors?ref=$ref" 2>"$err"); then
+  owners_ok=1
   if [[ $(jq '.errors | length' <<<"$errors") -gt 0 ]]; then
     ng "CODEOWNERS at $ref has errors; such lines are ignored:"
     jq -r '.errors[] | "       \(.path):\(.line): \(.message // .kind)"' <<<"$errors"
+    owners_ok=0
   else
     ok "CODEOWNERS at $ref has no errors"
-    # A rule without owners leaves its files without code owners, so no code owner approval is asked.
-    content=""
-    for path in .github/CODEOWNERS CODEOWNERS docs/CODEOWNERS; do
-      if content=$(gh api -H "Accept: application/vnd.github.raw" "repos/$repo/contents/$path?ref=$ref" 2>/dev/null); then break; fi
-      content=""
-    done
-    owners_ok=1
-    if [[ -z $content ]]; then
-      ng "CODEOWNERS at $ref cannot be read"
-      owners_ok=0
-    else
-      first=$(grep -vE '^[[:space:]]*(#|$)' <<<"$content" | head -n 1 | awk '{print $1}')
-      if [[ $first != "*" ]]; then
-        ng "the first rule of CODEOWNERS is not '*', so some files may have no code owner"
-        owners_ok=0
-      fi
-      ownerless=$(grep -vE '^[[:space:]]*(#|$)' <<<"$content" | sed 's/[[:space:]]#.*//' | awk 'NF < 2 {print "       " $0}')
-      if [[ -n $ownerless ]]; then
-        ng "CODEOWNERS has rules without owners; their files need no code owner approval:"
-        echo "$ownerless"
-        owners_ok=0
-      fi
-    fi
-    if [[ $codeowners_review == 1 && $owners_ok == 1 ]]; then
-      humans=1
-      ok "approvals count only from the code owners"
-    elif [[ $codeowners_review == 0 ]]; then
-      note "CODEOWNERS is there, but code owner approval is not required (Require review from Code Owners)"
-    fi
   fi
-else
-  if grep -q "HTTP 404" "$err"; then
-    note "no CODEOWNERS at $ref"
+  # GitHub uses the first of these that exists.
+  content="" found=0
+  for path in .github/CODEOWNERS CODEOWNERS docs/CODEOWNERS; do
+    if content=$(gh api -H "Accept: application/vnd.github.raw" "repos/$repo/contents/$path?ref=$ref" 2>"$err"); then
+      found=1
+      break
+    fi
+    grep -q "HTTP 404" "$err" || { cat "$err" >&2; unreadable "$path at $ref"; }
+  done
+  [[ $found == 1 ]] || unreadable "the CODEOWNERS at $ref, which GitHub reports but is in none of its places"
+  rules_lines=$(grep -vE '^[[:space:]]*(#|$)' <<<"$content" || true)
+  if [[ -z $rules_lines ]]; then
+    shape "CODEOWNERS at $ref has no rules, so no file has a code owner"
   else
-    cat "$err" >&2
-    unreadable "the CODEOWNERS errors at $ref"
+    if [[ $(awk 'NR == 1 {print $1}' <<<"$rules_lines") != "*" ]]; then
+      shape "the first rule of CODEOWNERS is not '*', so some files may have no code owner"
+    fi
+    # A rule without owners leaves its files without code owners, so no code owner approval is asked.
+    ownerless=$(awk '{ sub(/[[:space:]]#.*/, "") } NF < 2 { print "       " $0 }' <<<"$rules_lines")
+    if [[ -n $ownerless ]]; then
+      shape "CODEOWNERS has rules without owners; their files need no code owner approval:"
+      echo "$ownerless"
+    fi
   fi
+  if [[ $codeowners_review == 1 && $owners_ok == 1 ]]; then
+    humans=1
+    ok "approvals count only from the code owners"
+  elif [[ $codeowners_review == 0 ]]; then
+    note "CODEOWNERS is there, but code owner approval is not required (Require review from Code Owners)"
+  fi
+elif grep -q "HTTP 404" "$err"; then
+  # The same answer when the ref does not exist.
+  note "no CODEOWNERS at $ref (or no such ref)"
+else
+  cat "$err" >&2
+  unreadable "the CODEOWNERS errors at $ref"
 fi
 
-if has "$pr | any(.required_approving_review_count >= 1 and any(.required_reviewers[]?; .reviewer.type == \"Team\" and .minimum_approvals >= 1 and any(.file_patterns[]; . == \"*\")))"; then
+if has "$pr | any(any(.required_reviewers[]?; .reviewer.type == \"Team\" and .minimum_approvals >= 1 and any(.file_patterns[]; . == \"*\")))"; then
   humans=1
   ok "approvals count from a required team on every file"
 fi

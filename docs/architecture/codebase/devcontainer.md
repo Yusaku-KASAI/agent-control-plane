@@ -21,7 +21,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
        └─ check-docs（手元）                                           │
                             ルートの Dockerfile ◀─ check-image ジョブ ─┤
                             check-docs アクション ◀─ check-docs ジョブ ─┤
-                      check-protection アクション ◀─ check-protection ジョブ ─┘
+                check-protection アクション ◀─ check-protection ジョブ ─┘
 ```
 
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、

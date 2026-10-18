@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-18
-amends: [15]
+amends: [14, 15]
 ---
 
 # 0016. 既定のブランチの守りを、platform の複合アクションで CI の必須の検査として確かめる
@@ -14,13 +14,14 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 すると、ファイルを変えなくても外れる。ADR 0015 では、それを見つけるのは人が手順の確かめ方を回したときだけだった。
 
 ブランチに効くルール（`rules/branches/<ブランチ>`）と CODEOWNERS の誤り（`codeowners/errors`）は、読み取りの権限の
-トークンで読める。CI の `GITHUB_TOKEN` でも読める。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
+GitHub App のトークンで読めた。CI の `GITHUB_TOKEN`（`contents: read`）でも読めるはずだが、確かめていない。ルールセットのバイパス（`bypass_actors`）は、ルールセットを書ける
 呼び手にしか返らないので、`GITHUB_TOKEN` では読めない。
 
 ## Decision
 
 - github プラグインに、守りを確かめるコマンド `check-protection` と、それを CI で回す複合アクション
-  （`platform/plugins/github/actions/check-protection`）を置く（ADR 0014 と同じ形）。ターゲットの `ci.yml` は
+  （`platform/plugins/github/actions/check-protection`）を置く（ADR 0014 と同じ形。ただしアクションはリポジトリを
+  チェックアウトせず、GitHub の API だけを読む）。ターゲットの `ci.yml` は
   `check-protection` ジョブでそれを呼び、`check` ジョブはそのジョブも待つ。権限は `contents: read` だけにする。
 - 確かめる値は target-template の手順（`guides/github.md`）の設定で、コマンドはその API の側の写しを持つ。
 - CODEOWNERS は、CI が確かめるコミット（PR では、マージしたときの版）のものを確かめる。誤りがないこと、最初の規則が
@@ -40,6 +41,7 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
 ## Consequences
 
 - ターゲットのリポジトリの設定を誤ると、どの PR の CI も落ちる。直すのは設定で、PR の中では直らない。
+- `GITHUB_TOKEN` で読めなければ、正しい設定のターゲットでも、このジョブが読めないこと（終了コード 2）で落ちる。
 - 新しいターゲットは、ルールセットを設定するまで CI が通らない。
 - CI で確かめるのは、手順の設定のうちバイパスを除いたもの。バイパスは人が確かめる。
 - バイパスの役割の番号（管理者が 5）は、GitHub の文書の値ではなく、ルールセットの書き出しで使われている値に拠る。

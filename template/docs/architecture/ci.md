@@ -14,10 +14,10 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
        └─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┼─▶ check ジョブ（必須）
                             ほかの Dockerfile  ◀─ イメージのビルドのジョブ ─┤
                             check-docs アクション ◀─ check-docs ジョブ ─┤
-                      check-protection アクション ◀─ check-protection ジョブ ─┘
+                check-protection アクション ◀─ check-protection ジョブ ─┘
 ```
 
-◀─ は実行する向き（ジョブがステージをビルドし、ステージが `make` を実行する。`check-docs` ジョブはアクションを呼ぶ）、
+◀─ は実行する向き（ジョブがステージをビルドし、ステージが `make` を実行する。`check-docs` と `check-protection` のジョブはアクションを呼ぶ）、
 ─▶ は結果をまとめる向き。
 
 - ターゲットの検査の中身は Makefile の `check-<関心>` にだけあり、Dockerfile のステージと CI のジョブはそれを呼ぶ
@@ -65,8 +65,8 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
     の一つのステップだけを持つ（チェックアウトもアクションが行う）。中身は platform に置き、ターゲットには書かない。
     ほかのリポジトリのコードを動かすので、ジョブの `permissions` は `contents: read` だけにする。
   - `check-protection` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/github/actions/check-protection@main`
-    の一つのステップだけを持ち、`permissions` は `contents: read` だけにする。リポジトリのファイルではなく設定を読むので、
-    設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[既定のブランチの守りの用意](../guides/github.md#verify "在りか")にある。
+    の一つのステップだけを持ち、`permissions` は `contents: read` だけにする。リポジトリの設定と、確かめるコミットの CODEOWNERS を API で
+    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[既定のブランチの守りの用意](../guides/github.md#verify "在りか")にある。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
   - 毎週の定期実行では、選んだ検査のステージだけキャッシュを使わない。キャッシュが当たると、新しく公開された
