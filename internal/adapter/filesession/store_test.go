@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -28,16 +29,22 @@ func TestStore_SaveFind(t *testing.T) {
 		Conversation:   domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
 		LastUsedAt:     time.Date(2026, 10, 7, 1, 2, 3, 4, time.UTC),
 		KeptNotifiedAt: time.Date(2026, 10, 8, 1, 2, 3, 4, time.UTC),
+		ReportedUsage: &domain.Usage{CostUSD: 1.5, Models: map[string]domain.ModelUsage{
+			"claude-opus": {InputTokens: 1, OutputTokens: 2, CacheReadInputTokens: 3, CacheCreationInputTokens: 4, CostUSD: 1.5},
+		}},
 	}
-	if err := store.Save(ctx, want); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-	got, err := store.Find(ctx, id)
-	if err != nil {
-		t.Fatalf("Find() error = %v", err)
-	}
-	if got != want {
-		t.Errorf("Find() = %+v, want %+v", got, want)
+	for _, usage := range []*domain.Usage{want.ReportedUsage, nil} {
+		want.ReportedUsage = usage
+		if err := store.Save(ctx, want); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		got, err := store.Find(ctx, id)
+		if err != nil {
+			t.Fatalf("Find() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Find() = %+v, want %+v", got, want)
+		}
 	}
 }
 

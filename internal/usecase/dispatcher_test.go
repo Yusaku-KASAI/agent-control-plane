@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -232,6 +233,11 @@ func (p *fakeProcess) finish(output string) {
 	p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{Output: output}}
 }
 
+// finishSpending ends the turn with the session's total the agent reports.
+func (p *fakeProcess) finishSpending(output string, total float64) {
+	p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnFinished, Result: usecase.TurnResult{Output: output, Usage: domain.Usage{CostUSD: total}}}
+}
+
 func (p *fakeProcess) startTurn() { p.events <- usecase.ProcessEvent{Kind: usecase.EventTurnStarted} }
 
 func (p *fakeProcess) background(ids ...string) {
@@ -276,6 +282,23 @@ func (f *fakeObserver) agentTurns() []usecase.TurnResult {
 		}
 	}
 	return out
+}
+
+type fakeUsage struct {
+	mu       sync.Mutex
+	recorded []usecase.TurnUsage
+}
+
+func (f *fakeUsage) Record(_ context.Context, u usecase.TurnUsage) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recorded = append(f.recorded, u)
+}
+
+func (f *fakeUsage) all() []usecase.TurnUsage {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]usecase.TurnUsage(nil), f.recorded...)
 }
 
 type fakeRunner struct {
@@ -347,6 +370,7 @@ type env struct {
 	issuer     *fakeIssuer
 	runner     *fakeRunner
 	observer   *fakeObserver
+	usage      *fakeUsage
 	d          *usecase.Dispatcher
 }
 
@@ -367,9 +391,10 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		issuer:     &fakeIssuer{},
 		runner:     newFakeRunner(),
 		observer:   &fakeObserver{},
+		usage:      &fakeUsage{},
 	}
 	e.workspaces.sessions = e.sessions
-	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, opts)
+	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, e.usage, opts)
 	t.Cleanup(e.d.Close)
 	return e
 }
@@ -972,4 +997,106 @@ func TestDispatcher_ProcessExitsWithBackgroundTasks(t *testing.T) {
 		updates := e.observer.of(usecase.SessionUpdated)
 		return len(updates) > 0 && updates[len(updates)-1].Status.BackgroundTasks == 0
 	})
+}
+
+func TestDispatcher_RecordsTurnUsage(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	thread := domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"}
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, Prompt: "start", Conversation: thread, Requester: alice})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finishSpending("building in the background", 0.5)
+	o := wait(t, first)
+	id := o.out.Session.ID
+
+	p.startTurn()
+	p.finishSpending("build passed", 0.75)
+	eventually(t, func() bool { return len(e.usage.all()) == 2 })
+
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: id, Prompt: "next", Requester: bob})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finishSpending("ok", 2)
+	wait(t, second)
+
+	got := e.usage.all()
+	want := []struct {
+		cost         float64
+		requesters   []domain.Requester
+		agentStarted bool
+	}{
+		{0.5, []domain.Requester{alice}, false},
+		// A turn the agent starts by itself continues the previous requesters' work.
+		{0.25, []domain.Requester{alice}, true},
+		{1.25, []domain.Requester{bob}, false},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("recorded %d turns, want %d: %+v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		u := got[i]
+		if u.Usage == nil || u.Usage.CostUSD != w.cost || !slices.Equal(u.Requesters, w.requesters) || u.AgentStarted != w.agentStarted ||
+			u.Agent != dev.Name || u.Session != id || u.Conversation != thread || u.StartedAt.IsZero() || u.FinishedAt.Before(u.StartedAt) {
+			t.Errorf("turn %d = %+v, want cost %v by %v, agent started %v", i, u, w.cost, w.requesters, w.agentStarted)
+		}
+	}
+	if s, _ := e.sessions.Find(context.Background(), id); s.ReportedUsage == nil || s.ReportedUsage.CostUSD != 2 {
+		t.Errorf("saved session = %+v, want the last reported total", s)
+	}
+}
+
+func TestDispatcher_TurnUsageUnknownWithoutTotal(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	// The existing session has finished a turn but its total is not known.
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "a"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finishSpending("ok", 3)
+	wait(t, first)
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "b"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finishSpending("ok", 4)
+	wait(t, second)
+
+	got := e.usage.all()
+	if len(got) != 2 || got[0].Usage != nil || got[1].Usage == nil || got[1].Usage.CostUSD != 1 {
+		t.Errorf("recorded %+v, want an unknown turn and then one costing 1", got)
+	}
+}
+
+func TestDispatcher_ProcessExitForgetsTotal(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "a"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finishSpending("ok", 3)
+	wait(t, first)
+	eventually(t, func() bool {
+		s, _ := e.sessions.Find(context.Background(), existingID)
+		return s.ReportedUsage != nil
+	})
+
+	p.err = errors.New("exit status 1")
+	close(p.events)
+	eventually(t, func() bool {
+		s, _ := e.sessions.Find(context.Background(), existingID)
+		return s.ReportedUsage == nil
+	})
+}
+
+func TestDispatcher_RecoverForgetsTotal(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	s := e.sessions.saved[existingID]
+	s.ReportedUsage = &domain.Usage{CostUSD: 3}
+	e.sessions.saved[existingID] = s
+	e.runner.leftovers = []domain.SessionID{existingID}
+
+	if _, err := e.d.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover() error = %v", err)
+	}
+	if s, _ := e.sessions.Find(context.Background(), existingID); s.ReportedUsage != nil || s.Turns != 1 {
+		t.Errorf("session = %+v, want its total unknown", s)
+	}
+	if e.sessions.isLocked(existingID) {
+		t.Error("Recover kept the session locked")
+	}
 }

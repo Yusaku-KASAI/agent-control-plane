@@ -122,6 +122,10 @@ type streamEvent struct {
 	TerminalReason string `json:"terminal_reason"`
 	// Errors describes the errors of a result whose subtype starts with error; Result is then empty.
 	Errors []string `json:"errors"`
+	// TotalCostUSD and ModelUsage, on a result, are running totals of the process, subagents
+	// included, that start from the totals a resumed session saved.
+	TotalCostUSD float64               `json:"total_cost_usd"`
+	ModelUsage   map[string]modelUsage `json:"modelUsage"`
 	// RateLimitInfo is set on rate_limit_event, which reports a change in the account's usage limit.
 	RateLimitInfo *struct {
 		Status         string `json:"status"`
@@ -141,6 +145,25 @@ type streamEvent struct {
 		// Content is a string in prompts and a list of blocks in assistant messages.
 		Content json.RawMessage `json:"content"`
 	} `json:"message"`
+}
+
+type modelUsage struct {
+	InputTokens              int64   `json:"inputTokens"`
+	OutputTokens             int64   `json:"outputTokens"`
+	CacheReadInputTokens     int64   `json:"cacheReadInputTokens"`
+	CacheCreationInputTokens int64   `json:"cacheCreationInputTokens"`
+	CostUSD                  float64 `json:"costUSD"`
+}
+
+func (e streamEvent) usage() domain.Usage {
+	u := domain.Usage{CostUSD: e.TotalCostUSD}
+	for name, m := range e.ModelUsage {
+		if u.Models == nil {
+			u.Models = make(map[string]domain.ModelUsage, len(e.ModelUsage))
+		}
+		u.Models[name] = domain.ModelUsage(m)
+	}
+	return u
 }
 
 type contentBlock struct {
@@ -177,7 +200,7 @@ func (e streamEvent) processEvent(f turnFacts) (usecase.ProcessEvent, bool) {
 			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a, Remark: r}, true
 		}
 	case e.Type == "result":
-		r := usecase.TurnResult{Output: e.Result}
+		r := usecase.TurnResult{Output: e.Result, Usage: e.usage()}
 		switch {
 		case e.stopped(f.interruptSent):
 			r.Interrupted = true

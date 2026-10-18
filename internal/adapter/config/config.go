@@ -25,7 +25,9 @@ type Config struct {
 	// Retention is how long an unused session is kept.
 	Retention time.Duration
 	// StateDir is where the control plane keeps state it alone reads and writes, such as rotating tokens.
-	StateDir    string
+	StateDir string
+	// UsageLog is the host file where what each turn spent is appended.
+	UsageLog    string
 	Credentials Credentials
 	// GitHubApps holds the GitHub App of each agent that has one.
 	GitHubApps map[domain.AgentName]GitHubApp
@@ -94,6 +96,7 @@ type fileFormat struct {
 		Volume string `yaml:"volume"`
 	} `yaml:"credentials"`
 	StateDir string `yaml:"state_dir"`
+	UsageLog string `yaml:"usage_log"`
 	People   []struct {
 		Slack    string `yaml:"slack"`
 		GitName  string `yaml:"git_name"`
@@ -173,6 +176,12 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, fmt.Errorf("sessions.root %q is not absolute", f.Sessions.Root)
 	}
 	idle := defaultIdleTimeout
+	if f.UsageLog == "" {
+		return Config{}, errors.New("usage_log is not set")
+	}
+	if !filepath.IsAbs(f.UsageLog) {
+		return Config{}, fmt.Errorf("usage_log %q is not absolute", f.UsageLog)
+	}
 	if f.Sessions.IdleTimeout != "" {
 		d, err := time.ParseDuration(f.Sessions.IdleTimeout)
 		if err != nil || d <= 0 {
@@ -252,6 +261,7 @@ func Parse(data []byte) (Config, error) {
 		IdleTimeout:  idle,
 		Retention:    retention,
 		StateDir:     f.StateDir,
+		UsageLog:     f.UsageLog,
 		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
 		GitHubApps:   apps,
 		SlackApps:    slackApps,

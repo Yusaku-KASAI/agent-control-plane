@@ -2,7 +2,7 @@
 # host path.
 #
 # Paths are host paths: the control plane container mounts them at the same place.
-#   /home/you/projects/...     under ACP_HOST_ROOT  (targets, sessions)
+#   /home/you/projects/...     under ACP_HOST_ROOT  (targets, sessions, usage log)
 #   /home/you/acp-secrets/...  under ACP_SECRETS_DIR (tokens and keys)
 # Where these directories may be is in .env.example.
 # Paths under /var/lib/acp/ are inside the control plane container and match compose.yaml.
@@ -23,6 +23,10 @@ sessions:
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
+
+# File where what each turn spent is appended, one line of JSON per turn. Kept apart from sessions so
+# that it outlives them. What a line holds: docs/architecture/app/sessions.md#usage.
+usage_log: /home/you/projects/acp-usage.jsonl
 
 # State only the control plane reads and writes, such as rotating Slack tokens. Matches the acp-state
 # volume in compose.yaml.
