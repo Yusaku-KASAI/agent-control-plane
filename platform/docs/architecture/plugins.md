@@ -33,7 +33,8 @@ plugins/
 ### `roles`
 
 - **責務**：共通のロール（Claude Code のカスタムエージェント）を定義する。
-- **置くもの / 置かないもの**：ロールに固有の振る舞いと、そのロールが使う決まりの選び出し（conventions の定義を要約か案内で載せる）、使うモデル（[ADR 0003](../adr/0003-roles-choose-their-model.md)）。
+- **置くもの / 置かないもの**：受け持つ手順（書ける範囲と、振り分けの目的の手順ごとの扱い。形は conventions の
+  [目的の手順と共通の手順](../../plugins/conventions/docs/architecture/documentation.md#procedures)）と、ロールに固有の振る舞いと、そのロールが使う決まりの選び出し（conventions の定義を要約か案内で載せる）、使うモデル（[ADR 0003](../adr/0003-roles-choose-their-model.md)）。
   ターゲット固有の事実や、ハーネスの事実は置かない。
 - **関係**：harness が伝える動き方とハーネスの契約、conventions の決まりと観点、github のスキルを前提にする。
   中の構成は [roles の文書](../../plugins/roles/docs/README.md "在りか")。

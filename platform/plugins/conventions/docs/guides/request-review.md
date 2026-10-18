@@ -1,7 +1,7 @@
 # レビューを頼んで答える
 
 変更した人が、自分の変更（PR）の差分をレビューしてもらい、指摘に答えて、終えられるようにするまでの手順。共通の
-手順で、[変更を届ける](deliver-change.md "在りか")の 6 段で使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。
+手順で、目的の手順（[変更を届ける](deliver-change.md "在りか")など）の段の中で使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。
 決まりは[レビューの扱い方](../reference/reviews.md "在りか")にある。
 
 ## 頼む
