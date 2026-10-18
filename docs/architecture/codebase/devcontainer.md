@@ -60,7 +60,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - **責務**：Go のコードの lint、`go mod tidy` の差分、govulncheck、テストを行う。中身は Makefile のルールにあり、
   同じ名前のステージと CI のジョブがそれを呼ぶ。
 - **置くもの / 置かないもの**：ステージは依存の取得（`go mod download`）を先に一つの層にし、そのあと lint の設定、
-  例の設定、プラグインの宣言（`.claude`）、`platform`、Go のコードをコピーする。テストがそれらも読むため。
+  例の設定、`compose.yaml`（Docker のプロキシの許可）、プラグインの宣言（`.claude`）、`platform`、Go のコードをコピー
+  する。テストがそれらも読むため。
 - **関係**：キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
   キャッシュを使わずにビルドする。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
