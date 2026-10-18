@@ -147,15 +147,20 @@ type fakeProcess struct {
 	closed      bool
 	// closeErr is what Close returns, as when the process had to be stopped.
 	closeErr error
-	events   chan usecase.ProcessEvent
-	err      error
+	// sendErr is what Send returns, without recording the prompt.
+	sendErr error
+	events  chan usecase.ProcessEvent
+	err     error
 }
 
 // Send records the prompt last, so a test that has seen it may close the events channel.
 func (p *fakeProcess) Send(_ context.Context, id, prompt string) error {
 	p.mu.Lock()
-	hold := p.holdPrompts
+	hold, sendErr := p.holdPrompts, p.sendErr
 	p.mu.Unlock()
+	if sendErr != nil {
+		return sendErr
+	}
 	if !hold {
 		p.events <- usecase.ProcessEvent{Kind: usecase.EventPromptAccepted, PromptID: id}
 	}
@@ -522,6 +527,32 @@ func TestDispatcher_InjectsIntoRunningTurn(t *testing.T) {
 	}
 	if !slices.Equal(steerPlaced, placements{usecase.PlacedInTurn}) {
 		t.Errorf("placed %v, want the running turn", steerPlaced)
+	}
+}
+
+// A prompt marked to be injected is not placed when there is no running turn to inject it into,
+// nor when sending it into the running turn fails.
+func TestDispatcher_InjectedPromptNotPlaced(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	var idlePlaced placements
+	idle := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", Inject: true, Placed: idlePlaced.record})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+
+	p.mu.Lock()
+	p.sendErr = errors.New("stdin closed")
+	p.mu.Unlock()
+	var failedPlaced placements
+	failed := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, Placed: failedPlaced.record})
+	if o := wait(t, failed); o.err == nil {
+		t.Errorf("injecting into a process that cannot take prompts returned %+v, want an error", o.out)
+	}
+	p.finish("done")
+	if o := wait(t, idle); o.err != nil || o.out.Output != "done" || o.out.Shared {
+		t.Fatalf("first = %+v, %v", o.out, o.err)
+	}
+	if len(idlePlaced) != 0 || len(failedPlaced) != 0 {
+		t.Errorf("placed %v for the prompt sent at once and %v for the one that failed, want nothing", idlePlaced, failedPlaced)
 	}
 }
 

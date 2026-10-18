@@ -188,8 +188,12 @@ func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppM
 	}, true
 }
 
-// injectPrefix marks a message to be sent into the running turn.
-const injectPrefix = ":zap:"
+// injectPrefix marks a message to be sent into the running turn; the same emoji, as a reaction,
+// tells that it was.
+const (
+	injectReaction = "zap"
+	injectPrefix   = ":" + injectReaction + ":"
+)
 
 // requestPrompt points the agent at the message instead of quoting it: the agent reads the
 // request, and the thread around it, from Slack (docs/adr/app/0020).
@@ -213,7 +217,7 @@ func (b *Bot) MarkQueued(ctx context.Context, msg usecase.IncomingMessage) error
 }
 
 func (b *Bot) MarkInjected(ctx context.Context, msg usecase.IncomingMessage) error {
-	return b.react(ctx, msg, "zap")
+	return b.react(ctx, msg, injectReaction)
 }
 
 func (b *Bot) MarkStopped(ctx context.Context, msg usecase.IncomingMessage) error {
