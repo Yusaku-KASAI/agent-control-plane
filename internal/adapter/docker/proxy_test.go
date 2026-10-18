@@ -130,7 +130,7 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	for method, res := range allow {
 		for _, re := range res {
 			if !used[re] {
-				t.Errorf("the proxy allows %s %s, which the runner never sends", method, re)
+				t.Errorf("the proxy allows %s %s, which the runner never sends", method, entry(re))
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 		sampled[req.method] = true
 		for _, re := range allow[req.method] {
 			if re.MatchString(req.path) {
-				t.Errorf("the proxy allows %s %s through %s, which the runner never sends", req.method, req.path, re)
+				t.Errorf("the proxy allows %s %s through %s, which the runner never sends", req.method, req.path, entry(re))
 			}
 		}
 	}
@@ -196,6 +196,11 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 		t.Fatalf("the docker-proxy service in %s has no -allow arguments", composeFile)
 	}
 	return allow
+}
+
+// entry gives back an allow entry as compose.yaml writes it, without the ^ and $ the test wraps it in.
+func entry(re *regexp.Regexp) string {
+	return strings.TrimSuffix(strings.TrimPrefix(re.String(), "^"), "$")
 }
 
 type engineRequest struct{ method, path string }
