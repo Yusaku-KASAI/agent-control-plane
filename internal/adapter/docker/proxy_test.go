@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"sync"
 	"testing"
@@ -59,8 +60,7 @@ var dockerCalls = map[string]func(ctx context.Context, api dockerAPI) error{
 
 // TestProxyAllowsWhatTheRunnerCalls drives the real Docker client through every dockerAPI method
 // against a fake engine, and checks the requests it sends against the proxy's allowlist in
-// compose.yaml: each request must be allowed, and each allow entry must be used. socket-proxy
-// matches the request path (without the query) against Go regexps, as this test does.
+// compose.yaml: each request must be allowed, and each allow entry must be used.
 func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	allow := proxyAllowlist(t)
 
@@ -109,7 +109,10 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	}
 }
 
-// proxyAllowlist reads the -allow<METHOD>=<regexp> arguments of the docker-proxy service.
+// proxyAllowlist reads the -allow<METHOD>=<regexp> arguments of the docker-proxy service and
+// compiles them as socket-proxy 1.13.1 does (compileRegexp in internal/config/config.go): wrapped
+// in ^ and $, then matched against the request path without the query. Each entry must allow
+// one API, without alternation, so that an unused API cannot hide in an entry that is used.
 func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	t.Helper()
 	data, err := os.ReadFile(composeFile)
@@ -135,7 +138,10 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 		if m == nil {
 			continue
 		}
-		re, err := regexp.Compile(m[2])
+		if hasAlternation(t, m[2]) {
+			t.Errorf("%s: write one entry per API instead of alternatives", arg)
+		}
+		re, err := regexp.Compile("^" + m[2] + "$")
 		if err != nil {
 			t.Fatalf("%s: %v", arg, err)
 		}
@@ -145,6 +151,27 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 		t.Fatalf("the docker-proxy service in %s has no -allow arguments", composeFile)
 	}
 	return allow
+}
+
+func hasAlternation(t *testing.T, expr string) bool {
+	t.Helper()
+	re, err := syntax.Parse(expr, syntax.Perl)
+	if err != nil {
+		t.Fatalf("%s: %v", expr, err)
+	}
+	var walk func(*syntax.Regexp) bool
+	walk = func(re *syntax.Regexp) bool {
+		if re.Op == syntax.OpAlternate {
+			return true
+		}
+		for _, sub := range re.Sub {
+			if walk(sub) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(re)
 }
 
 type engineRequest struct{ method, path string }
