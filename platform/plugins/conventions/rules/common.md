@@ -25,5 +25,5 @@
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
 - 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
 - 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更する](../docs/guides/change.md)）。
-- 文書を書くときは write-docs スキルに従う。変更しない作業で、決まりや文書の置き場所を決めるとき（ほかの人の差分を
-  レビューするときを含む）は、[文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。
+- 文書を書くときは write-docs スキルに従う。ほかの人の差分をレビューするとき（置き場所の判断がなくても）と、変更しない
+  作業で決まりや文書の置き場所を決めるときは、[文書の体系](../docs/architecture/documentation.md "在りか")（全体を読む）。
