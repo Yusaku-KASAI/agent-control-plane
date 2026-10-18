@@ -36,5 +36,5 @@ conventions の ADR 0020 で、場面の手順（レビューする）は、そ�
 
 ## Consequences
 
-- reviewer の固有の振る舞い、developer のレビューの要約、roles の全体像を、この三つの分け方に合わせる。
+- reviewer の固有の振る舞い、developer のレビューの要約、roles の全体像を、この分け方（種類と残し方の二つの軸）に合わせる。
 - 変更した人の差分のレビューにも、reviewer のモデル（ロールの定義の frontmatter）が使われる。
