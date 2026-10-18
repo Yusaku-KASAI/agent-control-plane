@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-18
 amends: [7]
+amended_by: [19]
 ---
 
 # 0018. 変更した人が頼む差分のレビューも reviewer ロールが行い、結果は頼んだ人に返す

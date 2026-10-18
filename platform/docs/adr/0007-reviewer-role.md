@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-13
-amended_by: [18]
+amended_by: [18, 19]
 ---
 
 # 0007. レビューは guide と分けた reviewer ロールが行い、COMMENT のレビューと Issue だけを書く
