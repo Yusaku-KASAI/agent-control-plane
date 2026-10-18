@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-	"regexp/syntax"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +19,10 @@ import (
 
 // composeFile is the compose file whose docker-proxy service holds the allowlist (docs/adr/app/0015).
 const composeFile = "../../../compose.yaml"
+
+// proxyImage is the socket-proxy whose matching proxyAllowlist copies. When compose.yaml moves to
+// another version, check that version's matching and update both.
+const proxyImage = "wollomatic/socket-proxy:1.13.1"
 
 // dockerCalls makes each dockerAPI call once. Every method of dockerAPI needs an entry, so a new
 // call cannot reach production without the proxy allowlist being checked against it.
@@ -110,7 +113,7 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 }
 
 // proxyAllowlist reads the -allow<METHOD>=<regexp> arguments of the docker-proxy service and
-// compiles them as socket-proxy 1.13.1 does (compileRegexp in internal/config/config.go): wrapped
+// compiles them as proxyImage does (compileRegexp in internal/config/config.go): wrapped
 // in ^ and $, then matched against the request path without the query. Each entry must allow
 // one API, without alternation, so that an unused API cannot hide in an entry that is used.
 func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
@@ -121,6 +124,7 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	}
 	var compose struct {
 		Services map[string]struct {
+			Image   string   `yaml:"image"`
 			Command []string `yaml:"command"`
 		} `yaml:"services"`
 	}
@@ -131,6 +135,9 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	if !ok {
 		t.Fatalf("%s has no docker-proxy service", composeFile)
 	}
+	if proxy.Image != proxyImage {
+		t.Fatalf("docker-proxy runs %s, but this test copies the matching of %s; check how the new version matches requests, then update proxyImage", proxy.Image, proxyImage)
+	}
 	allowArg := regexp.MustCompile(`^-allow([A-Z]+)=(.+)$`)
 	allow := make(map[string][]*regexp.Regexp)
 	for _, arg := range proxy.Command {
@@ -138,7 +145,7 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 		if m == nil {
 			continue
 		}
-		if hasAlternation(t, m[2]) {
+		if strings.Contains(m[2], "|") {
 			t.Errorf("%s: write one entry per API instead of alternatives", arg)
 		}
 		re, err := regexp.Compile("^" + m[2] + "$")
@@ -151,27 +158,6 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 		t.Fatalf("the docker-proxy service in %s has no -allow arguments", composeFile)
 	}
 	return allow
-}
-
-func hasAlternation(t *testing.T, expr string) bool {
-	t.Helper()
-	re, err := syntax.Parse(expr, syntax.Perl)
-	if err != nil {
-		t.Fatalf("%s: %v", expr, err)
-	}
-	var walk func(*syntax.Regexp) bool
-	walk = func(re *syntax.Regexp) bool {
-		if re.Op == syntax.OpAlternate {
-			return true
-		}
-		for _, sub := range re.Sub {
-			if walk(sub) {
-				return true
-			}
-		}
-		return false
-	}
-	return walk(re)
 }
 
 type engineRequest struct{ method, path string }
