@@ -55,9 +55,11 @@ type spentView struct {
 	// reported is set once one of the turns ended with the agent's result.
 	reported bool
 	// costUSD sums the turns' costs; unknown is set when any turn's cost cannot be told.
-	costUSD        float64
-	unknown        bool
+	costUSD float64
+	unknown bool
+	// sessionCostUSD is the latest session's total known, if sessionKnown.
 	sessionCostUSD float64
+	sessionKnown   bool
 }
 
 // add counts a turn that ended; sp is nil for one that ended without the agent's result.
@@ -72,18 +74,23 @@ func (v *spentView) add(sp *usecase.Spent) {
 	} else {
 		v.costUSD += sp.Turn.CostUSD
 	}
-	v.sessionCostUSD = sp.Session.CostUSD
+	if sp.Session != nil {
+		v.sessionCostUSD, v.sessionKnown = sp.Session.CostUSD, true
+	}
 }
 
 func (v spentView) render() string {
 	if !v.reported {
 		return ""
 	}
-	turns := "不明"
+	turns, session := "不明", "不明"
 	if !v.unknown {
 		turns = dollars(v.costUSD)
 	}
-	return fmt.Sprintf("費用の見積もり：この依頼 %s・セッションの合計 %s\n", turns, dollars(v.sessionCostUSD))
+	if v.sessionKnown {
+		session = dollars(v.sessionCostUSD)
+	}
+	return fmt.Sprintf("費用の見積もり：この依頼 %s・セッションの合計 %s\n", turns, session)
 }
 
 func dollars(usd float64) string {

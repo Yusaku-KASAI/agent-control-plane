@@ -534,7 +534,7 @@ func (w *worker) finishTurn(res TurnResult) {
 		err = fmt.Errorf("save session: %w", err)
 	}
 	w.recordUsage(res, turnUsage)
-	spent := &Spent{Turn: turnUsage, Session: *total}
+	spent := &Spent{Turn: turnUsage, Session: total}
 	if w.forPrompts && len(w.current) == 0 && len(w.sent) > 0 {
 		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
 		// resumed session does to report the background tasks its previous process left. The

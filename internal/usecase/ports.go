@@ -239,8 +239,8 @@ type Spent struct {
 	// Turn is nil when it cannot be told.
 	Turn *domain.Usage
 	// Session is the session's total the agent reported, or the last known one when it reported
-	// none.
-	Session domain.Usage
+	// none; nil when it is not known.
+	Session *domain.Usage
 }
 
 type SessionStatus struct {
