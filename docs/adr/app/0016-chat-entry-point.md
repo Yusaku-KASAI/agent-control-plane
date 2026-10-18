@@ -1,7 +1,6 @@
 ---
 status: accepted
 date: 2026-10-02
-amended_by: [40]
 ---
 
 # 0016. チャットからの依頼は受信方式に依存しない形で受け、Slack は Socket Mode から始める

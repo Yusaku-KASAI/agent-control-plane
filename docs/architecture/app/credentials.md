@@ -33,8 +33,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 - 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
   （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。
-- 拡張が要る機能を宣言して control-plane が方式を割り当てる仕組みはない。拡張が使う外部サービス（GitHub、Slack）は、
-  提供方式が一つずつ（[ADR 0039](../../adr/app/0039-capability-declaration-after-second-method.md)）。
+- ADR 0006 が決めた、拡張が要る機能を宣言して control-plane が方式を割り当てる仕組みは、まだない。拡張が使う外部
+  サービス（GitHub、Slack）は、提供方式が一つずつで、エージェントの設定にあればその認証情報を渡す。
 
 <a id="secrets"></a>
 
