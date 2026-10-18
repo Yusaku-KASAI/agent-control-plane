@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Loads the rules, then tells where the documents they summarize are.
+# Loads the rules, then tells where they and the documents they summarize are.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
