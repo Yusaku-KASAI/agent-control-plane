@@ -864,7 +864,8 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
 		eventually(t, func() bool { return len(e.runner.starts()) == 1 })
 		withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
-		time.Sleep(5 * time.Millisecond)
+		// No event tells that the request reached the inbox channel; the worker is held in Start.
+		time.Sleep(20 * time.Millisecond)
 		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
 			t.Fatal(err)
 		}
@@ -975,8 +976,8 @@ func TestDispatcher_StopEndedRequestLeavesOtherRequestsTurn(t *testing.T) {
 	})
 }
 
-// A request that has ended stops nothing, unless it is the latest request and the agent still
-// works on its own after it.
+// A request that has ended stops nothing while the agent is idle, and stops the background tasks
+// the agent then runs on its own, whichever ended request it is.
 func TestDispatcher_StopRequestThatEnded(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
@@ -984,20 +985,20 @@ func TestDispatcher_StopRequestThatEnded(t *testing.T) {
 	eventually(t, func() bool { return len(p.sent()) == 1 })
 	p.finish("one")
 	wait(t, first)
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
 	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build", RequestID: "2.0"})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
+	if p.wasInterrupted() {
+		t.Fatal("stopping an ended request while the agent was idle interrupted the next request")
+	}
 	p.background("b1")
 	p.finish("building")
 	wait(t, second)
 
 	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
-		t.Fatalf("StopRequest() error = %v", err)
-	}
-	time.Sleep(20 * time.Millisecond)
-	if got := p.stoppedTasks(); len(got) != 0 {
-		t.Fatalf("stopping an earlier request stopped tasks %q, want nothing", got)
-	}
-	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
 		t.Fatalf("StopRequest() error = %v", err)
 	}
 	eventually(t, func() bool { return slices.Equal(p.stoppedTasks(), []string{"b1"}) })
@@ -1006,6 +1007,88 @@ func TestDispatcher_StopRequestThatEnded(t *testing.T) {
 	}
 	if err := e.d.StopRequest(context.Background(), pm.Name, existingID, "2.0"); !errors.Is(err, domain.ErrSessionAgentMismatch) {
 		t.Errorf("StopRequest(other agent) error = %v, want ErrSessionAgentMismatch", err)
+	}
+}
+
+// While the agent works on its own, a prompt injected and not yet taken in does not keep an ended
+// request from stopping that work; the injected prompt is withdrawn with it.
+func TestDispatcher_StopOwnWorkWithInjectedPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "watch CI", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("watching")
+	wait(t, first)
+	p.startTurn()
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
+	p.hold()
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, p.wasInterrupted)
+	if o := wait(t, steer); !errors.Is(o.err, usecase.ErrStopped) {
+		t.Errorf("injected request error = %v, want ErrStopped", o.err)
+	}
+}
+
+// Once the agent takes an injected prompt into the turn it started on its own, that turn has a
+// request, so an ended request no longer stops it.
+func TestDispatcher_StopEndedRequestLeavesAgentTurnWithInjectedPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "watch CI", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("watching")
+	wait(t, first)
+	p.startTurn()
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnStarted)) == 2 })
+	var steerTaken uptakes
+	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0", Taken: steerTaken.record})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if p.wasInterrupted() {
+		t.Fatal("an ended request stopped the turn the injected request was taken into")
+	}
+	p.finish("CI passed")
+	if o := wait(t, steer); o.err != nil || o.out.Output != "CI passed" {
+		t.Errorf("injected = %+v, %v", o.out, o.err)
+	}
+}
+
+// A turn the agent runs before taking in a sent prompt belongs to that request, so an ended
+// request does not stop it.
+func TestDispatcher_StopEndedRequestLeavesAgentTurnBeforeSentPrompt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+	p.hold()
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "second", RequestID: "2.0"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.startTurn()
+
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "1.0"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if p.wasInterrupted() {
+		t.Fatal("an ended request stopped the turn that belongs to the sent request")
+	}
+	p.finish("noted")
+	p.startTurn()
+	p.accept(1)
+	p.finish("two")
+	if o := wait(t, second); o.err != nil || o.out.Output != "two" {
+		t.Errorf("second = %+v, %v", o.out, o.err)
 	}
 }
 

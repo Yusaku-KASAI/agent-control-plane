@@ -189,8 +189,9 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 // StopRequest stops one request of the session, by how far it has come. A request waiting in the
 // inbox is withdrawn. While the agent has the request (sent to it, or taken into the running
 // turn), the agent's work is stopped: the running turn, the background tasks, and the prompts sent
-// but not yet taken in; requests waiting in the inbox stay. A request that has ended stops nothing,
-// unless it is the session's latest request and the agent still works on its own after it.
+// but not yet taken in; requests waiting in the inbox stay. A request that has ended stops the work
+// the agent does on its own, if any: a turn it started or background tasks, with no request in a
+// turn.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
 		return nil
@@ -408,8 +409,6 @@ type worker struct {
 	// running is true from a prompt or a turn start until the turn's result; current may be
 	// empty when the agent started the turn by itself. forPrompts tells that the running turn was
 	// started for sent prompts rather than by the agent.
-	// latest is the ID of the request last given to the agent, empty if that request has none.
-	latest     string
 	running    bool
 	forPrompts bool
 	// turn counts the turns started, so a prompt injected into one can tell whether the agent
@@ -559,7 +558,6 @@ func (w *worker) send(r request) error {
 		w.sent = make(map[string]request)
 	}
 	w.sent[id] = r
-	w.latest = r.id
 	return nil
 }
 
@@ -727,11 +725,19 @@ func (w *worker) stopRequest(id string) {
 		return
 	}
 	has := func(r request) bool { return r.id == id }
-	agentHasIt := slices.ContainsFunc(w.current, has) || slices.ContainsFunc(slices.Collect(maps.Values(w.sent)), has)
-	ownWorkAfterIt := id == w.latest && len(w.current) == 0 && len(w.sent) == 0 && (w.running || len(w.background) > 0)
-	if agentHasIt || ownWorkAfterIt {
+	if slices.ContainsFunc(w.current, has) || slices.ContainsFunc(slices.Collect(maps.Values(w.sent)), has) || w.workingOnItsOwn() {
 		w.stopWork()
 	}
+}
+
+// workingOnItsOwn tells that the agent works with no request in a turn: in a turn it started by
+// itself, or on background tasks between turns. A turn the agent runs before taking in the prompts
+// sent for it belongs to those requests (docs/adr/app/0031).
+func (w *worker) workingOnItsOwn() bool {
+	if w.running {
+		return !w.forPrompts && len(w.current) == 0
+	}
+	return len(w.background) > 0
 }
 
 // stopWork stops what the agent is doing, leaving the requests waiting in the inbox.

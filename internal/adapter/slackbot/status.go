@@ -129,7 +129,7 @@ func (v statusView) render(now time.Time) string {
 	}
 	fmt.Fprintf(&b, "\nセッション `%s`", v.session)
 	if v.stoppable() {
-		fmt.Fprintf(&b, "・止めるには、依頼のメッセージに :%s: を付けてください（答えたあとも動いているときは、最後に取りかかった依頼に）", stopReaction)
+		fmt.Fprintf(&b, "・止めるには、依頼のメッセージに :%s: を付けてください（答えたあとも動いているときは、終わった依頼に）", stopReaction)
 	}
 	return b.String()
 }
