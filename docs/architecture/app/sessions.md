@@ -137,10 +137,10 @@
   - **ターンの使用量**：Claude Code が `result` で報告するセッションの合計（`total_cost_usd` と `modelUsage`、
     サブエージェントの分を含む）から、記録の `reported_usage` を引いて出す。最初のターンの前は 0 とする。合計のどれかが
     前より小さければ数え直した（`/clear`）とみなし、報告された合計をそのターンの分とする。0 だけの報告（Claude Code が
-    落ちたとき）は、前の合計を持ち越す。費用は Claude Code の見積もりで、請求の値ではない。`--resume` で合計を
-    引き継ぐのは Claude Code v2.1.277 から。
+    落ちたとき）は、前の合計を持ち越す（前の合計が分からなければ、分からないままにする）。費用は Claude Code の
+    見積もりで、請求の値ではない。`--resume` で合計を引き継ぐのは Claude Code v2.1.277 から。
   - **分からないとき**：`reported_usage` がないと、そのターンの使用量は分からないとし、報告された合計を次と比べる値に
-    する。ワーカーは、プロセスが自分で終わったときと、閉じても時間内に終わらず止めたときに、`Recover` は残った
+    する（0 だけの報告なら、分からないままにする）。ワーカーは、プロセスが自分で終わったときと、閉じても時間内に終わらず止めたときに、`Recover` は残った
     コンテナを消したときに、`reported_usage` を消す。Claude Code が合計を保存していないかもしれないため。
   - **残す先**：`usage_log`（[acp.example.yaml](../../../acp.example.yaml "在りか")）のファイルに、ターンごとに JSON を 1 行足す。
     片付けで消えないよう、セッションの外に置く。書けなければ control-plane のログに残し、ターンは続ける。
@@ -159,7 +159,10 @@
     | `usage` | ターンの使用量（`cost_usd` と、モデルごとの `input_tokens`、`output_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens`、`cost_usd`）。分からなければ `null` |
     | `reported_total` | Claude Code が報告したセッションの合計（`usage` と同じ形） |
 
-- **関係**：ワーカーが、ターンを終えたときに usecase の `UsageLog`（`internal/usecase/ports.go`）に `TurnRecord` を渡す。`result` を
+- **関係**：ワーカーが、ターンを終えたときに usecase の `UsageLog`（`internal/usecase/ports.go`）に `TurnRecord` を渡す。
+  ターンの使用量と、次と比べるセッションの合計（0 だけの報告なら前の合計、分からなければなし）を、
+  `SessionEvent.Spent` で observer にも渡し、状態メッセージが見せる
+  （[依頼と知らせ](requests.md "在りか")、[ADR 0037](../../adr/app/0037-usage-in-status-messages.md)）。`result` を
   読むのは runner（`internal/adapter/docker/process.go`）。こう決めた理由は [ADR 0036](../../adr/app/0036-record-usage-per-turn.md) にある。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：
   runner は報告された合計だけを返し、ターンの分を出す判定は domain の `TurnUsage` の 1 か所に置く。

@@ -57,17 +57,18 @@ func (u Usage) since(earlier Usage) (Usage, bool) {
 
 // TurnUsage tells what a turn spent from the session's total that Claude Code reported at the end
 // of the turn. known is the session's total after the previous turn, nil when unknown. It returns
-// the turn's usage, nil when it cannot be told, and the total to compare the next turn with.
+// the turn's usage, nil when it cannot be told, and the total to compare the next turn with, nil
+// when it is still unknown.
 //
 // Claude Code reports a running total that a resumed session carries over. The total starts over
 // on /clear; the turn's usage is then the reported total, which counts from the restart. A crashed
 // turn may report zeros, which say nothing about the total.
 func TurnUsage(known *Usage, reported Usage) (turn, next *Usage) {
 	switch {
+	case reported.IsZero() && (known == nil || !known.IsZero()):
+		return nil, known
 	case known == nil:
 		return nil, &reported
-	case reported.IsZero() && !known.IsZero():
-		return nil, known
 	}
 	if d, ok := reported.since(*known); ok {
 		return &d, &reported

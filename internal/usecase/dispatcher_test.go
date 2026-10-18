@@ -1181,6 +1181,20 @@ func TestDispatcher_RecordsAgentTurnBeforeSentPrompt(t *testing.T) {
 	if req := got[2]; req.AgentStarted || req.StartedAt.Before(got[1].FinishedAt) {
 		t.Errorf("request's turn = %+v, want it to start after the agent's own turn finished at %v", req, got[1].FinishedAt)
 	}
+	// The observer is told what each turn spent, the hidden one included.
+	var spent []usecase.Spent
+	for _, ev := range e.observer.of(usecase.SessionTurnUpdated) {
+		if ev.Spent != nil {
+			spent = append(spent, *ev.Spent)
+		}
+	}
+	finished := e.observer.of(usecase.SessionTurnFinished)
+	if len(spent) != 1 || spent[0].Turn == nil || spent[0].Turn.CostUSD != 0.5 || spent[0].Session == nil || spent[0].Session.CostUSD != 1.5 {
+		t.Errorf("hidden turn spent %+v, want 0.5 of 1.5", spent)
+	}
+	if last := finished[len(finished)-1].Spent; last == nil || last.Turn == nil || last.Turn.CostUSD != 1.5 || last.Session == nil || last.Session.CostUSD != 3 {
+		t.Errorf("request's turn spent %+v, want 1.5 of 3", last)
+	}
 }
 
 // When the process is replaced in the same worker, the new process's own turn before it takes the
@@ -1220,5 +1234,30 @@ func TestDispatcher_RecordsAgentTurnInReplacedProcess(t *testing.T) {
 	}
 	if own := got[1]; !own.AgentStarted || !slices.Equal(own.Requesters, []domain.Requester{alice, bob}) {
 		t.Errorf("agent's own turn = %+v, want it credited to alice and bob in order", own)
+	}
+}
+
+// Zeros reported while the session's total is not known leave the total unknown.
+func TestDispatcher_SpentWithoutKnownTotal(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "a"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finishSpending("crashed", 0)
+	wait(t, first)
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "b"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	p.finishSpending("ok", 2)
+	wait(t, second)
+
+	finished := e.observer.of(usecase.SessionTurnFinished)
+	if len(finished) != 2 {
+		t.Fatalf("observed %d finished turns, want 2", len(finished))
+	}
+	if sp := finished[0].Spent; sp == nil || sp.Turn != nil || sp.Session != nil {
+		t.Errorf("first turn spent %+v, want both unknown", sp)
+	}
+	if sp := finished[1].Spent; sp == nil || sp.Turn != nil || sp.Session == nil || sp.Session.CostUSD != 2 {
+		t.Errorf("second turn spent %+v, want an unknown turn of a total of 2", sp)
 	}
 }

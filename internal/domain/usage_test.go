@@ -33,6 +33,7 @@ func TestTurnUsage(t *testing.T) {
 		{"count started over", &later, first, &first, &first},
 		{"model gone", &later, domain.Usage{CostUSD: 4, Models: opus(40, 6, 4)}, &domain.Usage{CostUSD: 4, Models: opus(40, 6, 4)}, &domain.Usage{CostUSD: 4, Models: opus(40, 6, 4)}},
 		{"zeros after a crash", &first, domain.Usage{}, nil, &first},
+		{"zeros while unknown", nil, domain.Usage{}, nil, nil},
 		{"zeros from the start", &domain.Usage{}, domain.Usage{}, &domain.Usage{}, &domain.Usage{}},
 	}
 	for _, tc := range tests {
