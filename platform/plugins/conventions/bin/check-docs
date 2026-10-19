@@ -239,16 +239,22 @@ def check_procedure(path, errors):
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
     intro = re.sub(r"\n[ \t]*", "", text.split("\n1. ", 1)[0])
     steps = re.findall(r"(?m)^\d+\. \*\*(.+?)\*\*", text)
-    if "目的の手順で" in intro:
+    purpose, common = "目的の手順で" in intro, "共通の手順で" in intro
+    if purpose and common:
+        errors.append(f"{path}: a procedure is either a purpose one or a common one, not both")
+        return
+    if not purpose and not common:
+        # Procedures handed to agents sit in a plugin's docs/guides/: each tells its layer.
+        if in_plugin_dir(os.path.dirname(path), "docs"):
+            errors.append(f"{path}: a plugin's procedure tells its layer ('目的の手順で' or '共通の手順で')")
+        return
+    if purpose:
         if not steps or steps[0] != "始めに読む":
             errors.append(f"{path}: a purpose procedure starts with the step '1. **始めに読む**'")
         if "新しい依頼" not in intro:
             errors.append(f"{path}: a purpose procedure tells, before its steps, where a new request begins")
-    elif "共通の手順で" in intro:
-        if "始めに読む" in steps:
-            errors.append(f"{path}: a common procedure has no step '始めに読む'")
-    else:
-        return
+    elif "始めに読む" in steps:
+        errors.append(f"{path}: a common procedure has no step '始めに読む'")
     for line in re.findall(r"(?m)^\d+\. .*", text):
         if not re.match(r"\d+\. \*\*.+?\*\*", line):
             errors.append(f"{path}: a step is numbered and named in bold: {line[:40]}")
