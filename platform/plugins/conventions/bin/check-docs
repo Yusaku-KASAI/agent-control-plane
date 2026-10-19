@@ -244,8 +244,11 @@ def check_procedure(path, errors):
         errors.append(f"{path}: a procedure is either a purpose one or a common one, not both")
         return
     if not purpose and not common:
-        # Procedures handed to agents sit in a plugin's docs/guides/: each tells its layer.
-        if in_plugin_dir(os.path.dirname(path), "docs"):
+        # Procedures handed to agents sit in a plugin's docs/guides/, or a directory under it: each tells its layer.
+        parts = os.path.normpath(path).split(os.sep)
+        at = next((i for i in range(1, len(parts)) if parts[i - 1:i + 1] == ["docs", "guides"]), None)
+        plugin = os.sep.join(parts[:at - 1]) if at else None
+        if plugin is not None and os.path.isfile(os.path.join(plugin or ".", ".claude-plugin", "plugin.json")):
             errors.append(f"{path}: a plugin's procedure tells its layer ('目的の手順で' or '共通の手順で')")
         return
     if purpose:
