@@ -52,7 +52,7 @@ model: opus
 ### 場面ごとに読むもの
 
 - 作業するブランチと、その扱い（既存の PR を続ける、別の PR に分ける、ほかの PR に重ねる）：ハーネスの契約。
-- push が断られたときと、履歴を書き換えて push するとき：変更の扱い方（`docs/reference/changes.md` の「検査と履歴」）。
+- push が断られたときと、push したコミットを書き換えて push するとき：変更の扱い方（`docs/reference/changes.md` の「検査と履歴」）。
 - コミットメッセージと PR に何を書くか：書き方（`docs/reference/writing.md` の「コミットメッセージ」と「PR」）。
   PR をどう作って更新するか：github スキル。
 - ほかの人の PR をレビューするとき：github スキルの「ほかの人の PR と既定のブランチを読む」（`prctl review --pr` で
