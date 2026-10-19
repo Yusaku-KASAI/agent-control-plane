@@ -127,14 +127,15 @@ prctl worktree remove default
 ## コミットと履歴
 
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
-- push したコミットを書き換えていないのに push が断られたら、`--force` で押し切らず、`git pull --rebase origin <ブランチ>`
-  （まだ push していないコミットに merge があれば `--rebase=merges`）で取り込んでから push し直す。衝突が解けなければ `git rebase --abort` して
-  依頼者に返す。push したコミットを書き換えるときは、書き換える前に取り込み、`git push --force-with-lease --force-if-includes`
-  で push する。それでも断られたら、書き換えた手元のブランチに `pull --rebase` せず、cherry-pick で載せる形も
-  とらず、書き換える前の先頭に戻して取り込み直し、書き換え直す。戻すのは、コミットしていない変更がなく、書き換えた
+- push したコミットを書き換えていないのに push が `fetch first` か `non-fast-forward` で断られたら、`--force` で
+  押し切らず、`git pull --rebase origin <ブランチ>`（まだ push していないコミットに merge があれば `--rebase=merges`。
+  その merge で解いた衝突はもう一度解く）で取り込んでから push し直す。衝突が解けなければ、取り込みをやめて依頼者に返す。push したコミットを書き換えるときは、
+  書き換える前に取り込み、`git push --force-with-lease --force-if-includes` で push する。それが `stale info` か
+  `remote ref updated since checkout` で断られたら、書き換えた手元のブランチに `pull --rebase` せず、cherry-pick で
+  載せる形もとらず、書き換える前の先頭に戻して取り込み直し、書き換え直す。戻すのは、コミットしていない変更がなく、書き換えた
   先頭を別のブランチに残したあとだけにし、書き換えたあとに足したコミットはそこから載せ直す。決まりは
   [検査と履歴](../../../conventions/docs/reference/changes.md#checks)にある。
-- 履歴を書き換えて force push したら、`prctl update` で本文を書き換え、何をなぜ書き換えたかをコメントに書く
+- push したコミットを書き換えて force push したら、`prctl update` で本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
 
 ## レビューと CI
