@@ -45,13 +45,11 @@
 - push のあと、CI の結果を待って作業を止めない。結果が出たら確かめ、報告には CI の状態（通った、失敗した、実行中）を
   書く。
 - CI が失敗したら、ログで原因を確かめてから直す。
-- 履歴を書き換えていないのに push が断られたら（non-fast-forward。ほかの書き手が同じブランチに push した）、
-  `git fetch origin <ブランチ>` のあと `git log HEAD..origin/<ブランチ>` でほかの書き手のコミットを確かめ（push は
-  追跡ブランチを更新しないので、取ってくる前は映らない）、`git pull --rebase origin <ブランチ>` で取り込んでから push し直す（まだ push していないコミットに merge があれば `--rebase=merges`）。衝突したら解いて
-  `git rebase --continue` し、解けなければ `git rebase --abort` して依頼者に返す。`--force` で押し切らない。ほかの
-  書き手のコミットが消える。
-- 履歴を書き換えるときは、書き換える前に上のとおり取り込み、書き換えたら `git push --force-with-lease --force-if-includes`
-  で push する。書き換えている間にほかの書き手が push していれば断られる。そのときは、書き換えた手元のブランチに
-  `git pull --rebase` しない（書き換えが黙って捨てられるか、途中で止まる）。書き換える前の先頭（`git reflog` で
-  分かる）に `git reset --hard` で戻し、取り込んでから書き換え直す。
+- 一つのブランチにほかの書き手（人、ほかのセッション）も push するときの push は、次のとおりにする。
+
+  | 場面 | 決まり |
+  | --- | --- |
+  | 履歴を書き換えていないのに push が断られた（`fetch first` か `non-fast-forward`） | `--force` で押し切らない。ほかの書き手のコミットを `git pull --rebase origin <ブランチ>`（まだ push していないコミットに merge があれば `--rebase=merges`）で取り込み、push し直す。衝突が解けなければ、`git rebase --abort` して依頼者に返す |
+  | 履歴を書き換えて push する | `git push --force-with-lease --force-if-includes` にする。書き換える前に、ほかの書き手のコミットを取り込んでおく |
+  | 履歴を書き換えた push が断られた | 書き換えた手元のブランチに `pull --rebase` しない。書き換える前の先頭（`git reflog show <ブランチ>`）に `git reset --hard` で戻し、取り込んでから書き換え直す |
 - 履歴を書き換えて force push したら、PR の本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く。
