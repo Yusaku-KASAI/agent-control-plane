@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-16
 amends: [5, 11]
-amended_by: [20]
+amended_by: [21]
 ---
 
 # 0014. 終える前に PR 全体の差分のレビューを求め、終えてよいかを hook で確かめる
