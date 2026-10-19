@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-13
-amended_by: [9, 11, 14]
+amended_by: [9, 11, 14, 20]
 ---
 
 # 0005. 差分のレビューを、見た最後のコミットに付けた PR のレビューとして残し、hook で head に追いつかせる

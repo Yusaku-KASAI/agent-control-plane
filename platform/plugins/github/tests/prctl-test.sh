@@ -80,6 +80,15 @@ case $args in
     echo "https://example.invalid/comment"
     ;;
   *"/issues/"*"/comments "*) jq -r "${@: -1}" "$dir/comments.json" ;;
+  # Labels: the label made, then put on the PR (pr.json) or taken off it.
+  *" repos/{owner}/{repo}/labels "*) printf '%s\n' "$*" >>"$dir/labels-made" ;;
+  *" -X POST "*"/issues/"*"/labels "*)
+    for a in "$@"; do
+      [[ $a != labels\[\]=* ]] || jq --arg l "${a#labels[]=}" '.labels += [{name: $l}]' "$dir/pr.json" >"$dir/p.tmp"
+    done
+    mv "$dir/p.tmp" "$dir/pr.json"
+    ;;
+  *" -X DELETE "*"/issues/"*"/labels/"*) jq '.labels = []' "$dir/pr.json" >"$dir/p.tmp" && mv "$dir/p.tmp" "$dir/pr.json" ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -98,10 +107,12 @@ c1=$(commit one)
 c2=$(commit two)
 git push -q -u origin feature
 
-# set_pr <head>: the open PR of feature, its body describing <head>.
+# set_pr <head>: the open PR of feature, its body describing <head>, reviewed the way $way says: the
+# thorough way, which takes reviews of either scope, unless the normal way is what is tried.
+way=thorough
 set_pr() {
-  jq -n --arg h "$1" '{number: 1, url: "u", headRefOid: $h, baseRefName: "main", body: "x\n<!-- prctl: head=\($h) -->"}' \
-    >"$state/pr.json"
+  jq -n --arg h "$1" --arg w "$way" '{number: 1, url: "u", headRefOid: $h, baseRefName: "main", body: "x\n<!-- prctl: head=\($h) -->",
+    labels: (if $w == "thorough" then [{name: "念入りのレビュー"}] else [] end)}' >"$state/pr.json"
 }
 stop_hook() {
   rm -f "$(git rev-parse --git-path prctl-settled)"
@@ -649,7 +660,7 @@ rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
 count_from_here() { git rev-parse HEAD >"$handback"; }
-check "the cap is five reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
+check "the cap of the thorough way is ten reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-10"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
 ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
@@ -801,5 +812,37 @@ p3=$(commit cap-p3) && git push -q && set_pr "$p3" && "$prctl" review "$p3" - <<
 p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<<"$proposal" >/dev/null
 p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
 check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
+
+# The normal way: reviews of the whole PR only; fixes of the findings of a whole review that found
+# nothing that must be fixed are left unreviewed; it goes back once whole reviews in a row found
+# something that must be fixed, however many there were before.
+way=normal
+n1=$(commit normal-a) && git push -q && set_pr "$n1"
+check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the normal way"
+check "the normal way takes no review since the last" "$("$prctl" review "$n1" - <<<"$nothing" 2>&1 || true)" "reviewed the normal way, whole every time"
+"$prctl" review "$n1" - <<<"$proposal" >/dev/null
+n2=$(commit normal-b) && git push -q && set_pr "$n2"
+check "the normal way offers to leave fixes of findings unreviewed" "$("$prctl" unreviewed)" "only fixes findings of the last review of the whole PR"
+"$prctl" review --minor "$n2" - <<<"提案の直し" >/dev/null
+"$prctl" answer "$n1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
+out=$(stop_hook)
+check "fixes left unreviewed after a whole review without a must let the PR end" "[$out]" "[]"
+check "the streak is three reviews in a row by default" "$(grep -o 'PRCTL_MUST_STREAK:-[0-9]*' "$prctl")" "PRCTL_MUST_STREAK:-3"
+count_from_here
+streak_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 PRCTL_MUST_STREAK=2 "$prctl" hook stop; }
+m1=$(commit normal-m1) && git push -q && set_pr "$m1" && "$prctl" review "$m1" - <<<"$must" >/dev/null
+lacks "the normal way does not count reviews against the cap" "$(streak_stop)" "must be fixed" "hand it back"
+m2=$(commit normal-m2) && git push -q && set_pr "$m2" && "$prctl" review "$m2" - <<<"$proposal" >/dev/null
+m3=$(commit normal-m3) && git push -q && set_pr "$m3" && "$prctl" review "$m3" - <<<"$must" >/dev/null
+lacks "a whole review without a must breaks the streak" "$(streak_stop)" "must be fixed" "hand it back"
+m4=$(commit normal-m4) && git push -q && set_pr "$m4" && "$prctl" review "$m4" - <<<"$must" >/dev/null
+check "whole reviews with a must in a row send the PR back" "$(streak_stop)" "the last 2 reviews of the whole PR in a row found something that must be fixed"
+check "prctl mode tells the way" "$("$prctl" mode)" "reviewed the normal way"
+"$prctl" mode thorough >/dev/null
+check "prctl mode thorough labels the PR" "$(jq -c '[.labels[].name]' "$state/pr.json")" '["念入りのレビュー"]'
+check "the label is made first" "$(cat "$state/labels-made")" "name=念入りのレビュー"
+check "a labelled PR is reviewed the thorough way" "$("$prctl" mode)" "reviewed the thorough way"
+"$prctl" mode normal >/dev/null
+check "prctl mode normal takes the label off" "$(jq -c '[.labels[].name]' "$state/pr.json")" '[]'
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
