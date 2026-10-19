@@ -274,6 +274,7 @@ func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
 				git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/old")
 			},
 		},
+		{name: "deleting a branch that is not on the remote", refspec: ":refs/heads/gone"},
 		{name: "a tag", refspec: "HEAD:refs/tags/v1"},
 	}
 	for _, tt := range tests {
