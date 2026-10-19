@@ -130,15 +130,18 @@ prctl worktree remove default
 - push の決まりは[検査と履歴](../../../conventions/docs/reference/changes.md#checks)にある。「書き換える」は、push した
   コミットを rebase、amend、squash などで別のコミットに置き換えることで、`pull --rebase` で取り込むときに、まだ push
   していないコミットを付け替えることは含まない。
+  - merge で取り込むときは、merge に衝突の解決のほかの変更を入れず、直しは merge のあとの別のコミットにする。
   - 書き換えていないのに `fetch first` か `non-fast-forward` で断られたら：`--force` で押し切らず、
-    `git pull --rebase origin <ブランチ>`（まだ push していないコミットに merge があれば `--rebase=merges`。その
-    merge で解いた衝突はもう一度解く。merge には衝突の解決のほかの変更を入れない）で取り込んでから push し直す。衝突が解けなければ、取り込みをやめて依頼者に返し、push していない
-    コミットが残っていることを書く。
-  - 書き換えて push するとき：直しはできるだけコミットを足して行う。書き換えてよいのは自分で作ったと確かめられるコミット
-    だけ（作者が同じでも、確かめられないものはほかの書き手のもの。依頼者が範囲を示して頼んだときは、その範囲）。書き換える前に取り込み、`git push --force-with-lease --force-if-includes` で push する。
+    `git pull --rebase origin <ブランチ>` で取り込んでから push し直す。まだ push していないコミットに merge が
+    あれば `--rebase=merges` にし、その merge で解いた衝突はもう一度解く。衝突が解けなければ、取り込みをやめて
+    依頼者に返し、push していないコミットが残っていることを書く。
+  - 書き換えて push するとき：直しはできるだけコミットを足して行う。書き換えてよいのは、自分で作ったと確かめられる
+    コミットだけ（作者が同じでも、確かめられないものはほかの書き手のもの。依頼者が範囲を示して頼んだときは、その
+    範囲）。書き換えるコミットより後ろに確かめられないコミットがあれば書き換えない。書き換える前に取り込み、
+    `git push --force-with-lease --force-if-includes` で push する。
   - それが `stale info` か `remote ref updated since checkout` で断られたら：`pull --rebase` も、cherry-pick や
-    `rebase --onto` で載せる形もとらず、書き換えた先頭を別のブランチに残して依頼者に返す。報告には、残したブランチの名前、
-    断られたときのリモートの先頭、書き換えたコミットを書く。
+    `rebase --onto` で載せる形もとらず、書き換えた先頭を別のブランチに残して依頼者に返す。報告には、残したブランチの
+    名前、断られたときのリモートの先頭、書き換えたコミットを書く。
 - push したコミットを書き換えて force push したら、`prctl update` で本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
 
