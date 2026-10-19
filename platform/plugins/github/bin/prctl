@@ -789,7 +789,7 @@ body_message() {
 review_message() {
   local minor=${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}
   if [[ $(mode "$1") == thorough ]]; then
-    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have subagents review that range, one for each perspective (if they already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>.\($minor) (See the github skill.)"' <<<"$1"
+    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have subagents review that range, one for each perspective (if they already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>; if it fixes findings of the review of the whole PR to end it, have the whole PR reviewed again instead (scope \"pr\").\($minor) (See the github skill.)"' <<<"$1"
   else
     jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). It is reviewed the normal way: have a subagent review the whole PR, at every perspective (if one already reviewed the whole PR up to there, only record it), and record it with prctl review <commit> <review-json> (scope \"pr\").\($minor) (See the github skill.)"' <<<"$1"
   fi
