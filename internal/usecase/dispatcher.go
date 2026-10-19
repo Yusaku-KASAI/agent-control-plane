@@ -190,8 +190,8 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 // inbox is withdrawn. While the agent has the request (sent to it, or taken into the running
 // turn), the agent's work is stopped: the running turn, the background tasks, and the prompts sent
 // but not yet taken in; requests waiting in the inbox stay. A request that has ended stops the work
-// the agent does on its own, if any: a turn it started or background tasks, with no request in a
-// turn.
+// the agent does on its own, if any (a turn it started or background tasks, with no request in a
+// turn), and withdraws the prompts sent but not yet taken in.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
 		return nil
