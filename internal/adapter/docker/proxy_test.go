@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,15 @@ import (
 
 // composeFile is the compose file whose docker-proxy service holds the allowlist (docs/adr/app/0015).
 const composeFile = "../../../compose.yaml"
+
+// composeOverrides are the files docker compose merges into composeFile when it is run without -f,
+// as docs/guides/operations.md runs it.
+var composeOverrides = []string{
+	"../../../compose.override.yaml",
+	"../../../compose.override.yml",
+	"../../../docker-compose.override.yaml",
+	"../../../docker-compose.override.yml",
+}
 
 // proxyImage is the socket-proxy whose matching proxyAllowlist copies. When compose.yaml moves to
 // another version, check that version's matching and update both.
@@ -150,21 +160,39 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	}
 }
 
+// proxyServiceKeys are the keys the docker-proxy service may have. proxyImage also takes allow
+// entries from SP_ALLOW_<METHOD>_<n> environment variables, and from the labels of calling
+// containers once -proxycontainername or SP_PROXYCONTAINERNAME is set. Keys such as environment,
+// env_file and entrypoint could bring those in without this test reading them, so any other key
+// fails the test until it is checked and added here.
+var proxyServiceKeys = []string{"image", "restart", "user", "read_only", "cap_drop", "mem_limit", "command", "volumes", "networks"}
+
+// otherProxyArg matches the docker-proxy arguments that are not allow entries and that this test
+// lets through. Any other argument fails: proxyImage parses its flags with the flag package, which
+// also reads "-allowPUT" "^/.*$" as two elements and "--allowPUT=", and other flags such as
+// -proxycontainername turn on more allow entries.
+var otherProxyArg = regexp.MustCompile(`^-(listenip|allowfrom)=.+$`)
+
 // proxyAllowlist reads the -allow<METHOD>=<regexp> arguments of the docker-proxy service and
 // compiles them as proxyImage does (compileRegexp in internal/config/config.go): wrapped
 // in ^ and $, then matched against the request path without the query. Each entry must allow
 // one API, without alternation, so that an unused API cannot hide in an entry that is used.
+// It fails on the service keys and arguments it does not know (proxyServiceKeys, otherProxyArg)
+// and on compose override files (composeOverrides), so that allow entries written some other way
+// cannot go unchecked.
 func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	t.Helper()
 	data, err := os.ReadFile(composeFile)
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, override := range composeOverrides {
+		if _, err := os.Stat(override); err == nil {
+			t.Errorf("%s exists; docker compose merges it into %s, which is all this test reads, so move its settings into %s", override, composeFile, composeFile)
+		}
+	}
 	var compose struct {
-		Services map[string]struct {
-			Image   string   `yaml:"image"`
-			Command []string `yaml:"command"`
-		} `yaml:"services"`
+		Services map[string]map[string]yaml.Node `yaml:"services"`
 	}
 	if err := yaml.Unmarshal(data, &compose); err != nil {
 		t.Fatal(err)
@@ -173,14 +201,30 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	if !ok {
 		t.Fatalf("%s has no docker-proxy service", composeFile)
 	}
-	if proxy.Image != proxyImage {
-		t.Fatalf("docker-proxy runs %s, but this test copies the matching of %s; check how the new version matches requests, then update proxyImage", proxy.Image, proxyImage)
+	for key := range proxy {
+		if !slices.Contains(proxyServiceKeys, key) {
+			t.Errorf("the docker-proxy service has %s, which this test does not read; check that it adds no allow entries, then add it to proxyServiceKeys", key)
+		}
+	}
+	var image string
+	var command []string
+	for key, v := range map[string]any{"image": &image, "command": &command} {
+		node := proxy[key]
+		if err := node.Decode(v); err != nil {
+			t.Fatalf("%s of the docker-proxy service: %v", key, err)
+		}
+	}
+	if image != proxyImage {
+		t.Fatalf("docker-proxy runs %s, but this test copies the matching of %s; check how the new version matches requests, then update proxyImage", image, proxyImage)
 	}
 	allowArg := regexp.MustCompile(`^-allow([A-Z]+)=(.+)$`)
 	allow := make(map[string][]*regexp.Regexp)
-	for _, arg := range proxy.Command {
+	for _, arg := range command {
 		m := allowArg.FindStringSubmatch(arg)
 		if m == nil {
+			if !otherProxyArg.MatchString(arg) {
+				t.Errorf("the docker-proxy service has the argument %s, which this test does not read; write allow entries as -allow<METHOD>=<regexp>, or check that it adds no allow entries, then let it through in otherProxyArg", arg)
+			}
 			continue
 		}
 		if strings.Contains(m[2], "|") {
