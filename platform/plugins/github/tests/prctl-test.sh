@@ -80,6 +80,15 @@ case $args in
     echo "https://example.invalid/comment"
     ;;
   *"/issues/"*"/comments "*) jq -r "${@: -1}" "$dir/comments.json" ;;
+  # Labels: the label made, then put on the PR (pr.json) or taken off it.
+  *" repos/{owner}/{repo}/labels "*) printf '%s\n' "$*" >>"$dir/labels-made" ;;
+  *" -X POST "*"/issues/"*"/labels "*)
+    for a in "$@"; do
+      [[ $a != labels\[\]=* ]] || jq --arg l "${a#labels[]=}" '.labels += [{name: $l}]' "$dir/pr.json" >"$dir/p.tmp"
+    done
+    mv "$dir/p.tmp" "$dir/pr.json"
+    ;;
+  *" -X DELETE "*"/issues/"*"/labels/"*) jq '.labels = []' "$dir/pr.json" >"$dir/p.tmp" && mv "$dir/p.tmp" "$dir/pr.json" ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -98,10 +107,12 @@ c1=$(commit one)
 c2=$(commit two)
 git push -q -u origin feature
 
-# set_pr <head>: the open PR of feature, its body describing <head>.
+# set_pr <head>: the open PR of feature, its body describing <head>, reviewed the way $way says: the
+# thorough way, which takes reviews of either scope, unless the normal way is what is tried.
+way=thorough
 set_pr() {
-  jq -n --arg h "$1" '{number: 1, url: "u", headRefOid: $h, baseRefName: "main", body: "x\n<!-- prctl: head=\($h) -->"}' \
-    >"$state/pr.json"
+  jq -n --arg h "$1" --arg w "$way" '{number: 1, url: "u", headRefOid: $h, baseRefName: "main", body: "x\n<!-- prctl: head=\($h) -->",
+    labels: (if $w == "thorough" then [{name: "念入りのレビュー"}] else [] end)}' >"$state/pr.json"
 }
 stop_hook() {
   rm -f "$(git rev-parse --git-path prctl-settled)"
@@ -649,7 +660,7 @@ rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
 count_from_here() { git rev-parse HEAD >"$handback"; }
-check "the cap is five reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-5"
+check "the cap is ten reviews of the whole PR by default, either way" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-10"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
 ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
@@ -801,5 +812,35 @@ p3=$(commit cap-p3) && git push -q && set_pr "$p3" && "$prctl" review "$p3" - <<
 p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<<"$proposal" >/dev/null
 p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
 check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
+
+# The thorough way asks for a review of the range since the last, one subagent for each perspective.
+t1=$(commit thorough-a) && git push -q && set_pr "$t1"
+out=$(stop_hook)
+lacks "the hook asks the thorough way for a review of the range" "$out" "one for each perspective" "review the whole PR, at every perspective"
+lacks "unreviewed shows the thorough way the range since the last" "$("$prctl" unreviewed)" "after reviewing it: prctl review" "(the whole PR"
+"$prctl" review "$t1" - <<<"$nothing" >/dev/null
+
+# The normal way: reviews of the whole PR only, also after a push; the end and the cap are as in the
+# thorough way.
+way=normal
+n1=$(commit normal-a) && git push -q && set_pr "$n1"
+check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the normal way"
+check "the normal way takes no review since the last" "$("$prctl" review "$n1" - <<<"$nothing" 2>&1 || true)" "reviewed the normal way, whole every time"
+"$prctl" review "$n1" - <<<"$proposal" >/dev/null
+n2=$(commit normal-b) && git push -q && set_pr "$n2"
+check "the normal way shows the range of the whole PR" "$("$prctl" unreviewed)" "range: $(git merge-base origin/main "$n2")..$n2 (the whole PR"
+check "the normal way lists the commits of the whole PR" "$("$prctl" unreviewed)" "$(git rev-parse --short "$n1") normal-a"
+out=$(stop_hook)
+lacks "the hook asks the normal way for a review of the whole PR" "$out" "review the whole PR, at every perspective" "review that range"
+"$prctl" review "$n2" - <<<"$whole" >/dev/null
+out=$(stop_hook)
+check "a whole review after the fixes lets the PR end" "[$out]" "[]"
+check "prctl mode tells the way" "$("$prctl" mode)" "reviewed the normal way"
+"$prctl" mode thorough >/dev/null
+check "prctl mode thorough labels the PR" "$(jq -c '[.labels[].name]' "$state/pr.json")" '["念入りのレビュー"]'
+check "the label is made first" "$(cat "$state/labels-made")" "name=念入りのレビュー"
+check "a labelled PR is reviewed the thorough way" "$("$prctl" mode)" "reviewed the thorough way"
+"$prctl" mode normal >/dev/null
+check "prctl mode normal takes the label off" "$(jq -c '[.labels[].name]' "$state/pr.json")" '[]'
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

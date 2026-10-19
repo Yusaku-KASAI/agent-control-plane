@@ -29,9 +29,10 @@ usage:
   prctl unreviewed                    the range not yet reviewed, and its commits and files
   prctl review [--pr <number>] <commit> <review-json|->
                                       record the review of the range up to <commit> as a PR review,
-                                      from its JSON (see the github skill): of scope "since", the range
-                                      since the last review; of scope "pr", the whole PR, at every
-                                      perspective; with --pr, of another's PR, always of scope "pr"
+                                      from its JSON (see the github skill): of scope "pr", the whole PR,
+                                      at every perspective; of scope "since", the range since the last
+                                      review, only in the thorough way; with --pr, of another's PR,
+                                      always of scope "pr"
   prctl review --minor <commit> <note-file|->
                                       record the range up to <commit> as fixes of nitpicks that change
                                       no meaning, left unreviewed; refused when the PR has no review,
@@ -39,6 +40,8 @@ usage:
   prctl ready                         take the PR out of draft, once it may end: a review of the whole
                                       PR, nothing but fixes of nitpicks after it, no finding that must
                                       be fixed, every finding answered (PRs are opened as drafts)
+  prctl mode [normal|thorough]        the way the PR is reviewed, or set it: normal (the default), or
+                                      thorough, by the label 念入りのレビュー
   prctl draft                         put the PR back into draft, to go on with it
   prctl answer <commit> <answers-json|->
                                       answer every finding of the review of <commit>, in a comment
@@ -54,6 +57,8 @@ USAGE
 
 # The title of a record of fixes left unreviewed, by which it is told from a review.
 readonly minor_title=レビューしない直し
+# The label of a PR reviewed the thorough way (reviews.md: ways of reviewing); without it, the normal way.
+readonly thorough_label=念入りのレビュー
 # The hidden copies of a review's and of its answers' JSON, from which prctl reads them back.
 readonly review_mark=prctl-review answers_mark=prctl-answers
 # Absolute, as some commands change directory; a copy of prctl alone has none, and fails only where
@@ -71,8 +76,13 @@ remote_head() { git rev-parse --verify --quiet "refs/remotes/origin/$1"; }
 # open_pr <branch>: the open PR whose head is <branch>, as JSON, or nothing. Looked up by head
 # name: `gh pr view` without arguments resolves through the upstream, which can be another branch.
 open_pr() {
-  gh pr list --head "$1" --state open --limit 1 --json number,url,headRefOid,baseRefName,body,isDraft \
+  gh pr list --head "$1" --state open --limit 1 --json number,url,headRefOid,baseRefName,body,isDraft,labels \
     --jq '.[0] // empty'
+}
+
+# mode <pr>: the way the PR is reviewed: thorough when it has the label, else normal.
+mode() {
+  jq -r --arg l "$thorough_label" 'if any((.labels // [])[]; .name == $l) then "thorough" else "normal" end' <<<"$1"
 }
 
 described() {
@@ -130,9 +140,9 @@ range_start() {
   if [[ -n $3 ]]; then echo "$3"; else git merge-base "origin/$(jq -r .baseRefName <<<"$1")" "$2"; fi
 }
 
-# How many reviews of the whole PR may not settle it before it goes back to the requester: the
-# first and four after it.
-readonly final_cap=${PRCTL_FINAL_CAP:-5}
+# How many reviews of the whole PR may not settle it before it goes back to the requester, either
+# way of reviewing.
+readonly final_cap=${PRCTL_FINAL_CAP:-10}
 
 # review_facts <pr> <head> <list>: the facts of the PR's reviews (review_list) in the head's history,
 # oldest first, as a JSON list of {commit, at, minor, scope, findings, answered}: at the commit's
@@ -192,15 +202,17 @@ final_message() {
   jq -r --argjson e "$errors" '"PR #\(.number) may not end yet: \($e | map(.text) | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill)."' <<<"$1"
 }
 
-# minor_refusal <records> <last reviewed>: why the range after <last reviewed> cannot be recorded as
+# minor_refusal <list> <last reviewed>: why the range after <last reviewed> cannot be recorded as
 # fixes left unreviewed, or nothing when it can. The fixes answer a review, so there has to be one,
 # and the fixes of one review are pushed together, so the range follows a review, not another record.
 minor_refusal() {
-  if [[ -z $1 ]]; then
+  local records
+  records=$(records_of "$1")
+  if [[ -z $records ]]; then
     echo "the PR has no review yet; have the range reviewed"
   elif [[ -z $2 ]]; then
     echo "none of the PR's reviews is in the history of the head (was it rewritten?); have the range reviewed"
-  elif ! grep -qxF "$2 review" <<<"$1"; then
+  elif ! grep -qxF "$2 review" <<<"$records"; then
     echo "the last record at ${2:0:12} is itself of fixes left unreviewed; the fixes of a review are pushed together, so have the range reviewed"
   fi
 }
@@ -453,6 +465,7 @@ cmd_status() {
   head=$(jq -r .headRefOid <<<"$pr")
   desc=$(described "$pr")
   jq -r '"PR #\(.number) \(.url) (into \(.baseRefName))"' <<<"$pr"
+  echo "reviewed:  the $(mode "$pr") way"
   echo "head:      $head"
   echo "described: ${desc:-nothing (no marker; prctl update writes one)}"
   if [[ $desc == "$head" ]]; then echo "body is current"; else echo "body is stale"; fi
@@ -490,19 +503,27 @@ cmd_since() {
 }
 
 cmd_unreviewed() {
-  local b pr head records rev from base
+  local b pr head list rev from base
   b=$(branch) || die "not on a branch"
   pr=$(open_pr "$b")
   [[ -n $pr ]] || die "no open PR for $b"
   head=$(pr_head "$pr")
   base=$(jq -r .baseRefName <<<"$pr")
-  records=$(review_records "$pr") || die "could not read the reviews of the PR"
-  rev=$(last_reviewed "$records" "$head")
+  list=$(review_list "$pr") || die "could not read the reviews of the PR"
+  rev=$(last_reviewed "$(records_of "$list")" "$head")
   from=$(range_start "$pr" "$head" "$rev")
   [[ $from != "$head" ]] || { echo "reviewed up to the head"; return; }
-  echo "range: $from..$head"
-  echo "after reviewing it: prctl review $head <review-json>"
-  if [[ -z $(minor_refusal "$records" "$rev") ]]; then
+  if [[ $(mode "$pr") == thorough ]]; then
+    echo "range: $from..$head"
+    echo "after reviewing it: prctl review $head <review-json>"
+  else
+    # The normal way reviews the whole PR every time: the range, its commits and files are the whole PR's.
+    echo "not reviewed since: ${rev:-the start of the PR}"
+    from=$(range_start "$pr" "$head" "")
+    echo "range: $from..$head (the whole PR: reviewed the normal way, whole every time)"
+    echo "after reviewing the whole PR, at every perspective (scope \"pr\"): prctl review $head <review-json>"
+  fi
+  if [[ -z $(minor_refusal "$list" "$rev") ]]; then
     echo "or, if it only fixes nitpicks of the last review: prctl review --minor $head <note>"
   fi
   # Commits merged in from the base are not this branch's change.
@@ -517,7 +538,7 @@ cmd_unreviewed() {
 # cmd_review <number> <minor> <commit> <review-json or note>: with <number>, of another's PR; with <minor>, the
 # range is recorded as left unreviewed, which counts as reviewed all the same.
 cmd_review() {
-  local number=$1 minor=$2 commit input review="" scope="" body b pr head records rev why from base title
+  local number=$1 minor=$2 commit input review="" scope="" body b pr head list rev why from base title
   commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
   input=$(read_input "$4")
   if [[ -n $minor ]]; then
@@ -544,10 +565,12 @@ cmd_review() {
     b=$(branch) || die "not on a branch"
     pr=$(open_pr "$b")
     [[ -n $pr ]] || die "no open PR for $b; review before prctl create, then record it after"
+    [[ $scope != since || $(mode "$pr") == thorough ]] \
+      || die "PR #$(jq -r .number <<<"$pr") is reviewed the normal way, whole every time: review the whole PR, at every perspective (scope \"pr\"), or set the thorough way first (prctl mode thorough)"
     head=$(pr_head "$pr")
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
-    records=$(review_records "$pr") || die "could not read the reviews of the PR"
-    rev=$(last_reviewed "$records" "$head")
+    list=$(review_list "$pr") || die "could not read the reviews of the PR"
+    rev=$(last_reviewed "$(records_of "$list")" "$head")
     # The first review of a PR covers it whole, at every perspective.
     [[ -n $rev || -n $minor || $scope == pr ]] || die "the PR has no review in the head's history yet; review the whole PR, at every perspective (scope \"pr\")"
     if [[ $scope == pr ]]; then
@@ -560,7 +583,7 @@ cmd_review() {
       fi
     fi
     if [[ -n $minor ]]; then
-      why=$(minor_refusal "$records" "$rev")
+      why=$(minor_refusal "$list" "$rev")
       [[ -z $why ]] || die "$why"
     fi
   fi
@@ -685,6 +708,31 @@ cmd_ready() {
   draft_state "$pr" markPullRequestReadyForReview
 }
 
+# cmd_mode [normal|thorough]: tell the way the PR is reviewed, or set it by the label.
+cmd_mode() {
+  local b pr number
+  b=$(branch) || die "not on a branch"
+  pr=$(open_pr "$b")
+  [[ -n $pr ]] || die "no open PR for $b"
+  number=$(jq -r .number <<<"$pr")
+  case ${1:-} in
+    "") echo "PR #$number is reviewed the $(mode "$pr") way" ;;
+    thorough)
+      # The label has to be there before a PR can carry it; one already there is no failure.
+      gh api "repos/{owner}/{repo}/labels" -f name="$thorough_label" -f color=5319e7 >/dev/null 2>&1 || true
+      gh api -X POST "repos/{owner}/{repo}/issues/$number/labels" -f "labels[]=$thorough_label" >/dev/null \
+        || die "could not label PR #$number"
+      echo "PR #$number is reviewed the thorough way"
+      ;;
+    normal)
+      [[ $(mode "$pr") == normal ]] || gh api -X DELETE "repos/{owner}/{repo}/issues/$number/labels/$(jq -rn --arg l "$thorough_label" '$l | @uri')" >/dev/null \
+        || die "could not unlabel PR #$number"
+      echo "PR #$number is reviewed the normal way"
+      ;;
+    *) usage ;;
+  esac
+}
+
 # cmd_draft: put the PR back into draft, to go on with it (another request after it was ready).
 cmd_draft() {
   local b pr
@@ -737,8 +785,14 @@ body_message() {
 }
 
 # review_message <pr> <head> <minor>: with <minor>, the range can be recorded as fixes left unreviewed.
+# What to review is of the way the PR is reviewed.
 review_message() {
-  jq -r --arg head "${2:0:12}" --arg minor "${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have a subagent review that range (if a subagent already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>.\($minor) (See the github skill.)"' <<<"$1"
+  local minor=${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}
+  if [[ $(mode "$1") == thorough ]]; then
+    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have subagents review that range, one for each perspective (if they already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>.\($minor) (See the github skill.)"' <<<"$1"
+  else
+    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). It is reviewed the normal way: have a subagent review the whole PR, at every perspective (if one already reviewed the whole PR up to there, only record it), and record it with prctl review <commit> <review-json> (scope \"pr\").\($minor) (See the github skill.)"' <<<"$1"
+  fi
 }
 
 ci_message() {
@@ -749,13 +803,12 @@ ci_message() {
 # only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
 # read, so that a hook says nothing rather than something wrong.
 pending_message() {
-  local pr=$1 head=$2 state=${3:-} list records rev minor="" msg failed msgs=()
+  local pr=$1 head=$2 state=${3:-} list rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
   if [[ $# -ge 4 ]]; then list=$4; else list=$(review_list "$pr") || return 1; fi
-  records=$(records_of "$list")
-  rev=$(last_reviewed "$records" "$head")
+  rev=$(last_reviewed "$(records_of "$list")" "$head")
   if [[ $rev != "$head" ]]; then
-    [[ -n $(minor_refusal "$records" "$rev") ]] || minor=yes
+    [[ -n $(minor_refusal "$list" "$rev") ]] || minor=yes
     msgs+=("$(review_message "$pr" "$head" "$minor")")
   fi
   msg=$(stack_message "$pr" "$head")
@@ -863,6 +916,7 @@ main() {
     answer) [[ $# -eq 3 ]] || usage; cmd_answer "$2" "$3" ;;
     ready) [[ $# -eq 1 ]] || usage; cmd_ready ;;
     draft) [[ $# -eq 1 ]] || usage; cmd_draft ;;
+    mode) [[ $# -le 2 ]] || usage; cmd_mode "${2:-}" ;;
     create)
       if [[ ${2:-} == --base ]]; then
         [[ $# -eq 5 ]] || usage

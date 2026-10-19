@@ -18,7 +18,8 @@ prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタ�
 prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
 prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
 prctl answer <コミット> answers.json        # そのコミットまでのレビューの指摘すべてへの答えを、PR のコメントにする
-prctl review --minor <コミット> note.md      # そのコミットまでを、細部の指摘への直しとして、レビューせずに残す
+prctl review --minor <コミット> note.md      # そのコミットまでを、レビューしない直しとして残す
+prctl mode [normal|thorough]              # レビューの回し方（通常か念入り）を見る、変える
 prctl ready                               # 終えてよいときだけ、PR の下書きを外す
 prctl draft                               # 追加の依頼で続けるとき、PR を下書きに戻す
 ```
@@ -49,24 +50,31 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 ## 差分のレビュー
 
 自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、サブエージェント（reviewer ロールがあればそれ）にレビューさせる
-（review スキルの「レビューを頼んで答える」）。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
+（review スキルの「レビューを頼んで答える」）。回し方は、既定は通常で、念入りに回す PR には、`prctl create` の
+すぐあとに `prctl mode thorough` でラベル `念入りのレビュー` を付ける（[回し方](../../../conventions/docs/reference/reviews.md#ways)）。
+ラベルがなければ通常として扱われる。今の回し方は `prctl status` の `reviewed:` の行で分かる。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
 直したコミットは、次の `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
   残す。指摘への答えは、`review.json` の `answers` に書く。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。
-- push で head が進んだら、`prctl unreviewed` の範囲をレビューさせて残す。ただし、その範囲が細部の指摘への、意味の
+- push で head が進んだら、通常なら PR 全体を、念入りなら `prctl unreviewed` の範囲をレビューさせて残す。通常の PR に
+  `"scope": "since"` のレビューを残そうとすると、`prctl` が断る。ただし、範囲が細部の指摘への、意味の
   変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
-  指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の
-  履歴にない、`--minor` の記録のあと）は、`prctl` が断る。
+  指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の履歴にない、
+  `--minor` の記録のあと）は、`prctl` が断る。
+- 念入りでは、観点ごとにサブエージェントを並べて頼み、返った結果を一つの JSON にまとめて残す。
+- 通常の打ち切り（必須のない PR 全体のレビューが 3 回続いた）は `prctl` が数えない。打ち切った提案には、`直さない` で、理由を「打ち切り」で
+  始めて答える（あとの全体のレビューが、それで探す）。
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
 
 - `prctl create` は PR を下書きで作る。終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー
   （`"scope": "pr"`）を回して[終える前](../../../conventions/docs/reference/reviews.md#ending)を満たし、`prctl ready` で
   下書きを外す。満たしていなければ `prctl ready` が断り、何が足りないかを言う（`prctl status` の `end:` でも見える）。
-  下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが上限（終える前）に
-  達したら、`prctl ready` が断るとき、または下書きを外したあとのターンの終わりに hook が、依頼者に返すよう言う。
+  下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが上限（10 回、
+  [回し方](../../../conventions/docs/reference/reviews.md#ways)）に達したら、`prctl ready` が断るとき、または下書きを
+  外したあとのターンの終わりに hook が、依頼者に返すよう言う。
   下書きを外したあとに追加の依頼で作業を続けるときは、`prctl draft` で下書きに戻す。
 
 ### 結果と答えの JSON
@@ -90,7 +98,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 }
 ```
 
-- `scope` は `since`（前回のレビューから）か `pr`（PR 全体。`perspectives` はすべての観点）。`since` では、見なかった
+- `scope` は `since`（前回のレビューから。念入りの PR だけ）か `pr`（PR 全体。`perspectives` はすべての観点）。`since` では、見なかった
   観点を `skipped` に理由と書く。指摘の `perspective` は見た観点のどれか。指摘がなければ `findings` は `[]`。
   head の履歴にまだレビューがなければ（PR の最初のレビュー、履歴を書き換えたあと）、`pr` でなければ断られる。
 - `answers`（PR を作る前のレビューだけ）と、`prctl answer` に渡すリストは、指摘の番号ごとに `action` を
