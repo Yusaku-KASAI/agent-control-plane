@@ -19,7 +19,7 @@ model: opus
   （`docs/architecture/documentation.md`）と変更の扱い方（`docs/reference/changes.md`）を全体まで読み、その段に沿う。
 - レビューする：受け持つ。review スキルを使い、レビューする手順（`docs/guides/review.md`）に沿う。差分を読むのは
   reviewer ロールのサブエージェントに、PR の番号と head、レビューする手順の在りか、結果を返すことを渡して頼み（別の目）、
-  返った結果を残す（ADR 0019）。
+  返った結果を残す（platform の ADR 0019）。
 - そのほか（相談や壁打ち、課題の整理、セッションの締めなど）：目的の手順はまだないので、依頼に沿って試す。
 
 ## 使う決まり

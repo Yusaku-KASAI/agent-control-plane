@@ -141,8 +141,8 @@ description: <受け持つ目的の手順と書ける範囲を一文で>
   置き、振り分けの目的の手順をすべて並べ、最後に「そのほか」を置く）、`## 固有の振る舞い`（最後の節）。
 - 柔軟な部分：`## 使う決まり`（ほかの定義の要約と案内がなければ省く）、各節の中の `###` の見出しと中身、frontmatter の
   ほかの項目（`model`、`isolation` など）。
-- 定義の在りかは、リンクではなくパスで書く。conventions の外の在りかは、プラグインの名前を添える（例：roles の
-  `docs/overview.md`）（[読む範囲](../architecture/documentation.md#reading-scope)）。
+- 定義の在りかは、リンクではなくパスで書く。conventions の外の在りかは、プラグインか区切りの名前を添える（例：roles の
+  `docs/overview.md`、platform の ADR 0019）（[読む範囲](../architecture/documentation.md#reading-scope)）。
 - 検査：プラグインの `agents/` の文書（どれもロール）と、`.claude/agents/` の文書のうち冒頭（最初の `##` より前）で
   「ロールとして」と名乗る文書の、最初の `##` が `## 受け持つ手順` で、その節に「書ける範囲：」があり、最後の `##` が
   `## 固有の振る舞い` であること。`.claude/agents/` のロールでないカスタムエージェント（補助のサブエージェントなど）は、
