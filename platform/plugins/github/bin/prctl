@@ -34,13 +34,12 @@ usage:
                                       review, only in the thorough way; with --pr, of another's PR,
                                       always of scope "pr"
   prctl review --minor <commit> <note-file|->
-                                      record the range up to <commit> as fixes of findings of the last
-                                      review, left unreviewed: in the thorough way, of nitpicks only;
-                                      refused when the PR has no review, none in the head's history, or
-                                      right after another such record
+                                      record the range up to <commit> as fixes of nitpicks that change
+                                      no meaning, left unreviewed; refused when the PR has no review,
+                                      none in the head's history, or right after another such record
   prctl ready                         take the PR out of draft, once it may end: a review of the whole
-                                      PR, nothing but fixes left unreviewed after it, no finding that
-                                      must be fixed, every finding answered (PRs are opened as drafts)
+                                      PR, nothing but fixes of nitpicks after it, no finding that must
+                                      be fixed, every finding answered (PRs are opened as drafts)
   prctl mode [normal|thorough]        the way the PR is reviewed, or set it: normal (the default), or
                                       thorough, by the label 念入りのレビュー
   prctl draft                         put the PR back into draft, to go on with it
@@ -141,10 +140,9 @@ range_start() {
   if [[ -n $3 ]]; then echo "$3"; else git merge-base "origin/$(jq -r .baseRefName <<<"$1")" "$2"; fi
 }
 
-# When a PR that does not settle goes back to the requester: in the thorough way, after this many
-# reviews of the whole PR; in the normal way, once this many reviews of the whole PR in a row found
-# something that must be fixed.
-readonly final_cap=${PRCTL_FINAL_CAP:-10} must_streak=${PRCTL_MUST_STREAK:-3}
+# How many reviews of the whole PR may not settle it before it goes back to the requester, either
+# way of reviewing.
+readonly final_cap=${PRCTL_FINAL_CAP:-10}
 
 # review_facts <pr> <head> <list>: the facts of the PR's reviews (review_list) in the head's history,
 # oldest first, as a JSON list of {commit, at, minor, scope, findings, answered}: at the commit's
@@ -194,9 +192,8 @@ final_message() {
   at=$(wc -l <<<"$order")
   mark=$(cat "$file" 2>/dev/null) || mark=""
   since=$(awk -v c="$mark" '$1 == c { print $2 }' <<<"$order")
-  errors=$(jq -c -L "$forms" --arg mode "$(mode "$1")" --argjson cap "$final_cap" --argjson streak "$must_streak" \
-    --argjson since "${since:-0}" --argjson head "$at" \
-    'include "review"; final_errors($mode; $cap; $streak; $since; $head)' <<<"$facts") || return 1
+  errors=$(jq -c -L "$forms" --argjson cap "$final_cap" --argjson since "${since:-0}" --argjson head "$at" \
+    'include "review"; final_errors($cap; $since; $head)' <<<"$facts") || return 1
   if { [[ ${4:-} == settled && $errors == "[]" ]]; } \
     || { [[ ${4:-} == back ]] && jq -e 'any(.kind == "back")' <<<"$errors" >/dev/null; }; then
     jq -r '[.[] | select(.scope == "pr")] | last | .commit // empty' <<<"$facts" >"$file"
@@ -205,11 +202,9 @@ final_message() {
   jq -r --argjson e "$errors" '"PR #\(.number) may not end yet: \($e | map(.text) | join("; ")). A review of the whole PR is scope \"pr\", at every perspective, recorded with prctl review (see the github skill)."' <<<"$1"
 }
 
-# minor_refusal <list> <last reviewed> <mode>: why the range after <last reviewed> cannot be recorded
-# as fixes left unreviewed, or nothing when it can. The fixes answer a review, so there has to be one,
+# minor_refusal <list> <last reviewed>: why the range after <last reviewed> cannot be recorded as
+# fixes left unreviewed, or nothing when it can. The fixes answer a review, so there has to be one,
 # and the fixes of one review are pushed together, so the range follows a review, not another record.
-# In the normal way, that review is one of the whole PR that found nothing that must be fixed: the
-# fixes of any other are reviewed whole again.
 minor_refusal() {
   local records
   records=$(records_of "$1")
@@ -219,9 +214,6 @@ minor_refusal() {
     echo "none of the PR's reviews is in the history of the head (was it rewritten?); have the range reviewed"
   elif ! grep -qxF "$2 review" <<<"$records"; then
     echo "the last record at ${2:0:12} is itself of fixes left unreviewed; the fixes of a review are pushed together, so have the range reviewed"
-  elif [[ $3 == normal ]] && ! jq -sre --arg c "$2" '[.[] | select(.commit == $c and (.minor | not))] | last | .copy
-      | if . then (@base64d | fromjson | .scope == "pr" and all(.findings[]; .severity != "必須")) else false end' <<<"$1" >/dev/null 2>&1; then
-    echo "the last review at ${2:0:12} is not one of the whole PR that found nothing that must be fixed; in the normal way, have the whole PR reviewed again"
   fi
 }
 
@@ -528,12 +520,8 @@ cmd_unreviewed() {
     echo "reviewed the normal way, whole every time: the whole PR is $(range_start "$pr" "$head" "")..$head"
     echo "after reviewing the whole PR, at every perspective (scope \"pr\"): prctl review $head <review-json>"
   fi
-  if [[ -z $(minor_refusal "$list" "$rev" "$(mode "$pr")") ]]; then
-    if [[ $(mode "$pr") == thorough ]]; then
-      echo "or, if it only fixes nitpicks of the last review: prctl review --minor $head <note>"
-    else
-      echo "or, if it only fixes findings of the last review of the whole PR, which found nothing that must be fixed: prctl review --minor $head <note>"
-    fi
+  if [[ -z $(minor_refusal "$list" "$rev") ]]; then
+    echo "or, if it only fixes nitpicks of the last review: prctl review --minor $head <note>"
   fi
   # Commits merged in from the base are not this branch's change.
   git log --format='%h %s' "$from..$head" "^origin/$base"
@@ -551,7 +539,7 @@ cmd_review() {
   commit=$(git rev-parse --verify --quiet "$3^{commit}") || die "no commit $3; fetch the PR head first"
   input=$(read_input "$4")
   if [[ -n $minor ]]; then
-    [[ -n ${input//[[:space:]]/} ]] || die "the note is empty; say which review's findings the range fixes"
+    [[ -n ${input//[[:space:]]/} ]] || die "the note is empty; say which review's nitpicks the range fixes"
   else
     review=$(jq -c . <<<"$input" 2>/dev/null) || review=""
     [[ -n $review ]] || die "the review is not JSON (see the github skill)"
@@ -592,7 +580,7 @@ cmd_review() {
       fi
     fi
     if [[ -n $minor ]]; then
-      why=$(minor_refusal "$list" "$rev" "$(mode "$pr")")
+      why=$(minor_refusal "$list" "$rev")
       [[ -z $why ]] || die "$why"
     fi
   fi
@@ -794,12 +782,13 @@ body_message() {
 }
 
 # review_message <pr> <head> <minor>: with <minor>, the range can be recorded as fixes left unreviewed.
-# What to review and what may be left unreviewed are of the way the PR is reviewed.
+# What to review is of the way the PR is reviewed.
 review_message() {
+  local minor=${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}
   if [[ $(mode "$1") == thorough ]]; then
-    jq -r --arg head "${2:0:12}" --arg minor "${3:+ If the range only fixes nitpicks of the last review without changing any meaning, record it with prctl review --minor <commit> <note> instead.}" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have subagents review that range, one for each perspective (if they already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>.\($minor) (See the github skill.)"' <<<"$1"
+    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). Run prctl unreviewed, have subagents review that range, one for each perspective (if they already reviewed exactly that range, only record it), and record it with prctl review <commit> <review-json>.\($minor) (See the github skill.)"' <<<"$1"
   else
-    jq -r --arg head "${2:0:12}" --arg minor "${3:+ If the range only fixes findings of the last review of the whole PR, which found nothing that must be fixed, record it with prctl review --minor <commit> <note> instead.}" '"The diff of PR #\(.number) is not reviewed up to \($head). It is reviewed the normal way: have a subagent review the whole PR, at every perspective (if one already reviewed the whole PR up to there, only record it), and record it with prctl review <commit> <review-json> (scope \"pr\").\($minor) (See the github skill.)"' <<<"$1"
+    jq -r --arg head "${2:0:12}" --arg minor "$minor" '"The diff of PR #\(.number) is not reviewed up to \($head). It is reviewed the normal way: have a subagent review the whole PR, at every perspective (if one already reviewed the whole PR up to there, only record it), and record it with prctl review <commit> <review-json> (scope \"pr\").\($minor) (See the github skill.)"' <<<"$1"
   fi
 }
 
@@ -816,7 +805,7 @@ pending_message() {
   if [[ $# -ge 4 ]]; then list=$4; else list=$(review_list "$pr") || return 1; fi
   rev=$(last_reviewed "$(records_of "$list")" "$head")
   if [[ $rev != "$head" ]]; then
-    [[ -n $(minor_refusal "$list" "$rev" "$(mode "$pr")") ]] || minor=yes
+    [[ -n $(minor_refusal "$list" "$rev") ]] || minor=yes
     msgs+=("$(review_message "$pr" "$head" "$minor")")
   fi
   msg=$(stack_message "$pr" "$head")

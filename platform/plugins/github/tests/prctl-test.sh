@@ -813,38 +813,20 @@ p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<
 p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
 check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
 
-# The normal way: reviews of the whole PR only; fixes of the findings of a whole review that found
-# nothing that must be fixed are left unreviewed; it goes back once whole reviews in a row found
-# something that must be fixed, however many there were before.
+# The normal way: reviews of the whole PR only, also after a push; the end and the cap are as in the
+# thorough way.
 way=normal
 n1=$(commit normal-a) && git push -q && set_pr "$n1"
 check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the normal way"
 check "the normal way takes no review since the last" "$("$prctl" review "$n1" - <<<"$nothing" 2>&1 || true)" "reviewed the normal way, whole every time"
 "$prctl" review "$n1" - <<<"$proposal" >/dev/null
 n2=$(commit normal-b) && git push -q && set_pr "$n2"
-check "the normal way offers to leave fixes of findings unreviewed" "$("$prctl" unreviewed)" "only fixes findings of the last review of the whole PR"
-"$prctl" review --minor "$n2" - <<<"提案の直し" >/dev/null
-"$prctl" answer "$n1" - <<<'[{"finding": 1, "action": "直した", "commit": "x"}]' >/dev/null
-out=$(stop_hook)
-check "fixes left unreviewed after a whole review without a must let the PR end" "[$out]" "[]"
-check "the streak is three reviews in a row by default" "$(grep -o 'PRCTL_MUST_STREAK:-[0-9]*' "$prctl")" "PRCTL_MUST_STREAK:-3"
-count_from_here
-streak_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 PRCTL_MUST_STREAK=2 "$prctl" hook stop; }
-m1=$(commit normal-m1) && git push -q && set_pr "$m1" && "$prctl" review "$m1" - <<<"$must" >/dev/null
-lacks "the normal way does not count reviews against the cap" "$(streak_stop)" "must be fixed" "hand it back"
-m2=$(commit normal-m2) && git push -q && set_pr "$m2" && "$prctl" review "$m2" - <<<"$proposal" >/dev/null
-m3=$(commit normal-m3) && git push -q && set_pr "$m3" && "$prctl" review "$m3" - <<<"$must" >/dev/null
-lacks "a whole review without a must breaks the streak" "$(streak_stop)" "must be fixed" "hand it back"
-m4=$(commit normal-m4) && git push -q && set_pr "$m4" && "$prctl" review "$m4" - <<<"$must" >/dev/null
-check "whole reviews with a must in a row send the PR back" "$(streak_stop)" "the last 2 reviews of the whole PR in a row found something that must be fixed"
-m5=$(commit normal-m5) && git push -q && set_pr "$m5"
-check "the normal way refuses to leave fixes of a review with a must unreviewed" "$("$prctl" review --minor "$m5" - <<<"直し" 2>&1 || true)" "have the whole PR reviewed again"
-lacks "the normal way does not offer to leave fixes of a review with a must unreviewed" "$("$prctl" unreviewed)" "after reviewing the whole PR" "prctl review --minor"
-check "the normal way shows the range of the whole PR" "$("$prctl" unreviewed)" "the whole PR is $(git merge-base origin/main "$m5")..$m5"
+check "the normal way shows the range of the whole PR" "$("$prctl" unreviewed)" "the whole PR is $(git merge-base origin/main "$n2")..$n2"
 out=$(stop_hook)
 lacks "the hook asks the normal way for a review of the whole PR" "$out" "review the whole PR, at every perspective" "review that range"
-"$prctl" review "$m5" - <<<"$whole" >/dev/null
-check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the normal way"
+"$prctl" review "$n2" - <<<"$whole" >/dev/null
+out=$(stop_hook)
+check "a whole review after the fixes lets the PR end" "[$out]" "[]"
 check "prctl mode tells the way" "$("$prctl" mode)" "reviewed the normal way"
 "$prctl" mode thorough >/dev/null
 check "prctl mode thorough labels the PR" "$(jq -c '[.labels[].name]' "$state/pr.json")" '["念入りのレビュー"]'
