@@ -525,7 +525,8 @@ cmd_unreviewed() {
   if [[ $(mode "$pr") == thorough ]]; then
     echo "after reviewing it: prctl review $head <review-json>"
   else
-    echo "reviewed the normal way: after reviewing the whole PR, at every perspective (scope \"pr\"): prctl review $head <review-json>"
+    echo "reviewed the normal way, whole every time: the whole PR is $(range_start "$pr" "$head" "")..$head"
+    echo "after reviewing the whole PR, at every perspective (scope \"pr\"): prctl review $head <review-json>"
   fi
   if [[ -z $(minor_refusal "$list" "$rev" "$(mode "$pr")") ]]; then
     if [[ $(mode "$pr") == thorough ]]; then

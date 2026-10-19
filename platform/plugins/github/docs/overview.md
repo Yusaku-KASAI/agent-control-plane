@@ -5,8 +5,11 @@ PR の本文は、追記ではなく今のブランチの姿に合わせて書�
 （[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。まだマージされていない PR に重ねて作れる
 （[ADR 0013](../../../docs/adr/0013-stacked-prs.md)）。終える前に、PR 全体の差分のレビューが PR を終えてよい状態にしているかを
 確かめる（[ADR 0014](../../../docs/adr/0014-whole-pr-review-before-ending.md)）。差分のレビューは、PR の head に追いつかせ、結果を PR の
-レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。細部の指摘への直しだけの範囲は、
-レビューせずにそう記録して追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
+レビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。レビューしない直し（念入りでは細部の
+指摘への直し、通常では必須のなかった PR 全体のレビューの指摘への直し）だけの範囲は、レビューせずにそう記録して
+追いつかせる（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。差分のレビューの回し方（通常と
+念入り）は PR のラベルで見分け、回し方ごとに残してよいレビューと依頼者に返すときを変える
+（[ADR 0020](../../../docs/adr/0020-two-ways-of-reviewing-a-pr.md)）。
 CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは、
 一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。レビューの結果と答えは決まった
 形の JSON で受け、表と機械で読む写しを作る（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。このプラグインは、
