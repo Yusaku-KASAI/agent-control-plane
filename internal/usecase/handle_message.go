@@ -46,7 +46,7 @@ type ChatResponder interface {
 
 type TurnExecutor interface {
 	Execute(ctx context.Context, in RunAgentInput) (RunAgentOutput, error)
-	Stop(ctx context.Context, agent domain.AgentName, id domain.SessionID) error
+	StopRequest(ctx context.Context, agent domain.AgentName, id domain.SessionID, requestID string) error
 }
 
 type HandleMessage struct {
@@ -84,6 +84,7 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 		Inject:          msg.Inject,
 		Conversation:    msg.Conversation,
 		Requester:       msg.Requester,
+		RequestID:       msg.MessageID,
 		Taken:           taken,
 	})
 	// Each outcome replies first and then marks the message, so the mark follows its reply.
@@ -126,12 +127,13 @@ func TurnErrorText(message string, usageLimited bool) string {
 // ShutdownNotice tells the requester that a restart cut the work short and how to go on.
 const ShutdownNotice = "control-plane の再起動のため、処理を中断しました。続けるには、もう一度依頼してください。"
 
-// Stop stops the session if the requester may use the agent.
-func (u *HandleMessage) Stop(ctx context.Context, agent domain.AgentName, r domain.Requester, id domain.SessionID) error {
+// StopRequest stops one request, the message msgID in the conversation, if the requester may use
+// the agent. How far the request has come decides what stops (Dispatcher.StopRequest).
+func (u *HandleMessage) StopRequest(ctx context.Context, agent domain.AgentName, r domain.Requester, c domain.Conversation, msgID string) error {
 	if !u.policy.Allows(agent, r) {
 		return domain.ErrRequesterNotAllowed
 	}
-	return u.turns.Stop(ctx, agent, id)
+	return u.turns.StopRequest(ctx, agent, c.SessionID(agent), msgID)
 }
 
 func failureText(s domain.Session, err error) string {

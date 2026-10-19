@@ -35,6 +35,8 @@ type RunAgentInput struct {
 	Conversation domain.Conversation
 	// Requester is credited in the commits of the turn that answers the prompt.
 	Requester domain.Requester
+	// RequestID names the request within its session, for StopRequest; empty if it cannot be stopped alone.
+	RequestID string
 	// Taken, when set, is told when the agent takes the prompt in. Execute calls it on the
 	// caller's goroutine before it returns.
 	Taken func(Uptake)
@@ -122,7 +124,7 @@ func (d *Dispatcher) Execute(ctx context.Context, in RunAgentInput) (RunAgentOut
 		return RunAgentOutput{}, fmt.Errorf("find agent %q: %w", in.AgentName, err)
 	}
 	events := make(chan requestEvent, 2)
-	r := request{prompt: in.Prompt, inject: in.Inject, requester: in.Requester, events: events}
+	r := request{id: in.RequestID, prompt: in.Prompt, inject: in.Inject, requester: in.Requester, events: events}
 	session, err := d.openSession(ctx, agent, in)
 	if err != nil {
 		return RunAgentOutput{}, err
@@ -178,6 +180,34 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 	if w, ok := d.workers[id]; ok {
 		select {
 		case w.stops <- struct{}{}:
+		default:
+		}
+	}
+	return nil
+}
+
+// StopRequest stops one request of the session, by how far it has come. A request waiting in the
+// inbox is withdrawn. While the agent has the request (sent to it, or taken into the running
+// turn), the agent's work is stopped: the running turn, the background tasks, and the prompts sent
+// but not yet taken in; requests waiting in the inbox stay. A request that has ended stops the work
+// the agent does on its own, if any (a turn it started or background tasks, with no request in a
+// turn), and withdraws the prompts sent but not yet taken in.
+func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
+	if requestID == "" {
+		return nil
+	}
+	s, err := d.sessions.Find(ctx, id)
+	if err != nil {
+		return fmt.Errorf("find session %s: %w", id, err)
+	}
+	if err := s.CheckAgent(agentName); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if w, ok := d.workers[id]; ok {
+		select {
+		case w.requestStops <- requestID:
 		default:
 		}
 	}
@@ -304,7 +334,7 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		s = current
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,
-			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1),
+			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1), requestStops: make(chan string, inboxSize),
 		}
 		d.workers[s.ID] = w
 		d.wg.Go(w.run)
@@ -329,6 +359,7 @@ func (d *Dispatcher) retire(w *worker) bool {
 }
 
 type request struct {
+	id        string
 	prompt    string
 	inject    bool
 	requester domain.Requester
@@ -371,6 +402,8 @@ type worker struct {
 	unlock  func()
 	inbox   chan request
 	stops   chan struct{}
+	// requestStops carries the IDs of requests to stop alone.
+	requestStops chan string
 
 	proc Process
 	// running is true from a prompt or a turn start until the turn's result; current may be
@@ -418,6 +451,8 @@ func (w *worker) run() {
 			w.handle(e)
 		case <-w.stops:
 			w.stop()
+		case id := <-w.requestStops:
+			w.stopRequest(id)
 		case <-refresh.C:
 			w.refreshCredentials()
 		case <-idle.C:
@@ -668,10 +703,49 @@ func (w *worker) stop() {
 	for _, r := range w.queue {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
+	w.queue = nil
+	w.stopWork()
+}
+
+func (w *worker) stopRequest(id string) {
+	// A request may still wait in the inbox channel, as while the worker started a process.
+	for drained := false; !drained; {
+		select {
+		case r := <-w.inbox:
+			w.accept(r)
+		default:
+			drained = true
+		}
+	}
+	if i := slices.IndexFunc(w.queue, func(r request) bool { return r.id == id }); i >= 0 {
+		r := w.queue[i]
+		w.queue = slices.Delete(w.queue, i, i+1)
+		r.answer(w.reply(TurnResult{}, ErrStopped))
+		w.notifyStatus()
+		return
+	}
+	has := func(r request) bool { return r.id == id }
+	if slices.ContainsFunc(w.current, has) || slices.ContainsFunc(slices.Collect(maps.Values(w.sent)), has) || w.workingOnItsOwn() {
+		w.stopWork()
+	}
+}
+
+// workingOnItsOwn tells that the agent works with no request in a turn: in a turn it started by
+// itself, or on background tasks between turns. A turn the agent runs before taking in the prompts
+// sent for it belongs to those requests (docs/adr/app/0031).
+func (w *worker) workingOnItsOwn() bool {
+	if w.running {
+		return !w.forPrompts && len(w.current) == 0
+	}
+	return len(w.background) > 0
+}
+
+// stopWork stops what the agent is doing, leaving the requests waiting in the inbox.
+func (w *worker) stopWork() {
 	for _, r := range w.sent {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
-	w.queue, w.sent = nil, nil
+	w.sent = nil
 	if w.proc == nil {
 		return
 	}

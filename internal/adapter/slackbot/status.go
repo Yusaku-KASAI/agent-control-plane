@@ -129,7 +129,7 @@ func (v statusView) render(now time.Time) string {
 	}
 	fmt.Fprintf(&b, "\nセッション `%s`", v.session)
 	if v.stoppable() {
-		fmt.Fprintf(&b, "・止めるには、このメッセージに :%s: を付けてください", stopReaction)
+		fmt.Fprintf(&b, "・止めるには、依頼のメッセージに :%s: を付けてください（答えたあとも動いているときは、終わった依頼に）", stopReaction)
 	}
 	return b.String()
 }
@@ -552,16 +552,5 @@ func (b *Bot) writeStatus(ctx context.Context, m *statusMessage, ts, text string
 	m.mu.Lock()
 	m.ts = ts
 	m.mu.Unlock()
-	b.statusMu.Lock()
-	b.byStatusTS[m.conv.Channel+"/"+ts] = m.view.session
-	b.statusMu.Unlock()
 	return nil
-}
-
-// sessionForStatus finds the session whose status message is at channel and ts.
-func (b *Bot) sessionForStatus(channel, ts string) (domain.SessionID, bool) {
-	b.statusMu.Lock()
-	defer b.statusMu.Unlock()
-	id, ok := b.byStatusTS[channel+"/"+ts]
-	return id, ok
 }
