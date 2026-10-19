@@ -119,7 +119,8 @@ prctl worktree default                  # 既定のブランチの head を取�
 prctl worktree remove default
 ```
 
-- 依頼の内容、意図、検討した別の形は `gh pr view <番号>` の本文から読む。閉じる Issue は本文の `Closes #<番号>`。
+- 依頼の内容と閉じる Issue は `gh pr view <番号>` の本文から読む。変更の意図と検討した別の形は、観点「別の形」で別の
+  形を挙げたあとに、同じ本文から読む（レビューするの 4 段）。閉じる Issue は本文の `Closes #<番号>`。
 - 検査は、取り出した worktree の中で回す。
 - レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
 
