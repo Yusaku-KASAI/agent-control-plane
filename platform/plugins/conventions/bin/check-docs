@@ -307,10 +307,15 @@ def check_roles(paths, errors):
         if not (in_plugin_dir(path, "agents") or in_project_agents(path)):
             continue
         text = without_fences(read(path))
+        # Other custom agents (helpers that are no role) may sit beside the roles: only a text that says it is a
+        # role is held to the form.
+        if "ロールとして" not in re.sub(r"\n[ \t]*", "", text.split("\n## ", 1)[0]):
+            continue
         sections = re.findall(r"(?m)^## (.+)$", text)
+        takes = re.search(r"(?ms)^## 受け持つ手順$(.*?)(?=^## |\Z)", text)
         if not sections or sections[0] != "受け持つ手順":
             errors.append(f"{path}: the first section of a role's instructions is '## 受け持つ手順'")
-        elif "書ける範囲：" not in re.search(r"(?ms)^## 受け持つ手順\n(.*?)(?=^## |\Z)", text).group(1):
+        elif not takes or "書ける範囲：" not in takes.group(1):
             errors.append(f"{path}: '## 受け持つ手順' tells what the role may write ('書ける範囲：')")
         if not sections or sections[-1] != "固有の振る舞い":
             errors.append(f"{path}: the last section of a role's instructions is '## 固有の振る舞い'")
