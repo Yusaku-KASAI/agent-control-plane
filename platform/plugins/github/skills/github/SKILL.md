@@ -126,6 +126,8 @@ prctl worktree remove default
 ## コミットと履歴
 
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
+- push が断られたら `--force` で押し切らず、取り込んでから push し直す。履歴を書き換えて push するときは
+  `--force-with-lease --force-if-includes` を使う。手順は[検査と履歴](../../../conventions/docs/reference/changes.md#checks)にある。
 - 履歴を書き換えて force push したら、`prctl update` で本文を書き換え、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
 
