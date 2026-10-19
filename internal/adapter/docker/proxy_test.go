@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -150,10 +151,25 @@ func TestProxyAllowsWhatTheRunnerCalls(t *testing.T) {
 	}
 }
 
+// proxyServiceKeys are the keys the docker-proxy service may have. proxyImage also takes allow
+// entries from SP_ALLOW_<METHOD>_<n> environment variables, and from the labels of calling
+// containers once -proxycontainername or SP_PROXYCONTAINERNAME is set. Keys such as environment,
+// env_file and entrypoint could bring those in without this test reading them, so any other key
+// fails the test until it is checked and added here.
+var proxyServiceKeys = []string{"image", "restart", "user", "read_only", "cap_drop", "mem_limit", "command", "volumes", "networks"}
+
+// otherProxyArg matches the docker-proxy arguments that are not allow entries and that this test
+// lets through. Any other argument fails: proxyImage parses its flags with the flag package, which
+// also reads "-allowPUT" "^/.*$" as two elements and "--allowPUT=", and other flags such as
+// -proxycontainername turn on more allow entries.
+var otherProxyArg = regexp.MustCompile(`^-(listenip|allowfrom)=.+$`)
+
 // proxyAllowlist reads the -allow<METHOD>=<regexp> arguments of the docker-proxy service and
 // compiles them as proxyImage does (compileRegexp in internal/config/config.go): wrapped
 // in ^ and $, then matched against the request path without the query. Each entry must allow
 // one API, without alternation, so that an unused API cannot hide in an entry that is used.
+// It fails on the service keys and arguments it does not know (proxyServiceKeys, otherProxyArg),
+// so that allow entries written some other way cannot go unchecked.
 func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	t.Helper()
 	data, err := os.ReadFile(composeFile)
@@ -173,6 +189,17 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	if !ok {
 		t.Fatalf("%s has no docker-proxy service", composeFile)
 	}
+	var keys struct {
+		Services map[string]map[string]yaml.Node `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &keys); err != nil {
+		t.Fatal(err)
+	}
+	for key := range keys.Services["docker-proxy"] {
+		if !slices.Contains(proxyServiceKeys, key) {
+			t.Errorf("the docker-proxy service has %s, which this test does not read; check that it adds no allow entries, then add it to proxyServiceKeys", key)
+		}
+	}
 	if proxy.Image != proxyImage {
 		t.Fatalf("docker-proxy runs %s, but this test copies the matching of %s; check how the new version matches requests, then update proxyImage", proxy.Image, proxyImage)
 	}
@@ -181,6 +208,9 @@ func proxyAllowlist(t *testing.T) map[string][]*regexp.Regexp {
 	for _, arg := range proxy.Command {
 		m := allowArg.FindStringSubmatch(arg)
 		if m == nil {
+			if !otherProxyArg.MatchString(arg) {
+				t.Errorf("the docker-proxy service has the argument %s, which this test does not read; write allow entries as -allow<METHOD>=<regexp>, or check that it adds no allow entries, then let it through in otherProxyArg", arg)
+			}
 			continue
 		}
 		if strings.Contains(m[2], "|") {
