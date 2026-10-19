@@ -817,7 +817,7 @@ check "at the cap, a change after the whole review goes back" "$(cap_stop)" "han
 t1=$(commit thorough-a) && git push -q && set_pr "$t1"
 out=$(stop_hook)
 lacks "the hook asks the thorough way for a review of the range" "$out" "one for each perspective" "review the whole PR, at every perspective"
-lacks "unreviewed shows the thorough way the range since the last" "$("$prctl" unreviewed)" "after reviewing it: prctl review" "the whole PR is"
+lacks "unreviewed shows the thorough way the range since the last" "$("$prctl" unreviewed)" "after reviewing it: prctl review" "(the whole PR"
 "$prctl" review "$t1" - <<<"$nothing" >/dev/null
 
 # The normal way: reviews of the whole PR only, also after a push; the end and the cap are as in the
@@ -828,7 +828,8 @@ check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the n
 check "the normal way takes no review since the last" "$("$prctl" review "$n1" - <<<"$nothing" 2>&1 || true)" "reviewed the normal way, whole every time"
 "$prctl" review "$n1" - <<<"$proposal" >/dev/null
 n2=$(commit normal-b) && git push -q && set_pr "$n2"
-check "the normal way shows the range of the whole PR" "$("$prctl" unreviewed)" "the whole PR is $(git merge-base origin/main "$n2")..$n2"
+check "the normal way shows the range of the whole PR" "$("$prctl" unreviewed)" "range: $(git merge-base origin/main "$n2")..$n2 (the whole PR"
+check "the normal way lists the commits of the whole PR" "$("$prctl" unreviewed)" "$(git rev-parse --short "$n1") normal-a"
 out=$(stop_hook)
 lacks "the hook asks the normal way for a review of the whole PR" "$out" "review the whole PR, at every perspective" "review that range"
 "$prctl" review "$n2" - <<<"$whole" >/dev/null
