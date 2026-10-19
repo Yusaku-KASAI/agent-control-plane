@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-17
+amended_by: [40]
 ---
 
 # 0032. 作業領域の pre-push フックで、push の前にターゲットの検査を通す

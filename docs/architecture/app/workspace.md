@@ -17,7 +17,7 @@ GitHub App のトークンは[認証情報](credentials.md "在りか")にある
   refs/acp/target   = clone した時点のターゲットの HEAD
   acp/<ID の先頭8文字> = リモートの既定のブランチ（なければターゲットの HEAD）から切ったブランチ
   .git/hooks/commit-msg = 依頼者を Co-authored-by に足す
-  .git/hooks/pre-push   = push の前に make check を通す
+  .git/hooks/pre-push   = push の前に、新しいブランチの名前を確かめ、make check を通す
   │ push（エージェント）
   ▼
 GitHub のブランチと PR
@@ -82,9 +82,12 @@ GitHub のブランチと PR
   `-` で始まる名前を続けたもの。セッションはほかのブランチ（別のセッションの PR のブランチなど）にも push する
   ことがあり、それは名前ではなく[作業領域の状態](#state)の push の記録で分かる。
 - **関係**：名前は `ACP_SESSION_BRANCH` でエージェントに渡す（[コンテナ](containers.md "在りか")）。片付けは、セッションが
-  作ったブランチだけをリモートから消す。
+  作ったブランチだけをリモートから消す。[pre-push フック](#pre-push)は、セッションが作ったブランチでない名前の
+  新しいブランチに注意を出す。
 - **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：名前の決まりはここだけに置き、
-  作るとき、渡すとき、片付けるときは同じ関数を使う。
+  作るとき、渡すとき、片付けるときは同じ関数を使う。シェルで動く pre-push フックだけは、`-` で続ける決まりを写して
+  持つ。写しが `OwnsBranch` と食い違わないことは、フックの試験が `OwnsBranch` から期待を求めて確かめる
+  （[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)）。
 
 <a id="commit-msg"></a>
 
@@ -101,18 +104,23 @@ GitHub のブランチと PR
 
 <a id="pre-push"></a>
 
-### 検査の pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
+### pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
 
-- **責務**：push の前に、ターゲットの検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
-- **置くもの / 置かないもの**：push する ref（消すものは除く）がどれも今の HEAD のコミットで、`git status` に
-  コミットしていない変更も ignore されていない追跡していないファイルもないときにだけ、作業ツリーの一番上で
-  `make check` を回す。どれかを満たさないか、検査が落ちれば push を断る。Makefile がなければ何も確かめない。
-  検査の前に、git がフックに渡すリポジトリの場所の変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。
-  作業領域の `.git/hooks/` にだけ置くので、コミットされない。
+- **責務**：push の前に、リモートに新しく作るブランチの名前を確かめ
+  （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、ターゲットの検査（`make check`）を通す
+  （[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
+- **置くもの / 置かないもの**：リモートにまだないブランチを作る push で、その名前が
+  [セッションが作ったブランチ](#branch)の名前でなければ、注意を出す。push は断らない。セッションのブランチの名前は、
+  作業領域を作るときにフックに埋める。名前を確かめたあと、push する ref（消すものは除く）がどれも今の HEAD の
+  コミットで、`git status` にコミットしていない変更も ignore されていない追跡していない
+  ファイルもないときにだけ、作業ツリーの一番上で `make check` を回す。どれかを満たさないか、検査が落ちれば push を
+  断る。Makefile がなければ、名前の注意のほかは何も確かめない。検査の前に、git がフックに渡すリポジトリの場所の
+  変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、コミット
+  されない。
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。
   エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
-  通すことを、決まりだけでなく git のフックで守る。
+  通すことと、新しいブランチの名前に気づかせることを、決まりだけでなく git のフックで守る。
 
 <a id="state"></a>
 

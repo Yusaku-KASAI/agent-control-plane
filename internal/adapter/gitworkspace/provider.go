@@ -63,7 +63,7 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
 	}
-	if err := installHooks(dest); err != nil {
+	if err := installHooks(dest, id); err != nil {
 		return domain.Workspace{}, err
 	}
 	return domain.Workspace{Path: dest}, nil
@@ -81,14 +81,29 @@ while IFS= read -r who; do
 done <"$f"
 `
 
-// prePushHook runs the target's checks, make check, before a push. The checks run on the work
-// tree, so they stand for the pushed commit only when that commit is HEAD and the work tree has
-// nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
-const prePushHook = `#!/bin/sh
-say() { echo "acp pre-push: $*" >&2; }
+// prePushHook warns of a new remote branch outside the session's names, then runs the target's
+// checks, make check, before a push. The warning does not refuse the push, since a requester may
+// ask for another name. The checks run on the work tree, so they stand for the pushed commit only
+// when that commit is HEAD and the work tree has nothing beside it. Like commitMsgHook, it lives
+// only in the workspace's .git.
+func prePushHook(id domain.SessionID) string {
+	return "#!/bin/sh\nsession_branch='" + id.Branch() + "'\n" + prePushBody
+}
+
+const prePushBody = `say() { echo "acp pre-push: $*" >&2; }
+refs=$(cat)
+while read -r _ local_sha remote_ref remote_sha; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	case $remote_sha in *[!0]*) continue ;; esac
+	case $remote_ref in refs/heads/*) ;; *) continue ;; esac
+	name=${remote_ref#refs/heads/}
+	case $name in "$session_branch" | "$session_branch"-*) continue ;; esac
+	say "注意：新しいブランチ $name は、セッションが作ったブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。名前のためには push を止めない。合っていないのにこの push が通ったなら、正しいブランチで push し直し、このブランチは git push $1 --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
+done <<REFS
+$refs
+REFS
 top=$(git rev-parse --show-toplevel) || exit 1
 if ! [ -f "$top/Makefile" ] && ! [ -f "$top/makefile" ] && ! [ -f "$top/GNUmakefile" ]; then
-	cat >/dev/null
 	exit 0
 fi
 head=$(git rev-parse --verify HEAD) || exit 1
@@ -101,7 +116,9 @@ while read -r local_ref local_sha _; do
 		exit 1
 	fi
 	pushes=yes
-done
+done <<REFS
+$refs
+REFS
 [ -n "$pushes" ] || exit 0
 if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
 	say "作業ツリーが HEAD とずれている。変更に入れるものはコミットし、ほかは消してから push する："
@@ -118,12 +135,12 @@ if ! make -C "$top" check </dev/null >&2; then
 fi
 `
 
-func installHooks(repo string) error {
+func installHooks(repo string, id domain.SessionID) error {
 	dir := filepath.Join(repo, ".git", "hooks")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	for name, body := range map[string]string{"commit-msg": commitMsgHook, "pre-push": prePushHook} {
+	for name, body := range map[string]string{"commit-msg": commitMsgHook, "pre-push": prePushHook(id)} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
 			return err
 		}
