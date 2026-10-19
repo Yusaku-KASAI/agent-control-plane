@@ -52,6 +52,6 @@
   | 場面 | 決まり |
   | --- | --- |
   | 書き換えていないのに push が `fetch first` か `non-fast-forward` で断られた | `--force` で押し切らない。ほかの書き手のコミットを `git pull --rebase origin <ブランチ>` で取り込み、push し直す。まだ push していないコミットに merge があれば `--rebase=merges` にし、その merge で解いた衝突はもう一度解く。衝突が解けなければ、`git rebase --abort` して依頼者に返す |
-  | 書き換えて push する | `git push --force-with-lease --force-if-includes` にする。書き換える前に、ほかの書き手のコミットを取り込んでおく |
-  | 書き換えた push が `stale info` か `remote ref updated since checkout` で断られた | 書き換えた手元のブランチに `pull --rebase` しない。ほかの書き手のコミットを書き換えた履歴の上に載せる形（cherry-pick、`rebase --onto`）もとらない。書き換える前の先頭（`git reflog show <ブランチ>`）に戻して取り込み直し、書き換え直す。戻す（`git reset --hard`）のは、作業ツリーにコミットしていない変更がなく、書き換えた先頭を別の名前のブランチに残したあとだけにし、書き換えたあとに足したコミットはそこから載せ直す |
+  | 書き換えて push する | 直しはできるだけコミットを足して行い、書き換えない。書き換えるのは自分のコミットだけにし、ほかの書き手のコミットは置き換えない。書き換える前に、ほかの書き手のコミットを取り込んでおき、`git push --force-with-lease --force-if-includes` で push する |
+  | 書き換えた push が `stale info` か `remote ref updated since checkout` で断られた | 書き換えた手元のブランチに `pull --rebase` しない。ほかの書き手のコミットを書き換えた履歴の上に載せる形（cherry-pick、`rebase --onto`）もとらない。書き換えた先頭を別の名前のブランチに残し、依頼者に返す |
 - 書き換えて force push したら、PR の本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く。
