@@ -818,7 +818,7 @@ t1=$(commit thorough-a) && git push -q && set_pr "$t1"
 out=$(stop_hook)
 lacks "the hook asks the thorough way for a review of the range" "$out" "one for each perspective" "review the whole PR, at every perspective"
 check "the hook tells the thorough way the fixes of the review to end it are reviewed whole" "$out" "have the whole PR reviewed again instead"
-check "unreviewed tells the thorough way the fixes of the review to end it are reviewed whole" "$("$prctl" unreviewed)" "have the whole PR reviewed again instead"
+check "unreviewed tells the thorough way the fixes of the review to end it are reviewed whole" "$("$prctl" unreviewed)" "have the whole PR reviewed again instead (scope \"pr\"): $(git merge-base origin/main "$t1")..$t1"
 lacks "unreviewed shows the thorough way the range since the last" "$("$prctl" unreviewed)" "after reviewing it: prctl review" "(the whole PR"
 "$prctl" review "$t1" - <<<"$nothing" >/dev/null
 

@@ -516,7 +516,7 @@ cmd_unreviewed() {
   if [[ $(mode "$pr") == thorough ]]; then
     echo "range: $from..$head"
     echo "after reviewing it: prctl review $head <review-json>"
-    echo "if it fixes findings of the review of the whole PR to end it, have the whole PR reviewed again instead (scope \"pr\")"
+    echo "if it fixes findings of the review of the whole PR to end it, have the whole PR reviewed again instead (scope \"pr\"): $(range_start "$pr" "$head" "")..$head"
   else
     # The normal way reviews the whole PR every time: the range, its commits and files are the whole PR's.
     echo "not reviewed since: ${rev:-the start of the PR}"
