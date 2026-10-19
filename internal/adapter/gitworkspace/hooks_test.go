@@ -10,8 +10,9 @@ import (
 )
 
 // The hooks are shell kept in Go strings, out of reach of the shellcheck that make check runs on
-// the scripts in files. This writes them as installHooks does and checks each one. shellcheck is
-// in the devcontainer image that the checks run in, so a missing one fails rather than skips.
+// the scripts in files. This has installHooks write them and checks each one. It is an internal
+// test because installHooks is unexported. shellcheck is in the devcontainer image that the checks
+// run in, so a missing one fails rather than skips.
 func TestInstalledHooksPassShellcheck(t *testing.T) {
 	shellcheck, err := exec.LookPath("shellcheck")
 	if err != nil {
