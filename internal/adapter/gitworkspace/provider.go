@@ -98,7 +98,7 @@ while read -r _ local_sha remote_ref remote_sha; do
 	case $remote_ref in refs/heads/*) ;; *) continue ;; esac
 	name=${remote_ref#refs/heads/}
 	case $name in "$session_branch" | "$session_branch"-*) continue ;; esac
-	say "注意：新しいブランチ $name は、セッションが作ったブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。push は止めない。合っていなければ、正しいブランチで push し直し、このブランチは git push $1 --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
+	say "注意：新しいブランチ $name は、セッションが作ったブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。名前のためには push を止めない。合っていないのにこの push が通ったなら、正しいブランチで push し直し、このブランチは git push $1 --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
 done <<REFS
 $refs
 REFS
