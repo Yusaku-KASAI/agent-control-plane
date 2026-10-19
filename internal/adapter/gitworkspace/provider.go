@@ -63,7 +63,7 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
 		return domain.Workspace{}, err
 	}
-	if err := installHooks(dest, id.Branch()); err != nil {
+	if err := installHooks(dest, id); err != nil {
 		return domain.Workspace{}, err
 	}
 	return domain.Workspace{Path: dest}, nil
@@ -86,8 +86,8 @@ done <"$f"
 // ask for another name. The checks run on the work tree, so they stand for the pushed commit only
 // when that commit is HEAD and the work tree has nothing beside it. Like commitMsgHook, it lives
 // only in the workspace's .git.
-func prePushHook(sessionBranch string) string {
-	return "#!/bin/sh\nsession_branch='" + sessionBranch + "'\n" + prePushBody
+func prePushHook(id domain.SessionID) string {
+	return "#!/bin/sh\nsession_branch='" + id.Branch() + "'\n" + prePushBody
 }
 
 const prePushBody = `say() { echo "acp pre-push: $*" >&2; }
@@ -98,7 +98,7 @@ while read -r _ local_sha remote_ref remote_sha; do
 	case $remote_ref in refs/heads/*) ;; *) continue ;; esac
 	name=${remote_ref#refs/heads/}
 	case $name in "$session_branch" | "$session_branch"-*) continue ;; esac
-	say "注意：新しいブランチ $name は、セッションのブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。push は止めない。合っていなければ、正しいブランチで push し直し、このブランチは git push origin --delete $name で消す（片付けはセッションの名前のブランチしか消さない）。"
+	say "注意：新しいブランチ $name は、セッションが作るブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。push は止めない。合っていなければ、正しいブランチで push し直し、このブランチは git push origin --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
 done <<REFS
 $refs
 REFS
@@ -135,12 +135,12 @@ if ! make -C "$top" check </dev/null >&2; then
 fi
 `
 
-func installHooks(repo, sessionBranch string) error {
+func installHooks(repo string, id domain.SessionID) error {
 	dir := filepath.Join(repo, ".git", "hooks")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	for name, body := range map[string]string{"commit-msg": commitMsgHook, "pre-push": prePushHook(sessionBranch)} {
+	for name, body := range map[string]string{"commit-msg": commitMsgHook, "pre-push": prePushHook(id)} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
 			return err
 		}
