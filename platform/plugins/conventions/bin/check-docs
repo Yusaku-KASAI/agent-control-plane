@@ -307,9 +307,9 @@ def check_roles(paths, errors):
         if not (in_plugin_dir(path, "agents") or in_project_agents(path)):
             continue
         text = without_fences(read(path))
-        # Other custom agents (helpers that are no role) may sit beside the roles: only a text that says it is a
-        # role is held to the form.
-        if "ロールとして" not in re.sub(r"\n[ \t]*", "", text.split("\n## ", 1)[0]):
+        # A plugin's agents are its roles. Beside a repository's own, other custom agents (helpers that are no
+        # role) may sit: there, only a text that says it is a role is held to the form.
+        if in_project_agents(path) and "ロールとして" not in re.sub(r"\n[ \t]*", "", text.split("\n## ", 1)[0]):
             continue
         sections = re.findall(r"(?m)^## (.+)$", text)
         takes = re.search(r"(?ms)^## 受け持つ手順$(.*?)(?=^## |\Z)", text)

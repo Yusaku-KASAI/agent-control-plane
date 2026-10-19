@@ -42,7 +42,8 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
   定義が見つからないロールで起動すると、エージェントはエラーで終了する。
 - ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は CLAUDE.md に書く。定義の形は conventions の
-  [形式：役割ごとの指示](../../../platform/plugins/conventions/docs/reference/formats.md#role "在りか")に沿い、文書の検査（`check-docs`）が確かめる。
+  [形式：役割ごとの指示](../../../platform/plugins/conventions/docs/reference/formats.md#role "在りか")に沿う。冒頭で「ロールとして」と名乗る
+  定義は、文書の検査（`check-docs`）が確かめる。
 - `.claude/settings.json` の `worktree.baseRef` を `head` にし、`.gitignore` で `/.claude/worktrees/` を ignore する
   （target-template の共通の部分）。roles のファイルを変えないロールは自分の worktree で動き、その worktree を今の HEAD
   から作り、作業領域のファイルに数えないため（[platform の ADR 0016](../../../platform/docs/adr/0016-subagents-leave-the-work-area.md)）。
