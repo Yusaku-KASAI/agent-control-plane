@@ -18,13 +18,13 @@
    確かめる（聞いて待てないときは、妥当な読み方で進める）。会話で決まったことは、依頼の Issue があれば
    そこに残してから進め、なければ PR を作るときに本文に書く（[課題の扱い方](../reference/issues.md)）。
 3. **今の姿を確かめる**：変更が関わる仕組みの今の姿と前提を、文書、ADR、コードで確かめる。
-4. **壊れうる場面を挙げる**：変更で壊れうる場面を挙げて確かめる。たとえば、同じものを作り直すとき、再起動や失敗の途中、
+4. **形を選び、壊れうる場面を挙げる**：形を決める前に、ほかの形（目的に立ち返った別の手段、より単純な形、一つ上の
+   枠組みでの解き方）を挙げ、選ぶ理由を決める（[前提を問い直す](../../../principles/docs/reference/principles.md#double-loop)）。
+   挙げた形と選ばなかった理由は、PR の本文に書く（[書き方：PR](../reference/writing.md#pull-requests)）。そのうえで、選んだ形で
+   壊れうる場面を挙げて確かめる。たとえば、同じものを作り直すとき、再起動や失敗の途中、
    同時に動くとき、すでにあるデータや設定との組み合わせ。変更の種類に応じて[変更とパターン](../reference/changes.md#patterns)の
    パターンを当てはめる。選び方と使い方は、共通の手順の[パターンを当てはめる](design.md "在りか")にある。
-5. **作る**：作り始める前に、選ぶ形のほかの形（目的に立ち返った別の手段、より単純な形、一つ上の枠組みでの解き方）を
-   挙げ、選ぶ理由を決める（[前提を問い直す](../../../principles/docs/reference/principles.md#double-loop)）。挙げた形と選ばなかった
-   理由は、PR の本文に書く（[書き方：PR](../reference/writing.md#pull-requests)）。案を練り直すたびに範囲を見直し、最初の
-   PR は小さく保つ。広がったら、一つの目的ごとに分ける（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
+5. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、一つの目的ごとに分ける（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
    文書を足したり書き換えたりするときは、共通の手順の[文書を書く](write-docs.md "在りか")に沿う。コミットの前と
    push の前は[検査と履歴](../reference/changes.md#checks)に、コミットメッセージと PR の本文は[書き方](../reference/writing.md "在りか")に
    沿う。
