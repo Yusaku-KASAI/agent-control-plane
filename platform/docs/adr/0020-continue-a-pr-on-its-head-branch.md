@@ -9,7 +9,7 @@ amends: ["../../../docs/adr/app/0012-agent-git-workflow.md"]
 ## Context
 
 control-plane 経由のエージェントには、作業するブランチとしてセッションのブランチ `ACP_SESSION_BRANCH` が渡される
-（app の ADR 0012）。Slack ではセッションがスレッドから決まるので、スレッドを替えて既存の PR を続けると、別の
+（control-plane の ADR 0012）。Slack ではセッションがスレッドから決まるので、スレッドを替えて既存の PR を続けると、別の
 セッションになり、別のセッションのブランチが渡される。
 
 ハーネスの契約は、別の PR に分けるときと、ほかの PR に重ねるとき（ADR 0013）のブランチの切り方だけを書いていた。
@@ -46,6 +46,6 @@ control-plane 経由のエージェントには、作業するブランチとし
 ## Consequences
 
 - 依頼文でブランチを指示しなくても、既存の PR はその PR で更新される。
-- 一つのブランチに複数のセッションが push する。片付けは push の記録でそのブランチを拾う（app の ADR 0026）。
+- 一つのブランチに複数のセッションが push する。片付けは push の記録でそのブランチを拾う（control-plane の ADR 0026）。
 - `git pull --rebase` は、remote-tracking ブランチの reflog から分かれた所を求め、リモートで書き換えられる前に
-  push したコミットを除く。作業領域はその reflog を消えないようにしている（app の ADR 0026）。
+  push したコミットを除く。作業領域はその reflog を消えないようにしている（control-plane の ADR 0026）。
