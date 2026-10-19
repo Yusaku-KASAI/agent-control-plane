@@ -255,6 +255,9 @@ func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
 		refspec string
 		// branch is the name of the new remote branch the push makes, if any.
 		branch string
+		// also is another refspec pushed with it.
+		also     string
+		wantFail bool
 	}{
 		{name: "the session branch", branch: "acp/0f8fad5b"},
 		{name: "a branch the session splits off", branch: "acp/0f8fad5b-topic"},
@@ -276,6 +279,15 @@ func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
 		},
 		{name: "deleting a branch that is not on the remote", refspec: ":refs/heads/gone"},
 		{name: "a tag", refspec: "HEAD:refs/tags/v1"},
+		{name: "another name after the session branch in one push", also: "HEAD:refs/heads/acp/0f8fad5b", branch: "topic"},
+		{
+			name: "another name in a push the checks refuse", makefile: true, branch: "topic", wantFail: true,
+			prepare: func(t *testing.T, ws string) {
+				if err := os.WriteFile(filepath.Join(ws, "stray"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -298,11 +310,15 @@ func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
 				refspec, wantWarn = newBranch(tt.branch), !sessionID.OwnsBranch(tt.branch)
 			}
 
-			cmd := exec.Command("git", "push", "--quiet", "origin", refspec)
+			args := []string{"push", "--quiet", "origin"}
+			if tt.also != "" {
+				args = append(args, tt.also)
+			}
+			cmd := exec.Command("git", append(args, refspec)...)
 			cmd.Dir = ws.Path
 			out, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("push failed: %v: %s", err, out)
+			if failed := err != nil; failed != tt.wantFail {
+				t.Fatalf("push failed = %v, want %v: %s", failed, tt.wantFail, out)
 			}
 			if warned := strings.Contains(string(out), warning); warned != wantWarn {
 				t.Errorf("warned = %v, want %v: %s", warned, wantWarn, out)
