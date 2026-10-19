@@ -25,7 +25,7 @@ GitHub のブランチと PR
 
 - 作業領域は、セッションを作るときに一度だけ作り、片付けまで消さない（[ADR 0010](../../adr/app/0010-per-session-cloned-workspace.md)）。
   コンテナにはこの作業領域だけをマウントする。
-- エージェントはセッションのブランチで作業し、push して PR を作る。別の PR に分けるときのブランチの切り方は
+- エージェントはセッションのブランチで作業し、push して PR を作る。既存の PR を続けるときと、別の PR に分けるときのブランチの扱いは
   [ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
 - 片付けは、作業領域と GitHub から事実を読み、[片付け](sessions.md#cleaner "在りか")が判定する。作業領域を作るときに
   残す `refs/acp/target` と reflog の設定は、その事実を読むためのもの
