@@ -640,7 +640,7 @@ cmd_answer() {
 
 # The sections every PR body has, in this order, each with something written under it (writing.md:
 # PR). What is written under them is free.
-readonly body_sections=(何を変えるか 当てはめた決まり どう確かめたか 確かめていないこと)
+readonly body_sections=(何を変えるか 検討した別の形 当てはめた決まり どう確かめたか 確かめていないこと)
 
 # body_check <body>: die unless the body has the sections, in order, once each, none of them empty.
 # Lines in code blocks are not headings. Lines that only close or refer to an issue, and the

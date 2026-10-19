@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-16
 amends: [2]
+amended_by: ["../../plugins/conventions/docs/adr/0023-alternatives-before-building.md"]
 ---
 
 # 0012. PR の本文に決まった節を持たせ、prctl が作るときと書き換えるときに確かめる
