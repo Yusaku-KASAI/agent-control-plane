@@ -50,8 +50,9 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 ## 差分のレビュー
 
 自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、サブエージェント（reviewer ロールがあればそれ）にレビューさせる
-（review スキルの「レビューを頼んで答える」）。回し方は、既定は通常で、念入りに回す PR には `prctl mode thorough` で
-ラベル `念入りのレビュー` を付ける（[回し方](../../../conventions/docs/reference/reviews.md#ways)）。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
+（review スキルの「レビューを頼んで答える」）。回し方は、既定は通常で、念入りに回す PR には、`prctl create` の
+すぐあとに `prctl mode thorough` でラベル `念入りのレビュー` を付ける（[回し方](../../../conventions/docs/reference/reviews.md#ways)）。
+ラベルがなければ通常として扱われる。今の回し方は `prctl status` の `reviewed:` の行で分かる。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
 直したコミットは、次の `prctl unreviewed` の範囲になる（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに

@@ -837,6 +837,13 @@ m3=$(commit normal-m3) && git push -q && set_pr "$m3" && "$prctl" review "$m3" -
 lacks "a whole review without a must breaks the streak" "$(streak_stop)" "must be fixed" "hand it back"
 m4=$(commit normal-m4) && git push -q && set_pr "$m4" && "$prctl" review "$m4" - <<<"$must" >/dev/null
 check "whole reviews with a must in a row send the PR back" "$(streak_stop)" "the last 2 reviews of the whole PR in a row found something that must be fixed"
+m5=$(commit normal-m5) && git push -q && set_pr "$m5"
+check "the normal way refuses to leave fixes of a review with a must unreviewed" "$("$prctl" review --minor "$m5" - <<<"直し" 2>&1 || true)" "have the whole PR reviewed again"
+lacks "the normal way does not offer to leave fixes of a review with a must unreviewed" "$("$prctl" unreviewed)" "after reviewing the whole PR" "prctl review --minor"
+out=$(stop_hook)
+lacks "the hook asks the normal way for a review of the whole PR" "$out" "review the whole PR, at every perspective" "review that range"
+"$prctl" review "$m5" - <<<"$whole" >/dev/null
+check "status tells the way of reviewing" "$("$prctl" status)" "reviewed:  the normal way"
 check "prctl mode tells the way" "$("$prctl" mode)" "reviewed the normal way"
 "$prctl" mode thorough >/dev/null
 check "prctl mode thorough labels the PR" "$(jq -c '[.labels[].name]' "$state/pr.json")" '["念入りのレビュー"]'
