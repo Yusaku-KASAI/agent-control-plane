@@ -14,7 +14,8 @@
 4. **形に合わせる**：アーキテクチャの文書の構成要素と ADR は[形式](../reference/formats.md)に沿う。言葉は
    [用語集](../reference/glossary.md)に従う。
 5. **触れ方とリンクを分ける**：ほかの文書の中身に触れるときは、要約か案内で書く
-   （[要約と案内](../architecture/documentation.md#summaries-and-guides)）。そのうえでリンクの種類を決める。リンク先の中身が
+   （[要約と案内](../architecture/documentation.md#summaries-and-guides)）。同じ事実を細部まで持つ所は一つに絞り、ほかは要約か
+   案内にする（[SSOT](../../../principles/docs/reference/principles.md#ssot)）。そのうえでリンクの種類を決める。リンク先の中身が
    変わったときに、リンクを含む文を見直す要があれば前提のリンク、なければ在りかのリンクにし、在りかのリンクには
    タイトル「在りか」を付ける（[形式](../reference/formats.md#links)）。全体（`overview.md`、索引）から子へのリンクは在りかの
    リンクにする。前提のリンクは、地図の前提の向きに沿わせる。
@@ -25,8 +26,7 @@
    意味、条件、範囲が変わらず、別の読み方ができないときだけにし、迷ったら長いままにする
    （[必要十分](../../../principles/docs/reference/principles.md#sufficiency)）。
    言い直しを外すときは、外す決まりの持ち主がほかにあるかを先に確かめる。なければ、その決まりを置くべき文書（3 段の
-   持ち主）に定義として移してから外す。同じ事実を細部まで持つ所は一つに絞り、ほかは要約か案内にする
-   （[要約と案内](../architecture/documentation.md#summaries-and-guides)、[SSOT](../../../principles/docs/reference/principles.md#ssot)）。
+   持ち主）に定義として移してから外す。
    決まりを守るためなら、まとめ直す、移す、構成を変えるなど、破壊的に書き換えてよい
    （[書き換え](../architecture/documentation.md#rewrite)）。
 8. **確かめる**：`check-docs`（conventions のコマンド）を通す。Markdown を変えたターンの終わりには hook も回す。
