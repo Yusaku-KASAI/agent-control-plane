@@ -128,10 +128,11 @@ prctl worktree remove default
 
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
 - push したコミットを書き換えていないのに push が断られたら、`--force` で押し切らず、`git pull --rebase origin <ブランチ>`
-  （merge を含むなら `--rebase=merges`）で取り込んでから push し直す。衝突が解けなければ `git rebase --abort` して
+  （まだ push していないコミットに merge があれば `--rebase=merges`）で取り込んでから push し直す。衝突が解けなければ `git rebase --abort` して
   依頼者に返す。push したコミットを書き換えるときは、書き換える前に取り込み、`git push --force-with-lease --force-if-includes`
-  で push する。それでも断られたら、書き換えた手元のブランチに `pull --rebase` せず、書き換えた先頭を別のブランチに
-  残して書き換える前に戻し、取り込んでから書き換え直す。決まりは
+  で push する。それでも断られたら、書き換えた手元のブランチに `pull --rebase` せず、cherry-pick で載せる形も
+  とらず、書き換える前の先頭に戻して取り込み直し、書き換え直す。戻すのは、コミットしていない変更がなく、書き換えた
+  先頭を別のブランチに残したあとだけにし、書き換えたあとに足したコミットはそこから載せ直す。決まりは
   [検査と履歴](../../../conventions/docs/reference/changes.md#checks)にある。
 - 履歴を書き換えて force push したら、`prctl update` で本文を書き換え、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
