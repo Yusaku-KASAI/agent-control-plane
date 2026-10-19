@@ -660,7 +660,7 @@ rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
 count_from_here() { git rev-parse HEAD >"$handback"; }
-check "the cap of the thorough way is ten reviews of the whole PR by default" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-10"
+check "the cap is ten reviews of the whole PR by default, either way" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-10"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
 ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
@@ -812,6 +812,13 @@ p3=$(commit cap-p3) && git push -q && set_pr "$p3" && "$prctl" review "$p3" - <<
 p4=$(commit cap-p4) && git push -q && set_pr "$p4" && "$prctl" review "$p4" - <<<"$proposal" >/dev/null
 p5=$(commit cap-p5) && git push -q && set_pr "$p5" && "$prctl" review "$p5" - <<<"$nothing" >/dev/null
 check "at the cap, a change after the whole review goes back" "$(cap_stop)" "hand it back"
+
+# The thorough way asks for a review of the range since the last, one subagent for each perspective.
+t1=$(commit thorough-a) && git push -q && set_pr "$t1"
+out=$(stop_hook)
+lacks "the hook asks the thorough way for a review of the range" "$out" "one for each perspective" "review the whole PR, at every perspective"
+lacks "unreviewed shows the thorough way the range since the last" "$("$prctl" unreviewed)" "after reviewing it: prctl review" "the whole PR is"
+"$prctl" review "$t1" - <<<"$nothing" >/dev/null
 
 # The normal way: reviews of the whole PR only, also after a push; the end and the cap are as in the
 # thorough way.
