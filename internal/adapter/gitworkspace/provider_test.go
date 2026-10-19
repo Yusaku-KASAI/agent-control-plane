@@ -242,6 +242,74 @@ func TestProvider_Prepare_ChecksBeforePush(t *testing.T) {
 	}
 }
 
+func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
+	const warning = "acp pre-push: 注意"
+	// The hook copies the naming rule of SessionID.OwnsBranch into shell, so a new branch is
+	// expected to warn exactly when the session does not own its name.
+	newBranch := func(name string) string { return "HEAD:refs/heads/" + name }
+	tests := []struct {
+		name     string
+		makefile bool
+		// prepare runs before the push, from the workspace.
+		prepare func(t *testing.T, ws string)
+		refspec string
+		// branch is the name of the new remote branch the push makes, if any.
+		branch string
+	}{
+		{name: "the session branch", branch: "acp/0f8fad5b"},
+		{name: "a branch the session splits off", branch: "acp/0f8fad5b-topic"},
+		{name: "another name", branch: "topic"},
+		{name: "another name in a target with a Makefile", makefile: true, branch: "topic"},
+		{name: "a name the session branch only starts", branch: "acp/0f8fad5bx"},
+		{name: "another session's branch", branch: "acp/1234abcd"},
+		{
+			name: "a branch that is already on the remote", refspec: newBranch("topic"),
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD~1:refs/heads/topic")
+			},
+		},
+		{
+			name: "deleting a branch", refspec: ":refs/heads/old",
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/old")
+			},
+		},
+		{name: "a tag", refspec: "HEAD:refs/tags/v1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+			ws, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+			if err != nil {
+				t.Fatalf("Prepare() error = %v", err)
+			}
+			if tt.makefile {
+				commit(t, ws.Path, "Makefile", "check:\n\ttrue\n")
+			} else {
+				commit(t, ws.Path, "change.txt", "agent work")
+			}
+			if tt.prepare != nil {
+				tt.prepare(t, ws.Path)
+			}
+			refspec, wantWarn := tt.refspec, false
+			if tt.branch != "" {
+				refspec, wantWarn = newBranch(tt.branch), !sessionID.OwnsBranch(tt.branch)
+			}
+
+			cmd := exec.Command("git", "push", "--quiet", "origin", refspec)
+			cmd.Dir = ws.Path
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("push failed: %v: %s", err, out)
+			}
+			if warned := strings.Contains(string(out), warning); warned != wantWarn {
+				t.Errorf("warned = %v, want %v: %s", warned, wantWarn, out)
+			}
+		})
+	}
+}
+
 func TestProvider_Prepare_NotARepository(t *testing.T) {
 	agent := domain.Agent{Name: "a", Role: "developer", Target: domain.Target{Path: t.TempDir(), Image: "img"}}
 	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{}); err == nil {
