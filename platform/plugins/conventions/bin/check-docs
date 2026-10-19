@@ -237,7 +237,8 @@ def check_procedure(path, errors):
     """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither."""
     text = without_fences(read(path))
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
-    intro = re.sub(r"\n[ \t]*", "", text.split("\n1. ", 1)[0])
+    # The opening is what comes before the first section or step.
+    intro = re.sub(r"\n[ \t]*", "", re.split(r"\n(?:1\. |## )", text, maxsplit=1)[0])
     steps = re.findall(r"(?m)^\d+\. \*\*(.+?)\*\*", text)
     purpose, common = "目的の手順で" in intro, "共通の手順で" in intro
     if purpose and common:
