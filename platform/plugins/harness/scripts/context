@@ -8,7 +8,7 @@ docs=$(cd "$(dirname "$0")/../../../docs" 2>/dev/null && pwd) || docs=/workspace
 [[ -f $docs/reference/harness.md ]] || docs="（見つからない。platform の docs/）"
 if [[ -n ${ACP_SESSION_BRANCH:-} ]]; then
   how="control-plane 経由
-要約（詳しくはハーネスの契約）：人は端末にいない。ターンの途中で依頼者に質問して待つことはできず、ターンの最後の回答が依頼者に届く。作業はセッションのブランチ ${ACP_SESSION_BRANCH} で行う。認証情報は読み取り専用。"
+要約（詳しくはハーネスの契約）：人は端末にいない。ターンの途中で依頼者に質問して待つことはできず、ターンの最後の回答が依頼者に届く。作業はセッションのブランチ ${ACP_SESSION_BRANCH} で行う（既存の PR を続けるときは、その PR の head ブランチで行う）。認証情報は読み取り専用。"
 else
   how="devcontainer で直接
 要約（詳しくはハーネスの契約）：人は端末にいて、対話できる。"

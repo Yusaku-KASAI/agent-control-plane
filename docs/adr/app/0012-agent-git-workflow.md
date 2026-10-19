@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-01
-amended_by: [13]
+amended_by: [13, "../../../platform/docs/adr/0020-continue-a-pr-on-its-head-branch.md"]
 ---
 
 # 0012. エージェントはセッションのブランチで作業し、PR として届ける
