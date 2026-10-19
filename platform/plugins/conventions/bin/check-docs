@@ -2,7 +2,7 @@
 """Checks the Markdown files of the repository holding the working directory against this plugin's
 docs/reference/formats.md and docs/architecture/documentation.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix."""
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix."""
 
 import os
 import re
@@ -216,6 +216,8 @@ def check_docs_dirs(paths, errors):
                 errors.append(f"{path}: not listed in {index}")
             if inside.split(os.sep)[0] == "architecture":
                 check_components(path, errors)
+            if inside.split(os.sep)[0] == "guides":
+                check_procedure(path, errors)
 
 
 def check_components(path, errors):
@@ -229,6 +231,27 @@ def check_components(path, errors):
         heading = re.match(r"### (.+)", block)
         if heading and "**責務**" not in block:
             errors.append(f"{path}: component '{heading.group(1)}' has no 責務")
+
+
+def check_procedure(path, errors):
+    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither."""
+    text = without_fences(read(path))
+    # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
+    intro = re.sub(r"\n[ \t]*", "", text.split("\n1. ", 1)[0])
+    steps = re.findall(r"(?m)^\d+\. \*\*(.+?)\*\*", text)
+    if "目的の手順で" in intro:
+        if not steps or steps[0] != "始めに読む":
+            errors.append(f"{path}: a purpose procedure starts with the step '1. **始めに読む**'")
+        if "新しい依頼" not in intro:
+            errors.append(f"{path}: a purpose procedure tells, before its steps, where a new request begins")
+    elif "共通の手順で" in intro:
+        if "始めに読む" in steps:
+            errors.append(f"{path}: a common procedure has no step '始めに読む'")
+    else:
+        return
+    for line in re.findall(r"(?m)^\d+\. .*", text):
+        if not re.match(r"\d+\. \*\*.+?\*\*", line):
+            errors.append(f"{path}: a step is numbered and named in bold: {line[:40]}")
 
 
 # Documents read at every start, and how many lines (without blank lines and frontmatter) each may hold.
@@ -267,6 +290,21 @@ def check_sizes(paths, errors):
         for key, lines in sorted(groups.items()):
             if lines > limit:
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+
+
+def check_roles(paths, errors):
+    """A role's instructions open with the procedures it takes, headed by what it may write, and close with its own ways."""
+    for path in paths:
+        if not (in_plugin_dir(path, "agents") or in_project_agents(path)):
+            continue
+        text = without_fences(read(path))
+        sections = re.findall(r"(?m)^## (.+)$", text)
+        if not sections or sections[0] != "受け持つ手順":
+            errors.append(f"{path}: the first section of a role's instructions is '## 受け持つ手順'")
+        elif "書ける範囲：" not in re.search(r"(?ms)^## 受け持つ手順\n(.*?)(?=^## |\Z)", text).group(1):
+            errors.append(f"{path}: '## 受け持つ手順' tells what the role may write ('書ける範囲：')")
+        if not sections or sections[-1] != "固有の振る舞い":
+            errors.append(f"{path}: the last section of a role's instructions is '## 固有の振る舞い'")
 
 
 class Map:
@@ -484,6 +522,7 @@ def main():
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
     check_sizes(paths, errors)
+    check_roles(paths, errors)
     check_reachable(paths, errors)
     if m is not None:
         check_map(m, paths, errors)

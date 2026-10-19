@@ -47,7 +47,7 @@ conventions/
 
 ### 形式（`docs/reference/formats.md`）
 
-- **責務**：文書の根、構成要素の説明、ADR、リンク、量の上限、地図の形を決める。
+- **責務**：文書の根、構成要素の説明、手順、役割ごとの指示、ADR、リンク、量の上限、地図の形を決める。
 - **関係**：`check-docs` がこの形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
 

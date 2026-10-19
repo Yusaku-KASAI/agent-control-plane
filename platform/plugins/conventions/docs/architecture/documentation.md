@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../guides/write-docs.md "在りか")にある。
 
@@ -171,7 +171,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 - 起点が自分で持つものと、ほかの定義の要約と案内が一つの文書に混ざるときは、節で分ける。役割ごとの指示は、
   振り分けの目的の手順をその役割がどう扱うか（「受け持つ手順」の節）と、役割に固有の振る舞い（「固有の振る舞い」の節）と、
   ほかの定義の要約と案内（「使う決まり」の節）に分ける。どの行がその役割だけの定義で、どの行が定義を変えたら直すものかを、
-  節で見分けられるようにする。判断の軸になる「受け持つ手順」と「使う決まり」を先に置く。
+  節で見分けられるようにする。判断の軸になる「受け持つ手順」と「使う決まり」を先に置く。形は
+  [形式](../reference/formats.md#role "在りか")にある。
 - 判断の軸になる決まりを、細かい作法より先に載せる。読み手は先に書かれたものから読むためで、並び順で大事さを
   表すためではない。大事さは、起点に要約として書くことで表し、「大事」の印は付けない。
 - 起点は、項目を作業の場面や関心ごと（始めに読む、決めるとき、書くときなど）の節に分け、一続きの段落や長い一つの
@@ -293,7 +294,8 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 
 - **責務**：手順。目的を果たすために何をどの順で行うか（準備、追加、移行、復旧）。決まりとして守る順序も含む。
   目的の手順と共通の手順に分ける（[目的の手順と共通の手順](#procedures)）。
-- **置くもの / 置かないもの**：手順と、その場で要る最小の説明。仕組みの説明は `architecture/` へリンクする。
+- **置くもの / 置かないもの**：手順と、その場で要る最小の説明。仕組みの説明は `architecture/` へリンクする。目的の手順と
+  共通の手順の形は[形式](../reference/formats.md#procedure "在りか")にある。
   プラグインでは、目的の手順は起点（共通のルール、役割ごとの指示）が、共通の手順とロールの外から入る目的の手順は
   スキルが、要約か案内で載せてエージェントに届ける。
 - **当てはめた原則・パターン**：[文書の種類](../../../principles/docs/reference/patterns.md#diataxis)の手順。
