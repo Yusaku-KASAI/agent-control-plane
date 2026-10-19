@@ -1,6 +1,7 @@
 # 文書を書く
 
-文書（README、CLAUDE.md、`docs/` の下、ADR）を足したり書き換えたりするときの手順。分け方の全体は
+文書（README、CLAUDE.md、`docs/` の下、ADR）を足したり書き換えたりするときの手順。共通の手順で、目的の手順の段の中で
+使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。分け方の全体は
 [文書の体系](../architecture/documentation.md "在りか")にある。
 
 1. **区切りを決める**：誰が読む必要があるか。読む必要がある人すべてに届く区切りに置く。どの区切りにも要るなら
@@ -11,7 +12,8 @@
 3. **持ち主を探す**：その事実を持つ文書がすでにあるか。あればそこを書き換え、ほかからはリンクする。なければ、
    区切りと種類に合う文書に書くか、新しく作って `docs/README.md` に足す（[文書の根と器](../architecture/documentation.md#roots)、
    [形式：文書の根](../reference/formats.md#layout)、[SSOT](../../../principles/docs/reference/principles.md#ssot)）。
-4. **形に合わせる**：アーキテクチャの文書の構成要素と ADR は[形式](../reference/formats.md)に沿う。言葉は
+4. **形に合わせる**：アーキテクチャの文書の構成要素、[手順](../reference/formats.md#procedure)（目的の手順と共通の手順）、
+   [役割ごとの指示](../reference/formats.md#role)、[スキル](../reference/formats.md#skill)、ADR は[形式](../reference/formats.md)に沿う。言葉は
    [用語集](../reference/glossary.md)に従う。
 5. **触れ方とリンクを分ける**：ほかの文書の中身に触れるときは、要約か案内で書く
    （[要約と案内](../architecture/documentation.md#summaries-and-guides)）。同じ事実を細部まで持つ所は一つに絞り、ほかは要約か
