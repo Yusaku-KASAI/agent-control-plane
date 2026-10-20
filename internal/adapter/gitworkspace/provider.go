@@ -107,11 +107,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	case $local_sha in *[!0]*) ;; *) continue ;; esac
 	case $remote_sha in *[!0]*) ;; *) continue ;; esac
 	git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null && continue
+	# HEAD's own reflog also holds what was only checked out to look at; a detached HEAD has no
+	# branch to read, so only a fast-forward passes from it.
 	if [ "$local_ref" = HEAD ]; then
-		local_ref=$(git symbolic-ref -q HEAD) || local_ref=HEAD
+		local_ref=$(git symbolic-ref -q HEAD) || local_ref=
 	fi
 	included=
-	for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
+	[ -n "$local_ref" ] && for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
 		if git merge-base --is-ancestor "$remote_sha" "$c" 2>/dev/null; then
 			included=yes
 			break
