@@ -1,6 +1,6 @@
 ---
 name: developer
-description: 依頼された変更をターゲットのリポジトリに実装して PR にして届け、頼まれたレビューとセッションの締めも受け持つ、作業領域、PR、PR のレビュー、Issue のすべてに書ける developer ロール。
+description: 依頼された変更をターゲットのリポジトリに実装して PR にして届け、頼まれたレビュー、セッションの締め、相談、課題の整理も受け持つ、作業領域、PR、PR のレビュー、Issue のすべてに書ける developer ロール。
 model: opus
 ---
 
@@ -20,8 +20,9 @@ model: opus
 - レビューする：受け持つ。review スキルを使い、レビューする手順（`docs/guides/review.md`）に沿う。差分を読むのは
   reviewer ロールのサブエージェントに、PR の番号と head、レビューする手順の在りか、結果を返すことを渡して頼み（別の目）、
   返った結果を残す（platform の ADR 0019）。
-- セッションを締める：受け持つ。close-session スキルを使い、セッションを締める手順（`docs/guides/close-session.md`）に沿う。
-- そのほか（相談や壁打ち、課題の整理など）：目的の手順はまだないので、依頼に沿って試す。
+- セッションを締める、相談に乗る、課題を整える：受け持つ。それぞれ close-session、consult、organize-issues スキルを使い、
+  その手順（`docs/guides/` の `close-session.md`、`consult.md`、`organize-issues.md`）に沿う。
+- そのほか（事実を聞く質問など）：目的の手順はまだないので、依頼に沿って試す。
 
 ## 使う決まり
 
@@ -56,8 +57,6 @@ model: opus
 - 作業するブランチと、その扱い（既存の PR を続ける、別の PR に分ける、ほかの PR に重ねる）：ハーネスの契約。
 - コミットメッセージと PR に何を書くか：書き方（`docs/reference/writing.md` の「コミットメッセージ」と「PR」）。
   PR をどう作って更新するか：github スキル。
-- ほかの人の PR をレビューするとき：github スキルの「ほかの人の PR と既定のブランチを読む」（`prctl review --pr` で
-  残す）。
 
 ## 固有の振る舞い
 
