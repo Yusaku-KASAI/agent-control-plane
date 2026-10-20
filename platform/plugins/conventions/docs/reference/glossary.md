@@ -30,7 +30,7 @@
 | 締め | セッションを終える前に、このセッションの開いている PR がなくなった（マージされたか閉じた）うえで、持ち越すものを Issue に残し、作業領域を片付けられる状態にすること（[セッションを締める](../guides/close-session.md "在りか")）。セッションを消す片付け（[エージェントの用語集](../../../../docs/reference/glossary.md "在りか")）とは別で、締めたセッションも続けられる |
 | 振り分け | 依頼を受けたら、どの目的の手順に当たるかを決めること（トリアージ）。依頼を受け取ること自体ではなく、受け取った依頼の目的を決めること。決め方は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")にある |
 | 読む範囲 | その場面でリンク先をどこまで読むか。示し方は[読む範囲](../architecture/documentation.md#reading-scope "在りか")にある |
-| 役割 | エージェントの用語集の「ロール」と同じ意味（[エージェントの用語集](../../../../docs/reference/glossary.md "在りか")）。developer、guide、reviewer など |
+| 役割 | エージェントの用語集の「ロール」と同じ意味（[エージェントの用語集](../../../../docs/reference/glossary.md "在りか")）。developer、guide、reviewer、pm など |
 | 役割ごとの指示 | 役割ごとに、その役割で動くエージェントに読み込ませる指示。プラグインの `agents/` と、リポジトリの `.claude/agents/` のうちロールの定義（Claude Code のカスタムエージェントの定義）。どう分けるかは[起点](../architecture/documentation.md#starting-points "在りか")に、形は[形式](formats.md#role "在りか")にある |
 | 差分のレビュー | 一つの変更（PR の差分）を、取り込む前に別の目で確かめること（[レビューの扱い方](reviews.md#kinds "在りか")） |
 | 全体のレビュー | 地図の項目を範囲にして、今の姿全体を見直すこと。監査とも呼ぶ（[レビューの扱い方](reviews.md#kinds "在りか")） |

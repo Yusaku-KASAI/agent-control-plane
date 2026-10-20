@@ -11,11 +11,12 @@ roles/
   agents/developer.md   変更を実装して PR にする。レビューも受け持つ
   agents/guide.md       質問と相談に答え、変更しない
   agents/reviewer.md    レビューし、結果を PR のレビューと Issue に残す。変更しない
+  agents/pm.md          課題を整え、相談に乗り、Issue に残す。変更しない
 ```
 
 - ロールは Claude Code のカスタムエージェント。control-plane は `--agent <ロール>` で起動し（[ハーネスの契約](../../../docs/reference/harness.md "在りか")）、
   対話ではサブエージェントとしても使う。
-- ファイルを変えないロール（guide、reviewer）は、定義の frontmatter に `isolation: worktree` を持つ。サブエージェント
+- ファイルを変えないロール（guide、reviewer、pm）は、定義の frontmatter に `isolation: worktree` を持つ。サブエージェント
   として動くときは自分の worktree で動き、試すための編集もそこでする（[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。
   隔離するのは作業する場所で、Claude Code（2.1.292 で確かめた）は、隔離されたエージェントのコマンドのうち、字面から
   頼んだエージェントの作業ツリーを指すと分かる git（`cd` してからや `git -C`）と、字面で確かめられない複雑なコマンド
@@ -54,7 +55,7 @@ roles/
 - **責務**：ターゲットのリポジトリの仕組みや使い方についての質問と相談に、ファイルを変更せずに答える。
 - **置くもの / 置かないもの**：受け持つ手順（書ける範囲は GitHub に何も書かない。相談に乗るのほかは受け持たず、
   回す先を案内する）と、答え方と、しないこと。developer と同じく、ハーネスの事実とターゲット固有の事実は置かない。
-- **関係**：変更が要る依頼は developer に回すよう案内する。
+- **関係**：変更が要る依頼は developer に、残せない相談の考え、課題のずれ、持ち越すものは pm に回すよう案内する。
 - **当てはめた原則・パターン**：[関心の分離](../../principles/docs/reference/principles.md#soc)。
 
 ### [`agents/reviewer.md`](../agents/reviewer.md "在りか")
@@ -72,3 +73,17 @@ roles/
 - **当てはめた原則・パターン**：[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)：変更した
   エージェントとは別のエージェントがレビューする。[単一責任](../../principles/docs/reference/principles.md#srp)：答えることと
   判定して残すことを分ける。
+
+### [`agents/pm.md`](../agents/pm.md "在りか")
+
+- **責務**：課題（Issue とロードマップ）を整え、相談や壁打ちに乗り、考えとやることを Issue に残す。書ける範囲は Issue
+  だけ（[ADR 0022](../../../docs/adr/0022-pm-role.md)）。
+- **置くもの / 置かないもの**：「受け持つ手順」の節に、目的の手順ごとの扱い（課題を整えると相談に乗るを主に使い、その
+  「始めに読む」の段の文書を並べる。セッションを締めるも受け持ち、変更を届けるとレビューするは受け持たない）を、
+  「使う決まり」の節に、二つの手順の要約と案内を置き、要約には出典（conventions の手順と課題の扱い方）を付ける。
+  「固有の振る舞い」の節に、しないこと（変更、PR、PR のレビュー）と報告を置く。
+- **関係**：conventions の課題を整えると相談に乗るの手順、課題の扱い方、close-session スキル、principles スキルを前提に
+  する。直しは developer に、レビューは reviewer に回す。guide が残せない相談の考えと課題のずれは、pm に回される。
+- **当てはめた原則・パターン**：[最小権限](../../principles/docs/reference/principles.md#least-privilege)：Issue を整えるのに
+  要る書き込み（Issue）だけを持つ。[関心の分離](../../principles/docs/reference/principles.md#soc)：課題を整えることと、
+  変えることを分ける。

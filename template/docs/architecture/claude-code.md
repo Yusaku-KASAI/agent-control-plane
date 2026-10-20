@@ -16,7 +16,7 @@
 - **置くもの / 置かないもの**：
   - プラグインは `extraKnownMarketplaces` と `enabledPlugins` で宣言する。
   - `language` は回答の言語。決まりは CLAUDE.md の言語の節にあり、ここはそれを Claude Code に渡す。
-  - `worktree.baseRef` は `head`。`isolation: worktree` で動くサブエージェント（roles の reviewer と guide）の worktree を、
+  - `worktree.baseRef` は `head`。`isolation: worktree` で動くサブエージェント（roles の reviewer、guide、pm）の worktree を、
     既定（`fresh`、origin の既定のブランチ）ではなく今の HEAD から作り、まだ push していないコミットも見えるようにする。
     その worktree は `.claude/worktrees/` の下にでき、変更があると残るので、`.gitignore` で ignore する
     （[platform の ADR 0016](../../../platform/docs/adr/0016-subagents-leave-the-work-area.md)）。

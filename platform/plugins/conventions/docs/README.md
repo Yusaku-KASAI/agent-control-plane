@@ -23,4 +23,4 @@
 | [guides/organize-issues.md](guides/organize-issues.md) | 手順 | 課題を整える（目的の手順）：始めに読む、範囲、今の姿、ずれ、整える、まとめ |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
 
-エージェントには、目的の手順は起点（変更を届けるは共通のルールと developer の指示、レビューするは reviewer の指示）が、共通の手順とロールの外から入る目的の手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）、セッションを締める（[skills/close-session](../skills/close-session/SKILL.md)）、相談に乗る（[skills/consult](../skills/consult/SKILL.md)）、課題を整える（[skills/organize-issues](../skills/organize-issues/SKILL.md)）。
+エージェントには、目的の手順は起点（変更を届けるは共通のルールと developer の指示、レビューするは reviewer の指示、相談に乗ると課題を整えるは pm の指示）が、共通の手順とロールの外から入る目的の手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）、セッションを締める（[skills/close-session](../skills/close-session/SKILL.md)）、相談に乗る（[skills/consult](../skills/consult/SKILL.md)）、課題を整える（[skills/organize-issues](../skills/organize-issues/SKILL.md)）。
