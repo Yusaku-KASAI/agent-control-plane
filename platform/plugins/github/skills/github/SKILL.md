@@ -15,7 +15,7 @@ prctl since                               # 前に本文を書いてから push 
 prctl create "<タイトル>" body.md            # push 済みのブランチの PR を作る
 prctl create --base <下のブランチ> "<タイトル>" body.md   # まだマージされていない PR に重ねて作る
 prctl update [--title "<タイトル>"] body.md comment.md   # 本文（とタイトル）を書き換え、変更点のコメントを付ける
-prctl unreviewed                          # まだレビューしていない範囲（最後にレビューしたコミットから今の head まで）
+prctl unreviewed                          # 次にレビューする範囲（念入りは最後にレビューしたコミットから、通常は PR 全体）
 prctl review <コミット> review.json         # そのコミットまでのレビューの結果を、PR のレビューとして残す
 prctl answer <コミット> answers.json        # そのコミットまでのレビューの指摘すべてへの答えを、PR のコメントにする
 prctl review --minor <コミット> note.md      # そのコミットまでを、レビューしない直しとして残す
