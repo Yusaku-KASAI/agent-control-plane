@@ -19,6 +19,7 @@ check-platform:
 	platform/plugins/harness/tests/detach-test.sh
 	platform/plugins/harness/tests/watch-tree-test.sh
 	platform/plugins/conventions/tests/check-docs-at-stop-test.sh
+	platform/plugins/conventions/tests/check-docs-catalog-test.sh
 	# The injected rules link their sources by path; each must exist.
 	platform/plugins/conventions/scripts/context SessionStart | jq -r .hookSpecificOutput.additionalContext \
 		| grep -o '](/[^)#"]*' | cut -c3- | sed 's/ *$$//' | while read -r f; do test -e "$$f" || { echo "missing: $$f"; exit 1; }; done
