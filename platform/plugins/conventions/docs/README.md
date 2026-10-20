@@ -18,7 +18,7 @@
 | [guides/design.md](guides/design.md) | 手順 | パターンを当てはめる：変更の種類からパターンを選び、設計とレビューに使う |
 | [guides/review.md](guides/review.md) | 手順 | レビューする（目的の手順）：始めに読む、種類、差分のレビュー、全体のレビュー |
 | [guides/request-review.md](guides/request-review.md) | 手順 | レビューを頼んで答える（共通の手順）：頼む、答える、終える |
-| [guides/close-session.md](guides/close-session.md) | 手順 | セッションを締める（目的の手順）：始めに読む、洗い出す、残す、課題の今の姿、片付けられる状態にする、締めのまとめ |
+| [guides/close-session.md](guides/close-session.md) | 手順 | セッションを締める（目的の手順）：始めに読む、開いている PR、洗い出す、残す、課題の今の姿、片付けられる状態にする、締めのまとめ |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
 
 エージェントには、目的の手順は起点（変更を届けるは共通のルールと developer の指示、レビューするは reviewer の指示）が、共通の手順とロールの外から入る目的の手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）、セッションを締める（[skills/close-session](../skills/close-session/SKILL.md)）。
