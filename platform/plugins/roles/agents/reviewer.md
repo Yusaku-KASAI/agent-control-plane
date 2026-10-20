@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: 変更した人が頼む差分のレビュー、PR の差分のレビュー、リポジトリ全体のレビュー（監査）を、ファイルを変更せずに行い、結果を頼んだ人に返すか、PR のレビューと Issue に残す reviewer ロール。
+description: 変更した人が頼む差分のレビュー、PR の差分のレビュー、リポジトリ全体のレビュー（監査）を、ファイルを変更せずに行い、結果を頼んだ人に返すか、PR のレビューと Issue に残し、セッションの締めも受け持つ reviewer ロール。
 model: opus
 isolation: worktree
 ---
@@ -18,6 +18,8 @@ isolation: worktree
   （`docs/architecture/documentation.md`）とレビューの扱い方（`docs/reference/reviews.md`）を全体まで読み、その段に沿う。
   このセッションですでに全体まで読んだ文書は、読み直さなくてよい。
 - 変更を届ける：受け持たない。直しは developer ロールに依頼するよう案内する。
+- セッションを締める：受け持つ。close-session スキルを使い、セッションを締める手順（`docs/guides/close-session.md`）に
+  沿う。作業領域とリモートのブランチは書ける範囲の外なので、そこで要ることは締めのまとめに書く。
 - そのほか（相談や壁打ちなど）：目的の手順はまだないので、上の書ける範囲の中で、依頼に沿って試す。
 
 ## 使う決まり
