@@ -561,7 +561,7 @@ check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'inclu
   "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
 
 # A PR body has its sections, in order, none empty; what is under them is free.
-good=$'## 何を変えるか\nx\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
+good=$'## 何を変えるか\nx\n\n## 検討した別の形\nw\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
 check "a body without a section is refused" "$("$prctl" create t - <<<"${good/\#\# 当てはめた決まり/\#\# 決まり}" 2>&1 || true)" "no section ## 当てはめた決まり"
 check "a body with an empty section is refused" "$("$prctl" update - <<<"$(sed '/^なし$/,$d' <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
 check "a body with the sections out of order is refused" \

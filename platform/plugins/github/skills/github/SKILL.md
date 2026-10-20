@@ -34,9 +34,9 @@ control-plane 経由では、そこ（`mktemp -d` の場所）はコンテナが
 ## 本文とコメント
 
 本文とコメントに何を書くかは、conventions の[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)に
-ある。要約すると、本文はこの PR が今何かを、決まった節（`## 何を変えるか`、`## 当てはめた決まり`、`## どう確かめたか`、
-`## 確かめていないこと`）に書き、コメントは前回の push からの変更とその理由を書き、本文は追記せず書き換える。節が
-足りないか空なら、`prctl create` と `prctl update` が断る。
+ある。要約すると、本文はこの PR が今何かを、決まった節（`## 何を変えるか`、`## 検討した別の形`、`## 当てはめた決まり`、
+`## どう確かめたか`、`## 確かめていないこと`）に書き、コメントは前回の push からの変更とその理由を書き、本文は追記せず
+書き換える。節が足りないか空なら、`prctl create` と `prctl update` が断る。
 
 PR を作るときは、タイトルと本文を書くだけでよい（`prctl create`）。作ったあとに push で中身が変わったら、本文の
 書き換えとコメントの2つを `prctl update` で行い、範囲が変わったときはタイトルも `--title` で直す。コメントの理由は
@@ -120,7 +120,13 @@ prctl worktree default                  # 既定のブランチの head を取�
 prctl worktree remove default
 ```
 
-- 依頼の内容と意図は `gh pr view <番号>` の本文から読む。閉じる Issue は本文の `Closes #<番号>`。
+- 本文の最初の節（何を変えるか）は変更の意図なので、本文は観点「別の形」で別の形を挙げたあとに読む（レビューするの
+  2 段と 4 段）。先に、タイトルと閉じる Issue（本文の `Closes #<番号>` の行）だけを取り出し、Issue から依頼を読む。閉じる
+  Issue がなければ、タイトルから挙げる。
+
+  ```bash
+  gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves) #")))'
+  ```
 - 検査は、取り出した worktree の中で回す。
 - レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
 
