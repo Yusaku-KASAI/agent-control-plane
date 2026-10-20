@@ -118,3 +118,20 @@ agents:
       app_token_path: /home/you/acp-secrets/control-plane-reviewer.slack-app-token
       bot_token_path: /home/you/acp-secrets/control-plane-reviewer.slack-bot-token
       allowed_users: [U0123456789]
+
+  # Tidies issues and the roadmap and talks ideas through, keeping them in issues; changes no files.
+  - name: control-plane-pm
+    role: pm
+    target:
+      path: /home/you/projects/agent-control-plane
+      image: agent-control-plane-devcontainer
+    # Permissions for a pm: Contents and Pull requests read-only; Issues read and write (to tidy issues
+    # and keep ideas in them).
+    github:
+      app_id: 456789
+      installation_id: 45678901
+      private_key_path: /home/you/acp-secrets/control-plane-pm.private-key.pem
+    slack:
+      app_token_path: /home/you/acp-secrets/control-plane-pm.slack-app-token
+      bot_token_path: /home/you/acp-secrets/control-plane-pm.slack-bot-token
+      allowed_users: [U0123456789]
