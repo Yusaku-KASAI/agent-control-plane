@@ -26,7 +26,9 @@ usage:
                                       first after an hour, "none (...)" when no check run appears. One
                                       wait per branch, for the head of origin/<branch> here, also when it
                                       moves; another --wait while one runs ends at once ("already waiting")
-  prctl unreviewed                    the range not yet reviewed, and its commits and files
+  prctl unreviewed                    the range to review next, and its commits and files: in the
+                                      thorough way, since the last review; in the normal way, the
+                                      whole PR
   prctl review [--pr <number>] <commit> <review-json|->
                                       record the review of the range up to <commit> as a PR review,
                                       from its JSON (see the github skill): of scope "pr", the whole PR,
