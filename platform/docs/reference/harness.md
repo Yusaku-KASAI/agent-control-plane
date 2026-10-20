@@ -70,7 +70,8 @@
     ブランチとする開いている PR。
   - `$ACP_SESSION_BRANCH` か `$ACP_SESSION_BRANCH-<内容>` のリモートのブランチを base ブランチとする開いている PR
     （片付けでブランチを消すと閉じるため）。
-  - 作業ツリーの変更（ignore されていない追跡していないファイルを含む）、stash、途中で止まった rebase や merge などの操作、どのブランチにもないコミットを持つ detached HEAD。
+  - 作業ツリーの変更（ignore されていない追跡していないファイルを含む）、stash、途中で止まった rebase や merge などの
+    操作、どのブランチにもないコミットを持つ detached HEAD。
   - push していないコミット。
   - push したコミットのうち、既定のブランチにも PR の head コミットにも入っていないもの（セッションの名前でない
     ブランチでは、そのリモートのブランチにも入っていないもの）。
@@ -97,7 +98,8 @@
   まだ push していない自分のコミットだけが載る。
 - このセッションが push したブランチは、`origin` の remote-tracking ブランチのうち、reflog
   （`git reflog show origin/<ブランチ>`）に `update by push` があるもの。作業領域では、remote-tracking ブランチの reflog は
-  消えない設定にしてある。
+  期限で消えない設定にしてある。リモートのブランチを消すか `git fetch --prune` で remote-tracking ブランチが消えると、
+  その reflog も消える。
   片付けは、これと `$ACP_SESSION_BRANCH`、`$ACP_SESSION_BRANCH-<内容>` の名前のブランチを、このセッションのものと
   して見る（[コンテナの寿命](#lifetime)）。
 - `/workspace` のほかのリポジトリは見えない。例外はプラグインのマーケットプレイスで、ターゲットの隣にある
