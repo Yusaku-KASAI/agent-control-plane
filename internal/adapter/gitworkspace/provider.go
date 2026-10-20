@@ -125,10 +125,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	done
 	[ -n "$included" ] && continue
 	if [ -z "$local_ref" ]; then
-		say "$given はブランチやタグの名前でないので、$remote_ref には fast-forward だけを通す。ほかの書き手のコミットが消えうるので断る。ブランチに切り替えて取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
+		say "$given はブランチやタグの名前でないので、$remote_ref には fast-forward だけを通す。上書きになるとほかの書き手のコミットが消えうるので断る。ブランチに切り替えて取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
 		exit 1
 	fi
-	say "$remote_ref のリモートの先頭 $remote_sha を、手元の $local_ref に一度も取り込まずに上書きしようとしている。ほかの書き手のコミットが消えるので断る。取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
+	say "$remote_ref への fast-forward でない push で、リモートの先頭 $remote_sha を手元の $local_ref に一度も取り込んでいない。上書きになるとほかの書き手のコミットが消えるので断る。取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
 	exit 1
 done <<REFS
 $refs

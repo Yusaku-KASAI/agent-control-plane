@@ -351,6 +351,13 @@ func TestProvider_Prepare_RefusesToOverwriteWhatWasNeverTaken(t *testing.T) {
 			args: []string{"origin", "HEAD:refs/heads/" + branch},
 		},
 		{
+			name: "a push without --force over a commit never fetched", other: true,
+			prepare: func(t *testing.T, ws string) {
+				commit(t, ws, "more.txt", "more")
+			},
+			args: []string{"origin", "HEAD:refs/heads/" + branch},
+		},
+		{
 			name: "rewriting what only this workspace pushed", wantPush: true,
 			prepare: amend,
 			args:    []string{"--force", "origin", "HEAD:refs/heads/" + branch},
