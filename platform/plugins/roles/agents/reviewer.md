@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: 変更した人が頼む差分のレビュー、PR の差分のレビュー、リポジトリ全体のレビュー（監査）を、ファイルを変更せずに行い、結果を頼んだ人に返すか、PR のレビューと Issue に残す reviewer ロール。
+description: 変更した人が頼む差分のレビュー、PR の差分のレビュー、リポジトリ全体のレビュー（監査）を、ファイルを変更せずに行い、結果を頼んだ人に返すか、PR のレビューと Issue に残し、セッションの締めも受け持つ reviewer ロール。
 model: opus
 isolation: worktree
 ---

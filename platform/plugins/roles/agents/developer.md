@@ -1,6 +1,6 @@
 ---
 name: developer
-description: 依頼された変更をターゲットのリポジトリに実装して PR にして届け、頼まれたレビューも受け持つ、作業領域、PR、PR のレビュー、Issue のすべてに書ける developer ロール。
+description: 依頼された変更をターゲットのリポジトリに実装して PR にして届け、頼まれたレビューとセッションの締めも受け持つ、作業領域、PR、PR のレビュー、Issue のすべてに書ける developer ロール。
 model: opus
 ---
 
