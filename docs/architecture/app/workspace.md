@@ -17,7 +17,7 @@ GitHub App のトークンは[認証情報](credentials.md "在りか")にある
   refs/acp/target   = clone した時点のターゲットの HEAD
   acp/<ID の先頭8文字> = リモートの既定のブランチ（なければターゲットの HEAD）から切ったブランチ
   .git/hooks/commit-msg = 依頼者を Co-authored-by に足す
-  .git/hooks/pre-push   = push の前に、新しいブランチの名前を確かめ、make check を通す
+  .git/hooks/pre-push   = push の前に、新しいブランチの名前を確かめ、取り込んでいないリモートの先頭の上書きを断り、make check を通す
   │ push（エージェント）
   ▼
 GitHub のブランチと PR
@@ -107,14 +107,17 @@ GitHub のブランチと PR
 ### pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
 
 - **責務**：push の前に、リモートに新しく作るブランチの名前を確かめ
-  （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、ターゲットの検査（`make check`）を通す
-  （[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
+  （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、取り込んだことのないリモートの先頭を
+  上書きする push を断り（[ADR 0041](../../adr/app/0041-refuse-overwriting-remote-tips-never-taken.md)）、ターゲットの
+  検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
 - **置くもの / 置かないもの**：リモートにまだないブランチを作る push で、その名前が
   [セッションが作ったブランチ](#branch)の名前でなければ、注意を出す。push は断らない。セッションのブランチの名前は、
-  作業領域を作るときにフックに埋める。名前を確かめたあと、push する ref（消すものは除く）がどれも今の HEAD の
+  作業領域を作るときにフックに埋める。リモートにある ref を fast-forward でなく上書きする push で、リモートの
+  先頭が、push する手元のブランチ（`HEAD` ならそれが指すブランチ）の reflog のどの項目からもたどれなければ、push を
+  断る（git の `--force-if-includes` と同じ確かめを、push のフラグによらず行う）。そのあと、push する ref（消すものは除く）がどれも今の HEAD の
   コミットで、`git status` にコミットしていない変更も ignore されていない追跡していない
   ファイルもないときにだけ、作業ツリーの一番上で `make check` を回す。どれかを満たさないか、検査が落ちれば push を
-  断る。Makefile がなければ、名前の注意のほかは何も確かめない。検査の前に、git がフックに渡すリポジトリの場所の
+  断る。Makefile がなければ、名前の注意と上書きの確かめのほかは何も確かめない。検査の前に、git がフックに渡すリポジトリの場所の
   変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、コミット
   されない。
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。

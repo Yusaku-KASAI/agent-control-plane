@@ -81,11 +81,12 @@ while IFS= read -r who; do
 done <"$f"
 `
 
-// prePushHook warns of a new remote branch outside the session's names, then runs the target's
-// checks, make check, before a push. The warning does not refuse the push, since a requester may
-// ask for another name. The checks run on the work tree, so they stand for the pushed commit only
-// when that commit is HEAD and the work tree has nothing beside it. Like commitMsgHook, it lives
-// only in the workspace's .git.
+// prePushHook warns of a new remote branch outside the session's names, refuses to overwrite a
+// remote tip that the pushed ref never held, then runs the target's checks, make check, before a
+// push. The warning does not refuse the push, since a requester may ask for another name. The
+// refusal is git's --force-if-includes, applied whatever flags the push has. The checks run on the
+// work tree, so they stand for the pushed commit only when that commit is HEAD and the work tree
+// has nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
 func prePushHook(id domain.SessionID) string {
 	return "#!/bin/sh\nsession_branch='" + id.Branch() + "'\n" + prePushBody
 }
@@ -99,6 +100,26 @@ while read -r _ local_sha remote_ref remote_sha; do
 	name=${remote_ref#refs/heads/}
 	case $name in "$session_branch" | "$session_branch"-*) continue ;; esac
 	say "注意：新しいブランチ $name は、セッションが作ったブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。名前のためには push を止めない。合っていないのにこの push が通ったなら、正しいブランチで push し直し、このブランチは git push $1 --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
+done <<REFS
+$refs
+REFS
+while read -r local_ref local_sha remote_ref remote_sha; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	case $remote_sha in *[!0]*) ;; *) continue ;; esac
+	git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null && continue
+	if [ "$local_ref" = HEAD ]; then
+		local_ref=$(git symbolic-ref -q HEAD) || local_ref=HEAD
+	fi
+	included=
+	for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
+		if git merge-base --is-ancestor "$remote_sha" "$c" 2>/dev/null; then
+			included=yes
+			break
+		fi
+	done
+	[ -n "$included" ] && continue
+	say "$remote_ref のリモートの先頭 $remote_sha を、手元の $local_ref に一度も取り込まずに上書きしようとしている。ほかの書き手のコミットが消えるので断る。取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
+	exit 1
 done <<REFS
 $refs
 REFS
