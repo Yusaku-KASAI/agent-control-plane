@@ -124,7 +124,8 @@ GitHub のブランチと PR
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。
   エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
-  通すことと、新しいブランチの名前に気づかせることを、決まりだけでなく git のフックで守る。
+  通すこと、新しいブランチの名前に気づかせること、取り込んでいないリモートの先頭の上書きを断ることを、決まりだけで
+  なく git のフックで守る。
 
 <a id="state"></a>
 

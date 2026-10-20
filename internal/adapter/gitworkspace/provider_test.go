@@ -429,6 +429,26 @@ func TestProvider_Prepare_RefusesToOverwriteWhatWasNeverTaken(t *testing.T) {
 			args: []string{"origin", "<head>:refs/heads/" + branch},
 		},
 		{
+			name: "moving a tag back to a commit that does not follow it",
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "tag", "v1")
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "refs/tags/v1")
+				amend(t, ws)
+				git(t, ws, "tag", "--force", "v1")
+			},
+			args: []string{"--force", "origin", "refs/tags/v1"},
+		},
+		{
+			name: "moving a tag forward", wantPush: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "tag", "v1")
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "refs/tags/v1")
+				commit(t, ws, "more.txt", "more")
+				git(t, ws, "tag", "--force", "v1")
+			},
+			args: []string{"--force", "origin", "refs/tags/v1"},
+		},
+		{
 			name: "deleting the branch", other: true, wantPush: true,
 			args: []string{"origin", ":refs/heads/" + branch},
 		},
