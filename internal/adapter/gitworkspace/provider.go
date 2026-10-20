@@ -116,7 +116,7 @@ REFS
 	[ -n "$local_ref" ] && for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
 		git merge-base --is-ancestor "$remote_sha" "$c" 2>/dev/null && continue 2
 	done
-	say "注意：この push は $remote_ref のリモートの先頭 $remote_sha を、手元に取り込まないまま上書きする（ほかの書き手のコミットが消える）。上書きしてよければ ACP_PUSH_OVERWRITE=1 を付けて push し直す。そうでなければ、取り込んでから push し直す（ハーネスの契約の「push」）。"
+	say "注意：この push は $remote_ref のリモートの先頭 $remote_sha を、手元に取り込まないまま上書きする（ほかの書き手のコミットが消える）。ふつうは取り込んでから（git pull --rebase）push し直す。上書きすると決めたときだけ、ACP_PUSH_OVERWRITE=1 と --force を付けて push し直す（ハーネスの契約の「push」）。"
 	exit 1
 done <<REFS
 $refs
@@ -146,7 +146,7 @@ if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
 fi
 # The checks may run git in repositories of their own, so the variables git sets for a hook (in a
 # linked worktree, GIT_DIR) must not point them here. The configuration in GIT_CONFIG_* stays.
-unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
+unset ACP_PUSH_OVERWRITE GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
 say "make check"
 if ! make -C "$top" check </dev/null >&2; then
 	say "make check が落ちた。直してコミットし、push し直す。"

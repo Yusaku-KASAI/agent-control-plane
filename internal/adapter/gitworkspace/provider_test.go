@@ -494,7 +494,7 @@ func TestProvider_Prepare_StopsOverwritingWhatWasNeverTaken(t *testing.T) {
 			}
 			cmd := exec.Command("git", args...)
 			cmd.Dir = ws.Path
-			cmd.Env = os.Environ()
+			cmd.Env = slices.DeleteFunc(os.Environ(), func(e string) bool { return strings.HasPrefix(e, "ACP_PUSH_OVERWRITE=") })
 			if tt.overwrite {
 				cmd.Env = append(cmd.Env, "ACP_PUSH_OVERWRITE=1")
 			}

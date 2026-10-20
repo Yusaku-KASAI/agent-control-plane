@@ -138,8 +138,9 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
   `$ACP_SESSION_BRANCH-<内容>` のブランチしか消さないので、消さないと残り続ける。
 - リモートにある ref（ブランチやタグ）を fast-forward でなく上書きする push で、そのリモートの先頭を push する
   手元の ref（`HEAD` ならそれが指すブランチ）に一度も取り込んでいなければ、フックが `acp pre-push: 注意` で始まる
-  注意を出して止める（ほかの書き手のコミットが消えるため）。上書きしてよいと判断したら、`ACP_PUSH_OVERWRITE=1` を
-  付けて push し直す（`ACP_PUSH_OVERWRITE=1 git push --force ...`）。そうでなければ、取り込んでから push し直す。
+  注意を出して止める（ほかの書き手のコミットが消えるため）。ふつうは取り込んでから（`git pull --rebase`）push し
+  直す。上書きすると決めたときだけ、`ACP_PUSH_OVERWRITE=1` と `--force` を付けて push し直す
+  （`ACP_PUSH_OVERWRITE=1 git push --force ...`）。この変数は検査（`make check`）には渡らない。
 - Makefile のないリポジトリでは、新しいブランチの名前と上書きだけを見て、検査は回さない。`core.hooksPath` を
   設定しているターゲットでは、何も確かめない。
 
