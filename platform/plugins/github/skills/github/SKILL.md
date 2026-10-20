@@ -137,10 +137,10 @@ prctl worktree remove default
     解いた衝突はもう一度解く。その merge に衝突の解決のほかの変更を足していたら、取り込む前に merge のあとの別の
     コミットに分ける。衝突が解けなければ、取り込みをやめて依頼者に返し、push していないコミットが残っていることを書く。
   - 書き換えて push するとき：直しはコミットを足して行い、書き換えるのは依頼者が範囲を示して頼んだときだけにする。
-    取り込んだあとの履歴で、範囲より後ろに範囲の外のコミットがあれば書き換えずに返す。書き換える前に取り込み、
+    取り込んだあとの履歴で、範囲より後ろに範囲の外の push したコミットがあれば書き換えずに返す。書き換える前に取り込み、
     `git push --force-with-lease --force-if-includes` で push する。
   - それが `stale info` か `remote ref updated since checkout` で断られたら：`pull --rebase` も、cherry-pick や
-    `rebase --onto` で載せる形もとらず、書き換えた先頭を別のブランチに残して依頼者に返す。報告には、残したブランチの
+    `rebase --onto` で載せる形もとらず、作業中のブランチを `git branch -m <別の名前>` で残して依頼者に返す（続けるときは取ってくるところから）。報告には、残したブランチの
     名前、断られたときのリモートの先頭、書き換えたコミットを書く。
 - push したコミットを書き換えて force push したら、`prctl update` で本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
