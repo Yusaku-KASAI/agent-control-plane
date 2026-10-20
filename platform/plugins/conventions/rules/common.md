@@ -18,9 +18,10 @@
 
 - 変更（PR）にする：その前に[変更を届ける](../docs/guides/deliver-change.md "在りか")と[変更の扱い方](../docs/reference/changes.md "在りか")を
   全体まで読み、変更を届けるの段の順に進める（[変更を届ける](../docs/guides/deliver-change.md)の 1 段）。
-- 頼まれて差分や全体をレビューする：review スキルを使い、目的の手順の[レビューする](../docs/guides/review.md "在りか")に沿う。
-- セッションを締める（「締めて」など）：close-session スキルを使い、目的の手順の[セッションを締める](../docs/guides/close-session.md "在りか")に沿う。
-- どれにも当たらない（相談や壁打ち、課題の整理など）：目的の手順はまだないので、依頼に沿って進める。
+- ほかは、括弧の中のスキルを使い、その目的の手順に沿う：頼まれて差分や全体をレビューする（review、[レビューする](../docs/guides/review.md "在りか")）、
+  セッションを締める（「締めて」など。close-session、[セッションを締める](../docs/guides/close-session.md "在りか")）、相談や壁打ち（consult、
+  [相談に乗る](../docs/guides/consult.md "在りか")）、Issue やロードマップの整理（organize-issues、[課題を整える](../docs/guides/organize-issues.md "在りか")）。
+- どれにも当たらない（事実を聞く質問など）：目的の手順はまだないので、依頼に沿って進める。
 
 ## 読む範囲
 
