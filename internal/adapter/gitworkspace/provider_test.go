@@ -494,6 +494,10 @@ func TestProvider_Prepare_RefusesToOverwriteWhatWasNeverTaken(t *testing.T) {
 			if !tt.wantPush && gitOutput(t, f.remote, "for-each-ref") != before {
 				t.Errorf("a refused push changed the remote")
 			}
+			// git refuses some of these pushes by itself, so a refusal counts only when the hook made it.
+			if !tt.wantPush && !strings.Contains(string(out), "acp pre-push:") {
+				t.Errorf("the push was refused, but not by the hook: %s", out)
+			}
 		})
 	}
 }

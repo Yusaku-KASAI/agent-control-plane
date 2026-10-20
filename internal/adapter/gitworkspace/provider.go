@@ -113,7 +113,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	# else (a detached HEAD, a hash, an expression such as HEAD@{1}) only a fast-forward passes.
 	given=$local_ref
 	if [ "$local_ref" = HEAD ]; then
-		local_ref=$(git symbolic-ref -q HEAD) || local_ref=
+		local_ref=$(git symbolic-ref -q HEAD) || given="detached の HEAD"
 	fi
 	case $local_ref in refs/heads/* | refs/tags/*) ;; *) local_ref= ;; esac
 	included=
