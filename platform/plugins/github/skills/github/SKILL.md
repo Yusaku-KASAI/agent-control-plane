@@ -140,7 +140,7 @@ prctl worktree remove default
     取り込んだあとの履歴で、範囲より後ろに範囲の外の push したコミットがあれば書き換えずに返す。書き換える前に取り込み、
     `git push --force-with-lease --force-if-includes` で push する。
   - それが `stale info` か `remote ref updated since checkout` で断られたら：`pull --rebase` も、cherry-pick や
-    `rebase --onto` で載せる形もとらず、作業中のブランチを `git branch -m <別の名前>` で残して依頼者に返す（続けるときは取ってくるところから）。報告には、残したブランチの
+    `rebase --onto` で載せる形もとらず、作業中のブランチを `git branch -m <別の名前>` と `git branch --unset-upstream` で残して依頼者に返す（続けるときは取ってくるところから）。報告には、残したブランチの
     名前、断られたときのリモートの先頭、書き換えたコミットを書く。
 - push したコミットを書き換えて force push したら、`prctl update` で本文を今の中身に合わせ、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
