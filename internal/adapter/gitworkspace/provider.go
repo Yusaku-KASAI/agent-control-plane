@@ -85,9 +85,9 @@ done <"$f"
 // remote tip that no reflog entry of the pushed ref reaches, then runs the target's checks, make
 // check, before a push. The warning does not refuse the push, since a requester may ask for another
 // name. The refusal follows git's --force-if-includes, but on the remote's actual tip rather than
-// the remote-tracking ref, whatever flags the push has. The checks run on the
-// work tree, so they stand for the pushed commit only when that commit is HEAD and the work tree
-// has nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
+// the remote-tracking ref, whatever flags the push has. The checks run on the work tree, so they
+// stand for the pushed commit only when that commit is HEAD and the work tree has nothing beside
+// it. Like commitMsgHook, it lives only in the workspace's .git.
 func prePushHook(id domain.SessionID) string {
 	return "#!/bin/sh\nsession_branch='" + id.Branch() + "'\n" + prePushBody
 }
@@ -111,6 +111,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	# HEAD's own reflog also holds what was only checked out to look at, and a remote-tracking one
 	# what was only fetched. Only a branch or tag named as such has a reflog to read; from anything
 	# else (a detached HEAD, a hash, an expression such as HEAD@{1}) only a fast-forward passes.
+	given=$local_ref
 	if [ "$local_ref" = HEAD ]; then
 		local_ref=$(git symbolic-ref -q HEAD) || local_ref=
 	fi
@@ -123,6 +124,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 		fi
 	done
 	[ -n "$included" ] && continue
+	if [ -z "$local_ref" ]; then
+		say "$given はブランチやタグの名前でないので、$remote_ref には fast-forward だけを通す。ほかの書き手のコミットが消えうるので断る。ブランチに切り替えて取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
+		exit 1
+	fi
 	say "$remote_ref のリモートの先頭 $remote_sha を、手元の $local_ref に一度も取り込まずに上書きしようとしている。ほかの書き手のコミットが消えるので断る。取り込んでから push し直す（conventions の変更の扱い方の「検査と履歴」）。"
 	exit 1
 done <<REFS

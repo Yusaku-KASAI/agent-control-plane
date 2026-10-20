@@ -137,7 +137,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
   push した先（ふつうは `origin`）から `git push <push 先> --delete <名前>` で消す。片付けは `$ACP_SESSION_BRANCH` と
   `$ACP_SESSION_BRANCH-<内容>` のブランチしか消さないので、消さないと残り続ける。
 - リモートにある ref（ブランチやタグ）を fast-forward でなく上書きする push は、そのリモートの先頭を push する
-  手元のブランチに一度も取り込んでいなければ、フックが `--force` の有無によらず断る（`--force-if-includes` と同じ
+  手元の ref（ブランチやタグ）に一度も取り込んでいなければ、フックが `--force` の有無によらず断る（`--force-if-includes` と同じ
   考えの確かめ）。ブランチやタグの名前でないもの（detached HEAD、コミットの値、`HEAD@{1}` のような式）からは、
   fast-forward だけが通る。断られたら、ブランチの上で取り込んでから push し直す（conventions の変更の扱い方の
   「検査と履歴」）。
