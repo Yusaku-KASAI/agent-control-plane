@@ -19,9 +19,10 @@ platform の ADR 0020）。push したコミットを書き換えるときは `-
 
 - 作業領域の `pre-push`（ADR 0032）で、リモートにある ref を、fast-forward でなく上書きする push を見る。上書きされる
   リモートの先頭が、push する手元の ref の reflog のどの項目からもたどれなければ、push を断る。手元の ref が `HEAD`
-  なら、それが指すブランチの reflog を見る。detached HEAD とコミットの値は、見る reflog がないので、fast-forward
-  だけを通す。
-- これは git の `--force-if-includes` と同じ確かめで、push に付けたフラグによらず行う。取り込んだリモートの先頭を
+  なら、それが指すブランチの reflog を見る。ブランチやタグの名前でないもの（detached HEAD、コミットの値、`HEAD@{1}`
+  のような式、remote-tracking の ref）は、見る reflog がないものとして、fast-forward だけを通す。
+- これは git の `--force-if-includes` と同じ考えの確かめを、remote-tracking の ref の値ではなくリモートの実際の先頭で、
+  push に付けたフラグによらず行うもの。取り込んだリモートの先頭を
   書き換える force push は通る。
 - 確かめは、名前の注意（ADR 0040）のあと、検査（`make check`）の前に、Makefile の有無によらず行う。
 - ハーネスの契約の push の節に、断られることと、断られたら取り込んでから push し直すことを書く。
@@ -43,7 +44,8 @@ platform の ADR 0020）。push したコミットを書き換えるときは `-
 ## Consequences
 
 - 取ってきていない、または取り込んでいないほかの書き手のコミットを、作業領域から上書きして消すことはなくなる。
-- detached HEAD やコミットの値から push するときは、fast-forward でなければ断られる。ブランチに切り替えてから
+- ブランチやタグの名前でないもの（detached HEAD、コミットの値、式）から push するときは、fast-forward でなければ
+  断られる。ブランチに切り替えてから
   push する。
 - 手元のブランチの reflog が消えている（`git reflog expire` など）と、取り込んだはずのものでも断られる。
 - ブランチを消す push と、新しい ref を作る push は見ない。タグはふつう reflog がないので、上書きは断られる。

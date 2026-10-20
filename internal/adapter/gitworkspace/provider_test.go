@@ -389,6 +389,31 @@ func TestProvider_Prepare_RefusesToOverwriteWhatWasNeverTaken(t *testing.T) {
 			args: []string{"--force", "origin", "HEAD:refs/heads/" + branch},
 		},
 		{
+			name: "rewriting through HEAD@{0} after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", "HEAD@{0}:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting by the branch's name what only this workspace pushed", wantPush: true,
+			prepare: amend,
+			args:    []string{"--force", "origin", branch},
+		},
+		{
+			name: "rewriting by the branch's name after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", branch},
+		},
+		{
 			name: "rewriting the other's commit after taking it", other: true, wantPush: true,
 			prepare: func(t *testing.T, ws string) {
 				git(t, ws, "pull", "--quiet", "--rebase", "origin", branch)

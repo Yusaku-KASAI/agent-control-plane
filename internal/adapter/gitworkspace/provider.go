@@ -82,9 +82,10 @@ done <"$f"
 `
 
 // prePushHook warns of a new remote branch outside the session's names, refuses to overwrite a
-// remote tip that the pushed ref never held, then runs the target's checks, make check, before a
-// push. The warning does not refuse the push, since a requester may ask for another name. The
-// refusal is git's --force-if-includes, applied whatever flags the push has. The checks run on the
+// remote tip that no reflog entry of the pushed ref reaches, then runs the target's checks, make
+// check, before a push. The warning does not refuse the push, since a requester may ask for another
+// name. The refusal follows git's --force-if-includes, but on the remote's actual tip rather than
+// the remote-tracking ref, whatever flags the push has. The checks run on the
 // work tree, so they stand for the pushed commit only when that commit is HEAD and the work tree
 // has nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
 func prePushHook(id domain.SessionID) string {
@@ -107,11 +108,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	case $local_sha in *[!0]*) ;; *) continue ;; esac
 	case $remote_sha in *[!0]*) ;; *) continue ;; esac
 	git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null && continue
-	# HEAD's own reflog also holds what was only checked out to look at; a detached HEAD has no
-	# branch to read, so only a fast-forward passes from it.
+	# HEAD's own reflog also holds what was only checked out to look at, and a remote-tracking one
+	# what was only fetched. Only a branch or tag named as such has a reflog to read; from anything
+	# else (a detached HEAD, a hash, an expression such as HEAD@{1}) only a fast-forward passes.
 	if [ "$local_ref" = HEAD ]; then
 		local_ref=$(git symbolic-ref -q HEAD) || local_ref=
 	fi
+	case $local_ref in refs/heads/* | refs/tags/*) ;; *) local_ref= ;; esac
 	included=
 	[ -n "$local_ref" ] && for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
 		if git merge-base --is-ancestor "$remote_sha" "$c" 2>/dev/null; then
