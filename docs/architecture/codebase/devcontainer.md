@@ -63,7 +63,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   例の設定、`compose.yaml`（Docker のプロキシの許可）、プラグインの宣言（`.claude`）、`platform`、Go のコードをコピー
   する。テストがそれらも読むため。
 - **関係**：キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
-  キャッシュを使わずにビルドする。
+  キャッシュを使わずにビルドする。テストは作業領域の git のフック（Go の文字列として持つシェル）を shellcheck に
+  かけるので、base が入れる shellcheck を使う。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
   先に置き、コードを変えても依存の取得はやり直さない。
 

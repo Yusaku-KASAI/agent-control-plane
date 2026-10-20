@@ -81,11 +81,12 @@ while IFS= read -r who; do
 done <"$f"
 `
 
-// prePushHook warns of a new remote branch outside the session's names, then runs the target's
-// checks, make check, before a push. The warning does not refuse the push, since a requester may
-// ask for another name. The checks run on the work tree, so they stand for the pushed commit only
-// when that commit is HEAD and the work tree has nothing beside it. Like commitMsgHook, it lives
-// only in the workspace's .git.
+// prePushHook warns of a new remote branch outside the session's names, stops a push that would
+// overwrite a remote tip no reflog entry of the pushed ref reaches unless ACP_PUSH_OVERWRITE=1 says
+// the overwrite is meant, then runs the target's checks, make check. Neither the warning nor the
+// stop forbids anything: a requester may ask for another name or for the overwrite. The checks run
+// on the work tree, so they stand for the pushed commit only when that commit is HEAD and the work
+// tree has nothing beside it. Like commitMsgHook, it lives only in the workspace's .git.
 func prePushHook(id domain.SessionID) string {
 	return "#!/bin/sh\nsession_branch='" + id.Branch() + "'\n" + prePushBody
 }
@@ -99,6 +100,24 @@ while read -r _ local_sha remote_ref remote_sha; do
 	name=${remote_ref#refs/heads/}
 	case $name in "$session_branch" | "$session_branch"-*) continue ;; esac
 	say "注意：新しいブランチ $name は、セッションが作ったブランチの名前（$session_branch か $session_branch-<内容>）ではない。既存の PR を続けるならその PR のブランチで、別の PR に分けるなら $session_branch-<内容> で作業する（ハーネスの契約の「作業領域とブランチ」）。名前のためには push を止めない。合っていないのにこの push が通ったなら、正しいブランチで push し直し、このブランチは git push $1 --delete $name で消す（片付けはセッションが作ったブランチしか消さない）。"
+done <<REFS
+$refs
+REFS
+[ "${ACP_PUSH_OVERWRITE:-}" = 1 ] || while read -r local_ref local_sha remote_ref remote_sha; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	case $remote_sha in *[!0]*) ;; *) continue ;; esac
+	git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null && continue
+	# HEAD's own reflog also holds what was only checked out to look at; only a branch or tag named
+	# as such has a reflog to read.
+	if [ "$local_ref" = HEAD ]; then
+		local_ref=$(git symbolic-ref -q HEAD)
+	fi
+	case $local_ref in refs/heads/* | refs/tags/*) ;; *) local_ref= ;; esac
+	[ -n "$local_ref" ] && for c in $(git reflog show --format=%H "$local_ref" -- 2>/dev/null); do
+		git merge-base --is-ancestor "$remote_sha" "$c" 2>/dev/null && continue 2
+	done
+	say "注意：この push は $remote_ref のリモートの先頭 $remote_sha を、手元に取り込まないまま上書きする（ほかの書き手のコミットが消える）。上書きしてよければ ACP_PUSH_OVERWRITE=1 を付けて push し直す。そうでなければ、取り込んでから push し直す（ハーネスの契約の「push」）。"
+	exit 1
 done <<REFS
 $refs
 REFS
