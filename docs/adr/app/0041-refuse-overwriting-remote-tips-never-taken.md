@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-20
-amends: [32]
+amends: [32, "../../../platform/docs/adr/0020-continue-a-pr-on-its-head-branch.md"]
 ---
 
 # 0041. 作業領域の pre-push フックで、取り込んだことのないリモートの先頭を上書きする push を断る
@@ -13,7 +13,8 @@ platform の ADR 0020）。push したコミットを書き換えるときは `-
 決まりは、conventions の変更の扱い方に読んで守るものとして置く（#194）。`--force` だけで push すれば、取り込んで
 いないほかの書き手のコミットを上書きして消せる（#49）。
 
-一方で、force push そのものは、依頼者が頼んだ書き換えなどに要るので止めない（Issue #61）。
+一方で、ほかのセッションのブランチを扱うことと force push は、続ける作業に要ることがあるので止めないと決めている
+（platform の ADR 0020、Issue #61）。この ADR は、そのうち取り込んでいない先頭を上書きする force push だけを断る。
 
 ## Decision
 

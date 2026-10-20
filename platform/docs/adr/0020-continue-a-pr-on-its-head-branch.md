@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-19
 amends: ["../../../docs/adr/app/0012-agent-git-workflow.md"]
+amended_by: ["../../../docs/adr/app/0041-refuse-overwriting-remote-tips-never-taken.md"]
 ---
 
 # 0020. 既存の PR を続けるときは、新しいブランチを切らずその PR の head ブランチで作業する
