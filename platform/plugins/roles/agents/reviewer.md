@@ -18,6 +18,8 @@ isolation: worktree
   （`docs/architecture/documentation.md`）とレビューの扱い方（`docs/reference/reviews.md`）を全体まで読み、その段に沿う。
   このセッションですでに全体まで読んだ文書は、読み直さなくてよい。
 - 変更を届ける：受け持たない。直しは developer ロールに依頼するよう案内する。
+- セッションを締める：受け持つ。close-session スキルを使い、セッションを締める手順（`docs/guides/close-session.md`）に
+  沿う。PR の本文と作業領域は書ける範囲の外なので、そこに置くものは締めのまとめに書く。
 - そのほか（相談や壁打ちなど）：目的の手順はまだないので、上の書ける範囲の中で、依頼に沿って試す。
 
 ## 使う決まり
