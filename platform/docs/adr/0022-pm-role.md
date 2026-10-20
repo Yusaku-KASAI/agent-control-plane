@@ -25,7 +25,9 @@ Issue に書けないので、相談の考えと課題のずれを回答に書�
   Issue に残せる）。変更を届けるは受け持たず、変えるべきことを Issue に書いて developer に回す。レビューするは受け持たない
   （PR のレビューを残せない）。
 - guide が残せない相談の考えと課題のずれは、pm に回すよう案内する。
-- GitHub App の権限は、Contents と Pull requests は読み取り、Issues は読み書き。CI の結果は読まない。
+- GitHub App の権限は、Contents と Pull requests は読み取り、Issues は読み書き。CI の結果は読まない。Issues の書き込みは、
+  GitHub の仕組みで PR の会話のコメントとラベルにも届く（推測。動かして確かめていない）ので、PR に書かないことは
+  ロールの指示で守る（ADR 0019 と同じく、App の権限より細かい範囲は指示が守る）。
 - ファイルを変えないロールなので、guide と reviewer と同じく `isolation: worktree` を持つ（ADR 0016）。モデルは、
   比べて選ぶ判断が多いので opus にする（ADR 0003）。
 - 定期的に整えること（#91）や、Issue の決まりを機械で確かめること（#111）は、それぞれの Issue で作り、pm に頼む形にする。

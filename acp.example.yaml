@@ -126,7 +126,8 @@ agents:
       path: /home/you/projects/agent-control-plane
       image: agent-control-plane-devcontainer
     # Permissions for a pm: Contents and Pull requests read-only; Issues read and write (to tidy issues
-    # and keep ideas in them).
+    # and keep ideas in them). Issues write also reaches pull request comments and labels; the role's
+    # instructions keep the pm off pull requests.
     github:
       app_id: 456789
       installation_id: 45678901

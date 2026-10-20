@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -260,5 +262,24 @@ func TestLoad_Example(t *testing.T) {
 	}
 	if len(cfg.SlackApps) != 4 || len(cfg.GitHubApps) != 4 {
 		t.Errorf("example has %d Slack apps and %d GitHub apps, want 4 each", len(cfg.SlackApps), len(cfg.GitHubApps))
+	}
+}
+
+// The example's roles must be ones the platform defines, or an agent made from it would not start.
+func TestExample_RolesAreDefined(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	example, err := os.ReadFile(filepath.Join(root, "acp.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles := regexp.MustCompile(`(?m)^\s+role:\s*(\S+)`).FindAllSubmatch(example, -1)
+	if len(roles) == 0 {
+		t.Fatal("no role found in acp.example.yaml")
+	}
+	for _, m := range roles {
+		role := string(m[1])
+		if _, err := os.Stat(filepath.Join(root, "platform", "plugins", "roles", "agents", role+".md")); err != nil {
+			t.Errorf("role %q in acp.example.yaml is not defined in platform/plugins/roles/agents: %v", role, err)
+		}
 	}
 }
