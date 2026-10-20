@@ -73,8 +73,8 @@
   - 作業ツリーの変更（ignore されていない追跡していないファイルを含む）、stash、途中で止まった rebase や merge などの
     操作、どのブランチにもないコミットを持つ detached HEAD。
   - push していないコミット。
-  - push したコミットのうち、既定のブランチにも PR の head コミットにも入っていないもの（セッションの名前でない
-    ブランチでは、そのリモートのブランチにも入っていないもの）。
+  - push したブランチごとに、最後に push したコミットが、既定のブランチにも PR の head コミットにも入っていないとき
+    （セッションの名前でないブランチでは、そのリモートのブランチにも入っていないとき）。
 
 <a id="work-area"></a>
 
@@ -97,8 +97,9 @@
   先頭に合わせる。リモートが rebase と force push で書き換えられていても、書き換え前に push したコミットは除かれ、
   まだ push していない自分のコミットだけが載る。
 - このセッションが push したブランチは、`origin` の remote-tracking ブランチのうち、reflog
-  （`git reflog show origin/<ブランチ>`）に `update by push` があるもの。作業領域では、remote-tracking ブランチの reflog は
-  期限で消えない設定にしてある。リモートのブランチを消すか `git fetch --prune` で remote-tracking ブランチが消えると、
+  （`git reflog show origin/<ブランチ>`）に `update by push` があるもの。最後に push したコミットは、その reflog の
+  新しい方から最初の `update by push` の項目のコミット。作業領域では、remote-tracking ブランチの reflog は期限で
+  消えない設定にしてある。リモートのブランチを消すか `git fetch --prune` で remote-tracking ブランチが消えると、
   その reflog も消える。
   片付けは、これと `$ACP_SESSION_BRANCH`、`$ACP_SESSION_BRANCH-<内容>` の名前のブランチを、このセッションのものと
   して見る（[コンテナの寿命](#lifetime)）。
