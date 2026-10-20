@@ -327,6 +327,192 @@ func TestProvider_Prepare_WarnsOfNewBranchNames(t *testing.T) {
 	}
 }
 
+func TestProvider_Prepare_StopsOverwritingWhatWasNeverTaken(t *testing.T) {
+	const branch = "acp/0f8fad5b"
+	amend := func(t *testing.T, ws string) {
+		git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "--amend", "-m", "rewritten")
+	}
+	tests := []struct {
+		name string
+		// other pushes to the branch from another clone before the workspace pushes, when set.
+		other bool
+		// prepare runs in the workspace after that, before the push.
+		prepare func(t *testing.T, ws string)
+		// args are those of git push; <head> stands for the hash of the workspace's HEAD.
+		args []string
+		// overwrite sets ACP_PUSH_OVERWRITE=1, which lets a meant overwrite through.
+		overwrite bool
+		wantPush  bool
+	}{
+		{
+			name: "a fast-forward after taking the other's commit", other: true, wantPush: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "pull", "--quiet", "--rebase", "origin", branch)
+				commit(t, ws, "more.txt", "more")
+			},
+			args: []string{"origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "a push without --force over a commit never fetched", other: true,
+			prepare: func(t *testing.T, ws string) {
+				commit(t, ws, "more.txt", "more")
+			},
+			args: []string{"origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting what only this workspace pushed", wantPush: true,
+			prepare: amend,
+			args:    []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting over a commit never fetched", other: true,
+			prepare: amend,
+			args:    []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting over a commit never fetched, meaning to", other: true, overwrite: true, wantPush: true,
+			prepare: amend,
+			args:    []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting over a commit fetched but not taken", other: true,
+			prepare: func(t *testing.T, ws string) {
+				amend(t, ws)
+				git(t, ws, "fetch", "--quiet", "origin")
+			},
+			args: []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting from a detached HEAD after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", "--detach", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting through HEAD@{0} after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", "HEAD@{0}:refs/heads/" + branch},
+		},
+		{
+			name: "rewriting by the branch's name what only this workspace pushed", wantPush: true,
+			prepare: amend,
+			args:    []string{"--force", "origin", branch},
+		},
+		{
+			name: "rewriting by the branch's name after only looking at the other's commit", other: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "fetch", "--quiet", "origin")
+				git(t, ws, "switch", "--quiet", "--detach", "origin/"+branch)
+				git(t, ws, "switch", "--quiet", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", branch},
+		},
+		{
+			name: "rewriting the other's commit after taking it", other: true, wantPush: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "pull", "--quiet", "--rebase", "origin", branch)
+				amend(t, ws)
+			},
+			args: []string{"--force", "origin", "HEAD:refs/heads/" + branch},
+		},
+		{
+			name: "a fast-forward of a commit named by its hash, which has no reflog", wantPush: true,
+			prepare: func(t *testing.T, ws string) {
+				commit(t, ws, "more.txt", "more")
+			},
+			args: []string{"origin", "<head>:refs/heads/" + branch},
+		},
+		{
+			name: "moving a tag back to a commit that does not follow it",
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "tag", "v1")
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "refs/tags/v1")
+				amend(t, ws)
+				git(t, ws, "tag", "--force", "v1")
+			},
+			args: []string{"--force", "origin", "refs/tags/v1"},
+		},
+		{
+			name: "moving a tag forward", wantPush: true,
+			prepare: func(t *testing.T, ws string) {
+				git(t, ws, "tag", "v1")
+				git(t, ws, "push", "--quiet", "--no-verify", "origin", "refs/tags/v1")
+				commit(t, ws, "more.txt", "more")
+				git(t, ws, "tag", "--force", "v1")
+			},
+			args: []string{"--force", "origin", "refs/tags/v1"},
+		},
+		{
+			name: "deleting the branch", other: true, wantPush: true,
+			args: []string{"origin", ":refs/heads/" + branch},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+			ws, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+			if err != nil {
+				t.Fatalf("Prepare() error = %v", err)
+			}
+			commit(t, ws.Path, "change.txt", "agent work")
+			git(t, ws.Path, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
+			if tt.other {
+				other := filepath.Join(t.TempDir(), "other")
+				git(t, "", "clone", "--quiet", "--branch", branch, f.remote, other)
+				commit(t, other, "other.txt", "the other's work")
+				git(t, other, "push", "--quiet", "origin", branch)
+			}
+			if tt.prepare != nil {
+				tt.prepare(t, ws.Path)
+			}
+
+			before := gitOutput(t, f.remote, "for-each-ref")
+			args := []string{"push", "--quiet"}
+			for _, a := range tt.args {
+				args = append(args, strings.ReplaceAll(a, "<head>", gitOutput(t, ws.Path, "rev-parse", "HEAD")))
+			}
+			cmd := exec.Command("git", args...)
+			cmd.Dir = ws.Path
+			cmd.Env = slices.DeleteFunc(os.Environ(), func(e string) bool { return strings.HasPrefix(e, "ACP_PUSH_OVERWRITE=") })
+			if tt.overwrite {
+				cmd.Env = append(cmd.Env, "ACP_PUSH_OVERWRITE=1")
+			}
+			out, err := cmd.CombinedOutput()
+			if pushed := err == nil; pushed != tt.wantPush {
+				t.Fatalf("push succeeded = %v, want %v: %s", pushed, tt.wantPush, out)
+			}
+			if !tt.wantPush && gitOutput(t, f.remote, "for-each-ref") != before {
+				t.Errorf("a refused push changed the remote")
+			}
+			// git refuses some of these pushes by itself, so a refusal counts only when the hook made it.
+			if !tt.wantPush && !strings.Contains(string(out), "acp pre-push:") {
+				t.Errorf("the push was refused, but not by the hook: %s", out)
+			}
+		})
+	}
+}
+
 func TestProvider_Prepare_NotARepository(t *testing.T) {
 	agent := domain.Agent{Name: "a", Role: "developer", Target: domain.Target{Path: t.TempDir(), Image: "img"}}
 	if _, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{}); err == nil {
