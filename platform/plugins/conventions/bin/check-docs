@@ -455,22 +455,31 @@ def read_map(paths, errors):
     return m
 
 
+def relies_on(path):
+    """(target, resolved) of the links by which a document relies on others in the repository: not those that only
+    show where something is, nor those to decision records, which give reasons. An index only shows where documents
+    are, and a decision record is not rewritten, so neither relies on anything."""
+    if is_index(path) or is_adr(os.path.dirname(path)):
+        return []
+    found = []
+    for target, _, title in links(read(path)):
+        if not target or title == NAVIGATION or is_external(target) or target.startswith("/"):
+            continue
+        resolved = resolve(path, target)
+        if resolved != path and not is_adr(resolved):
+            found.append((target, resolved))
+    return found
+
+
 def check_map(m, paths, errors):
     for path in paths:
         if m.item_of(path) is None:
             errors.append(f"{path}: not in any item of the maps")
     for path in paths:
         source = m.item_of(path)
-        # An index only shows where documents are, and a decision record is not rewritten.
-        if source is None or is_index(path) or is_adr(os.path.dirname(path)):
+        if source is None:
             continue
-        for target, _, title in links(read(path)):
-            if not target or title == NAVIGATION or is_external(target):
-                continue
-            resolved = resolve(path, target)
-            # Decision records give reasons; linking to them does not rely on them.
-            if is_adr(resolved):
-                continue
+        for target, resolved in relies_on(path):
             dest = m.item_of(resolved)
             if dest is not None and not m.may_rely(source, dest):
                 errors.append(f"{path}: relies on {target}, but {source} may not rely on {dest} in the maps"
@@ -523,7 +532,8 @@ def print_map(m):
     print(f"\n● 前提にする（行 → 列）。子を持つ項目の直下の文書は、子と並ぶ「{WHOLE}」として、どの子からも前提にされ、どの子も前提にしない。")
 
 
-# The kind of a document follows from where it is (documentation.md, the types and the delivery forms).
+# What a document is follows from where it is: an entry, an index, an overview, a type of document, or a form
+# of delivery (documentation.md).
 KINDS = [("adr", "判断"), ("architecture", "解説"), ("guides", "手順"), ("reference", "参照"), ("agents", "役割ごとの指示"),
          ("rules", "共通のルール"), ("skills", "スキル")]
 
@@ -534,7 +544,7 @@ def kind_of(path):
     if is_index(path):
         return "索引"
     if os.path.basename(path) == "overview.md":
-        return "全体"
+        return "overview"
     parts = path.split(os.sep)[:-1]
     for part, kind in KINDS:
         if part in parts:
@@ -552,47 +562,52 @@ def title_of(path):
 
 
 def last_changes(paths):
-    """The date of the last commit that changed each document; a document never committed has none."""
+    """(short hash, date) of the last commit that changed each document; a document never committed has none."""
     try:
-        out = subprocess.run(["git", "log", "--format=%x00%cs", "--name-only", "--", "*.md"],
+        # Unquoted paths, so that names outside ASCII match those of tracked_markdown.
+        out = subprocess.run(["git", "-c", "core.quotePath=false", "log", "--format=%x00%h %cs", "--name-only", "--", "*.md"],
                              capture_output=True, text=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         return {}
     wanted, dates = set(paths), {}
     for commit in out.split("\0")[1:]:
-        date, *names = commit.strip().splitlines()
+        head, *names = commit.strip().splitlines()
         for name in names:
             if name in wanted and name not in dates:
-                dates[name] = date
+                dates[name] = head.split(" ")
     return dates
 
 
-def prerequisites(path):
-    """The documents this one relies on: its links in the repository other than those that only show where."""
+def whereabouts(path):
+    """The places a document links to in the repository without relying on them (the rest of relies_on)."""
+    relied = {resolved for _, resolved in relies_on(path)}
     found = []
-    for target, _, title in links(read(path)):
-        if not target or title == NAVIGATION or is_external(target) or target.startswith("/"):
-            continue
-        resolved = resolve(path, target)
-        # Decision records give reasons; linking to them does not rely on them (as in check_map).
-        if resolved != path and not is_adr(resolved) and resolved not in found:
-            found.append(resolved)
+    for target, _, _ in links(read(path)):
+        if target and not is_external(target) and not target.startswith("/"):
+            resolved = resolve(path, target)
+            if resolved != path and resolved not in relied:
+                found.append(resolved)
     return found
+
+
+def unique(items):
+    return list(dict.fromkeys(items))
 
 
 def print_catalog(paths, m):
     # The catalog is read through pipes such as head; a reader that stops early is not an error.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     dates = last_changes(paths)
-    print("\t".join(["文書", "種類", "タイトル", "更新日", "状態", "項目", "前提"]))
+    print("\t".join(["文書", "区分", "タイトル", "版", "更新日", "状態", "項目", "前提", "在りか"]))
     for path in paths:
         text = read(path)
         meta = (parse_frontmatter(path, text, []) or {}) if is_adr(os.path.dirname(path)) else {}
         item = m.item_of(path) if m is not None else None
-        # Index links and decision records only show where things are or give reasons.
-        relied = [] if is_index(path) or is_adr(os.path.dirname(path)) else prerequisites(path)
-        print("\t".join([path, kind_of(path), title_of(path), dates.get(path, "-"), meta.get("status", "-"),
-                         item or "-", ",".join(relied) or "-"]))
+        version, date = dates.get(path, ["-", "-"])
+        relied = unique(resolved for _, resolved in relies_on(path))
+        shown = unique(whereabouts(path))
+        print("\t".join([path, kind_of(path), title_of(path), version, date, meta.get("status", "-"), item or "-",
+                         ",".join(relied) or "-", ",".join(shown) or "-"]))
 
 
 def main():
