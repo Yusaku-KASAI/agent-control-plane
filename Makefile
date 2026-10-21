@@ -8,7 +8,7 @@ check-go:
 	# to only one of them would pass unnoticed.
 	a=$$(sed -n 's/^ARG GO_VERSION=//p' Dockerfile); b=$$(sed -n 's/^ARG GO_VERSION=//p' .devcontainer/Dockerfile); \
 		test -n "$$a" && test "$$a" = "$$b" \
-		|| { echo "GO_VERSION differs: Dockerfile=$$a, .devcontainer/Dockerfile=$$b"; exit 1; }
+		|| { echo "GO_VERSION missing or differs: Dockerfile=$$a, .devcontainer/Dockerfile=$$b"; exit 1; }
 	golangci-lint run ./...
 	go mod tidy -diff
 	govulncheck ./...
