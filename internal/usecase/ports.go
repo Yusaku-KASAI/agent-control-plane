@@ -36,7 +36,7 @@ type WorkspaceState struct {
 	// Changes is set for uncommitted changes or untracked files.
 	Changes bool
 	Stash   bool
-	// Operation names an operation stopped halfway, such as "rebase" or "merge".
+	// Operation names an operation stopped halfway, one of Operations.
 	Operation string
 	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
 	Pushed []BranchTip
@@ -44,6 +44,9 @@ type WorkspaceState struct {
 	// whose HEAD is detached on commits no branch has.
 	Local []LocalBranch
 }
+
+// Operations are the operations a workspace may have stopped halfway.
+var Operations = []string{"rebase", "merge", "cherry-pick", "revert", "bisect"}
 
 type BranchTip struct {
 	Name string

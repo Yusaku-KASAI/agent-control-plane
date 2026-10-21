@@ -168,15 +168,12 @@ func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspa
 	return w, nil
 }
 
-var (
-	commitPattern  = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
-	operationsRead = []string{"", "rebase", "merge", "cherry-pick", "revert", "bisect"}
-)
+var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // checkState refuses what git would not have written. The agent can make the reading say
 // anything, and the names and commits go into GitHub API paths and thread messages.
 func checkState(w usecase.WorkspaceState) error {
-	if !slices.Contains(operationsRead, w.Operation) {
+	if w.Operation != "" && !slices.Contains(usecase.Operations, w.Operation) {
 		return fmt.Errorf("unknown operation %q", w.Operation)
 	}
 	tips := make([]usecase.BranchTip, 0, len(w.Pushed)+len(w.Local))
