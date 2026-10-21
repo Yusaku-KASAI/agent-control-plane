@@ -122,9 +122,11 @@ COPY --chown=node:node Makefile ./
 FROM check-base AS check-go
 COPY --chown=node:node go.mod go.sum ./
 RUN go mod download
-# Tests also read the example config, the compose file (the Docker proxy's allowlist), this
-# repository's plugin declarations and the harness contract.
-COPY --chown=node:node .golangci.yml acp.example.yaml compose.yaml ./
+# The Go version is compared with the one that builds acp. Tests also read the example config, the
+# compose file (the Docker proxy's allowlist), this repository's plugin declarations and the harness
+# contract.
+COPY --chown=node:node Dockerfile .golangci.yml acp.example.yaml compose.yaml ./
+COPY --chown=node:node .devcontainer/Dockerfile .devcontainer/
 COPY --chown=node:node .claude .claude
 COPY --chown=node:node platform platform
 COPY --chown=node:node cmd cmd

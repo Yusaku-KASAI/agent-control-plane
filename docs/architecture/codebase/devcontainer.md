@@ -57,12 +57,15 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 
 ### `check-go`（ルール、ステージ、CI のジョブ）
 
-- **責務**：Go のコードの lint、`go mod tidy` の差分、govulncheck、テストを行う。中身は Makefile のルールにあり、
-  同じ名前のステージと CI のジョブがそれを呼ぶ。
-- **置くもの / 置かないもの**：ステージは依存の取得（`go mod download`）を先に一つの層にし、そのあと lint の設定、
-  例の設定、`compose.yaml`（Docker のプロキシの許可）、プラグインの宣言（`.claude`）、`platform`、Go のコードをコピー
-  する。テストがそれらも読むため。
-- **関係**：キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
+- **責務**：二つの Dockerfile の Go の版（`ARG GO_VERSION`）がそろっていることを確かめ、Go のコードの lint、
+  `go mod tidy` の差分、govulncheck、テストを行う。中身は Makefile のルールにあり、同じ名前のステージと CI のジョブが
+  それを呼ぶ。
+- **置くもの / 置かないもの**：ステージは依存の取得（`go mod download`）を先に一つの層にし、そのあと二つの Dockerfile、
+  lint の設定、例の設定、`compose.yaml`（Docker のプロキシの許可）、プラグインの宣言（`.claude`）、`platform`、Go の
+  コードをコピーする。版の比較とテストがそれらも読むため。
+- **関係**：govulncheck が調べるのは、このステージの Go（`.devcontainer/Dockerfile` の版）の標準ライブラリで、
+  control-plane のイメージはルートの `Dockerfile` の版でビルドする。片方だけを上げても気づけるよう、版の比較を
+  ここに置く。キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
   キャッシュを使わずにビルドする。テストは作業領域の git のフック（Go の文字列として持つシェル）を shellcheck に
   かけるので、base が入れる shellcheck を使う。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
