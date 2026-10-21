@@ -65,7 +65,8 @@ GitHub のブランチと PR
 
 ### git の実行（`internal/adapter/gitworkspace/provider.go` の `gitRunner`）
 
-- **責務**：control-plane が作業領域に対して行う git の操作を、動かす人の環境によらず同じにする。
+- **責務**：control-plane が作業領域を作るときと、作業領域を読むコンテナ（`acp workspace-state`）が作業領域の状態を
+  読むときの git の操作を、動かす人の環境によらず同じにする。
 - **置くもの / 置かないもの**：ホストのユーザーとシステムの git 設定を読まず、端末で聞かない。認証には
   control-plane が発行したトークンだけを使う（認証ヘルパーで渡す）。github.com の SSH の URL は HTTPS に読み替える。
   所有者の違う作業領域も扱えるよう `safe.directory` を `*` にする。状態を読むときに index を書き換えない

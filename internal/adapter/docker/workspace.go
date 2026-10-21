@@ -37,7 +37,10 @@ const (
 	// The agent's commands may write to the output too; what is read of it is bounded.
 	stateStdoutLimit = 4 << 20
 	stateStderrLimit = 16 << 10
+	stateMemory      = 512 << 20
 )
+
+var statePids int64 = 256
 
 // capped keeps up to limit bytes and drops the rest, telling whether it did.
 type capped struct {
@@ -212,11 +215,8 @@ func branchName(name string) bool {
 
 func stateSpec(agent domain.Agent, workspace string, tools ToolsOptions) client.ContainerCreateOptions {
 	// The same place as in the agent's container, so the paths git recorded there resolve.
-	workdir := path.Join(workspaceDir, filepath.Base(agent.Target.Path))
-	labels := map[string]string{stateLabel: ""}
-	for _, l := range composeIdentityLabels {
-		labels[l] = ""
-	}
+	workdir := agentWorkdir(agent)
+	labels := withoutCompose(map[string]string{stateLabel: ""})
 	return client.ContainerCreateOptions{
 		Config: &container.Config{
 			Image:        agent.Target.Image,
@@ -228,11 +228,13 @@ func stateSpec(agent domain.Agent, workspace string, tools ToolsOptions) client.
 			AttachStderr: true,
 		},
 		HostConfig: &container.HostConfig{
-			NetworkMode:    "none",
+			NetworkMode: "none",
+			// Commands the agent wrote into the config run here, unattended; they get little.
+			Resources:      container.Resources{PidsLimit: &statePids, Memory: stateMemory},
 			CapDrop:        []string{"ALL"},
 			SecurityOpt:    []string{"no-new-privileges"},
 			ReadonlyRootfs: true,
-			Tmpfs:          map[string]string{"/tmp": ""},
+			Tmpfs:          map[string]string{"/tmp": "size=16m"},
 			Mounts: []mount.Mount{
 				{Type: mount.TypeBind, Source: workspace, Target: workdir, ReadOnly: true},
 				toolsMount(tools),

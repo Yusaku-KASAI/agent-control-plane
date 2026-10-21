@@ -119,6 +119,9 @@ func TestWorkspaceReader_State(t *testing.T) {
 	}
 
 	cfg, host := api.created.Config, api.created.HostConfig
+	if agentCfg := containerSpec(usecase.StartRequest{Agent: readerAgent, Session: domain.Session{ID: "0f8fad5b-d9cb-469f-a165-70867728950e"}}, nil, Options{}).Config; cfg.WorkingDir != agentCfg.WorkingDir {
+		t.Errorf("working directory = %q, want the agent's %q", cfg.WorkingDir, agentCfg.WorkingDir)
+	}
 	if cfg.Image != "repo-dev:latest" || !slices.Equal(cfg.Entrypoint, []string{"/run/acp/bin/acp"}) ||
 		!slices.Equal(cfg.Cmd, []string{"workspace-state"}) || cfg.WorkingDir != "/workspace/repo" || len(cfg.Env) != 0 {
 		t.Errorf("config = %+v, want the agent's image running the tool in the agent's working directory, without env", cfg)
@@ -127,8 +130,9 @@ func TestWorkspaceReader_State(t *testing.T) {
 		t.Errorf("labels = %v, want %s", cfg.Labels, stateLabel)
 	}
 	if host.NetworkMode != "none" || !slices.Equal(host.CapDrop, []string{"ALL"}) || !host.ReadonlyRootfs ||
-		!slices.Contains(host.SecurityOpt, "no-new-privileges") {
-		t.Errorf("host config = %+v, want no network, no capabilities, a read-only root", host)
+		!slices.Contains(host.SecurityOpt, "no-new-privileges") || host.Memory == 0 || host.PidsLimit == nil ||
+		*host.PidsLimit <= 0 || host.Tmpfs["/tmp"] == "" {
+		t.Errorf("host config = %+v, want no network, no capabilities, a read-only root, bounded resources", host)
 	}
 	wantMounts := []mount.Mount{
 		{Type: mount.TypeBind, Source: ws, Target: "/workspace/repo", ReadOnly: true},

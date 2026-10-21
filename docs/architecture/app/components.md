@@ -71,9 +71,11 @@ usecase.SessionCleaner（起動時と定期的に）
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   部品を組み立てる場所で、ここだけが全部を知る。ユースケースはアダプターを知らない（層は[コードの構成](../codebase/layers.md "在りか")）。
 
-### `cmd/acp`（`main.go`、`run.go`）
+### `cmd/acp`（`main.go`、`run.go`、`workspace_state.go`）
 
-- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。
+- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。`acp workspace-state` は、
+  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](workspace.md#state "在りか")。control-plane が
+  作業領域を読むコンテナの中で動かす）。
 - **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md "在りか")にある。
 
 ### `internal/usecase/ports.go`
