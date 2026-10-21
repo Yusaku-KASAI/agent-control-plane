@@ -27,6 +27,7 @@
 | どの変更も | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 状態によって振る舞いが変わる | [状態を軸で洗い出す](../../../principles/docs/reference/patterns.md#state-axes)、[事実と判定を分ける](../../../principles/docs/reference/patterns.md#facts-and-judgement) |
 | 消す、上書きする、作り直す | [失われうるものを先に挙げる](../../../principles/docs/reference/patterns.md#loss-first) |
+| 目的の手順を足す、ロールの受け持ちを変える | 並べる所（共通のルールの振り分け、ロールの「受け持つ手順」、起点と届け方の説明）は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")にある。検査にはしていないので、変える人とレビューする人がそこから直す所を挙げる |
 | 検査や試験を足す、変える | [壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing)（何を検査にし、どこに置くかは[検査にするものと置き場所](../architecture/documentation.md#checks "在りか")） |
 | テストダブル（試験で本物の代わりに使うもの）を足す、変える | [契約の試験](../../../principles/docs/reference/patterns.md#contract-test) |
 | 人が実行する移行や運用の手順を含む | [手順を実装と突き合わせる](../../../principles/docs/reference/patterns.md#verify-procedures) |

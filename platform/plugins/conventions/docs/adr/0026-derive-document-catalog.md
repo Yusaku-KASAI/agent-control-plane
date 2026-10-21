@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-21
+amended_by: [28]
 ---
 
 # 0026. 文書のメタデータは手で書かず、一次の情報から check-docs で導いて一覧にする
