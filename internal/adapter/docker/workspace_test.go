@@ -206,3 +206,15 @@ func TestInstallTool(t *testing.T) {
 		t.Errorf("left %d files, want only the tool", len(entries))
 	}
 }
+
+// The agent's commands may write to the output; too much of it is an error, not a large read.
+func TestWorkspaceReader_State_TooMuchOutput(t *testing.T) {
+	ok := int64(0)
+	api := &readerAPI{stdout: strings.Repeat("x", stateStdoutLimit+1), stderr: strings.Repeat("e", stateStderrLimit*2), status: &ok}
+
+	_, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t))
+
+	if err == nil || !strings.Contains(err.Error(), "more than") {
+		t.Errorf("State() error = %v, want the output refused", err)
+	}
+}

@@ -143,9 +143,11 @@ GitHub のブランチと PR
   | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
   | detached HEAD | 主の worktree と、作業領域の中のほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
-  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。git が記録するパスは
-  エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む
-  （[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
+  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。記録されたパスは
+  エージェントが書けるので、そのまま信じず、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは
+  使わない）、`--git-dir` と `--work-tree` で読む（[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
+  読むコンテナではエージェントと同じ場所にマウントするので、記録そのものが最も長い末尾として当たる
+  （[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 
 - **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
   それを、作業領域を読むコンテナ（[エージェントのコンテナ](containers.md#workspace-reader "在りか")）の中で動かし、

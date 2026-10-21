@@ -32,7 +32,26 @@ const (
 	// stateTimeout bounds one reading. The workspace is the agent's to write, so git may be made to
 	// hang on it, by a named pipe for instance.
 	stateTimeout = 2 * time.Minute
+	// The agent's commands may write to the output too; what is read of it is bounded.
+	stateStdoutLimit = 4 << 20
+	stateStderrLimit = 16 << 10
 )
+
+// capped keeps up to limit bytes and drops the rest, telling whether it did.
+type capped struct {
+	buf     bytes.Buffer
+	limit   int
+	dropped bool
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.limit - c.buf.Len(); len(p) > room {
+		c.buf.Write(p[:max(room, 0)])
+		c.dropped = true
+		return len(p), nil
+	}
+	return c.buf.Write(p)
+}
 
 // ToolsOptions is where the control plane puts its own binary for containers to run.
 type ToolsOptions struct {
@@ -105,10 +124,10 @@ func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspa
 		return w, fmt.Errorf("attach container: %w", err)
 	}
 	defer attach.Close()
-	var stdout, stderr bytes.Buffer
+	stdout, stderr := &capped{limit: stateStdoutLimit}, &capped{limit: stateStderrLimit}
 	copied := make(chan error, 1)
 	go func() {
-		_, err := stdcopy.StdCopy(&stdout, &stderr, attach.Reader)
+		_, err := stdcopy.StdCopy(stdout, stderr, attach.Reader)
 		copied <- err
 	}()
 	if _, err := r.api.ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
@@ -133,9 +152,12 @@ func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspa
 		return w, fmt.Errorf("read output: %w", ctx.Err())
 	}
 	if status != 0 {
-		return w, fmt.Errorf("workspace-state exited with %d: %s", status, strings.TrimSpace(stderr.String()))
+		return w, fmt.Errorf("workspace-state exited with %d: %s", status, strings.TrimSpace(stderr.buf.String()))
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &w); err != nil {
+	if stdout.dropped {
+		return w, fmt.Errorf("workspace-state wrote more than %d bytes", stateStdoutLimit)
+	}
+	if err := json.Unmarshal(stdout.buf.Bytes(), &w); err != nil {
 		return w, fmt.Errorf("decode workspace state: %w", err)
 	}
 	return w, nil
