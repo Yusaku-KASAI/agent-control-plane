@@ -16,14 +16,14 @@ conventions/
                    Markdown を変えたターンの終わりに、文書の検査を回す
   skills/          届け方：docs/guides/ の共通の手順（と、ロールの外から入る目的の手順）を、必要なときに要約か案内で
                    読ませる（write-docs、design、review、close-session、consult、organize-issues）
-  bin/check-docs   文書の検査：形式のうち検査にしたもの（構造の決まり）を確かめるコマンド。地図と文書の一覧も出す
+  bin/check-docs   文書の検査：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
   actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
   tests/           ターンの終わりの hook と、文書の一覧の試験
 ```
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
-- 文書の決まりのうち検査にしたもの（構造の決まり。形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。検査の中身は、
+- 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。検査の中身は、
   ターゲットの契約や共通のファイルに置かない（ターゲットの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 
 ## 構成要素
@@ -139,7 +139,7 @@ conventions/
 
 ### 文書の検査（`bin/check-docs`）
 
-- **責務**：形式と器の決まりのうち、検査にしたもの（構造の決まり。[検査にするものと置き場所](architecture/documentation.md#checks "在りか")）を、作業ディレクトリを含むリポジトリの Markdown について確かめる。
+- **責務**：形式と器の決まり（構造の決まり）のうち、検査にしたもの（[検査にするものと置き場所](architecture/documentation.md#checks "在りか")）を、作業ディレクトリを含むリポジトリの Markdown について確かめる。
   `--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの属性（区分、タイトル、版と更新日（作業ツリーで書き換えていれば版に `+`）、ADR の状態、
   地図の項目、前提にする文書と在りかを示すだけの文書）を、一次の情報（置き場所、見出し、git の履歴、ADR の
   frontmatter、地図、リンク）から導いて、タブ区切りの一覧に出す。前提をリンクでなくパスで書きうる文書（役割ごとの
