@@ -203,7 +203,7 @@
 
 #### 状態の軸
 
-判定の拠り所になる状態の軸。こう決めた理由と選ばなかった案は [ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md) にある。
+判定の拠り所になる状態の軸。こう決めた理由と選ばなかった案は [ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md) と、ほかの worktree を足した [ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md) にある。
 軸は、それぞれの対象の上で、値が互いに重ならず、すべての場合を尽くす。括弧内の条件は、その軸が定義される範囲。
 「ほかにないコミット」は、`origin` の remote-tracking ブランチにも `refs/acp/target` にもないコミット。head
 ブランチ、base ブランチ、head コミットは[用語集](../../../platform/docs/reference/glossary.md)のとおり（閉じた PR の
@@ -217,10 +217,10 @@ head コミットは、閉じたときの先頭）。
 | ロック | 取れる / 取れない（プロセスが動いている） |
 | 期限（記録がある） | 最後に使ってから `sessions.retention` 以内 / 超過 |
 | 作業領域（記録がある） | git のリポジトリ / そうでない（`.git` がない） |
-| 作業ツリーの変更（git のリポジトリ） | ない / ある（コミットしていない変更か、ignore されていない追跡していないファイル） |
+| 作業ツリーの変更（git のリポジトリ） | ない / ある（主の worktree か、作業領域の中のほかの worktree に、コミットしていない変更か、ignore されていない追跡していないファイル） |
 | stash（同） | ない / ある |
-| 途中の操作（同） | ない / ある（rebase、merge、cherry-pick、revert、bisect） |
-| HEAD（同） | ブランチを指す / detached で、ローカルのブランチにもないほかにないコミットを持つ / detached で、持たない |
+| 途中の操作（同） | ない / ある（主の worktree か、作業領域の中のほかの worktree で、rebase、merge、cherry-pick、revert、bisect） |
+| HEAD（同。worktree ごと） | ブランチを指す / detached で、ローカルのブランチにもないほかにないコミットを持つ / detached で、持たない |
 | GitHub（記録がある） | 読める / 読めない（GitHub App がない、ターゲットの `origin` が GitHub でない） |
 
 ブランチ（対象：ローカルのブランチ、push したブランチ、セッションの名前でリモートにあるブランチの和。名前で同じものとする）：
