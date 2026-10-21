@@ -13,7 +13,8 @@ CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../
 一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。レビューの結果と答えは決まった
 形の JSON で受け、表と機械で読む写しを作る（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。このプラグインは、
 それを `prctl` と hook で守らせる。あわせて、ターゲットの既定のブランチの守りが外れていないことを確かめる
-`check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)）。
+`check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)、
+[0017](../../../../template/docs/adr/0017-protection-check-follows-contract.md)）。
 
 ## 構成
 
@@ -130,11 +131,13 @@ github/
 
 ### `bin/check-protection`
 
-- **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、target-template の
-  [既定のブランチの守りの用意](../../../../template/docs/guides/github.md "在りか")の設定を満たすかを確かめる。満たさない項目を
+- **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、[ターゲットの契約](../../../../template/docs/reference/contract.md#protection)の
+  既定のブランチの守りを満たすかを確かめる。満たさない項目を
   `NG` の行で出し、終了コードは 0 が通過、1 が抜け、2 が GitHub を読めない。
 - **置くもの / 置かないもの**：
-  - 確かめる値は、その手順の設定の API の側の写しで、手順を変えたらここも直す。
+  - 確かめる値は、その契約を API の側から読んだもので、契約を変えたらここも直す。platform は target-template を
+    前提にしないので、target-template の用意の手順（`guides/github.md`）ではなく契約に合わせる（conventions の
+    [検査にするものと置き場所](../../conventions/docs/architecture/documentation.md#checks "在りか")）。
   - ルールは `rules/branches/<既定のブランチ>` から読む。リポジトリと organization のどのルールセットから来たものでも、
     効いているものだけを数える。効いているルールはどれも満たす必要があるので、求める値はどのルールから来てもよい。
   - 承認を人に限る仕組みは、コードオーナーの承認（CODEOWNERS が誤りなく、最初の規則が `*` で、持ち主のない規則が

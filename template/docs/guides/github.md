@@ -38,7 +38,7 @@
 
 ## 確かめる
 
-github プラグインの `check-protection` が、上の設定と CODEOWNERS を確かめる。ターゲットの CI の `check-protection`
+github プラグインの `check-protection` が、契約の守り（上の設定はそれを満たす）と CODEOWNERS を確かめる。ターゲットの CI の `check-protection`
 ジョブが毎回回すので（[CI](../architecture/ci.md "在りか")）、設定したあとは CI を回し直して通ることを見る。手元では
 リポジトリの中で回す（エージェントは `check-protection`、人は platform の `plugins/github/bin/check-protection`）。
 

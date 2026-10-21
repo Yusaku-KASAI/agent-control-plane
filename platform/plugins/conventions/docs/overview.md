@@ -154,7 +154,7 @@ conventions/
 - **置くもの / 置かないもの**：チェックアウトと `check-docs` の呼び出しだけ。何を確かめるかは置かない。
 - **関係**：ターゲットの `ci.yml` が `@main` で呼ぶ（target-template の [CI](../../../../template/docs/architecture/ci.md "在りか")）。
   devcontainer のイメージを使わず、ランナーの `python3` と `git` で動く。
-- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を platform の一か所に置き、ターゲットは
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を conventions の一か所に置き、ターゲットは
   呼ぶ一行だけを書く。
 
 <a id="map-conventions"></a>
