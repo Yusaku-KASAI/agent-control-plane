@@ -697,6 +697,159 @@ func TestProvider_State_WorkingTree(t *testing.T) {
 	check(usecase.WorkspaceState{Changes: true, Operation: "merge"})
 }
 
+// Worktrees of subagents sit inside the workspace, ignored by the main worktree, and git records
+// their paths as the agent's container saw them.
+func TestProvider_State_LinkedWorktrees(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	p := gitworkspace.NewProvider(t.TempDir())
+	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+	ws, err := p.Prepare(ctx, agent, sessionID, domain.Credentials{GitHubToken: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws.Path, ".git", "info", "exclude"), []byte("/.claude/worktrees/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(ws.Path, ".claude", "worktrees", "agent-1")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", dir)
+	state := func() usecase.WorkspaceState {
+		t.Helper()
+		got, err := p.State(ctx, ws.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	detached := func(w usecase.WorkspaceState) bool {
+		return slices.ContainsFunc(w.Local, func(b usecase.LocalBranch) bool { return b.Name == "HEAD" })
+	}
+	if got := state(); got.Changes || got.Operation != "" || detached(got) {
+		t.Fatalf("State() with a clean worktree = %+v; want nothing held", got)
+	}
+	// git worktree add writes the record and the .git file before HEAD: what it leaves when stopped
+	// in between is no worktree.
+	junk := filepath.Join(ws.Path, ".claude", "worktrees", "junk")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", junk)
+	if err := os.Remove(filepath.Join(ws.Path, ".git", "worktrees", "junk", "HEAD")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := p.State(ctx, ws.Path); err != nil || got.Changes {
+		t.Errorf("State() with a worktree without HEAD = %+v, %v; want nothing held and no error", got, err)
+	}
+	for _, d := range []string{junk, filepath.Join(ws.Path, ".git", "worktrees", "junk")} {
+		if err := os.RemoveAll(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A clean worktree read after the main one keeps the main one's changes.
+	if err := os.WriteFile(filepath.Join(ws.Path, "main.txt"), []byte("untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); !got.Changes {
+		t.Errorf("State() with an untracked file in the main worktree = %+v; want changes", got)
+	}
+	if err := os.Remove(filepath.Join(ws.Path, "main.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Recorded as the container saw them, so the paths here do not resolve.
+	container := "/workspace/" + filepath.Base(ws.Path)
+	admin := filepath.Join(ws.Path, ".git", "worktrees", "agent-1")
+	for file, body := range map[string]string{
+		filepath.Join(admin, "gitdir"): container + "/.claude/worktrees/agent-1/.git\n",
+		filepath.Join(dir, ".git"):     "gitdir: " + container + "/.git/worktrees/agent-1\n",
+	} {
+		if err := os.WriteFile(file, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "new.txt"), []byte("untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); !got.Changes {
+		t.Errorf("State() with an untracked file in the worktree = %+v; want changes", got)
+	}
+	if err := os.Remove(filepath.Join(dir, "new.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(admin, "MERGE_HEAD"), []byte(f.remoteMain+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := state(); got.Changes || got.Operation != "merge" {
+		t.Errorf("State() with a merge stopped in the worktree = %+v; want only the merge", got)
+	}
+	if err := os.Remove(filepath.Join(admin, "MERGE_HEAD")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A longer tail of the record holding another worktree's .git file is not this worktree.
+	if err := os.WriteFile(filepath.Join(ws.Path, ".git", "info", "exclude"), []byte("/.claude/worktrees/\n/workspace/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decoy := filepath.Join(ws.Path, filepath.FromSlash(container[1:]), ".claude", "worktrees", "agent-1")
+	if err := os.MkdirAll(decoy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(decoy, ".git"), []byte("gitdir: /elsewhere/.git/worktrees/agent-1-other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Read against the decoy, the worktree's index would show its files deleted.
+	if got := state(); got.Changes {
+		t.Errorf("State() with a decoy on a longer tail = %+v; want the clean worktree read", got)
+	}
+
+	// The agent writes the record: neither .. nor a symbolic link may lead out of the workspace.
+	outside := filepath.Join(t.TempDir(), "outside")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", outside)
+	if err := os.WriteFile(filepath.Join(outside, "new.txt"), []byte("untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outAdmin := filepath.Join(ws.Path, ".git", "worktrees", "outside")
+	rel, err := filepath.Rel(ws.Path, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(ws.Path, ".claude", "worktrees", "outside")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range []string{"/" + filepath.ToSlash(rel) + "/.git", container + "/.claude/worktrees/outside/.git"} {
+		if err := os.WriteFile(filepath.Join(outAdmin, "gitdir"), []byte(record+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := state(); got.Changes {
+			t.Errorf("State() with the record %q leading out of the workspace = %+v; want no changes", record, got)
+		}
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(outAdmin); err != nil {
+		t.Fatal(err)
+	}
+
+	// A commit on the detached HEAD of a worktree in the workspace is held.
+	git(t, ws.Path, "--git-dir="+admin, "--work-tree="+dir, "-c", "user.name=test", "-c", "user.email=test@example.com",
+		"commit", "--quiet", "--allow-empty", "-m", "subagent")
+	if got := state(); got.Changes || !detached(got) {
+		t.Errorf("State() with a commit on the detached HEAD of the worktree = %+v; want it as HEAD", got)
+	}
+	for _, d := range []string{dir, admin} {
+		if err := os.RemoveAll(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// One outside, as prctl makes to read a pull request, holds others' commits and is not looked at.
+	reader := filepath.Join(t.TempDir(), "prctl-repo-pr-1")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", reader)
+	git(t, reader, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "--allow-empty", "-m", "theirs")
+	if got := state(); got.Changes || detached(got) {
+		t.Errorf("State() with a detached worktree outside the workspace = %+v; want nothing held", got)
+	}
+}
+
 func TestProvider_State_PushedTipIsWhatWasPushed(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)

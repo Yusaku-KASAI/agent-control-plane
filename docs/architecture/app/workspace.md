@@ -136,12 +136,16 @@ GitHub のブランチと PR
 
   | 事実 | 読み方 |
   | --- | --- |
-  | 作業ツリーの変更 | `git status` に、コミットしていない変更か ignore されていない追跡していないファイルがある |
+  | 作業ツリーの変更 | 主の worktree か、作業領域の中のほかの worktree の `git status` に、コミットしていない変更か ignore されていない追跡していないファイルがある |
   | stash | `refs/stash` がある |
-  | 途中の操作 | rebase、merge、cherry-pick、revert、bisect のどれかが途中で止まっている |
+  | 途中の操作 | 主の worktree か、作業領域の中のほかの worktree で、rebase、merge、cherry-pick、revert、bisect のどれかが途中で止まっている |
   | push したブランチ | `origin` の remote-tracking ブランチのうち、reflog に `update by push` があるもの。最後に push したコミットは、その最新の項目のコミット |
   | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
-  | detached HEAD | ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
+  | detached HEAD | 主の worktree と、作業領域の中のほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
+
+  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。git が記録するパスは
+  エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む
+  （[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
 
 - **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner "在りか")。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、

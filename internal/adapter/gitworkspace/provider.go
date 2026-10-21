@@ -230,18 +230,33 @@ func keepWorkRecords(ctx context.Context, g gitRunner, repo string) error {
 	return nil
 }
 
-// State tells the working tree, the branches the session pushed, by the remote-tracking branches a
-// push updated, and the local branches with whether they hold commits found nowhere else.
+// State tells the working trees, the branches the session pushed, by the remote-tracking branches a
+// push updated, and the local branches with whether they hold commits found nowhere else. The
+// working trees include the linked worktrees inside the workspace, such as those of subagents.
 func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceState, error) {
 	var w usecase.WorkspaceState
 	if ok, err := exists(filepath.Join(path, ".git")); !ok || err != nil {
 		return w, err
 	}
 	g := gitRunner{}
+	linked, err := linkedWorktrees(path)
+	if err != nil {
+		return w, err
+	}
 	if err := readWorkingTree(ctx, g, path, &w); err != nil {
 		return w, err
 	}
-	var err error
+	for _, wt := range linked {
+		if wt.dir == "" {
+			continue
+		}
+		if err := readWorkingTree(ctx, g, path, &w, "--git-dir="+wt.gitDir, "--work-tree="+wt.dir); err != nil {
+			return w, err
+		}
+	}
+	if _, err := g.run(ctx, path, "rev-parse", "--verify", "--quiet", "refs/stash"); err == nil {
+		w.Stash = true
+	}
 	if w.Pushed, err = pushedBranches(ctx, g, path); err != nil {
 		return w, err
 	}
@@ -257,20 +272,117 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 		}
 		w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: name, Tip: tip}, Unpushed: unpushed})
 	}
-	if _, err := g.run(ctx, path, "symbolic-ref", "--quiet", "HEAD"); err != nil {
-		detached, err := hasUnpushed(ctx, g, path, "HEAD", "--branches")
+	// A worktree outside the workspace, such as one prctl makes to read a pull request, holds
+	// others' commits on its detached HEAD; its files are gone with the container anyway.
+	heads := [][]string{nil}
+	for _, wt := range linked {
+		if wt.dir != "" {
+			heads = append(heads, []string{"--git-dir=" + wt.gitDir})
+		}
+	}
+	for _, gitDir := range heads {
+		tip, err := detachedTip(ctx, g, path, gitDir...)
 		if err != nil {
 			return w, err
 		}
-		if detached {
-			tip, err := g.run(ctx, path, "rev-parse", "HEAD")
-			if err != nil {
-				return w, err
-			}
+		if tip != "" {
 			w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: "HEAD", Tip: tip}, Unpushed: true})
 		}
 	}
 	return w, nil
+}
+
+// detachedTip returns HEAD when it is detached on commits no branch has, or "" otherwise. gitDir
+// selects the HEAD of a linked worktree.
+func detachedTip(ctx context.Context, g gitRunner, path string, gitDir ...string) (string, error) {
+	run := func(args ...string) (string, error) {
+		return g.run(ctx, path, append(slices.Clone(gitDir), args...)...)
+	}
+	if _, err := run("symbolic-ref", "--quiet", "HEAD"); err == nil {
+		return "", nil
+	}
+	n, err := run(append(append([]string{"rev-list", "--count", "HEAD", "--not"}, kept...), "--branches")...)
+	if err != nil || n == "0" {
+		return "", err
+	}
+	return run("rev-parse", "HEAD")
+}
+
+// worktree is a linked worktree of the workspace: its administrative directory in the
+// repository's .git, and its files as seen here, or "" when they are not inside the workspace.
+type worktree struct {
+	gitDir string
+	dir    string
+}
+
+// linkedWorktrees lists the linked worktrees. Git records their paths as the agent's container
+// saw them, which differ from the paths here, so git worktree list cannot locate them.
+func linkedWorktrees(path string) ([]worktree, error) {
+	admin := filepath.Join(path, ".git", "worktrees")
+	entries, err := os.ReadDir(admin)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var wts []worktree
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		wt := worktree{gitDir: filepath.Join(admin, e.Name())}
+		// Without HEAD, git does not take the directory for a worktree, such as what a stopped
+		// git worktree add leaves.
+		if ok, err := exists(filepath.Join(wt.gitDir, "HEAD")); err != nil {
+			return nil, err
+		} else if !ok {
+			continue
+		}
+		recorded, err := os.ReadFile(filepath.Join(wt.gitDir, "gitdir"))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+		if err == nil {
+			wt.dir = locateWorktree(path, filepath.Dir(strings.TrimSpace(string(recorded))), e.Name())
+		}
+		wts = append(wts, wt)
+	}
+	return wts, nil
+}
+
+// locateWorktree finds where the files of the linked worktree name are, from the path git
+// recorded: the longest tail of it that, under path, holds a .git file pointing back to the
+// worktree's administrative directory. The agent can write the record, so the place found must
+// stay inside path once .. and symbolic links are resolved.
+func locateWorktree(path, recorded, name string) string {
+	root, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(filepath.ToSlash(recorded), "/")
+	for i := range parts {
+		tail := parts[i:]
+		if strings.Join(tail, "") == "" {
+			continue
+		}
+		dir, err := filepath.EvalSymlinks(filepath.Join(path, filepath.FromSlash(strings.Join(tail, "/"))))
+		if err != nil {
+			continue
+		}
+		if rel, err := filepath.Rel(root, dir); err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, "../") {
+			continue
+		}
+		link, err := os.ReadFile(filepath.Join(dir, ".git"))
+		if err != nil {
+			continue
+		}
+		target := filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(string(link), "gitdir:")))
+		if strings.HasSuffix(target, "/.git/worktrees/"+name) {
+			return dir
+		}
+	}
+	return ""
 }
 
 // operations are the files git keeps while an operation is stopped halfway.
@@ -279,17 +391,21 @@ var operations = []struct{ file, name string }{
 	{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"}, {"BISECT_LOG", "bisect"},
 }
 
-func readWorkingTree(ctx context.Context, g gitRunner, path string, w *usecase.WorkspaceState) error {
-	status, err := g.run(ctx, path, "status", "--porcelain", "--untracked-files=normal")
+// readWorkingTree adds what one working tree holds to w. gitArgs select a linked worktree.
+func readWorkingTree(ctx context.Context, g gitRunner, path string, w *usecase.WorkspaceState, gitArgs ...string) error {
+	run := func(args ...string) (string, error) {
+		return g.run(ctx, path, append(slices.Clone(gitArgs), args...)...)
+	}
+	status, err := run("status", "--porcelain", "--untracked-files=normal")
 	if err != nil {
 		return err
 	}
-	w.Changes = status != ""
-	if _, err := g.run(ctx, path, "rev-parse", "--verify", "--quiet", "refs/stash"); err == nil {
-		w.Stash = true
+	w.Changes = w.Changes || status != ""
+	if w.Operation != "" {
+		return nil
 	}
 	for _, op := range operations {
-		file, err := g.run(ctx, path, "rev-parse", "--git-path", op.file)
+		file, err := run("rev-parse", "--git-path", op.file)
 		if err != nil {
 			return err
 		}
@@ -343,9 +459,11 @@ func pushedBranches(ctx context.Context, g gitRunner, path string) ([]usecase.Br
 	return pushed, nil
 }
 
-func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, elsewhere ...string) (bool, error) {
-	args := append([]string{"rev-list", "--count", rev, "--not", "--remotes=origin", "--glob=refs/acp/*"}, elsewhere...)
-	n, err := g.run(ctx, path, args...)
+// kept are the refs whose commits are found elsewhere: on origin, or in the target's checkout.
+var kept = []string{"--remotes=origin", "--glob=refs/acp/*"}
+
+func hasUnpushed(ctx context.Context, g gitRunner, path, rev string) (bool, error) {
+	n, err := g.run(ctx, path, append([]string{"rev-list", "--count", rev, "--not"}, kept...)...)
 	return n != "0", err
 }
 
