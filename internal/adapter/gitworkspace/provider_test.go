@@ -727,6 +727,13 @@ func TestProvider_State_LinkedWorktrees(t *testing.T) {
 	if got := state(); got.Changes || got.Operation != "" || detached(got) {
 		t.Fatalf("State() with a clean worktree = %+v; want nothing held", got)
 	}
+	// What a stopped git worktree add leaves is no worktree.
+	if err := os.MkdirAll(filepath.Join(ws.Path, ".git", "worktrees", "junk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.State(ctx, ws.Path); err != nil {
+		t.Errorf("State() with an administrative directory without HEAD: %v; want no error", err)
+	}
 	// A clean worktree read after the main one keeps the main one's changes.
 	if err := os.WriteFile(filepath.Join(ws.Path, "main.txt"), []byte("untracked"), 0o644); err != nil {
 		t.Fatal(err)

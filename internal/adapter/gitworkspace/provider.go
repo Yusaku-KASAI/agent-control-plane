@@ -325,6 +325,13 @@ func linkedWorktrees(path string) ([]worktree, error) {
 			continue
 		}
 		wt := worktree{gitDir: filepath.Join(admin, e.Name())}
+		// Without HEAD, git does not take the directory for a worktree, such as what a stopped
+		// git worktree add leaves.
+		if ok, err := exists(filepath.Join(wt.gitDir, "HEAD")); err != nil {
+			return nil, err
+		} else if !ok {
+			continue
+		}
 		recorded, err := os.ReadFile(filepath.Join(wt.gitDir, "gitdir"))
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
@@ -339,8 +346,8 @@ func linkedWorktrees(path string) ([]worktree, error) {
 
 // locateWorktree finds where the files of the linked worktree name are, from the path git
 // recorded: the longest tail of it that, under path, holds a .git file pointing back to the
-// worktree's administrative directory. The agent can write the record, so a tail must stay
-// inside path, symbolic links resolved.
+// worktree's administrative directory. The agent can write the record, so the place found must
+// stay inside path once .. and symbolic links are resolved.
 func locateWorktree(path, recorded, name string) string {
 	root, err := filepath.EvalSymlinks(path)
 	if err != nil {
@@ -349,7 +356,7 @@ func locateWorktree(path, recorded, name string) string {
 	parts := strings.Split(filepath.ToSlash(recorded), "/")
 	for i := range parts {
 		tail := parts[i:]
-		if slices.Contains(tail, "..") || strings.Join(tail, "") == "" {
+		if strings.Join(tail, "") == "" {
 			continue
 		}
 		dir, err := filepath.EvalSymlinks(filepath.Join(path, filepath.FromSlash(strings.Join(tail, "/"))))
