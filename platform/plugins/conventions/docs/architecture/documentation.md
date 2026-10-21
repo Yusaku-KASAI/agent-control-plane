@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0027](../adr/0027-checks-by-rule-and-tool.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../guides/write-docs.md "在りか")にある。
 
@@ -135,6 +135,32 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
   手順（目的の手順か、共通の手順のスキル）や役割ごとの指示で届ける。ただし、どの作業でも読ませる文書は共通のルールの
   「始めに読む」の節に、目的の手順で読ませる文書は振り分けの節かロールの指示に、直に並べる（[起点](#starting-points)）。
 - 文書の届け方は、定義を[要約か案内](#summaries-and-guides)で書く。
+
+<a id="checks"></a>
+
+#### 検査にするものと置き場所
+
+検査は最も強い届け方だが、保つ手間がかかり、誤って落ちると作業を止める（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
+次の三つを満たす決まりを検査にし、ほかはレビューの観点に任せる。
+
+- 判断が要らない：リポジトリや、外の道具（GitHub など）の状態だけから機械で決まる。意味の食い違い（要約と出典など）は
+  検査にせず、検査はその手がかり（出典へのリンクがあるか）までにする。
+- 実際に破られる：レビューで繰り返し見つかるか、破られると手戻りが大きい。
+- 誤って落ちにくい：保つ手間が、見逃したときの手戻りより安い。
+
+検査の仕組み（コマンド、試験、CI のジョブ）も、それを置く区切りが前提にしてよいものだけを知る（[区切りと依存の向き](#contexts)）。
+置き場所は、確かめる決まりと、使う道具で決める。
+
+| 確かめるもの | 置き場所 | 知ってよいもの |
+| --- | --- | --- |
+| 一つの区切りの中の形 | その決まりを定義する区切り | その区切りが定めた形だけ。ほかの区切りの名前やパス（特定のプラグイン、ファイル）は知らず、形から見分ける |
+| 外の道具（GitHub など）の状態 | その道具を扱う区切り | 確かめる決まりは、前提にしてよい区切り（conventions、契約）から読む |
+| 区切りの間の一致 | 契約の試験として、両側を前提にしてよい区切り | 両側と、その間の契約 |
+
+- 置き場所の区切りが前提にしてよくないものを確かめたくなったら、確かめる値を契約に置き、検査はその契約に合わせる
+  （[使う側に届く契約](../../../principles/docs/reference/patterns.md#published-language)、[契約の試験](../../../principles/docs/reference/patterns.md#contract-test)）。
+- 検査は形式の各節の「検査」に、何を確かめるかを書く（[形式](../reference/formats.md "在りか")）。外の道具を扱う検査は、
+  それを置く区切りの文書に書く。
 
 <a id="summaries-and-guides"></a>
 

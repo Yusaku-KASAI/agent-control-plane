@@ -74,7 +74,9 @@ control-plane の API を指さない（[ADR 0013](../adr/0013-devcontainer-off-
 ブランチに入れないことを、ロールと control-plane は前提にする。用意の仕方は
 [既定のブランチの守りの用意](../guides/github.md "在りか")にある。
 
-- 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。
+- 既定のブランチは消せず、force push できない。
+- 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に
+  限る（ほかの元を許すと、コミットの状態を書ける誰でも成功を付けられる）。
 - PR に承認を 1 件求め、承認する主体を人に限る。個人のリポジトリでは `.github/CODEOWNERS` に人だけを書いて
   コードオーナーの承認を求め、organization のリポジトリでは人だけの team を必須のレビュアーにする。エージェントの
   GitHub App は、CODEOWNERS の持ち主にも team にも入れない。

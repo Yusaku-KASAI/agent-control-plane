@@ -1,0 +1,32 @@
+---
+status: accepted
+date: 2026-10-21
+amends: [16]
+---
+
+# 0017. 既定のブランチの守りの検査は、用意の手順でなく契約に合わせる
+
+## Context
+
+ADR 0016 は、`check-protection`（platform の github プラグイン）が確かめる値を、target-template の用意の手順
+（`guides/github.md`）の設定の写しとした。platform は target-template を前提にしない（最上位の地図）ので、platform の
+コマンドが target-template の手順に合わせるのは逆向きになる（conventions の ADR 0027）。守る中身は、ターゲットの契約の
+「既定のブランチの守り」にもあるが、消せず force push できないことと、`check` の元を GitHub Actions に限ることは、
+手順にだけあった。
+
+## Decision
+
+- `check-protection` が確かめる値は、ターゲットの契約の「既定のブランチの守り」を API の側から読んだものにする。
+  契約を変えたら、コマンドも直す。
+- 契約に、既定のブランチは消せず force push できないことと、`check` を報告する元を GitHub Actions に限ることを足す。
+  どちらも今の手順と `check-protection` がすでに求めているもので、ターゲットに新しく求めることはない。
+- 用意の手順（`guides/github.md`）は、契約を満たす設定の仕方として残る。
+
+## Alternatives
+
+- **手順を platform に移す**：手順は、ターゲットのリポジトリの設定画面での作業で、ターゲットを用意する人が読む。
+  契約を満たす方法の一つで、platform の能力ではない。
+
+## Consequences
+
+- 守りの中身を変えるときは、契約、用意の手順、`check-protection` の順に直す。
