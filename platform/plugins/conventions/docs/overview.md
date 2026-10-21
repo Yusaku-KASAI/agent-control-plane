@@ -16,9 +16,9 @@ conventions/
                    Markdown を変えたターンの終わりに、文書の検査を回す
   skills/          届け方：docs/guides/ の共通の手順（と、ロールの外から入る目的の手順）を、必要なときに要約か案内で
                    読ませる（write-docs、design、review、close-session、consult、organize-issues）
-  bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド
+  bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド。地図と文書の一覧も出す
   actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
-  tests/           ターンの終わりの hook の試験
+  tests/           ターンの終わりの hook と、文書の一覧の試験
 ```
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
@@ -140,11 +140,15 @@ conventions/
 ### 文書の検査（`bin/check-docs`）
 
 - **責務**：形式と器の決まりのうち、機械で確かめられるものを、作業ディレクトリを含むリポジトリの Markdown について確かめる。
-  `--map` で、すべての地図から設計構造行列を出す。
+  `--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの属性（区分、タイトル、版と更新日（作業ツリーで書き換えていれば版に `+`）、ADR の状態、
+  地図の項目、前提にする文書と在りかを示すだけの文書）を、一次の情報（置き場所、見出し、git の履歴、ADR の
+  frontmatter、地図、リンク）から導いて、タブ区切りの一覧に出す。属性は文書に手で書かず、導く
+  （[ADR 0026](adr/0026-derive-document-catalog.md)）。
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や置き場所の
   良し悪しは確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
-  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。
+  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。一覧の試験は
+  `tests/check-docs-catalog-test.sh`。
   CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
 

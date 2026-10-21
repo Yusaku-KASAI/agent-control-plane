@@ -2,10 +2,12 @@
 """Checks the Markdown files of the repository holding the working directory against this plugin's
 docs/reference/formats.md and docs/architecture/documentation.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix."""
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
+where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""
 
 import os
 import re
+import signal
 import subprocess
 import sys
 import unicodedata
@@ -302,16 +304,20 @@ def check_sizes(paths, errors):
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
 
 
+def is_role(path):
+    """Whether the document is a role's instructions. A plugin's agents are its roles. Beside a repository's own,
+    other custom agents (helpers that are no role) may sit: there, only a text that says it is a role is one."""
+    if in_plugin_dir(path, "agents"):
+        return True
+    return in_project_agents(path) and "ロールとして" in re.sub(r"\n[ \t]*", "", without_fences(read(path)).split("\n## ", 1)[0])
+
+
 def check_roles(paths, errors):
     """A role's instructions open with the procedures it takes, headed by what it may write, and close with its own ways."""
     for path in paths:
-        if not (in_plugin_dir(path, "agents") or in_project_agents(path)):
+        if not is_role(path):
             continue
         text = without_fences(read(path))
-        # A plugin's agents are its roles. Beside a repository's own, other custom agents (helpers that are no
-        # role) may sit: there, only a text that says it is a role is held to the form.
-        if in_project_agents(path) and "ロールとして" not in re.sub(r"\n[ \t]*", "", text.split("\n## ", 1)[0]):
-            continue
         sections = re.findall(r"(?m)^## (.+)$", text)
         takes = re.search(r"(?ms)^## 受け持つ手順$(.*?)(?=^## |\Z)", text)
         if not sections or sections[0] != "受け持つ手順":
@@ -453,22 +459,31 @@ def read_map(paths, errors):
     return m
 
 
+def relies_on(path):
+    """(target, resolved) of the links by which a document relies on others in the repository: not those that only
+    show where something is, nor those to decision records, which give reasons. An index only shows where documents
+    are, and a decision record is not rewritten, so neither relies on anything."""
+    if is_index(path) or is_adr(os.path.dirname(path)):
+        return []
+    found = []
+    for target, _, title in links(read(path)):
+        if not target or title == NAVIGATION or is_external(target) or target.startswith("/"):
+            continue
+        resolved = resolve(path, target)
+        if resolved != path and not is_adr(resolved):
+            found.append((target, resolved))
+    return found
+
+
 def check_map(m, paths, errors):
     for path in paths:
         if m.item_of(path) is None:
             errors.append(f"{path}: not in any item of the maps")
     for path in paths:
         source = m.item_of(path)
-        # An index only shows where documents are, and a decision record is not rewritten.
-        if source is None or is_index(path) or is_adr(os.path.dirname(path)):
+        if source is None:
             continue
-        for target, _, title in links(read(path)):
-            if not target or title == NAVIGATION or is_external(target):
-                continue
-            resolved = resolve(path, target)
-            # Decision records give reasons; linking to them does not rely on them.
-            if is_adr(resolved):
-                continue
+        for target, resolved in relies_on(path):
             dest = m.item_of(resolved)
             if dest is not None and not m.may_rely(source, dest):
                 errors.append(f"{path}: relies on {target}, but {source} may not rely on {dest} in the maps"
@@ -521,6 +536,103 @@ def print_map(m):
     print(f"\n● 前提にする（行 → 列）。子を持つ項目の直下の文書は、子と並ぶ「{WHOLE}」として、どの子からも前提にされ、どの子も前提にしない。")
 
 
+# What a document is follows from where it is: an entry, an index, an overview, a type of document, or a form
+# of delivery (documentation.md).
+KINDS = [("adr", "判断"), ("architecture", "解説"), ("guides", "手順"), ("reference", "参照"), ("rules", "共通のルール"),
+         ("skills", "スキル")]
+ROLE = "役割ごとの指示"
+
+
+def kind_of(path):
+    if path in ENTRIES:
+        return "入口"
+    if is_index(path):
+        return "索引"
+    if os.path.basename(path) == "overview.md":
+        return "overview"
+    if is_role(path):
+        return ROLE
+    parts = path.split(os.sep)[:-1]
+    for part, kind in KINDS:
+        if part in parts:
+            return kind
+    return "その他"
+
+
+def title_of(path):
+    """The first heading, or the name in the frontmatter of a document without one (a role instruction)."""
+    text = read(path)
+    m = re.search(r"^# (.+)$", without_fences(text), re.M)
+    if m:
+        return m.group(1).strip()
+    return (parse_frontmatter(path, text, []) or {}).get("name", "")
+
+
+def changed_in_work_tree():
+    try:
+        out = subprocess.run(["git", "-c", "core.quotePath=false", "status", "--porcelain", "-z", "--", "*.md"],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    return {entry[3:] for entry in out.split("\0") if entry[:2].strip()}
+
+
+def last_changes(paths):
+    """(short hash, date) of the last commit that changed each document; a document never committed has none.
+    A document changed in the work tree since then has its hash marked with +."""
+    try:
+        # Unquoted paths, so that names outside ASCII match those of tracked_markdown.
+        out = subprocess.run(["git", "-c", "core.quotePath=false", "log", "--format=%x00%h %cs", "--name-only", "--", "*.md"],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {}
+    wanted, dates = set(paths), {}
+    for commit in out.split("\0")[1:]:
+        head, *names = commit.strip().splitlines()
+        for name in names:
+            if name in wanted and name not in dates:
+                dates[name] = head.split(" ")
+    for name in changed_in_work_tree() & dates.keys():
+        dates[name] = [dates[name][0] + "+", dates[name][1]]
+    return dates
+
+
+def whereabouts(path):
+    """The places a document links to in the repository without relying on them (the rest of relies_on)."""
+    relied = {resolved for _, resolved in relies_on(path)}
+    found = []
+    for target, _, _ in links(read(path)):
+        if target and not is_external(target) and not target.startswith("/"):
+            resolved = resolve(path, target)
+            if resolved != path and resolved not in relied:
+                found.append(resolved)
+    return found
+
+
+def unique(items):
+    return list(dict.fromkeys(items))
+
+
+def print_catalog(paths, m):
+    # The catalog is read through pipes such as head; a reader that stops early is not an error.
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    dates = last_changes(paths)
+    print("\t".join(["文書", "区分", "タイトル", "版", "更新日", "状態", "項目", "前提", "在りか"]))
+    for path in paths:
+        text = read(path)
+        meta = (parse_frontmatter(path, text, []) or {}) if is_adr(os.path.dirname(path)) else {}
+        item = m.item_of(path) if m is not None else None
+        version, date = dates.get(path, ["-", "-"])
+        kind = kind_of(path)
+        relied = unique(resolved for _, resolved in relies_on(path))
+        shown = unique(whereabouts(path))
+        # Role instructions name what they rely on by paths in code, not by links, so links cannot tell all.
+        if kind == ROLE:
+            relied, shown = relied + ["?"], shown + ["?"]
+        print("\t".join([path, kind, title_of(path), version, date, meta.get("status", "-"), item or "-",
+                         ",".join(relied) or "-", ",".join(shown) or "-"]))
+
+
 def main():
     os.chdir(repo_root())
     errors = []
@@ -531,6 +643,9 @@ def main():
             print("no map table", file=sys.stderr)
             return 1
         print_map(m)
+        return 0
+    if "--catalog" in sys.argv[1:]:
+        print_catalog(paths, m)
         return 0
     for path in paths:
         check_links(path, errors)
