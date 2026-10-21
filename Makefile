@@ -4,6 +4,11 @@
 check: check-go check-platform check-target check-docs
 
 check-go:
+	# govulncheck runs on .devcontainer/Dockerfile's Go, while acp is built with Dockerfile's; a bump
+	# to only one of them would pass unnoticed.
+	a=$$(sed -n 's/^ARG GO_VERSION=//p' Dockerfile); b=$$(sed -n 's/^ARG GO_VERSION=//p' .devcontainer/Dockerfile); \
+		test -n "$$a" && test "$$a" = "$$b" \
+		|| { echo "GO_VERSION differs: Dockerfile=$$a, .devcontainer/Dockerfile=$$b"; exit 1; }
 	golangci-lint run ./...
 	go mod tidy -diff
 	govulncheck ./...
