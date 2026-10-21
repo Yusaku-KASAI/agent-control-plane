@@ -388,7 +388,7 @@ func (c *SessionCleaner) keptText(s domain.Session, rs []reason) string {
 		case reasonOpenPull:
 			fmt.Fprintf(&b, "開いている PR：#%d %s %s", r.pull.Number, r.pull.Title, r.pull.URL)
 		case reasonChanges:
-			b.WriteString("作業領域に、コミットしていない変更か追跡していないファイルがある")
+			b.WriteString("作業領域（サブエージェントなどの worktree を含む）に、コミットしていない変更か追跡していないファイルがある")
 		case reasonStash:
 			b.WriteString("作業領域の stash に変更がある")
 		case reasonOperation:

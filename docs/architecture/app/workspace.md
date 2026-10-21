@@ -141,7 +141,7 @@ GitHub のブランチと PR
   | 途中の操作 | 主の worktree か、作業領域の中のほかの worktree で、rebase、merge、cherry-pick、revert、bisect のどれかが途中で止まっている |
   | push したブランチ | `origin` の remote-tracking ブランチのうち、reflog に `update by push` があるもの。最後に push したコミットは、その最新の項目のコミット |
   | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
-  | detached HEAD | 主の worktree とほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
+  | detached HEAD | 主の worktree と、作業領域の中のほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
   ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。git が記録するパスは
   エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む

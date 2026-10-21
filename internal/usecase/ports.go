@@ -40,8 +40,8 @@ type WorkspaceState struct {
 	Operation string
 	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
 	Pushed []BranchTip
-	// Local are the local branches, plus HEAD named "HEAD" when it is detached on commits no
-	// branch has.
+	// Local are the local branches, plus an entry named "HEAD" for each worktree in the workspace
+	// whose HEAD is detached on commits no branch has.
 	Local []LocalBranch
 }
 

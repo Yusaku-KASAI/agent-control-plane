@@ -272,9 +272,13 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 		}
 		w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: name, Tip: tip}, Unpushed: unpushed})
 	}
+	// A worktree outside the workspace, such as one prctl makes to read a pull request, holds
+	// others' commits on its detached HEAD; its files are gone with the container anyway.
 	heads := [][]string{nil}
 	for _, wt := range linked {
-		heads = append(heads, []string{"--git-dir=" + wt.gitDir})
+		if wt.dir != "" {
+			heads = append(heads, []string{"--git-dir=" + wt.gitDir})
+		}
 	}
 	for _, gitDir := range heads {
 		tip, err := detachedTip(ctx, g, path, gitDir...)

@@ -821,14 +821,24 @@ func TestProvider_State_LinkedWorktrees(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A commit on the detached HEAD outlives the worktree's files: only the workspace removal loses it.
+	// A commit on the detached HEAD of a worktree in the workspace is held.
 	git(t, ws.Path, "--git-dir="+admin, "--work-tree="+dir, "-c", "user.name=test", "-c", "user.email=test@example.com",
 		"commit", "--quiet", "--allow-empty", "-m", "subagent")
-	if err := os.RemoveAll(dir); err != nil {
-		t.Fatal(err)
-	}
 	if got := state(); got.Changes || !detached(got) {
-		t.Errorf("State() with a commit on the detached HEAD of a removed worktree = %+v; want it as HEAD", got)
+		t.Errorf("State() with a commit on the detached HEAD of the worktree = %+v; want it as HEAD", got)
+	}
+	for _, d := range []string{dir, admin} {
+		if err := os.RemoveAll(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// One outside, as prctl makes to read a pull request, holds others' commits and is not looked at.
+	reader := filepath.Join(t.TempDir(), "prctl-repo-pr-1")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", reader)
+	git(t, reader, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "--allow-empty", "-m", "theirs")
+	if got := state(); got.Changes || detached(got) {
+		t.Errorf("State() with a detached worktree outside the workspace = %+v; want nothing held", got)
 	}
 }
 
