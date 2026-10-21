@@ -15,8 +15,8 @@ date: 2026-10-21
 conventions が platform に依存してよいか）。調べると、`check-docs`（conventions）は platform も target-template も
 知らず、conventions の形式が定めた形だけを見ていた。一方、`check-protection`（platform の github プラグイン）は、
 target-template の用意の手順（`guides/github.md`）の写しと名乗っていて、最上位の地図にない platform から
-target-template への向きになっていた。また、conventions の用語集の「役割」は、意味を platform のエージェントの用語集に
-任せていた。
+target-template への向きになっていた。また、conventions の用語集の「役割」は、意味を契約のエージェントの用語集に任せていた
+（conventions は契約を前提にしない）。
 
 ## Decision
 
@@ -32,11 +32,11 @@ target-template への向きになっていた。また、conventions の用語�
   （CI の複合アクション、hook）と、決まりを載せる器（Claude Code のプラグインやカスタムエージェントの並び）は置き場所を
   決めない（conventions の `check-docs` が `.claude-plugin/plugin.json` で器を見分け、`actions/check-docs/` を持つのは
   このため）。
-  - 一つの区切りの中の形：その決まりを定義する区切り。ほかの区切りの名前やパスを知らず、形から見分ける
-    （`check-docs` の地図とロールの形の検査が、この形）。
-  - 外の道具の状態：その道具を扱う区切り。決まりは前提にしてよい区切りから読む（Issue の決まりを GitHub で確かめる
+  - 一つの区切りが定めた形（どの区切りのファイルに当てはめるかによらない）：その形を定義する区切り。ほかの区切りの
+    名前やパスを知らず、形から見分ける（`check-docs` の地図とロールの形の検査が、この形）。
+  - 外の道具の状態：その道具を扱う区切り。決まりは前提にしてよい区切りに合わせる（Issue の決まりを GitHub で確かめる
     #111 は、conventions でなく GitHub を扱う platform に置く）。
-  - 区切りの間の一致：契約の試験として、両側を前提にしてよい区切り（ターゲットが target-template の共通のファイルと
+  - 区切りの間で中身（値）が合っていること：契約の試験として、両側を前提にしてよい区切り（ターゲットが target-template の共通のファイルと
     ずれていないか、#131 は、platform や conventions でなく target-template か control-plane に置く）。
   - 置いた区切りが前提にしてよくないものを確かめたくなったら、確かめる値を契約に置き、検査は契約に合わせる。
 - 決まりは文書の体系の「検査にするものと置き場所」に置く。
