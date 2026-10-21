@@ -15,7 +15,7 @@ conventions/
   hooks/、scripts/ 届け方：rules と、その在りかと、定義の文書の在りかを、セッションとサブエージェントの始めに読み込ませる。
                    Markdown を変えたターンの終わりに、文書の検査を回す
   skills/          届け方：docs/guides/ の共通の手順（と、ロールの外から入る目的の手順）を、必要なときに要約か案内で
-                   読ませる（write-docs、design、review、close-session）
+                   読ませる（write-docs、design、review、close-session、consult、organize-issues）
   bin/check-docs   文書の検査：形式のうち機械で確かめられるものを確かめるコマンド。地図と文書の一覧も出す
   actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
   tests/           ターンの終わりの hook と、文書の一覧の試験
@@ -73,7 +73,7 @@ conventions/
 
 ### 手順（[`docs/guides/`](guides/ "在りか")）
 
-- **責務**：決まりに沿って作業する手順を定義する。目的の手順（変更を届ける、レビューする、セッションを締める）と、その段で使う共通の手順
+- **責務**：決まりに沿って作業する手順を定義する。目的の手順（変更を届ける、レビューする、セッションを締める、相談に乗る、課題を整える）と、その段で使う共通の手順
   （文書を書く、パターンを当てはめる、レビューを頼んで答える）。
 - **置くもの / 置かないもの**：手順と、その場で要る最小の説明。決まりそのものは参照の文書に置き、手順からリンクする。
   そのプラグインの道具の使い方はスキルに置く。
@@ -125,6 +125,18 @@ conventions/
 - **置くもの / 置かないもの**：手順への案内と、その要約だけ。持ち越すものの置き場所と手順そのものは置かない。
 - **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
 
+### consult スキル（[`skills/consult/`](../skills/consult/SKILL.md "在りか")）
+
+- **責務**：相談や壁打ちを頼まれたときに、[相談に乗る](guides/consult.md "在りか")の手順を読ませる。
+- **置くもの / 置かないもの**：手順への案内と、その要約だけ。キャンバスの決まりと手順そのものは置かない。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
+
+### organize-issues スキル（[`skills/organize-issues/`](../skills/organize-issues/SKILL.md "在りか")）
+
+- **責務**：Issue やロードマップを整えるよう頼まれたときに、[課題を整える](guides/organize-issues.md "在りか")の手順を読ませる。
+- **置くもの / 置かないもの**：手順への案内と、その要約だけ。整っている状態と手順そのものは置かない。
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)。
+
 ### 文書の検査（`bin/check-docs`）
 
 - **責務**：形式と器の決まりのうち、機械で確かめられるものを、作業ディレクトリを含むリポジトリの Markdown について確かめる。
@@ -146,7 +158,7 @@ conventions/
 - **置くもの / 置かないもの**：チェックアウトと `check-docs` の呼び出しだけ。何を確かめるかは置かない。
 - **関係**：ターゲットの `ci.yml` が `@main` で呼ぶ（target-template の [CI](../../../../template/docs/architecture/ci.md "在りか")）。
   devcontainer のイメージを使わず、ランナーの `python3` と `git` で動く。
-- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を platform の一か所に置き、ターゲットは
+- **当てはめた原則・パターン**：[SSOT](../../principles/docs/reference/principles.md#ssot)：検査の具体を conventions の一か所に置き、ターゲットは
   呼ぶ一行だけを書く。
 
 <a id="map-conventions"></a>
