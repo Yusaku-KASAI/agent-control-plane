@@ -12,14 +12,16 @@ ADR 0016 は、`check-protection`（platform の github プラグイン）が確
 （`guides/github.md`）の設定の写しとした。platform は target-template を前提にしない（最上位の地図）ので、platform の
 コマンドが target-template の手順に合わせるのは逆向きになる（conventions の ADR 0027）。守る中身は、ターゲットの契約の
 「既定のブランチの守り」にもあるが、消せず force push できないことと、`check` の元を GitHub Actions に限ることは、
-手順にだけあった。
+手順にだけあった。organization の管理者のバイパス（PR のとき）は、`check-protection` と ADR 0016 が通すのに、契約は
+リポジトリの管理者だけと書いていた。
 
 ## Decision
 
 - `check-protection` が確かめる値は、ターゲットの契約の「既定のブランチの守り」を API の側から読んだものにする。
   契約を変えたら、コマンドも直す。
-- 契約に、既定のブランチは消せず force push できないことと、`check` を報告する元を GitHub Actions に限ることを足す。
-  どちらも今の手順と `check-protection` がすでに求めているもので、ターゲットに新しく求めることはない。
+- 契約に、既定のブランチは消せず force push できないことと、`check` を報告する元を GitHub Actions に限ること（ほかの
+  元を許すと、コミットの状態を書ける誰でも成功を付けられる）を足し、バイパスに organization の管理者を含める。どれも
+  今の手順と `check-protection` がすでに求めているか許しているもので、ターゲットに新しく求めることはない。
 - 用意の手順（`guides/github.md`）は、契約を満たす設定の仕方として残る。
 
 ## Alternatives

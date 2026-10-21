@@ -76,11 +76,12 @@ control-plane の API を指さない（[ADR 0013](../adr/0013-devcontainer-off-
 
 - 既定のブランチは消せず、force push できない。
 - 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に
-  限る（ほかの元を許すと、コミットの状態を書ける誰でも成功を付けられる）。
+  限る。
 - PR に承認を 1 件求め、承認する主体を人に限る。個人のリポジトリでは `.github/CODEOWNERS` に人だけを書いて
   コードオーナーの承認を求め、organization のリポジトリでは人だけの team を必須のレビュアーにする。エージェントの
   GitHub App は、CODEOWNERS の持ち主にも team にも入れない。
-- 新しいコミットが push されたら承認を取り消す。バイパスは、リポジトリの管理者に PR のときだけ許す。
+- 新しいコミットが push されたら承認を取り消す。バイパスは、リポジトリの管理者（organization の
+  リポジトリでは organization の管理者も）に PR のときだけ許す。
 
 ## CLAUDE.md
 

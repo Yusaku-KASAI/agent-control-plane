@@ -66,7 +66,8 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
     ほかのリポジトリのコードを動かすので、ジョブの `permissions` は `contents: read` だけにする。
   - `check-protection` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/github/actions/check-protection@main`
     の一つのステップだけを持ち、`permissions` は `contents: read` だけにする。リポジトリの設定と、確かめるコミットの CODEOWNERS を API で
-    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[既定のブランチの守りの用意](../guides/github.md#verify "在りか")にある。
+    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[ターゲットの契約](../reference/contract.md#protection "在りか")の既定のブランチの守りで、手元での回し方は
+    [既定のブランチの守りの用意](../guides/github.md#verify "在りか")にある。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
   - 毎週の定期実行では、選んだ検査のステージだけキャッシュを使わない。キャッシュが当たると、新しく公開された
