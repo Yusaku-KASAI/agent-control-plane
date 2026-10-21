@@ -144,7 +144,7 @@ GitHub のブランチと PR
   | detached HEAD | 主の worktree とほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
   ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。git が記録するパスは
-  エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し、`--git-dir` と `--work-tree` で読む
+  エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む
   （[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
 
 - **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner "在りか")。

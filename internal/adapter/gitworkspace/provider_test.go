@@ -768,6 +768,52 @@ func TestProvider_State_LinkedWorktrees(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A longer tail of the record holding another worktree's .git file is not this worktree.
+	if err := os.WriteFile(filepath.Join(ws.Path, ".git", "info", "exclude"), []byte("/.claude/worktrees/\n/workspace/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decoy := filepath.Join(ws.Path, filepath.FromSlash(container[1:]), ".claude", "worktrees", "agent-1")
+	if err := os.MkdirAll(decoy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(decoy, ".git"), []byte("gitdir: /elsewhere/.git/worktrees/agent-1-other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Read against the decoy, the worktree's index would show its files deleted.
+	if got := state(); got.Changes {
+		t.Errorf("State() with a decoy on a longer tail = %+v; want the clean worktree read", got)
+	}
+
+	// The agent writes the record: neither .. nor a symbolic link may lead out of the workspace.
+	outside := filepath.Join(t.TempDir(), "outside")
+	git(t, ws.Path, "worktree", "add", "--quiet", "--detach", outside)
+	if err := os.WriteFile(filepath.Join(outside, "new.txt"), []byte("untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outAdmin := filepath.Join(ws.Path, ".git", "worktrees", "outside")
+	rel, err := filepath.Rel(ws.Path, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(ws.Path, ".claude", "worktrees", "outside")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range []string{"/" + filepath.ToSlash(rel) + "/.git", container + "/.claude/worktrees/outside/.git"} {
+		if err := os.WriteFile(filepath.Join(outAdmin, "gitdir"), []byte(record+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := state(); got.Changes {
+			t.Errorf("State() with the record %q leading out of the workspace = %+v; want no changes", record, got)
+		}
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(outAdmin); err != nil {
+		t.Fatal(err)
+	}
+
 	// A commit on the detached HEAD outlives the worktree's files: only the workspace removal loses it.
 	git(t, ws.Path, "--git-dir="+admin, "--work-tree="+dir, "-c", "user.name=test", "-c", "user.email=test@example.com",
 		"commit", "--quiet", "--allow-empty", "-m", "subagent")

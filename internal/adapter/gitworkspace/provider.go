@@ -337,16 +337,28 @@ func linkedWorktrees(path string) ([]worktree, error) {
 	return wts, nil
 }
 
-// locateWorktree finds the linked worktree name from the path git recorded: the longest tail of
-// it that, under path, holds a .git file pointing back to the worktree's administrative directory.
+// locateWorktree finds where the files of the linked worktree name are, from the path git
+// recorded: the longest tail of it that, under path, holds a .git file pointing back to the
+// worktree's administrative directory. The agent can write the record, so a tail must stay
+// inside path, symbolic links resolved.
 func locateWorktree(path, recorded, name string) string {
+	root, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return ""
+	}
 	parts := strings.Split(filepath.ToSlash(recorded), "/")
 	for i := range parts {
-		tail := strings.Join(parts[i:], "/")
-		if tail == "" {
+		tail := parts[i:]
+		if slices.Contains(tail, "..") || strings.Join(tail, "") == "" {
 			continue
 		}
-		dir := filepath.Join(path, filepath.FromSlash(tail))
+		dir, err := filepath.EvalSymlinks(filepath.Join(path, filepath.FromSlash(strings.Join(tail, "/"))))
+		if err != nil {
+			continue
+		}
+		if rel, err := filepath.Rel(root, dir); err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, "../") {
+			continue
+		}
 		link, err := os.ReadFile(filepath.Join(dir, ".git"))
 		if err != nil {
 			continue
