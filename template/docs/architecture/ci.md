@@ -3,7 +3,7 @@
 PR と main への push のたびと、毎週の定期実行で、devcontainer のイメージの中で `make check` と同じ検査を行う
 （[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて、ターゲットに依存しない文書の検査を、platform の
 複合アクションで devcontainer の外で行う（[ADR 0014](../adr/0014-target-independent-checks-as-platform-actions.md)）。既定のブランチの守りが外れていないことも、同じ形で確かめる
-（[ADR 0016](../adr/0016-protection-checked-in-ci.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
+（[ADR 0016](../adr/0016-protection-checked-in-ci.md)、[0017](../adr/0017-protection-check-follows-contract.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
 Makefile の `check-<関心>` のように `make` で実行する単位を、make のルール（以下、ルール）と呼ぶ。
 
 ## 構成
