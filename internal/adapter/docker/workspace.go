@@ -10,6 +10,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -160,7 +162,55 @@ func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspa
 	if err := json.Unmarshal(stdout.buf.Bytes(), &w); err != nil {
 		return w, fmt.Errorf("decode workspace state: %w", err)
 	}
+	if err := checkState(w); err != nil {
+		return usecase.WorkspaceState{}, fmt.Errorf("workspace state: %w", err)
+	}
 	return w, nil
+}
+
+var (
+	commitPattern  = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
+	operationsRead = []string{"", "rebase", "merge", "cherry-pick", "revert", "bisect"}
+)
+
+// checkState refuses what git would not have written. The agent can make the reading say
+// anything, and the names and commits go into GitHub API paths and thread messages.
+func checkState(w usecase.WorkspaceState) error {
+	if !slices.Contains(operationsRead, w.Operation) {
+		return fmt.Errorf("unknown operation %q", w.Operation)
+	}
+	tips := make([]usecase.BranchTip, 0, len(w.Pushed)+len(w.Local))
+	tips = append(tips, w.Pushed...)
+	for _, b := range w.Local {
+		tips = append(tips, b.BranchTip)
+	}
+	for _, b := range tips {
+		if !commitPattern.MatchString(b.Tip) {
+			return fmt.Errorf("branch %q: not a commit %q", b.Name, b.Tip)
+		}
+		if !branchName(b.Name) {
+			return fmt.Errorf("not a branch name %q", b.Name)
+		}
+	}
+	return nil
+}
+
+// branchName follows git check-ref-format for a branch, or is HEAD for a detached one.
+func branchName(name string) bool {
+	if name == "HEAD" {
+		return true
+	}
+	if name == "" || strings.HasPrefix(name, "-") || strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") ||
+		strings.HasSuffix(name, ".") || strings.HasSuffix(name, ".lock") || strings.Contains(name, "..") ||
+		strings.Contains(name, "//") || strings.Contains(name, "@{") || strings.Contains(name, "/.") || strings.HasPrefix(name, ".") {
+		return false
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f || strings.ContainsRune(" ~^:?*[\\", r) {
+			return false
+		}
+	}
+	return true
 }
 
 func stateSpec(agent domain.Agent, workspace string, tools ToolsOptions) client.ContainerCreateOptions {

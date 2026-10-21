@@ -93,18 +93,6 @@ func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error
 	if err != nil {
 		return nil, fmt.Errorf("list agent containers: %w", err)
 	}
-	readers, err := r.api.ContainerList(ctx, client.ContainerListOptions{
-		All:     true,
-		Filters: make(client.Filters).Add("label", stateLabel),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list workspace readers: %w", err)
-	}
-	for _, c := range readers.Items {
-		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
-			return nil, fmt.Errorf("remove container %s: %w", c.ID, err)
-		}
-	}
 	var ids []domain.SessionID
 	for _, c := range list.Items {
 		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
@@ -112,6 +100,19 @@ func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error
 		}
 		if id := domain.SessionID(c.Labels[sessionLabel]); !slices.Contains(ids, id) {
 			ids = append(ids, id)
+		}
+	}
+	// Readers left behind hold no session's work; failing to remove them does not undo the above.
+	readers, err := r.api.ContainerList(ctx, client.ContainerListOptions{
+		All:     true,
+		Filters: make(client.Filters).Add("label", stateLabel),
+	})
+	if err != nil {
+		return ids, fmt.Errorf("list workspace readers: %w", err)
+	}
+	for _, c := range readers.Items {
+		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
+			return ids, fmt.Errorf("remove container %s: %w", c.ID, err)
 		}
 	}
 	return ids, nil

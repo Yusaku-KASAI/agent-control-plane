@@ -64,7 +64,8 @@ usecase.SessionCleaner（起動時と定期的に）
 - **置くもの / 置かないもの**：ポートとアダプターのつなぎ方、間隔や時間の値（値はそれを使う部品の文書にある）、
   複数のアダプターを一つのポートにまとめる小さな型（`credentialIssuers`、`sessionObserver`）。`Dispatcher` と Bot が
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
-- **関係**：すべてのパッケージに依存してよい。起動は、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
+- **関係**：すべてのパッケージに依存してよい。起動は、自分のバイナリを `tools.dir` に置き（失敗したら起動しない。
+  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付けを動かす。停止の順番は
   [依頼と知らせ](requests.md#shutdown "在りか")にある。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：

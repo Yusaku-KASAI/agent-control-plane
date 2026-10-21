@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -96,18 +97,20 @@ func repoWorkspace(t *testing.T) string {
 	return ws
 }
 
+const tip = "0123456789abcdef0123456789abcdef01234567"
+
 var readerAgent = domain.Agent{Name: "repo-dev", Target: domain.Target{Path: "/src/repo", Image: "repo-dev:latest"}}
 
 func TestWorkspaceReader_State(t *testing.T) {
 	ok := int64(0)
-	api := &readerAPI{stdout: `{"Changes":true,"Operation":"merge","Local":[{"Name":"HEAD","Tip":"abc","Unpushed":true}]}` + "\n", status: &ok}
+	api := &readerAPI{stdout: `{"Changes":true,"Operation":"merge","Local":[{"Name":"HEAD","Tip":"` + tip + `","Unpushed":true}]}` + "\n", status: &ok}
 	ws := repoWorkspace(t)
 	tools := ToolsOptions{Dir: "/var/lib/acp/tools", Volume: "acp-tools"}
 
 	got, err := NewWorkspaceReader(api, tools).State(context.Background(), readerAgent, ws)
 
 	want := usecase.WorkspaceState{Changes: true, Operation: "merge",
-		Local: []usecase.LocalBranch{{BranchTip: usecase.BranchTip{Name: "HEAD", Tip: "abc"}, Unpushed: true}}}
+		Local: []usecase.LocalBranch{{BranchTip: usecase.BranchTip{Name: "HEAD", Tip: tip}, Unpushed: true}}}
 	if err != nil || got.Changes != want.Changes || got.Operation != want.Operation || !slices.Equal(got.Local, want.Local) {
 		t.Errorf("State() = %+v, %v; want %+v", got, err, want)
 	}
@@ -216,5 +219,40 @@ func TestWorkspaceReader_State_TooMuchOutput(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "more than") {
 		t.Errorf("State() error = %v, want the output refused", err)
+	}
+}
+
+func TestWorkspaceReader_State_FailedStderrBounded(t *testing.T) {
+	failed := int64(1)
+	api := &readerAPI{stderr: strings.Repeat("e", stateStderrLimit*4), status: &failed}
+
+	_, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t))
+
+	if err == nil || len(err.Error()) > stateStderrLimit+100 {
+		t.Errorf("State() error of %d bytes, want it bounded by the stderr limit", len(fmt.Sprint(err)))
+	}
+}
+
+// What the agent can make the reading say is refused unless git could have written it.
+func TestWorkspaceReader_State_Refused(t *testing.T) {
+	ok := int64(0)
+	for name, out := range map[string]string{
+		"commit in a path":  `{"Local":[{"Name":"x","Tip":"../../../../user","Unpushed":true}]}`,
+		"name with ..":      `{"Pushed":[{"Name":"a/../b","Tip":"` + tip + `"}]}`,
+		"name with newline": `{"Local":[{"Name":"a\nb","Tip":"` + tip + `"}]}`,
+		"name with a space": `{"Pushed":[{"Name":"a b","Tip":"` + tip + `"}]}`,
+		"unknown operation": `{"Operation":"rm -rf"}`,
+		"name ending .lock": `{"Pushed":[{"Name":"a.lock","Tip":"` + tip + `"}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := &readerAPI{stdout: out, status: &ok}
+			if _, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t)); err == nil {
+				t.Errorf("State() of %s = nil error, want it refused", out)
+			}
+		})
+	}
+	api := &readerAPI{stdout: `{"Pushed":[{"Name":"acp/0f8fad5b-fix","Tip":"` + tip + `"}],"Operation":"cherry-pick"}`, status: &ok}
+	if _, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t)); err != nil {
+		t.Errorf("State() of a session branch = %v, want it read", err)
 	}
 }
