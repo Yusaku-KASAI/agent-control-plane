@@ -392,10 +392,10 @@ func (c *SessionCleaner) keptText(s domain.Session, rs []reason) string {
 		case reasonStash:
 			b.WriteString("作業領域の stash に変更がある")
 		case reasonOperation:
-			fmt.Fprintf(&b, "作業領域で %s が途中で止まっている", r.operation)
+			fmt.Fprintf(&b, "作業領域（サブエージェントなどの worktree を含む）で %s が途中で止まっている", r.operation)
 		case reasonLostCommits:
 			if r.branch == "HEAD" {
-				b.WriteString("どのブランチにもないコミットがある（detached HEAD）")
+				b.WriteString("どのブランチにもないコミットがある（作業領域か、その中のサブエージェントなどの worktree の detached HEAD）")
 			} else {
 				fmt.Fprintf(&b, "push していないか、GitHub に見つからないコミットがあるブランチ：`%s`", r.branch)
 			}

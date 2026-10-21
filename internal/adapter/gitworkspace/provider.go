@@ -301,7 +301,7 @@ func detachedTip(ctx context.Context, g gitRunner, path string, gitDir ...string
 	if _, err := run("symbolic-ref", "--quiet", "HEAD"); err == nil {
 		return "", nil
 	}
-	n, err := run("rev-list", "--count", "HEAD", "--not", "--remotes=origin", "--glob=refs/acp/*", "--branches")
+	n, err := run(append(append([]string{"rev-list", "--count", "HEAD", "--not"}, kept...), "--branches")...)
 	if err != nil || n == "0" {
 		return "", err
 	}
@@ -459,9 +459,11 @@ func pushedBranches(ctx context.Context, g gitRunner, path string) ([]usecase.Br
 	return pushed, nil
 }
 
-func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, elsewhere ...string) (bool, error) {
-	args := append([]string{"rev-list", "--count", rev, "--not", "--remotes=origin", "--glob=refs/acp/*"}, elsewhere...)
-	n, err := g.run(ctx, path, args...)
+// kept are the refs whose commits are found elsewhere: on origin, or in the target's checkout.
+var kept = []string{"--remotes=origin", "--glob=refs/acp/*"}
+
+func hasUnpushed(ctx context.Context, g gitRunner, path, rev string) (bool, error) {
+	n, err := g.run(ctx, path, append([]string{"rev-list", "--count", rev, "--not"}, kept...)...)
 	return n != "0", err
 }
 
