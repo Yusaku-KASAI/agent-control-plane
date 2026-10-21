@@ -150,17 +150,6 @@ def parse_frontmatter(path, text, errors):
     return meta
 
 
-# Where a frontmatter may be written by hand: decision records, and the definitions Claude Code reads.
-FRONTMATTER_PLACES = {"adr", "agents", "skills"}
-
-
-def check_frontmatter_places(paths, errors):
-    for path in paths:
-        if read(path).startswith("---\n") and not FRONTMATTER_PLACES & set(path.split(os.sep)[:-1]):
-            errors.append(f"{path}: a frontmatter is written only in ADRs, role instructions and skills;"
-                          " other attributes are derived (check-docs --catalog)")
-
-
 def check_adrs(paths, errors):
     adrs, numbers = {}, {}
     for path in paths:
@@ -661,7 +650,6 @@ def main():
     for path in paths:
         check_links(path, errors)
     check_adrs(paths, errors)
-    check_frontmatter_places(paths, errors)
     check_docs_dirs(paths, errors)
     check_sizes(paths, errors)
     check_roles(paths, errors)

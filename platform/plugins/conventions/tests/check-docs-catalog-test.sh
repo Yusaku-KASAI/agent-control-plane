@@ -61,13 +61,5 @@ printf '# C2\n' >"$repo/rules/c.md"
 check "a document changed in the work tree has its version marked" "rules/c.md	共通のルール	C2	$v1+	2026-01-02	-	-	-	-" \
   "$(row rules/c.md)"
 check "the catalog ends without a traceback when its reader stops" "" "$(cd "$repo" && { "$bin" --catalog | true; } 2>&1)"
-frontmatter_errors() {
-  local out
-  out=$(cd "$repo" && "$bin" 2>&1) || true
-  grep -c 'a frontmatter is written only' <<<"$out" || true
-}
-check "a frontmatter in ADRs, roles and skills passes the check" "0" "$(frontmatter_errors)"
-printf -- '---\ntitle: A\n---\n\n# A\n' >"$repo/docs/guides/a.md"
-check "a frontmatter outside ADRs, roles and skills fails the check" "1" "$(frontmatter_errors)"
 
 exit "$failed"

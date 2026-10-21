@@ -211,7 +211,7 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
   変えるときは新しい ADR を作り、両方の frontmatter に向き合う参照（`amends` と `amended_by`、`supersedes` と
   `superseded_by`）を書く。参照は、同じ `adr/` の ADR なら番号、ほかの `adr/` の ADR なら相対パス（`"../../x/adr/0004-y.md"`）で書く。
 - 検査：frontmatter の形と値、`superseded` と `superseded_by` の組、日付の形、見出しの番号とファイル名の一致、
-  参照先があることと向き合っていること。`adr/`、`agents/`、`skills/` の外の文書が frontmatter を持たないこと。
+  参照先があることと向き合っていること。
 
 <a id="links"></a>
 
