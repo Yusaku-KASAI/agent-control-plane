@@ -295,14 +295,17 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 // detachedTip returns HEAD when it is detached on commits no branch has, or "" otherwise. gitDir
 // selects the HEAD of a linked worktree.
 func detachedTip(ctx context.Context, g gitRunner, path string, gitDir ...string) (string, error) {
-	if _, err := g.run(ctx, path, append(gitDir, "symbolic-ref", "--quiet", "HEAD")...); err == nil {
+	run := func(args ...string) (string, error) {
+		return g.run(ctx, path, append(slices.Clone(gitDir), args...)...)
+	}
+	if _, err := run("symbolic-ref", "--quiet", "HEAD"); err == nil {
 		return "", nil
 	}
-	n, err := g.run(ctx, path, append(gitDir, "rev-list", "--count", "HEAD", "--not", "--remotes=origin", "--glob=refs/acp/*", "--branches")...)
+	n, err := run("rev-list", "--count", "HEAD", "--not", "--remotes=origin", "--glob=refs/acp/*", "--branches")
 	if err != nil || n == "0" {
 		return "", err
 	}
-	return g.run(ctx, path, append(gitDir, "rev-parse", "HEAD")...)
+	return run("rev-parse", "HEAD")
 }
 
 // worktree is a linked worktree of the workspace: its administrative directory in the

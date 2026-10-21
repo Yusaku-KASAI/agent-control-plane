@@ -220,7 +220,7 @@ head コミットは、閉じたときの先頭）。
 | 作業ツリーの変更（git のリポジトリ） | ない / ある（主の worktree か、作業領域の中のほかの worktree に、コミットしていない変更か、ignore されていない追跡していないファイル） |
 | stash（同） | ない / ある |
 | 途中の操作（同） | ない / ある（主の worktree か、作業領域の中のほかの worktree で、rebase、merge、cherry-pick、revert、bisect） |
-| HEAD（同。worktree ごと） | ブランチを指す / detached で、ローカルのブランチにもないほかにないコミットを持つ / detached で、持たない |
+| HEAD（同。主の worktree と、作業領域の中のほかの worktree ごと） | ブランチを指す / detached で、ローカルのブランチにもないほかにないコミットを持つ / detached で、持たない |
 | GitHub（記録がある） | 読める / 読めない（GitHub App がない、ターゲットの `origin` が GitHub でない） |
 
 ブランチ（対象：ローカルのブランチ、push したブランチ、セッションの名前でリモートにあるブランチの和。名前で同じものとする）：
