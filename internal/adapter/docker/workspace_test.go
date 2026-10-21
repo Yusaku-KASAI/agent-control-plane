@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -163,10 +164,11 @@ func TestWorkspaceReader_State_Failed(t *testing.T) {
 // The agent may make git hang, by a named pipe for instance; the reading gives up and removes it.
 func TestWorkspaceReader_State_Hangs(t *testing.T) {
 	api := &readerAPI{}
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+	r := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"})
+	r.timeout = 100 * time.Millisecond
 
-	_, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(ctx, readerAgent, repoWorkspace(t))
+	// The cleanup's context has no deadline; the reading brings its own.
+	_, err := r.State(context.Background(), readerAgent, repoWorkspace(t))
 
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("State() error = %v, want the deadline", err)
@@ -240,14 +242,16 @@ func TestWorkspaceReader_State_FailedStderrBounded(t *testing.T) {
 // What the agent can make the reading say is refused unless git could have written it.
 func TestWorkspaceReader_State_Refused(t *testing.T) {
 	ok := int64(0)
-	for name, out := range map[string]string{
+	refused := map[string]string{
 		"commit in a path":  `{"Local":[{"Name":"x","Tip":"../../../../user","Unpushed":true}]}`,
-		"name with ..":      `{"Pushed":[{"Name":"a/../b","Tip":"` + tip + `"}]}`,
-		"name with newline": `{"Local":[{"Name":"a\nb","Tip":"` + tip + `"}]}`,
-		"name with a space": `{"Pushed":[{"Name":"a b","Tip":"` + tip + `"}]}`,
 		"unknown operation": `{"Operation":"rm -rf"}`,
-		"name ending .lock": `{"Pushed":[{"Name":"a.lock","Tip":"` + tip + `"}]}`,
-	} {
+	}
+	for _, name := range []string{"a/../b", "a\nb", "a b", "a.lock", "-a", "/a", "a/", "a.", "a//b", "a@{1}", "a/.b", ".a",
+		"a\u007fb", "a?b", "a~b", "a:b", "a*b", "a[b", "a\\b", "a^b", ""} {
+		quoted, _ := json.Marshal(name)
+		refused[fmt.Sprintf("name %q", name)] = `{"Pushed":[{"Name":` + string(quoted) + `,"Tip":"` + tip + `"}]}`
+	}
+	for name, out := range refused {
 		t.Run(name, func(t *testing.T) {
 			api := &readerAPI{stdout: out, status: &ok}
 			if _, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t)); err == nil {
@@ -255,7 +259,8 @@ func TestWorkspaceReader_State_Refused(t *testing.T) {
 			}
 		})
 	}
-	api := &readerAPI{stdout: `{"Pushed":[{"Name":"acp/0f8fad5b-fix","Tip":"` + tip + `"}],"Operation":"cherry-pick"}`, status: &ok}
+	api := &readerAPI{stdout: `{"Pushed":[{"Name":"acp/0f8fad5b-fix","Tip":"` + tip + `"},{"Name":"user@host/x","Tip":"` + tip + `"}],` +
+		`"Local":[{"Name":"HEAD","Tip":"` + tip + `"}],"Operation":"cherry-pick"}`, status: &ok}
 	if _, err := NewWorkspaceReader(api, ToolsOptions{Dir: "/tools"}).State(context.Background(), readerAgent, repoWorkspace(t)); err != nil {
 		t.Errorf("State() of a session branch = %v, want it read", err)
 	}

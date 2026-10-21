@@ -151,7 +151,7 @@ GitHub のブランチと PR
   など）で見つかる（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 
 - **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
-  それを、作業領域を読むコンテナ（[エージェントのコンテナ](containers.md#workspace-reader "在りか")）の中で動かし、
+  それを、[作業領域を読むコンテナ](containers.md#workspace-reader "在りか")の中で動かし、
   usecase の `SessionWorkspace` として[片付け](sessions.md#cleaner "在りか")に渡す。control-plane のプロセスでは回さない。
   作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、

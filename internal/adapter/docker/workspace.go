@@ -102,12 +102,13 @@ func InstallTool(opts ToolsOptions) error {
 // workspace is the agent's to write, and git runs commands its config names (core.fsmonitor,
 // filters), so they must not run in the control plane.
 type WorkspaceReader struct {
-	api   dockerAPI
-	tools ToolsOptions
+	api     dockerAPI
+	tools   ToolsOptions
+	timeout time.Duration
 }
 
 func NewWorkspaceReader(api dockerAPI, tools ToolsOptions) *WorkspaceReader {
-	return &WorkspaceReader{api: api, tools: tools}
+	return &WorkspaceReader{api: api, tools: tools, timeout: stateTimeout}
 }
 
 func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspace string) (usecase.WorkspaceState, error) {
@@ -115,7 +116,7 @@ func (r *WorkspaceReader) State(ctx context.Context, agent domain.Agent, workspa
 	if ok, err := pathExists(filepath.Join(workspace, ".git")); !ok || err != nil {
 		return w, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, stateTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	created, err := r.api.ContainerCreate(ctx, stateSpec(agent, workspace, r.tools))
 	if err != nil {
