@@ -11,7 +11,7 @@
 | ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。何を用意するかはターゲットの契約が定める |
 | target-template | ターゲットに共通の環境のファイルと、その説明を持つひな形 |
 | ハーネス | エージェントを動かす仕組みの全体：ターゲットのイメージ、プラグイン、それを起動する control-plane か devcontainer。何が渡されるかは[ハーネスの契約](harness.md "在りか")が定める |
-| ロール | conventions の用語集の「役割」（developer、guide、reviewer、pm など）。Claude Code のカスタムエージェントとして定義される。何で分け、手順とどう関わるかは conventions の[目的の手順と共通の手順](../../plugins/conventions/docs/architecture/documentation.md#procedures "在りか")にある |
+| ロール | conventions の[用語集](../../plugins/conventions/docs/reference/glossary.md)の「役割」（developer、guide、reviewer、pm など）。Claude Code のカスタムエージェントとして定義される。何で分け、手順とどう関わるかは conventions の[目的の手順と共通の手順](../../plugins/conventions/docs/architecture/documentation.md#procedures "在りか")にある |
 | エージェント | ターゲットとロールの組。Slack では Bot 一つに当たる（例：control-plane-dev） |
 | 依頼者 | エージェントに依頼を出した人 |
 | スレッド | 依頼を受けた Slack のスレッド。同じスレッドへの依頼は同じセッションに届く |

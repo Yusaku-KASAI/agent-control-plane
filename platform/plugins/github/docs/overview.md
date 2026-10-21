@@ -13,7 +13,8 @@ CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../
 一つのブランチに一つだけにする（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。レビューの結果と答えは決まった
 形の JSON で受け、表と機械で読む写しを作る（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。このプラグインは、
 それを `prctl` と hook で守らせる。あわせて、ターゲットの既定のブランチの守りが外れていないことを確かめる
-`check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)）。
+`check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)、
+[0017](../../../../template/docs/adr/0017-protection-check-follows-contract.md)）。
 
 ## 構成
 
