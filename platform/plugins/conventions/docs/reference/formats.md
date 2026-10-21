@@ -204,7 +204,7 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 ## Consequences
 ```
 
-- 手で書く frontmatter は ADR と、Claude Code が読む定義（役割ごとの指示とスキル）だけに置く。ほかの文書の属性
+- 手で書く frontmatter は ADR と、Claude Code が読む定義（`agents/` のエージェントと `skills/` のスキル）だけに置く。ほかの文書の属性
   （区分、更新日、持ち主、前提など）は書かず、`check-docs --catalog` で一次の情報から導く
   （[ADR 0026](../adr/0026-derive-document-catalog.md)）。
 - ADR はその時点の判断の記録なので、後から本文を書き換えない（文書を移したときのリンクの付け替えは除く）。判断を

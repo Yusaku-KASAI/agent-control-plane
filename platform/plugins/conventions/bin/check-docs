@@ -626,8 +626,8 @@ def print_catalog(paths, m):
         kind = kind_of(path)
         relied = unique(resolved for _, resolved in relies_on(path))
         shown = unique(whereabouts(path))
-        # Role instructions name what they rely on by paths in code, not by links, so links cannot tell all.
-        if kind == ROLE:
+        # Role instructions and skills name what they rely on by paths in code, not by links, so links cannot tell all.
+        if kind in (ROLE, "スキル"):
             relied, shown = relied + ["?"], shown + ["?"]
         print("\t".join([path, kind, title_of(path), version, date, meta.get("status", "-"), item or "-",
                          ",".join(relied) or "-", ",".join(shown) or "-"]))
