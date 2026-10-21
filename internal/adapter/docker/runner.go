@@ -83,7 +83,8 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 	return newProcess(r.api, created.ID, attach.HijackedResponse, creds), nil
 }
 
-// RemoveLeftovers removes every agent container, running or not, and returns their sessions.
+// RemoveLeftovers removes every agent container, running or not, and returns their sessions. It
+// also removes the containers left reading workspaces.
 func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error) {
 	list, err := r.api.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
@@ -91,6 +92,18 @@ func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list agent containers: %w", err)
+	}
+	readers, err := r.api.ContainerList(ctx, client.ContainerListOptions{
+		All:     true,
+		Filters: make(client.Filters).Add("label", stateLabel),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list workspace readers: %w", err)
+	}
+	for _, c := range readers.Items {
+		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
+			return nil, fmt.Errorf("remove container %s: %w", c.ID, err)
+		}
 	}
 	var ids []domain.SessionID
 	for _, c := range list.Items {

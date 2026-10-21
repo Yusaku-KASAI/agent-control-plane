@@ -190,7 +190,8 @@
     から `kept_notified_at` を書く。スレッドで始まっていないセッションには知らせない。
   - いつ動かすか（[ライフサイクル](#lifecycle)）は `cmd/acp/serve.go` が持つ。
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
-  `SessionNotifier`）だけに依存する。会話の履歴と認証情報を消すのは `SessionFiles`
+  `SessionNotifier`）だけに依存する。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
+  作業領域を読むコンテナの中で読む）、会話の履歴と認証情報を消すのは `SessionFiles`
   （`internal/adapter/docker/sessionfiles.go`）、記録と作業領域を消すのは `SessionRepository.Remove`。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：アダプターは事実
   だけを返し、判定はここに置く。残すか消すか、何を知らせるかは理由のリスト一つから決める。

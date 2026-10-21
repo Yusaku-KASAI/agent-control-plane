@@ -147,7 +147,10 @@ GitHub のブランチと PR
   エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む
   （[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
 
-- **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner "在りか")。
+- **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
+  それを、作業領域を読むコンテナ（[エージェントのコンテナ](containers.md#workspace-reader "在りか")）の中で動かし、
+  usecase の `SessionWorkspace` として[片付け](sessions.md#cleaner "在りか")に渡す。control-plane のプロセスでは回さない。
+  作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 

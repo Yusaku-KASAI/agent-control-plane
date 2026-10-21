@@ -244,7 +244,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 // and about the local branches holding unpushed commits: the remote may keep those commits under the
 // same name, as when a merge deleted the branch and a prune removed its remote-tracking branch.
 func (c *SessionCleaner) facts(ctx context.Context, agent domain.Agent, s domain.Session, creds domain.Credentials) (sessionFacts, error) {
-	ws, err := c.workspaces.State(ctx, s.Workspace.Path)
+	ws, err := c.workspaces.State(ctx, agent, s.Workspace.Path)
 	if err != nil {
 		return sessionFacts{}, fmt.Errorf("read workspace: %w", err)
 	}

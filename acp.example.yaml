@@ -24,6 +24,13 @@ credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
 
+# The control plane's own binary, which it puts here on start for the containers it starts to run,
+# such as the one reading a session's workspace for the cleanup. They mount the volume read-only;
+# with volume empty, dir is a host path and is bind-mounted.
+tools:
+  dir: /var/lib/acp/tools
+  volume: acp-tools
+
 # File where what each turn spent is appended, one line of JSON per turn. Kept apart from sessions so
 # that it outlives them. What a line holds: docs/architecture/app/sessions.md#usage.
 usage_log: /home/you/projects/acp-usage.jsonl

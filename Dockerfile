@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/acp /usr/local/bin/acp
 # A fresh named volume takes this mode, so the control plane can write to it under any ACP_UID.
-RUN mkdir -p /var/lib/acp/credentials /var/lib/acp/claude /var/lib/acp/state \
-    && chmod 1777 /var/lib/acp/credentials /var/lib/acp/claude && chmod 1733 /var/lib/acp/state
+RUN mkdir -p /var/lib/acp/credentials /var/lib/acp/claude /var/lib/acp/state /var/lib/acp/tools \
+    && chmod 1777 /var/lib/acp/credentials /var/lib/acp/claude /var/lib/acp/tools && chmod 1733 /var/lib/acp/state
 ENTRYPOINT ["acp"]
 CMD ["serve", "--config", "/etc/acp/acp.yaml", "--listen", "0.0.0.0:8787"]

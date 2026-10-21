@@ -22,6 +22,9 @@ sessions:
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
+tools:
+  dir: /var/lib/acp/tools
+  volume: acp-tools
 state_dir: /var/lib/acp/state
 usage_log: /var/acp/usage.jsonl
 claude:
@@ -65,7 +68,8 @@ func TestParse(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 	if cfg.Claude != (config.Claude{OAuthTokenPath: "/keys/claude-oauth-token", ConfigDir: "/var/lib/acp/claude", ConfigVolume: "acp-claude"}) || cfg.SessionsRoot != "/var/acp/sessions" || cfg.IdleTimeout != 5*time.Minute || cfg.Retention != 240*time.Hour ||
-		cfg.Credentials != (config.Credentials{Dir: "/var/lib/acp/credentials", Volume: "acp-credentials"}) {
+		cfg.Credentials != (config.Credentials{Dir: "/var/lib/acp/credentials", Volume: "acp-credentials"}) ||
+		cfg.Tools != (config.Tools{Dir: "/var/lib/acp/tools", Volume: "acp-tools"}) {
 		t.Errorf("Parse() = %+v", cfg)
 	}
 
@@ -118,28 +122,38 @@ func TestParse(t *testing.T) {
 func TestParse_Invalid(t *testing.T) {
 	tests := map[string]string{
 		"unknown field": validYAML + "extra: 1\n",
+		"no tools dir": `
+sessions: {root: /w}
+usage_log: /u.jsonl
+credentials: {dir: /c}
+claude: {oauth_token_path: /t, config_dir: /cc}
+`,
 		"no claude credential": `
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {config_dir: /cc}
 `,
 		"two claude credentials": `
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, api_key_path: /k, config_dir: /cc}
 `,
 		"bad idle timeout": `
 sessions: {root: /w, idle_timeout: soon}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"bad retention": `
 sessions: {root: /w, retention: 30d}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"missing credentials dir": `
@@ -150,12 +164,14 @@ claude: {oauth_token_path: /t, config_dir: /cc}
 		"missing usage_log": `
 sessions: {root: /w}
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"relative usage_log": `
 sessions: {root: /w}
 usage_log: usage.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"relative sessions root": `
@@ -167,6 +183,7 @@ claude: {oauth_token_path: /t, config_dir: /cc}
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: relative, image: i}}
@@ -175,6 +192,7 @@ agents:
 sessions: {root: /src/repo/sessions}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
@@ -183,6 +201,7 @@ agents:
 sessions: {root: /src/repo}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}
@@ -191,6 +210,7 @@ agents:
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, github: {app_id: 1}}
@@ -199,6 +219,7 @@ agents:
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}, slack: {app_token_path: /a, bot_token_path: /b}}
@@ -207,6 +228,7 @@ agents:
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - name: a
@@ -218,6 +240,7 @@ agents:
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 people:
   - {slack: U1, git_name: A}
@@ -226,6 +249,7 @@ people:
 sessions: {root: /w}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /x, image: i}}
@@ -246,6 +270,7 @@ func TestParse_SessionsRootBesideTarget(t *testing.T) {
 sessions: {root: /src/repo-sessions}
 usage_log: /u.jsonl
 credentials: {dir: /c}
+tools: {dir: /tl}
 claude: {oauth_token_path: /t, config_dir: /cc}
 agents:
   - {name: a, role: developer, target: {path: /src/repo, image: i}}

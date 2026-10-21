@@ -41,7 +41,8 @@ usecase.SessionCleaner（起動時と定期的に）
 | `AgentRegistry`、`People` | `ports.go` | `config.Registry`、`config.People` |
 | `AccessPolicy` | `handle_message.go` | `config.AccessList` |
 | `SessionRepository` | `ports.go` | `filesession.Store` |
-| `WorkspaceProvider`、`SessionWorkspace` | `ports.go` | `gitworkspace.Provider` |
+| `WorkspaceProvider` | `ports.go` | `gitworkspace.Provider` |
+| `SessionWorkspace` | `ports.go` | `docker.WorkspaceReader`（コンテナの中で `gitworkspace.Provider` の `State` を回す） |
 | `CredentialIssuer` | `ports.go` | `serve.go` の `credentialIssuers`（`claudeauth.FileIssuer`、`githubapp.Issuer`、`slackauth.Issuer` をまとめる） |
 | `Runner`、`Process` | `ports.go` | `docker.Runner` |
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |

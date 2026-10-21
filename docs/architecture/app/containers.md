@@ -15,10 +15,13 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 ├─ docker-proxy（Docker ソケットを持つ唯一のコンテナ。許可した API だけを通す）
 │    │
 │    ▼
-└─ エージェントのコンテナ（動いているセッションごとに 1 つ。ターゲットのイメージ）
-     claude -p --input-format stream-json ...（標準入出力は control-plane が attach）
-     マウント：作業領域 / エージェントの Claude Code の設定 / セッションの認証情報（読み取り専用）
-              / ターゲットの隣のマーケットプレイス（読み取り専用）
+├─ エージェントのコンテナ（動いているセッションごとに 1 つ。ターゲットのイメージ）
+│    claude -p --input-format stream-json ...（標準入出力は control-plane が attach）
+│    マウント：作業領域 / エージェントの Claude Code の設定 / セッションの認証情報（読み取り専用）
+│             / ターゲットの隣のマーケットプレイス（読み取り専用）
+└─ 作業領域を読むコンテナ（片付けで判定するたびに 1 つ、使い捨て。ターゲットのイメージ、ネットワークなし）
+     acp workspace-state（control-plane のバイナリ）
+     マウント：作業領域（読み取り専用）/ control-plane のバイナリ（読み取り専用）
 ```
 
 - control-plane は常駐するサーバーとしてコンテナで動き、`acp run` などの CLI はその HTTP API のクライアントになる
@@ -48,8 +51,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - マウント：設定ファイル（読み取り専用）。`ACP_HOST_ROOT`（読み書き可）と `ACP_SECRETS_DIR`（読み取り専用）を、
     ホストと同じパスに（置き場所は [.env.example](../../../.env.example "在りか")）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
-    `acp-state`（control-plane だけが読み書きする状態）。名前は固定する（`acp-credentials` と `acp-claude` は、
-    エージェントのコンテナから名前で指す）。
+    `acp-state`（control-plane だけが読み書きする状態）、`acp-tools`（control-plane が起動のたびに自分のバイナリを
+    置き、作業領域を読むコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
+    control-plane が作るコンテナから名前で指す）。
   - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
     （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
     リクエストには `ACP_API_TOKEN` を要求する。
@@ -105,7 +109,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
       compose のプロジェクトに数えられ、VS Code の Reopen in Container や `docker compose down` の対象になる。
     - 標準入力を開いておき、閉じるとプロセスが終わる。
   - `RemoveLeftovers`：ラベル `acp.session` の付いたコンテナを、動いているものも止まっているものもすべて消し、
-    そのセッションを返す。いつ呼ばれるかは[依頼と知らせ](requests.md#shutdown "在りか")にある。
+    そのセッションを返す。ラベル `acp.workspace-state` の付いた、作業領域を読むコンテナの残りも消す。いつ呼ばれるかは[依頼と知らせ](requests.md#shutdown "在りか")にある。
   - いつ起動し、いつ止めるか（休ませる時間、停止）は置かない。dispatcher が決める。
 - **関係**：usecase の `Runner` と `StartRequest` だけを見る。イメージへの前提はターゲットの契約にある。
   エージェントに渡すものの一覧はハーネスの契約と一致させる。
@@ -167,6 +171,32 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   devcontainer の Claude Code の設定はエージェントに渡さず、エージェントの間と devcontainer とで会話の履歴と auto memory を分ける
   （[ADR 0023](../../adr/app/0023-claude-auth-and-per-agent-config.md)）。
 - **関係**：Claude Code の認証は設定ディレクトリではなく、発行した認証情報で行う（[認証情報](credentials.md "在りか")）。
+
+<a id="workspace-reader"></a>
+
+### `internal/adapter/docker`（`workspace.go`）
+
+- **責務**：usecase の `SessionWorkspace` を実装し、セッションの作業領域が持っているもの（[作業領域の状態](workspace.md#state "在りか")）を、
+  control-plane のプロセスの外で読む。作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド
+  （`core.fsmonitor`、フィルタなど）を動かし、名前付きパイプなどで止まりもするため（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
+- **置くもの / 置かないもの**：
+  - `InstallTool`：`acp serve` の起動のたびに、動いている自分のバイナリを `tools.dir`（ボリュームは `tools.volume`）に
+    置き換える。
+  - `State`：作業領域が git のリポジトリなら、使い捨てのコンテナで `acp workspace-state` を動かし、標準出力の JSON を
+    読む。期限（2 分）を過ぎたら諦めてエラーにし、どの終わり方でもコンテナを消す。
+  - `stateSpec`：そのコンテナの形を一か所で決める。
+    - イメージはエージェントのターゲットのイメージ（git があることはターゲットの契約）。エントリポイントは
+      `/run/acp/bin/acp`。ユーザーはイメージのユーザー。
+    - 作業ディレクトリと作業領域のマウント先は、エージェントのコンテナと同じ `/workspace/<ターゲットのディレクトリ名>`。
+      git がエージェントのコンテナで記録したパス（worktree など）が、そのまま開ける。
+    - マウントは、作業領域（読み取り専用）と、`tools` のバイナリ（`/run/acp/bin`、読み取り専用）だけ。認証情報も
+      環境変数も渡さない。
+    - ネットワークなし、ケーパビリティなし、`no-new-privileges`、読み取り専用のルート（`/tmp` だけ tmpfs）。
+    - ラベル `acp.workspace-state`。Docker Compose のラベルは、エージェントのコンテナと同じく空にする。
+- **関係**：片付け（[片付け](sessions.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
+  プロキシの許可は変わらない。
+- **当てはめた原則・パターン**：[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが書いたものを読む
+  git には、作業領域を読む権限のほか何も渡さない。
 
 ### `internal/adapter/docker`（`sessionfiles.go`）
 
