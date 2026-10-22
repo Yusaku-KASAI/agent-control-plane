@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -346,5 +347,25 @@ func TestDeclaredPlugins_OwnFromTheClone(t *testing.T) {
 
 	if got, err := declaredPlugins(repo, target, "/workspace"); err != nil || len(got) != 0 {
 		t.Errorf("declaredPlugins() = %+v, %v; want nothing the clone disables", got, err)
+	}
+}
+
+// Each read is bounded, and so is what is read for one container: enabling many plugins of one
+// marketplace reads it again for each.
+func TestDeclaredPlugins_ReadBoundedInAll(t *testing.T) {
+	repo := t.TempDir()
+	var enabled, listed []string
+	for i := range 10 {
+		enabled = append(enabled, fmt.Sprintf(`"x%d@m": true`, i))
+		listed = append(listed, fmt.Sprintf(`{"name": "x%d", "source": "./x%d"}`, i, i))
+	}
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"),
+		`{"extraKnownMarketplaces": {"m": {"source": {"source": "directory", "path": "./p"}}}, "enabledPlugins": {`+strings.Join(enabled, ", ")+`}}`)
+	// Under the bound for one file; ten of them are over the bound in all.
+	writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"),
+		`{"plugins": [`+strings.Join(listed, ", ")+`]}`+strings.Repeat(" ", maxConfigRead/8))
+
+	if got, err := declaredPlugins(repo, repo, "/workspace"); err == nil {
+		t.Errorf("declaredPlugins() = %d plugins, want the reading refused once over the bound in all", len(got))
 	}
 }

@@ -47,13 +47,14 @@ type settingsFile struct {
 // for the agent may write anything in its clone, links included.
 func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 	hostRoot, name := filepath.Dir(target), filepath.Base(repo)
+	budget := &readBudget{left: maxConfigRead}
 	var dirs []pluginDir
 	for _, from := range []struct {
 		dir    string
 		beside bool
 	}{{repo, false}, {target, true}} {
 		var settings settingsFile
-		if err := readJSON(from.dir, filepath.Join(".claude", "settings.json"), &settings); errors.Is(err, fs.ErrNotExist) {
+		if err := budget.readJSON(from.dir, filepath.Join(".claude", "settings.json"), &settings); errors.Is(err, fs.ErrNotExist) {
 			continue
 		} else if err != nil {
 			return nil, err
@@ -69,10 +70,10 @@ func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 			switch inTree, beside := marketplaceDir(src.Path, name, hostRoot, workspaceDir); {
 			case beside != nil && from.beside:
 				var rel string
-				rel, err = pluginSource(beside.Host, ".", plugin)
+				rel, err = pluginSource(budget, beside.Host, ".", plugin)
 				dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
 			case inTree != "" && !from.beside:
-				dir.Path, err = pluginSource(repo, inTree, plugin)
+				dir.Path, err = pluginSource(budget, repo, inTree, plugin)
 			default:
 				continue
 			}
@@ -132,14 +133,14 @@ func linkedIntoRepository(host, repoRoot string) (string, bool) {
 	return rel, true
 }
 
-func pluginSource(repo, marketplace, plugin string) (string, error) {
+func pluginSource(budget *readBudget, repo, marketplace, plugin string) (string, error) {
 	var catalog struct {
 		Plugins []struct {
 			Name   string          `json:"name"`
 			Source json.RawMessage `json:"source"`
 		} `json:"plugins"`
 	}
-	if err := readJSON(repo, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &catalog); err != nil {
+	if err := budget.readJSON(repo, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &catalog); err != nil {
 		return "", err
 	}
 	for _, p := range catalog.Plugins {
@@ -160,11 +161,22 @@ func local(p string) bool {
 	return p != "" && filepath.IsLocal(filepath.Clean(p))
 }
 
-// maxConfigFile bounds what is read of a settings or marketplace file.
-const maxConfigFile = 1 << 20
+const (
+	// maxConfigFile bounds what is read of a settings or marketplace file.
+	maxConfigFile = 1 << 20
+	// maxConfigRead bounds what is read for one container in all: the settings may enable a
+	// plugin many times over, each reading its marketplace again.
+	maxConfigRead = 4 << 20
+)
 
-func readJSON(dir, name string, v any) error {
-	data, err := readUntrusted(dir, name, maxConfigFile)
+// readBudget is what is left to read for one container.
+type readBudget struct {
+	left int64
+}
+
+func (b *readBudget) readJSON(dir, name string, v any) error {
+	data, err := readUntrusted(dir, name, min(maxConfigFile, b.left))
+	b.left -= int64(len(data))
 	if err == nil {
 		err = json.Unmarshal(data, v)
 	}
