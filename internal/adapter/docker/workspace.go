@@ -201,10 +201,14 @@ func branchName(name string) bool {
 	if name == "HEAD" {
 		return true
 	}
-	if name == "" || strings.HasPrefix(name, "-") || strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") ||
-		strings.HasSuffix(name, ".") || strings.HasSuffix(name, ".lock") || strings.Contains(name, "..") ||
-		strings.Contains(name, "//") || strings.Contains(name, "@{") || strings.Contains(name, "/.") || strings.HasPrefix(name, ".") {
+	if name == "@" || strings.HasPrefix(name, "-") || strings.HasSuffix(name, ".") || strings.Contains(name, "..") ||
+		strings.Contains(name, "@{") {
 		return false
+	}
+	for part := range strings.SplitSeq(name, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return false
+		}
 	}
 	for _, r := range name {
 		if r < 0x20 || r == 0x7f || strings.ContainsRune(" ~^:?*[\\", r) {
@@ -235,7 +239,9 @@ func stateSpec(agent domain.Agent, workspace string, tools ToolsOptions) client.
 			CapDrop:        []string{"ALL"},
 			SecurityOpt:    []string{"no-new-privileges"},
 			ReadonlyRootfs: true,
-			Tmpfs:          map[string]string{"/tmp": "size=16m"},
+			// The agent's commands may write without end; what is read of it is bounded already.
+			LogConfig: container.LogConfig{Type: "none"},
+			Tmpfs:     map[string]string{"/tmp": "size=16m"},
 			Mounts: []mount.Mount{
 				{Type: mount.TypeBind, Source: workspace, Target: workdir, ReadOnly: true},
 				toolsMount(tools),

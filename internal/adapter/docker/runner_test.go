@@ -47,6 +47,7 @@ func TestContainerSpec(t *testing.T) {
 			{Path: "/workspace/kit/platform/plugins/slack", Beside: &mountedDir{Host: "/src/kit/platform", Container: "/workspace/kit/platform"}},
 			{Path: "/workspace/kit/platform/plugins/github", Beside: &mountedDir{Host: "/src/kit/platform", Container: "/workspace/kit/platform"}},
 		}, Options{
+			Tools:           ToolsOptions{Dir: "/var/lib/acp/tools", Volume: "acp-tools"},
 			ClaudeConfigDir: "/var/lib/acp/claude", ClaudeConfigVolume: "acp-claude",
 			CredentialsDir: "/var/lib/acp/credentials", CredentialsVolume: "acp-credentials",
 		})
@@ -98,6 +99,8 @@ func TestContainerSpec(t *testing.T) {
 			Type: mount.TypeVolume, Source: "acp-credentials", Target: "/run/acp/credentials", ReadOnly: true,
 			VolumeOptions: &mount.VolumeOptions{Subpath: "0f8fad5b-d9cb-469f-a165-70867728950e"},
 		},
+		// For the agent to run acp cleanup-check (the harness contract).
+		{Type: mount.TypeVolume, Source: "acp-tools", Target: "/run/acp/bin", ReadOnly: true},
 		{Type: mount.TypeBind, Source: "/src/kit/platform", Target: "/workspace/kit/platform", ReadOnly: true},
 	}
 	if len(spec.HostConfig.Mounts) != len(wantMounts) {
@@ -124,12 +127,15 @@ func TestContainerSpec_ResumesStartedSession(t *testing.T) {
 
 func TestContainerSpec_BindMountsWithoutVolumes(t *testing.T) {
 	mounts := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil,
-		Options{CredentialsDir: "/host/creds", ClaudeConfigDir: "/host/claude"}).HostConfig.Mounts
+		Options{CredentialsDir: "/host/creds", ClaudeConfigDir: "/host/claude", Tools: ToolsOptions{Dir: "/host/tools"}}).HostConfig.Mounts
 	if m := mounts[1]; m.Type != mount.TypeBind || m.Source != "/host/claude/repo-dev" || m.Target != "/home/node/.claude" {
 		t.Errorf("claude config mount = %+v", m)
 	}
 	if m := mounts[2]; m.Type != mount.TypeBind || m.Source != "/host/creds/0f8fad5b-d9cb-469f-a165-70867728950e" || !m.ReadOnly {
 		t.Errorf("credentials mount = %+v", m)
+	}
+	if m := mounts[3]; m.Type != mount.TypeBind || m.Source != "/host/tools" || m.Target != "/run/acp/bin" || !m.ReadOnly {
+		t.Errorf("tools mount = %+v", m)
 	}
 }
 

@@ -78,15 +78,16 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 
 	sessions := filesession.NewStore(cfg.SessionsRoot)
 	workspaces := gitworkspace.NewProvider(cfg.SessionsRoot)
+	tools := docker.ToolsOptions{Dir: cfg.Tools.Dir, Volume: cfg.Tools.Volume}
+	if err := docker.InstallTool(tools); err != nil {
+		return fmt.Errorf("install the tool for containers: %w", err)
+	}
 	runnerOpts := docker.Options{
+		Tools:              tools,
 		ClaudeConfigDir:    cfg.Claude.ConfigDir,
 		ClaudeConfigVolume: cfg.Claude.ConfigVolume,
 		CredentialsDir:     cfg.Credentials.Dir,
 		CredentialsVolume:  cfg.Credentials.Volume,
-	}
-	tools := docker.ToolsOptions{Dir: cfg.Tools.Dir, Volume: cfg.Tools.Volume}
-	if err := docker.InstallTool(tools); err != nil {
-		return fmt.Errorf("install the tool for containers: %w", err)
 	}
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(

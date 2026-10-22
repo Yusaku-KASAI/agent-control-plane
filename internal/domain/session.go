@@ -35,7 +35,13 @@ func (id SessionID) Branch() string {
 // OwnsBranch tells whether the session created the branch: its default working branch, or one
 // named after it with a "-" suffix.
 func (id SessionID) OwnsBranch(name string) bool {
-	return name == id.Branch() || strings.HasPrefix(name, id.Branch()+"-")
+	return BranchOwnedBy(id.Branch(), name)
+}
+
+// BranchOwnedBy tells whether a session whose default working branch is branch created the
+// branch name.
+func BranchOwnedBy(branch, name string) bool {
+	return name == branch || strings.HasPrefix(name, branch+"-")
 }
 
 func NewRandomSessionID() SessionID {

@@ -131,7 +131,7 @@ func TestWorkspaceReader_State(t *testing.T) {
 		t.Errorf("labels = %v, want %s", cfg.Labels, stateLabel)
 	}
 	if host.NetworkMode != "none" || !slices.Equal(host.CapDrop, []string{"ALL"}) || !host.ReadonlyRootfs ||
-		!slices.Contains(host.SecurityOpt, "no-new-privileges") || host.Memory == 0 || host.PidsLimit == nil ||
+		!slices.Contains(host.SecurityOpt, "no-new-privileges") || host.LogConfig.Type != "none" || host.Memory == 0 || host.PidsLimit == nil ||
 		*host.PidsLimit <= 0 || host.Tmpfs["/tmp"] == "" {
 		t.Errorf("host config = %+v, want no network, no capabilities, a read-only root, bounded resources", host)
 	}
@@ -247,7 +247,7 @@ func TestWorkspaceReader_State_Refused(t *testing.T) {
 		"unknown operation": `{"Operation":"rm -rf"}`,
 	}
 	for _, name := range []string{"a/../b", "a\nb", "a b", "a.lock", "-a", "/a", "a/", "a.", "a//b", "a@{1}", "a/.b", ".a",
-		"a\u007fb", "a?b", "a~b", "a:b", "a*b", "a[b", "a\\b", "a^b", ""} {
+		"a\u007fb", "a?b", "a~b", "a:b", "a*b", "a[b", "a\\b", "a^b", "", "a.lock/b", "@", "a/.b/c"} {
 		quoted, _ := json.Marshal(name)
 		refused[fmt.Sprintf("name %q", name)] = `{"Pushed":[{"Name":` + string(quoted) + `,"Tip":"` + tip + `"}]}`
 	}

@@ -28,6 +28,8 @@ type dockerAPI interface {
 }
 
 type Options struct {
+	// Tools is where the control plane's own binary is, mounted read-only into agent containers.
+	Tools ToolsOptions
 	// ClaudeConfigDir holds a Claude Code config directory per agent: its conversation history and
 	// auto memory. When ClaudeConfigVolume is set, that volume is mounted at ClaudeConfigDir and
 	// agents get their subpath of it; otherwise ClaudeConfigDir is a host path and is bind-mounted.
@@ -183,6 +185,8 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 				{Type: mount.TypeBind, Source: s.Workspace.Path, Target: workdir},
 				claudeConfigMount(agent.Name, opts),
 				credentialsMount(s.ID, opts),
+				// The control plane's own binary, for the agent to run acp cleanup-check.
+				toolsMount(opts.Tools),
 			}, besideMounts...),
 		},
 	}
