@@ -17,7 +17,7 @@ type fakeWork map[domain.SessionID]usecase.WorkspaceState
 
 func workspacePath(id domain.SessionID) string { return "/sessions/" + string(id) }
 
-func (f fakeWork) State(_ context.Context, path string) (usecase.WorkspaceState, error) {
+func (f fakeWork) State(_ context.Context, _ domain.Agent, path string) (usecase.WorkspaceState, error) {
 	return f[domain.SessionID(strings.TrimPrefix(path, "/sessions/"))], nil
 }
 

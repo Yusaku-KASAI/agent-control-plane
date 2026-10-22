@@ -41,7 +41,8 @@ usecase.SessionCleaner（起動時と定期的に）
 | `AgentRegistry`、`People` | `ports.go` | `config.Registry`、`config.People` |
 | `AccessPolicy` | `handle_message.go` | `config.AccessList` |
 | `SessionRepository` | `ports.go` | `filesession.Store` |
-| `WorkspaceProvider`、`SessionWorkspace` | `ports.go` | `gitworkspace.Provider` |
+| `WorkspaceProvider` | `ports.go` | `gitworkspace.Provider` |
+| `SessionWorkspace` | `ports.go` | `docker.WorkspaceReader`（コンテナの中で `gitworkspace.Provider` の `State` を回す） |
 | `CredentialIssuer` | `ports.go` | `serve.go` の `credentialIssuers`（`claudeauth.FileIssuer`、`githubapp.Issuer`、`slackauth.Issuer` をまとめる） |
 | `Runner`、`Process` | `ports.go` | `docker.Runner` |
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |
@@ -63,15 +64,18 @@ usecase.SessionCleaner（起動時と定期的に）
 - **置くもの / 置かないもの**：ポートとアダプターのつなぎ方、間隔や時間の値（値はそれを使う部品の文書にある）、
   複数のアダプターを一つのポートにまとめる小さな型（`credentialIssuers`、`sessionObserver`）。`Dispatcher` と Bot が
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
-- **関係**：すべてのパッケージに依存してよい。起動は、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
+- **関係**：すべてのパッケージに依存してよい。起動は、自分のバイナリを `tools.dir` に置き（失敗したら起動しない。
+  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付けを動かす。停止の順番は
   [依頼と知らせ](requests.md#shutdown "在りか")にある。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   部品を組み立てる場所で、ここだけが全部を知る。ユースケースはアダプターを知らない（層は[コードの構成](../codebase/layers.md "在りか")）。
 
-### `cmd/acp`（`main.go`、`run.go`）
+### `cmd/acp`（`main.go`、`run.go`、`workspace_state.go`）
 
-- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。
+- **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。`acp workspace-state` は、
+  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](workspace.md#state "在りか")。control-plane が
+  作業領域を読むコンテナの中で動かす）。
 - **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md "在りか")にある。
 
 ### `internal/usecase/ports.go`

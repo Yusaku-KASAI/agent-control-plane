@@ -83,7 +83,8 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 	return newProcess(r.api, created.ID, attach.HijackedResponse, creds), nil
 }
 
-// RemoveLeftovers removes every agent container, running or not, and returns their sessions.
+// RemoveLeftovers removes every agent container, running or not, and returns their sessions. It
+// also removes the containers left reading workspaces.
 func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error) {
 	list, err := r.api.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
@@ -101,6 +102,19 @@ func (r *Runner) RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error
 			ids = append(ids, id)
 		}
 	}
+	// Readers left behind hold no session's work; failing to remove them does not undo the above.
+	readers, err := r.api.ContainerList(ctx, client.ContainerListOptions{
+		All:     true,
+		Filters: make(client.Filters).Add("label", stateLabel),
+	})
+	if err != nil {
+		return ids, fmt.Errorf("list workspace readers: %w", err)
+	}
+	for _, c := range readers.Items {
+		if _, err := r.api.ContainerRemove(ctx, c.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
+			return ids, fmt.Errorf("remove container %s: %w", c.ID, err)
+		}
+	}
 	return ids, nil
 }
 
@@ -115,11 +129,21 @@ const (
 var composeIdentityLabels = []string{"com.docker.compose.project", "com.docker.compose.service"}
 
 func containerLabels(id domain.SessionID, agent domain.AgentName) map[string]string {
-	labels := map[string]string{sessionLabel: string(id), agentLabel: string(agent)}
+	return withoutCompose(map[string]string{sessionLabel: string(id), agentLabel: string(agent)})
+}
+
+// withoutCompose blanks the labels Compose finds its project by, for every container started here.
+func withoutCompose(labels map[string]string) map[string]string {
 	for _, l := range composeIdentityLabels {
 		labels[l] = ""
 	}
 	return labels
+}
+
+// agentWorkdir is where the agent's repository is in its containers, the agent's and the one
+// reading its workspace alike, so the paths git records in one resolve in the other.
+func agentWorkdir(agent domain.Agent) string {
+	return path.Join(workspaceDir, filepath.Base(agent.Target.Path))
 }
 
 const (
@@ -133,7 +157,7 @@ const (
 func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
 	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
-	workdir := path.Join(workspaceDir, filepath.Base(agent.Target.Path))
+	workdir := agentWorkdir(agent)
 	pluginPaths, besideMounts := pluginMounts(plugins, workdir)
 	return client.ContainerCreateOptions{
 		Config: &container.Config{

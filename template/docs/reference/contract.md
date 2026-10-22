@@ -16,6 +16,9 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 - 引数に渡したコマンド（`claude ...`）をそのまま実行できる。entrypoint があれば、準備を済ませたあと引数のコマンドを
   `exec` する。
 - entrypoint は標準入力をそのまま渡し、自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
+- control-plane は、セッションの片付けで作業領域を読むときにも、同じイメージでコンテナを起こす。そのコンテナでは
+  entrypoint を control-plane のバイナリに上書きし、読み取り専用のルート、ネットワークなし、イメージのユーザーで
+  `git` を動かす。その形でも `git` が動く（[control-plane の作業領域を読むコンテナ](../../../docs/architecture/app/containers.md#workspace-reader "在りか")）。
 
 <a id="host"></a>
 

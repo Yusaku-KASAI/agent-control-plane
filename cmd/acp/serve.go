@@ -84,6 +84,10 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		CredentialsDir:     cfg.Credentials.Dir,
 		CredentialsVolume:  cfg.Credentials.Volume,
 	}
+	tools := docker.ToolsOptions{Dir: cfg.Tools.Dir, Volume: cfg.Tools.Volume}
+	if err := docker.InstallTool(tools); err != nil {
+		return fmt.Errorf("install the tool for containers: %w", err)
+	}
 	observer := &sessionObserver{log: log}
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
@@ -137,7 +141,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		Agents:      cfg.Agents,
 		Sessions:    sessions,
 		Credentials: issuer,
-		Workspaces:  workspaces,
+		Workspaces:  docker.NewWorkspaceReader(dockerClient, tools),
 		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
 		Files:       docker.NewSessionFiles(runnerOpts),
 		Notifier:    observer,

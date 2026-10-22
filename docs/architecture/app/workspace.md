@@ -65,7 +65,8 @@ GitHub のブランチと PR
 
 ### git の実行（`internal/adapter/gitworkspace/provider.go` の `gitRunner`）
 
-- **責務**：control-plane が作業領域に対して行う git の操作を、動かす人の環境によらず同じにする。
+- **責務**：control-plane が作業領域を作るときと、作業領域を読むコンテナ（`acp workspace-state`）が作業領域の状態を
+  読むときの git の操作を、動かす人の環境によらず同じにする。
 - **置くもの / 置かないもの**：ホストのユーザーとシステムの git 設定を読まず、端末で聞かない。認証には
   control-plane が発行したトークンだけを使う（認証ヘルパーで渡す）。github.com の SSH の URL は HTTPS に読み替える。
   所有者の違う作業領域も扱えるよう `safe.directory` を `*` にする。状態を読むときに index を書き換えない
@@ -143,11 +144,16 @@ GitHub のブランチと PR
   | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
   | detached HEAD | 主の worktree と、作業領域の中のほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
 
-  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。git が記録するパスは
-  エージェントのコンテナから見たものなので、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは使わない）、`--git-dir` と `--work-tree` で読む
-  （[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
+  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。記録されたパスは
+  エージェントが書けるので、そのまま信じず、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは
+  使わない）、`--git-dir` と `--work-tree` で読む（[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
+  末尾は作業領域の下に重ねて探すので、読むコンテナでも、記録のうち作業領域の下の部分（`.claude/worktrees/<名前>`
+  など）で見つかる（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 
-- **関係**：usecase の `SessionWorkspace` を実装する。読むのは[片付け](sessions.md#cleaner "在りか")。
+- **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
+  それを、[作業領域を読むコンテナ](containers.md#workspace-reader "在りか")の中で動かし、
+  usecase の `SessionWorkspace` として[片付け](sessions.md#cleaner "在りか")に渡す。control-plane のプロセスでは回さない。
+  作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 

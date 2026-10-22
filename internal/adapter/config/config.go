@@ -29,6 +29,7 @@ type Config struct {
 	// UsageLog is the host file where what each turn spent is appended.
 	UsageLog    string
 	Credentials Credentials
+	Tools       Tools
 	// GitHubApps holds the GitHub App of each agent that has one.
 	GitHubApps map[domain.AgentName]GitHubApp
 	// SlackApps holds the Slack app of each agent that has one.
@@ -70,6 +71,12 @@ type Credentials struct {
 	Volume string
 }
 
+// Tools is where the control plane puts its own binary for the containers it starts to run.
+type Tools struct {
+	Dir    string
+	Volume string
+}
+
 type GitHubApp struct {
 	AppID          int64
 	InstallationID int64
@@ -95,6 +102,10 @@ type fileFormat struct {
 		Dir    string `yaml:"dir"`
 		Volume string `yaml:"volume"`
 	} `yaml:"credentials"`
+	Tools struct {
+		Dir    string `yaml:"dir"`
+		Volume string `yaml:"volume"`
+	} `yaml:"tools"`
 	StateDir string `yaml:"state_dir"`
 	UsageLog string `yaml:"usage_log"`
 	People   []struct {
@@ -200,6 +211,9 @@ func Parse(data []byte) (Config, error) {
 	if !filepath.IsAbs(f.Credentials.Dir) {
 		return Config{}, fmt.Errorf("credentials.dir %q is not absolute", f.Credentials.Dir)
 	}
+	if !filepath.IsAbs(f.Tools.Dir) {
+		return Config{}, fmt.Errorf("tools.dir %q is not absolute", f.Tools.Dir)
+	}
 
 	people := make(People, len(f.People))
 	for _, p := range f.People {
@@ -263,6 +277,7 @@ func Parse(data []byte) (Config, error) {
 		StateDir:     f.StateDir,
 		UsageLog:     f.UsageLog,
 		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
+		Tools:        Tools{Dir: f.Tools.Dir, Volume: f.Tools.Volume},
 		GitHubApps:   apps,
 		SlackApps:    slackApps,
 		Access:       access,

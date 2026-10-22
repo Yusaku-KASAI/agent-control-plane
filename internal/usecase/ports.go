@@ -36,7 +36,7 @@ type WorkspaceState struct {
 	// Changes is set for uncommitted changes or untracked files.
 	Changes bool
 	Stash   bool
-	// Operation names an operation stopped halfway, such as "rebase" or "merge".
+	// Operation names an operation stopped halfway, one of Operations.
 	Operation string
 	// Pushed are the branches on origin the workspace pushed to, with the tip it last saw.
 	Pushed []BranchTip
@@ -44,6 +44,9 @@ type WorkspaceState struct {
 	// whose HEAD is detached on commits no branch has.
 	Local []LocalBranch
 }
+
+// Operations are the operations a workspace may have stopped halfway.
+var Operations = []string{"rebase", "merge", "cherry-pick", "revert", "bisect"}
 
 type BranchTip struct {
 	Name string
@@ -59,8 +62,9 @@ type LocalBranch struct {
 
 // SessionWorkspace tells what work a session's workspace holds.
 type SessionWorkspace interface {
-	// State returns nothing for a path that is missing or not a repository.
-	State(ctx context.Context, path string) (WorkspaceState, error)
+	// State returns nothing for a path that is missing or not a repository. It reads the workspace
+	// as the agent's, for the agent may have written anything there.
+	State(ctx context.Context, agent domain.Agent, path string) (WorkspaceState, error)
 }
 
 // BranchQuery asks about a branch on the remote and where the given commits are kept.

@@ -315,8 +315,8 @@ type worktree struct {
 	dir    string
 }
 
-// linkedWorktrees lists the linked worktrees. Git records their paths as the agent's container
-// saw them, which differ from the paths here, so git worktree list cannot locate them.
+// linkedWorktrees lists the linked worktrees. Their recorded paths are the agent's to write, so
+// each is located under path rather than taken as recorded (locateWorktree).
 func linkedWorktrees(path string) ([]worktree, error) {
 	admin := filepath.Join(path, ".git", "worktrees")
 	entries, err := os.ReadDir(admin)

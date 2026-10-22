@@ -23,6 +23,9 @@ services:
       - acp-claude:/var/lib/acp/claude
       # State only the control plane reads and writes (state_dir in acp.yaml), such as rotating Slack tokens.
       - acp-state:/var/lib/acp/state
+      # The control plane's own binary, put here on start for the containers that read workspaces.
+      # They mount this volume by name, so the name is fixed.
+      - acp-tools:/var/lib/acp/tools
     ports:
       - "127.0.0.1:8787:8787"
     networks:
@@ -65,6 +68,8 @@ volumes:
     name: acp-claude
   acp-state:
     name: acp-state
+  acp-tools:
+    name: acp-tools
 
 networks:
   docker-proxy:

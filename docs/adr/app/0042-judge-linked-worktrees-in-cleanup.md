@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-21
 amends: [26]
+amended_by: [43]
 ---
 
 # 0042. 片付けの判定で、作業領域の中のほかの worktree の作業ツリーの変更、途中の操作、detached HEAD も見る
