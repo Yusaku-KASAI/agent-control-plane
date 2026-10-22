@@ -165,11 +165,12 @@ const maxConfigFile = 1 << 20
 
 func readJSON(dir, name string, v any) error {
 	data, err := readUntrusted(dir, name, maxConfigFile)
-	if err != nil {
-		return err
+	if err == nil {
+		err = json.Unmarshal(data, v)
 	}
-	if err := json.Unmarshal(data, v); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+	if err != nil {
+		// The same name is read in the session's clone and in the target's checkout.
+		return fmt.Errorf("%s: %w", filepath.Join(dir, name), err)
 	}
 	return nil
 }

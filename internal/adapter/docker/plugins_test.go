@@ -199,20 +199,21 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 			inside(t, repo)
 			symlink(t, filepath.Join(outside, "settings.json"), filepath.Join(repo, ".claude", "settings.json"))
 		},
-		"settings linked to a device": func(t *testing.T, repo string) {
+		// A device inside the workspace takes privileges to make; a link to one leads outside.
+		"settings linked outside to a device": func(t *testing.T, repo string) {
 			inside(t, repo)
 			symlink(t, "/dev/zero", filepath.Join(repo, ".claude", "settings.json"))
 		},
-		"settings a named pipe": func(t *testing.T, repo string) {
+		// Opening waits for a writer, unless done without waiting.
+		"settings a named pipe nobody writes": func(t *testing.T, repo string) {
 			inside(t, repo)
-			if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			mkfifo(t, filepath.Join(repo, ".claude", "settings.json"))
+		},
+		// Reading waits for what the agent never writes, unless only a regular file is read.
+		"settings a named pipe the agent holds open": func(t *testing.T, repo string) {
+			inside(t, repo)
 			pipe := filepath.Join(repo, ".claude", "settings.json")
-			if err := syscall.Mkfifo(pipe, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			// The agent holds it open, so a read would wait for what it never writes.
+			mkfifo(t, pipe)
 			writer, err := os.OpenFile(pipe, os.O_RDWR, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -318,5 +319,15 @@ func TestDeclaredPlugins_BesideFromTheTarget(t *testing.T) {
 	want := mountedDir{Host: filepath.Join(hostRoot, "kit"), Container: "/workspace/kit"}
 	if err != nil || len(got) != 1 || got[0].Path != "/workspace/kit/x" || *got[0].Beside != want {
 		t.Errorf("declaredPlugins() = %+v, %v; want only the marketplace the target declares", got, err)
+	}
+}
+
+func mkfifo(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(path, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
