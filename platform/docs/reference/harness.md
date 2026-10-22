@@ -87,7 +87,8 @@
   - `changes`、`operation`、`detached-commits` は、作業領域の中のほかの worktree（サブエージェントのものなど）の
     ものも含む。作業領域の外の worktree（`/tmp` など）は見ないので、その detached HEAD にだけ作ったコミットは残す
     理由にならず、作業領域を消すと失われる。
-  - GitHub App がない（`GH_CONFIG_DIR` がない）ときは、リモートを読まずに判定する。
+  - GitHub App がない（`GH_CONFIG_DIR` がない）ときは、リモートを読まずに判定する。`GH_CONFIG_DIR` があるのに
+    トークンを読めないときは、判定せずに終了コード 1 で終わる。
 
 <a id="work-area"></a>
 

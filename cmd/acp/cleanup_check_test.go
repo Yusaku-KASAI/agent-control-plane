@@ -103,8 +103,19 @@ func TestGitHubToken(t *testing.T) {
 	if got, err := githubToken(dir); err != nil || got != "tok" {
 		t.Errorf("githubToken() = %q, %v; want tok", got, err)
 	}
-	if got, err := githubToken(t.TempDir()); err != nil || got != "" {
-		t.Errorf("githubToken() without hosts = %q, %v; want none", got, err)
+	if got, err := githubToken(""); err != nil || got != "" {
+		t.Errorf("githubToken() without a GitHub App = %q, %v; want none", got, err)
+	}
+	// With a GitHub App, judging without the token would miss what the cleanup sees on the remote.
+	if got, err := githubToken(t.TempDir()); err == nil {
+		t.Errorf("githubToken() with no hosts = %q; want an error", got)
+	}
+	empty := t.TempDir()
+	if err := os.WriteFile(filepath.Join(empty, "hosts.yml"), []byte("github.com:\n    user: x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := githubToken(empty); err == nil {
+		t.Errorf("githubToken() with no token in hosts = %q; want an error", got)
 	}
 }
 
