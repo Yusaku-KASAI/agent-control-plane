@@ -1,7 +1,7 @@
 # 文書の体系
 
 どのリポジトリでも、文書をどう分け、どこに何を書くか。判断の理由は
-[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0027](../adr/0027-checks-by-rule-and-reader.md) にある。
+[ADR 0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0007](../adr/0007-navigation-links-marked-by-title.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0010](../adr/0010-always-read-selection-and-size.md)、[0014](../adr/0014-prerequisites-by-change-and-whereabouts-links.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0027](../adr/0027-checks-by-rule-and-reader.md)、[0028](../adr/0028-document-checks-cover-structure.md) にある。
 原則は[設計の原則](../../../principles/docs/reference/principles.md "在りか")、パターンは[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")、形は[文書の形式](../reference/formats.md "在りか")、書くときの手順は
 [文書を書く](../guides/write-docs.md "在りか")にある。
 
@@ -141,8 +141,24 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 #### 検査にするものと置き場所
 
 検査は最も強い届け方だが、保つ手間がかかり、誤って落ちると作業を止める（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
-静的解析の道具の経験（直せる指摘だけを出し、誤検知を少なく保たないと使われなくなる。Sadowski ほか「Lessons from
-Building Static Analysis Tools at Google」）に倣い、次の三つを満たす決まりを検査にし、ほかはレビューの観点に任せる。
+
+文書の検査（`check-docs`）は、まず範囲を文書の構造の決まりに限る（[ADR 0028](../adr/0028-document-checks-cover-structure.md)）。
+文書の検査が守るのは文書の体系（ハーネスの設計を書いたもの）で、作業の安全（既定のブランチの守りなど）ではなく、崩れは
+レビューでも見つけられる。中身を数えられる形に落とすと、書き方を検査に合わせることになり、誤って落ちるか、検査を
+通すための書き方が増えるので、中身の検査は下の条件「誤って落ちにくい」を満たさないものとして扱う。
+
+| 検査の候補（構造）。下の三つの条件で選ぶ | 検査にしない（中身）。レビューに任せる |
+| --- | --- |
+| 体系が決めた変わらない語と置き場所、印、入口・索引・地図からの到達。形式（決まった節、見出し、印があるか、量の上限）、リンク（リンク先、在りかの印、どの文書も入口、索引、地図から届くか）、依存（地図と前提の向き）、メタデータ（ADR の frontmatter と参照） | ある文書が述べること（何をどこまで書くか、特定の節に何を並べるか（すべての目的の手順が並ぶかのような網羅を含む）、どの手順を誰が受け持つか、要約、例、説明）が、ほかの定義や今の姿と合っているか |
+
+分け目は、体系が決めた変わらない語と置き場所（決まった節、見出し、決まった段の名前（始めに読む）、印）と、どの
+文書にも届くか（到達）は構造、ほかの文書の決まった節に何を並べるか（網羅）と述べることは中身、とする。到達は、
+入口（`README.md` と `CLAUDE.md`）、索引、地図からの道で、そこに並ぶかも含む。決まった枠（形式の各節が挙げるもの）のうち、あるか、
+名前、位置、印は構造で、そこに何を述べるかは中身。
+
+どの検査も（文書の検査は構造の範囲の中で）、静的解析の道具の経験（直せる指摘だけを出し、誤検知を少なく保たないと
+使われなくなる。Sadowski ほか「Lessons from Building Static Analysis Tools at Google」）に倣い、次の三つを満たす
+決まりを検査にし、ほかはレビューの観点に任せる。
 
 - 判断が要らない：リポジトリや、外の道具（GitHub など）の状態だけから機械で決まる。意味の食い違い（要約と出典など）は
   検査にせず、検査はその手がかり（出典へのリンクがあるか）までにする。
@@ -163,11 +179,10 @@ Evolutionary Architectures』）と同じく守る構造の中に置き、それ
 | --- | --- | --- |
 | 一つの区切りが定めた形（どの区切りのファイルに当てはめるかによらない） | その形を定義する区切り | その区切りが定めた形だけ。ほかの区切りの名前やパス（特定のプラグイン、ファイル）は知らず、形から見分ける |
 | 外の道具（GitHub など）の状態 | その道具を扱う区切り | 確かめる決まりは、前提にしてよい区切り（conventions、契約）に合わせる。値をコマンドに直に持つときは、どの決まりに合わせたかを書く |
-| 区切りの間で中身（値）が合っていること | 契約の試験として、両側を前提にしてよい区切り | 両側と、その間の契約 |
+| 区切りの間で値が合っていること | 契約の試験として、両側を前提にしてよい区切り | 両側と、その間の契約 |
 
 - ほかの区切りのファイルを確かめても、形から見分けて形を確かめるなら 1 行目に当たる（`check-docs` の地図とロールの
-  形の検査）。中身が合っているかを、特定の区切りの名前やパスを知って確かめるなら 3 行目に当たる。
-
+  形の検査）。値が合っているかを、特定の区切りの名前やパスを知って確かめるなら 3 行目に当たる。
 - 置き場所の区切りが前提にしてよくないものを確かめたくなったら、確かめる値を契約に置き、検査はその契約に合わせる
   （[使う側に届く契約](../../../principles/docs/reference/patterns.md#published-language)、[契約の試験](../../../principles/docs/reference/patterns.md#contract-test)）。
 - 検査は、それを置く区切りの文書に、何を確かめるかを書く（conventions の形の検査は[形式](../reference/formats.md "在りか")の
@@ -257,6 +272,10 @@ Evolutionary Architectures』）と同じく守る構造の中に置き、それ
   どのロールに回すか）を並べ、目的の手順のない依頼は、書ける範囲の中で依頼に沿って試す、と書く。受け持つ手順のうち、
   そのロールが主に使うものは「始めに読む」の段の文書を直に並べ、ほかはスキルへの案内でよい。振り分けとロールの指示が
   食い違うときは、ロールの指示の「受け持つ手順」に従う。
+- 目的の手順を足したり、ロールの受け持ちを変えたりしたら、それを並べた所を直す。共通のルールの振り分け、各ロールの
+  「受け持つ手順」と description、ロールの全体像（roles などのプラグインの `docs/overview.md`）、この文書の届け方の表と
+  起点の説明の例、conventions の索引と全体像、用語集の例。どの文書も索引から届くことは検査が確かめる（構造）。
+  ほかは特定の節に何を並べるかで中身なので、検査にせず、変える人とレビューする人がここから直す所を挙げる（[ADR 0028](../adr/0028-document-checks-cover-structure.md)）。
 - 目的の手順は、段の中で、その段で使う共通の手順を案内する。共通の手順は、目的の手順を前提にせず、ほかの手順を案内しない。
 - 依頼を受けたら、まずどの目的の手順に当たるかを決める（振り分け）。目的の手順がまだない依頼（事実を聞く質問
   など）は、依頼に沿って進める。作業の途中で目的が変わったら（相談から変更へなど）、その目的の

@@ -32,6 +32,7 @@ printf -- '---\nstatus: accepted\ndate: 2026-01-01\n---\n\n# 0001. D\n\n[a](../g
 printf -- '---\nname: r\n---\n\nrole\n\n[o](../../docs/overview.md)\n' >"$repo/p/agents/r.md"
 printf -- '---\nname: h\n---\n\nA helper.\n' >"$repo/.claude/agents/h.md"
 printf '# C\n' >"$repo/rules/c.md"
+printf '# T\n' >"$repo/docs/guides/手順.md"
 printf -- '---\nname: s\n---\n\n# S\n' >"$repo/skills/s/SKILL.md"
 g add -A
 GIT_COMMITTER_DATE=2026-01-02T00:00:00Z g commit --quiet -m v1
@@ -56,10 +57,16 @@ check "a role without a heading is titled by its name, and what it relies on is 
 check "a helper agent beside the roles is no role" ".claude/agents/h.md	その他	h	$v1	2026-01-02	-	-	-	-" \
   "$(row .claude/agents/h.md)"
 check "common rules are told by their place" "rules/c.md	共通のルール	C	$v1	2026-01-02	-	-	-	-" "$(row rules/c.md)"
-check "a skill is told by its place" "skills/s/SKILL.md	スキル	S	$v1	2026-01-02	-	-	-	-" "$(row skills/s/SKILL.md)"
+check "a skill is told by its place, and what it relies on is not all told by links" \
+  "skills/s/SKILL.md	スキル	S	$v1	2026-01-02	-	-	?	?" "$(row skills/s/SKILL.md)"
+check "a document named outside ASCII has its version and date" "docs/guides/手順.md	手順	T	$v1	2026-01-02	-	d	-	-" \
+  "$(row docs/guides/手順.md)"
 printf '# C2\n' >"$repo/rules/c.md"
+printf '# T2\n' >"$repo/docs/guides/手順.md"
 check "a document changed in the work tree has its version marked" "rules/c.md	共通のルール	C2	$v1+	2026-01-02	-	-	-	-" \
   "$(row rules/c.md)"
+check "a document named outside ASCII changed in the work tree has its version marked" \
+  "docs/guides/手順.md	手順	T2	$v1+	2026-01-02	-	d	-	-" "$(row docs/guides/手順.md)"
 check "the catalog ends without a traceback when its reader stops" "" "$(cd "$repo" && { "$bin" --catalog | true; } 2>&1)"
 
 exit "$failed"

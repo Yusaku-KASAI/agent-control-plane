@@ -538,8 +538,9 @@ def print_map(m):
 
 # What a document is follows from where it is: an entry, an index, an overview, a type of document, or a form
 # of delivery (documentation.md).
+SKILL = "スキル"
 KINDS = [("adr", "判断"), ("architecture", "解説"), ("guides", "手順"), ("reference", "参照"), ("rules", "共通のルール"),
-         ("skills", "スキル")]
+         ("skills", SKILL)]
 ROLE = "役割ごとの指示"
 
 
@@ -570,7 +571,7 @@ def title_of(path):
 
 def changed_in_work_tree():
     try:
-        out = subprocess.run(["git", "-c", "core.quotePath=false", "status", "--porcelain", "-z", "--", "*.md"],
+        out = subprocess.run(["git", "status", "--porcelain", "-z", "--", "*.md"],
                              capture_output=True, text=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         return set()
@@ -626,8 +627,8 @@ def print_catalog(paths, m):
         kind = kind_of(path)
         relied = unique(resolved for _, resolved in relies_on(path))
         shown = unique(whereabouts(path))
-        # Role instructions name what they rely on by paths in code, not by links, so links cannot tell all.
-        if kind == ROLE:
+        # Role instructions, and some skills, name what they rely on by paths in code, not by links, so links cannot tell all.
+        if kind in (ROLE, SKILL):
             relied, shown = relied + ["?"], shown + ["?"]
         print("\t".join([path, kind, title_of(path), version, date, meta.get("status", "-"), item or "-",
                          ",".join(relied) or "-", ",".join(shown) or "-"]))
