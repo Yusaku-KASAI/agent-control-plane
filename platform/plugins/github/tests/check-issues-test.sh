@@ -17,6 +17,7 @@ args=" $* "
 jq_filter() { local prev=; for a in "$@"; do [[ $prev == --jq ]] && { echo "$a"; return; }; prev=$a; done; echo .; }
 case $args in
   *" issue list -R o/r "*) [[ ! -f $dir/fail-list ]] || exit 1; cat "$dir/issues.json" ;;
+  *" label list -R o/r "*) jq -r "$(jq_filter "$@")" "$dir/labels.json" ;;
   *" api graphql "*) jq -r "$(jq_filter "$@")" "$dir/pinned.json" ;;
   *" api repos/o/r/issues/"*"/dependencies/blocked_by "*)
     n=${args#* api repos/o/r/issues/}; n=${n%%/*}
@@ -44,6 +45,7 @@ reset() {
   { issue 1 app,theme:ops; issue 42 ""; issue 9 theme; } | jq -s . >"$state/issues.json"
   roadmap $'## 今の焦点\n\n1. #1 をする\n\n## その後\n\n- #5 は閉じた'
   echo '{"state": "open"}' >"$state/open.json"
+  echo '[{"name": "bug", "isDefault": true}, {"name": "accessibility", "isDefault": true}, {"name": "app", "isDefault": false}]' >"$state/labels.json"
   echo '{"state": "closed"}' >"$state/issue-5.json"
 }
 run() { "$cmd" o/r >"$tmp/out" 2>"$tmp/err"; echo $?; }
@@ -90,9 +92,10 @@ check "a pull request in 今の焦点 is not a closed issue" 0 "$(run)"
 reset
 roadmap $'## 焦点\n\n1. #1 をする'
 check "a roadmap without the section 今の焦点 fails" "NG   the roadmap #42 has no section ## 今の焦点" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+check "a roadmap without the section 今の焦点 is not also told as fine" 0 "$(grep -c 'names no closed' "$tmp/out" || true)"
 
 reset
-{ issue 1 theme:ops,bug; issue 42 ""; } | jq -s . >"$state/issues.json"
+{ issue 1 theme:ops,accessibility; issue 42 ""; } | jq -s . >"$state/issues.json"
 check "a default label of GitHub is not a label of where" "NG   #1 どこを変えるか のラベルがない" "$(run >/dev/null; grep '^NG' "$tmp/out")"
 
 reset

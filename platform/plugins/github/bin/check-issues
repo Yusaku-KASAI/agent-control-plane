@@ -33,8 +33,9 @@ roadmap=$(gh api graphql -f owner="$owner" -f name="$name" -f query='
 roadmap_number=$(jq -r '.number // empty' <<<"${roadmap:-null}")
 
 # Labels: a theme issue (label theme) and the roadmap are not members of a theme.
-# GitHub's default labels tell no part of the repository.
-defaults='["bug","documentation","duplicate","enhancement","good first issue","help wanted","invalid","question","wontfix"]'
+# GitHub's default labels are not labels of where (conventions' issues.md, "どこを変えるか").
+defaults=$(gh label list -R "$repo" --limit 1000 --json name,isDefault --jq '[.[] | select(.isDefault) | .name]') ||
+  unreadable "the labels"
 missing=$(jq -r --arg roadmap "${roadmap_number:-0}" --argjson defaults "$defaults" '.[]
   | select((.number | tostring) != $roadmap)
   | .number as $number
@@ -56,11 +57,12 @@ if [[ -z $roadmap_number ]]; then
   echo "--   no pinned issue titled ロードマップ; the focus is not checked"
 else
   body=$(jq -r '.body' <<<"$roadmap" | tr -d '\r')
-  if ! grep -q '^## 今の焦点' <<<"$body"; then
-    ng "the roadmap #$roadmap_number has no section ## 今の焦点"
-  fi
   focus=$(awk '/^## /{inside = ($0 ~ /^## 今の焦点/); next} inside' <<<"$body")
   closed=()
+  if ! grep -q '^## 今の焦点' <<<"$body"; then
+    ng "the roadmap #$roadmap_number has no section ## 今の焦点"
+    focus=
+  fi
   # Only this repository's issues: a reference such as other-repo#3 points elsewhere.
   while read -r n; do
     [[ -n $n ]] || continue
@@ -68,7 +70,9 @@ else
     state=$(gh api "repos/$repo/issues/$n" --jq 'if .pull_request then "pull request" else .state end') || unreadable "issue #$n"
     [[ $state == closed ]] && closed+=("#$n")
   done < <(grep -oE '(^|[^[:alnum:]_/-])#[0-9]+' <<<"$focus" | grep -oE '[0-9]+$' | sort -un)
-  if ((${#closed[@]})); then
+  if ! grep -q '^## 今の焦点' <<<"$body"; then
+    :
+  elif ((${#closed[@]})); then
     ng "the roadmap #$roadmap_number names closed issues in 今の焦点: ${closed[*]}"
   else
     ok "the roadmap #$roadmap_number names no closed issue in 今の焦点"
