@@ -155,10 +155,12 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     ターゲット自身の中か隣のリポジトリかの分け方と、それぞれをどう見せるかは契約のとおり。
   - プラグインの場所はマーケットプレイスの `.claude-plugin/marketplace.json` で引き、相対パスの source だけを扱う。
   - 作業領域はエージェントが書けるので、これらのファイルは control-plane のプロセスで、読む元のディレクトリ（作業領域か
-    隣のマーケットプレイス）の外を読まないように読む（`readUntrusted`）。途中のディレクトリのシンボリックリンクは、その
-    中に留まるものだけをたどる。読むファイル自体は通常のファイルだけにし、シンボリックリンク、名前付きパイプ、デバイスは
-    断る。1 MiB までしか読まない。断ったらコンテナを起こさない
-    （[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
+    隣のマーケットプレイス）の外を読まないように読む（`readUntrusted`）。シンボリックリンクは、その中に留まるものだけを
+    たどる。待たずに開いて、開いたものが通常のファイルかを確かめ（名前付きパイプ、デバイスは断る）、1 MiB までしか
+    読まない。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
+  - 隣のマーケットプレイスは、リンクを解いた先がターゲットの親ディレクトリの中にあり、`sessions.root` の中でも
+    それを含むものでもないものだけにし、解いた先をマウントする（`confineBeside`）。設定のパスも作業領域のリンクも
+    エージェントが書けるので、ほかのセッションの作業領域や、外のディレクトリをマウントさせないため。
 - **関係**：決まりの理由は [target-template ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：

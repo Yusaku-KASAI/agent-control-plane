@@ -79,6 +79,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	sessions := filesession.NewStore(cfg.SessionsRoot)
 	workspaces := gitworkspace.NewProvider(cfg.SessionsRoot)
 	runnerOpts := docker.Options{
+		SessionsRoot:       cfg.SessionsRoot,
 		ClaudeConfigDir:    cfg.Claude.ConfigDir,
 		ClaudeConfigVolume: cfg.Claude.ConfigVolume,
 		CredentialsDir:     cfg.Credentials.Dir,

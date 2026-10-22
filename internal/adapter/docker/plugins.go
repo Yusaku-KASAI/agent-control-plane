@@ -30,7 +30,7 @@ type mountedDir struct {
 // directory marketplaces in its own tree or in a repository beside it (see marketplaceDir). Headless
 // Claude Code does not install a project's declared plugins, so they are passed with --plugin-dir.
 // Plugins from other marketplaces are left to Claude Code.
-func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
+func declaredPlugins(repo, hostRoot, sessionsRoot, workspaceDir string) ([]pluginDir, error) {
 	var settings struct {
 		ExtraKnownMarketplaces map[string]struct {
 			Source struct {
@@ -58,6 +58,9 @@ func declaredPlugins(repo, hostRoot, workspaceDir string) ([]pluginDir, error) {
 		var err error
 		switch inTree, beside := marketplaceDir(src.Path, filepath.Base(repo), hostRoot, workspaceDir); {
 		case beside != nil:
+			if beside, err = confineBeside(beside, hostRoot, sessionsRoot); err != nil {
+				break
+			}
 			var rel string
 			rel, err = pluginSource(beside.Host, ".", plugin)
 			dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
@@ -100,6 +103,35 @@ func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, 
 		return own, nil
 	}
 	return "", &mountedDir{Host: host, Container: p}
+}
+
+// confineBeside resolves a marketplace beside the repository to the directory it is, which the
+// agent's container mounts. The settings naming it, and links on the way, may be the agent's: it must
+// be a directory among the repositories beside the target, and hold no session, whose workspaces the
+// agent writes, nor lie in one.
+func confineBeside(m *mountedDir, hostRoot, sessionsRoot string) (*mountedDir, error) {
+	resolved, err := filepath.EvalSymlinks(m.Host)
+	if err != nil {
+		return nil, err
+	}
+	root, err := filepath.EvalSymlinks(hostRoot)
+	if err != nil {
+		return nil, err
+	}
+	sessions, err := filepath.EvalSymlinks(sessionsRoot)
+	if err != nil {
+		return nil, err
+	}
+	if !inside(resolved, root) || inside(resolved, sessions) || resolved == sessions || inside(sessions, resolved) {
+		return nil, fmt.Errorf("%s: not a repository beside the target", m.Container)
+	}
+	return &mountedDir{Host: resolved, Container: m.Container}, nil
+}
+
+// inside reports whether path is strictly under dir.
+func inside(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != "." && filepath.IsLocal(rel)
 }
 
 // linkedIntoRepository reports where in the repository at repoRoot the host path leads, when a
@@ -164,27 +196,25 @@ func readJSON(dir, name string, v any) error {
 }
 
 // readUntrusted reads the file name under dir, which the agent may have written in the workspace.
-// Whatever symbolic links say, it reads nothing outside dir; it takes only a regular file, not a
-// link to one, so a named pipe or a device cannot make it hang or read without end; and it reads at
-// most limit bytes.
+// Whatever symbolic links say, it reads nothing outside dir; it opens without waiting and takes
+// only a regular file, so a named pipe or a device cannot make it hang or read without end; and it
+// reads at most limit bytes.
 func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = root.Close() }()
-	info, err := root.Lstat(name)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: not a regular file", name)
-	}
-	f, err := openRegular(root, name, info)
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	if info, err := f.Stat(); err != nil {
+		return nil, err
+	} else if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: not a regular file", name)
+	}
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
@@ -193,18 +223,4 @@ func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s: larger than %d bytes", name, limit)
 	}
 	return data, nil
-}
-
-// openRegular opens name as the regular file info told of. It may have been replaced since, by a
-// named pipe, which it opens without waiting for a writer, or by a link or another file.
-func openRegular(root *os.Root, name string, info fs.FileInfo) (*os.File, error) {
-	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return nil, err
-	}
-	if opened, err := f.Stat(); err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
-		_ = f.Close()
-		return nil, fmt.Errorf("%s: changed while opened", name)
-	}
-	return f, nil
 }

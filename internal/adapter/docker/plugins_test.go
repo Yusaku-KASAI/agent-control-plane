@@ -44,7 +44,7 @@ func TestDeclaredPlugins(t *testing.T) {
   ]
 }`)
 
-	got, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace")
+	got, err := declaredPlugins(repo, filepath.Dir(repo), sessionsRoot(t), "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestDeclaredPlugins_BesideRepository(t *testing.T) {
 	// A path into the repository itself means the session's clone, not the original beside the others.
 	writeFile(t, filepath.Join(repo, "own", ".claude-plugin", "marketplace.json"), `{"plugins": [{"name": "a", "source": "./a"}]}`)
 
-	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	got, err := declaredPlugins(repo, hostRoot, sessionsRoot(t), "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}
@@ -101,7 +101,7 @@ func TestDeclaredPlugins_Errors(t *testing.T) {
 			repo := t.TempDir()
 			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), tt.settings)
 			writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), tt.catalog)
-			if _, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace"); err == nil {
+			if _, err := declaredPlugins(repo, filepath.Dir(repo), sessionsRoot(t), "/workspace"); err == nil {
 				t.Fatal("declaredPlugins() error = nil, want error")
 			}
 		})
@@ -109,7 +109,7 @@ func TestDeclaredPlugins_Errors(t *testing.T) {
 }
 
 func TestDeclaredPlugins_NoSettings(t *testing.T) {
-	got, err := declaredPlugins(t.TempDir(), "/src", "/workspace")
+	got, err := declaredPlugins(t.TempDir(), "/src", sessionsRoot(t), "/workspace")
 	if err != nil || got != nil {
 		t.Errorf("declaredPlugins() = %+v, %v; want nothing", got, err)
 	}
@@ -129,7 +129,7 @@ func TestDeclaredPlugins_BesideThroughSymlink(t *testing.T) {
   "enabledPlugins": {"roles@shared": true}
 }`)
 
-	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	got, err := declaredPlugins(repo, hostRoot, sessionsRoot(t), "/workspace")
 	if err != nil || len(got) != 1 || got[0].Path != "/workspace/platform/plugins/roles" {
 		t.Errorf("declaredPlugins() = %+v, %v", got, err)
 	}
@@ -150,7 +150,7 @@ func TestDeclaredPlugins_LinkBackIntoRepository(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "kit", ".claude-plugin", "marketplace.json"),
 		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
 
-	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	got, err := declaredPlugins(repo, hostRoot, sessionsRoot(t), "/workspace")
 	if err != nil || !slices.Equal(got, []pluginDir{{Path: "kit/plugins/roles"}}) {
 		t.Errorf("declaredPlugins() = %+v, %v; want the plugin from the session's clone", got, err)
 	}
@@ -169,7 +169,7 @@ func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 		}
 	}
 
-	got, err := declaredPlugins(repo, hostRoot, "/workspace")
+	got, err := declaredPlugins(repo, hostRoot, sessionsRoot(t), "/workspace")
 	if err != nil {
 		t.Fatalf("declaredPlugins() error = %v", err)
 	}
@@ -224,7 +224,7 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 			arrange(t, repo)
 			done := make(chan error, 1)
 			go func() {
-				_, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace")
+				_, err := declaredPlugins(repo, filepath.Dir(repo), sessionsRoot(t), "/workspace")
 				done <- err
 			}()
 			select {
@@ -243,7 +243,7 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings)
 	writeFile(t, filepath.Join(repo, "real", ".claude-plugin", "marketplace.json"), catalog)
 	symlink(t, "real", filepath.Join(repo, "p"))
-	if got, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace"); err != nil || !slices.Equal(got, []pluginDir{{Path: "p/x"}}) {
+	if got, err := declaredPlugins(repo, filepath.Dir(repo), sessionsRoot(t), "/workspace"); err != nil || !slices.Equal(got, []pluginDir{{Path: "p/x"}}) {
 		t.Errorf("declaredPlugins() = %+v, %v; want the plugin through the link inside", got, err)
 	}
 }
@@ -258,59 +258,60 @@ func symlink(t *testing.T, target, link string) {
 	}
 }
 
-// Between telling a regular file and opening it, the agent may swap it.
-func TestOpenRegular_Swapped(t *testing.T) {
-	// Each makes the replacement beside the file, while the file still holds its inode.
-	tests := map[string]func(t *testing.T, next string){
-		"by a named pipe": func(t *testing.T, next string) {
-			if err := syscall.Mkfifo(next, 0o644); err != nil {
-				t.Fatal(err)
-			}
-		},
-		"by another file": func(t *testing.T, next string) {
-			writeFile(t, next, "other")
-		},
-		"by a link to a regular file": func(t *testing.T, next string) {
-			writeFile(t, filepath.Join(filepath.Dir(next), "real"), "real")
-			symlink(t, "real", next)
-		},
-	}
-	for name, replace := range tests {
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "settings.json")
-			writeFile(t, path, "{}")
-			root, err := os.OpenRoot(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer func() { _ = root.Close() }()
-			info, err := root.Lstat("settings.json")
-			if err != nil {
-				t.Fatal(err)
-			}
-			next := filepath.Join(dir, "next")
-			replace(t, next)
-			if err := os.Rename(next, path); err != nil {
-				t.Fatal(err)
-			}
+// A link to a regular file inside the repository is read.
+func TestDeclaredPlugins_SettingsLinkedInside(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, "shared", "settings.json"),
+		`{"extraKnownMarketplaces": {"m": {"source": {"source": "directory", "path": "./p"}}}, "enabledPlugins": {"x@m": true}}`)
+	writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), `{"plugins": [{"name": "x", "source": "./x"}]}`)
+	symlink(t, filepath.Join("..", "shared", "settings.json"), filepath.Join(repo, ".claude", "settings.json"))
 
-			done := make(chan error, 1)
-			go func() {
-				f, err := openRegular(root, "settings.json", info)
-				if f != nil {
-					_ = f.Close()
-				}
-				done <- err
-			}()
-			select {
-			case err := <-done:
-				if err == nil {
-					t.Error("openRegular() error = nil, want the swap refused")
-				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("openRegular() hangs")
+	if got, err := declaredPlugins(repo, filepath.Dir(repo), sessionsRoot(t), "/workspace"); err != nil || !slices.Equal(got, []pluginDir{{Path: "p/x"}}) {
+		t.Errorf("declaredPlugins() = %+v, %v; want the plugin", got, err)
+	}
+}
+
+// sessionsRoot is a sessions directory apart from the repositories of a test.
+func sessionsRoot(t *testing.T) string {
+	t.Helper()
+	return t.TempDir()
+}
+
+// The settings naming a marketplace beside the target are the agent's to write; so are links in
+// its workspace. What is mounted into its container stays among the repositories beside the target.
+func TestDeclaredPlugins_BesideConfined(t *testing.T) {
+	const catalog = `{"plugins": [{"name": "x", "source": "./x"}]}`
+	settings := func(p string) string {
+		return `{"extraKnownMarketplaces": {"m": {"source": {"source": "directory", "path": "` + p + `"}}}, "enabledPlugins": {"x@m": true}}`
+	}
+	hostRoot := t.TempDir()
+	sessions := filepath.Join(hostRoot, "acp-sessions")
+	repo := filepath.Join(sessions, "sid", "workspace", "app")
+	elsewhere := t.TempDir()
+	writeFile(t, filepath.Join(elsewhere, ".claude-plugin", "marketplace.json"), catalog)
+	writeFile(t, filepath.Join(sessions, "other", "workspace", "app", "p", ".claude-plugin", "marketplace.json"), catalog)
+	writeFile(t, filepath.Join(hostRoot, "kit", ".claude-plugin", "marketplace.json"), catalog)
+	// Each refused one holds a marketplace, so that it is refused for where it is.
+	writeFile(t, filepath.Join(sessions, ".claude-plugin", "marketplace.json"), catalog)
+	symlink(t, elsewhere, filepath.Join(repo, "out"))
+
+	for name, p := range map[string]string{
+		"through a link in the workspace to outside": "/workspace/acp-sessions/sid/workspace/app/out",
+		"into another session's workspace":           "/workspace/acp-sessions/other/workspace/app/p",
+		"the sessions themselves":                    "/workspace/acp-sessions",
+	} {
+		t.Run(name, func(t *testing.T) {
+			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings(p))
+			if got, err := declaredPlugins(repo, hostRoot, sessions, "/workspace"); err == nil {
+				t.Errorf("declaredPlugins() = %+v, want the marketplace refused", got)
 			}
 		})
+	}
+
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings("/workspace/kit"))
+	got, err := declaredPlugins(repo, hostRoot, sessions, "/workspace")
+	want := []pluginDir{{Path: "/workspace/kit/x", Beside: &mountedDir{Host: filepath.Join(hostRoot, "kit"), Container: "/workspace/kit"}}}
+	if err != nil || len(got) != 1 || got[0].Path != want[0].Path || *got[0].Beside != *want[0].Beside {
+		t.Errorf("declaredPlugins() = %+v, %v; want the marketplace beside", got, err)
 	}
 }
