@@ -8,7 +8,7 @@ roles は harness、github と conventions を前提にする。roles を有効�
 
 ```
 roles/
-  agents/developer.md   変更を実装して PR にする。レビューも受け持つ
+  agents/developer.md   変更を実装して PR にする
   agents/guide.md       質問と相談に答え、変更しない
   agents/reviewer.md    レビューし、結果を PR のレビューと Issue に残す。変更しない
   agents/pm.md          課題を整え、相談に乗り、Issue に残す。変更しない
@@ -40,7 +40,7 @@ roles/
 
 ### [`agents/developer.md`](../agents/developer.md "在りか")
 
-- **責務**：ファイルを変え PR を作る権限を持ち、主に依頼された変更をターゲットのリポジトリに実装し、PR にして届ける。すべてに書けるので、レビューするも受け持つ。差分を読むのは reviewer のサブエージェントに頼み、結果を残す（[ADR 0019](../../../docs/adr/0019-roles-by-write-scope.md)）。
+- **責務**：ファイルを変え PR を作る権限を持ち、主に依頼された変更をターゲットのリポジトリに実装し、PR にして届ける。すべてに書ける。差分のレビューを残すときは、差分を読むのは reviewer のサブエージェントに頼み、結果を残す（[ADR 0019](../../../docs/adr/0019-roles-by-write-scope.md)）。
 - **置くもの / 置かないもの**：「受け持つ手順」の節に、書ける範囲と目的の手順ごとの扱い（どれを受け持つかは指示の節にある）を、
   「使う決まり」の節に使う決まりの要約と案内（変更を届ける手順、書き方、スキル）を、「固有の振る舞い」の
   節に developer だけの定義（PR にすること、報告）を置き、使うモデル（[ADR 0003](../../../docs/adr/0003-roles-choose-their-model.md)）を持つ。
