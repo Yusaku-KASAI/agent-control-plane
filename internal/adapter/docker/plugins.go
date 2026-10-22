@@ -83,7 +83,7 @@ func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 		}
 	}
 	slices.SortFunc(dirs, func(a, b pluginDir) int { return strings.Compare(a.Path, b.Path) })
-	return slices.CompactFunc(dirs, func(a, b pluginDir) bool { return a.Path == b.Path }), nil
+	return dirs, nil
 }
 
 // marketplaceDir resolves where a directory marketplace is: relative to the repository, or at a
@@ -193,14 +193,14 @@ func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 	if info, err := f.Stat(); err != nil {
 		return nil, err
 	} else if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: not a regular file", name)
+		return nil, errors.New("not a regular file")
 	}
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s: larger than %d bytes", name, limit)
+		return nil, fmt.Errorf("larger than %d bytes", limit)
 	}
 	return data, nil
 }

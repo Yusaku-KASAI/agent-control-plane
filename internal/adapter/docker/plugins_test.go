@@ -331,3 +331,20 @@ func mkfifo(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+// What the target's checkout enables in the repository's own tree does not count: the session's
+// clone, which the agent may be changing, decides that.
+func TestDeclaredPlugins_OwnFromTheClone(t *testing.T) {
+	hostRoot := t.TempDir()
+	target := filepath.Join(hostRoot, "app")
+	repo := filepath.Join(t.TempDir(), "app")
+	writeFile(t, filepath.Join(target, ".claude", "settings.json"),
+		`{"extraKnownMarketplaces": {"self": {"source": {"source": "directory", "path": "./own"}}}, "enabledPlugins": {"a@self": true}}`)
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"),
+		`{"extraKnownMarketplaces": {"self": {"source": {"source": "directory", "path": "./own"}}}, "enabledPlugins": {"a@self": false}}`)
+	writeFile(t, filepath.Join(repo, "own", ".claude-plugin", "marketplace.json"), `{"plugins": [{"name": "a", "source": "./a"}]}`)
+
+	if got, err := declaredPlugins(repo, target, "/workspace"); err != nil || len(got) != 0 {
+		t.Errorf("declaredPlugins() = %+v, %v; want nothing the clone disables", got, err)
+	}
+}
