@@ -1,6 +1,6 @@
 ---
 name: github
-description: GitHub で PR を作る・更新するとき、push したとき、PR のレビューに対応するとき、PR の CI の失敗を調べるときに使う。
+description: GitHub で PR を作る・更新するとき、push したとき、PR のレビューに対応するとき、PR の CI の失敗を調べるとき、Issue とロードマップのずれを挙げるとき（課題を整える、セッションを締める）に使う。
 ---
 
 # GitHub で作業する

@@ -33,13 +33,16 @@ roadmap=$(gh api graphql -f owner="$owner" -f name="$name" -f query='
 roadmap_number=$(jq -r '.number // empty' <<<"${roadmap:-null}")
 
 # Labels: a theme issue (label theme) and the roadmap are not members of a theme.
-missing=$(jq -r --arg roadmap "${roadmap_number:-0}" '.[]
+# GitHub's default labels tell no part of the repository.
+defaults='["bug","documentation","duplicate","enhancement","good first issue","help wanted","invalid","question","wontfix"]'
+missing=$(jq -r --arg roadmap "${roadmap_number:-0}" --argjson defaults "$defaults" '.[]
   | select((.number | tostring) != $roadmap)
   | .number as $number
   | [.labels[].name] as $labels
   | select(($labels | index("theme")) | not)
   | (if any($labels[]; startswith("theme:")) then [] else ["theme:<名前>"] end)
-    + (if any($labels[]; . != "theme" and (startswith("theme:") | not) and . != "canvas") then [] else ["どこを変えるか"] end)
+    + (if any($labels[]; . != "theme" and (startswith("theme:") | not) and . != "canvas"
+      and (. as $l | $defaults | index($l) | not)) then [] else ["どこを変えるか"] end)
   | select(length > 0) as $lack
   | "#\($number) \($lack | join(" と ")) のラベルがない"' <<<"$issues")
 if [[ -n $missing ]]; then
@@ -52,12 +55,17 @@ fi
 if [[ -z $roadmap_number ]]; then
   echo "--   no pinned issue titled ロードマップ; the focus is not checked"
 else
-  focus=$(jq -r '.body' <<<"$roadmap" | awk '/^## /{inside = ($0 ~ /^## 今の焦点/); next} inside')
+  body=$(jq -r '.body' <<<"$roadmap" | tr -d '\r')
+  if ! grep -q '^## 今の焦点' <<<"$body"; then
+    ng "the roadmap #$roadmap_number has no section ## 今の焦点"
+  fi
+  focus=$(awk '/^## /{inside = ($0 ~ /^## 今の焦点/); next} inside' <<<"$body")
   closed=()
   # Only this repository's issues: a reference such as other-repo#3 points elsewhere.
   while read -r n; do
     [[ -n $n ]] || continue
-    state=$(gh api "repos/$repo/issues/$n" --jq .state) || unreadable "issue #$n"
+    # The issues API answers for pull requests too; a pull request in the focus is not an issue.
+    state=$(gh api "repos/$repo/issues/$n" --jq 'if .pull_request then "pull request" else .state end') || unreadable "issue #$n"
     [[ $state == closed ]] && closed+=("#$n")
   done < <(grep -oE '(^|[^[:alnum:]_/-])#[0-9]+' <<<"$focus" | grep -oE '[0-9]+$' | sort -un)
   if ((${#closed[@]})); then

@@ -1,7 +1,7 @@
 {
   "name": "github",
   "version": "0.6.0",
-  "description": "Keep pull requests describing their branch, and work with reviews and CI on GitHub, and check that the default branch stays protected",
+  "description": "Keep pull requests describing their branch, work with reviews and CI on GitHub, check that the default branch stays protected, and list where issues drift from the rules",
   "author": {
     "name": "Yusaku KASAI"
   }

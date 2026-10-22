@@ -23,7 +23,8 @@ case $args in
     jq -r "$(jq_filter "$@")" "$dir/blocked-$n.json" 2>/dev/null || echo "" ;;
   *" api repos/o/r/issues/"*)
     n=${args#* api repos/o/r/issues/}; n=${n%% *}
-    cat "$dir/state-$n" 2>/dev/null || echo open ;;
+    f=$dir/issue-$n.json; [[ -f $f ]] || f=$dir/open.json
+    jq -r "$(jq_filter "$@")" "$f" ;;
   *) echo "unexpected: $*" >&2; exit 3 ;;
 esac
 GH
@@ -42,7 +43,8 @@ reset() {
   rm -f "$state"/*
   { issue 1 app,theme:ops; issue 42 ""; issue 9 theme; } | jq -s . >"$state/issues.json"
   roadmap $'## 今の焦点\n\n1. #1 をする\n\n## その後\n\n- #5 は閉じた'
-  echo closed >"$state/state-5"
+  echo '{"state": "open"}' >"$state/open.json"
+  echo '{"state": "closed"}' >"$state/issue-5.json"
 }
 run() { "$cmd" o/r >"$tmp/out" 2>"$tmp/err"; echo $?; }
 
@@ -60,7 +62,7 @@ reset
 check "canvas is not a label of where" "NG   #1 どこを変えるか のラベルがない" "$(run >/dev/null; grep '^NG' "$tmp/out")"
 
 reset
-echo closed >"$state/state-1"
+echo '{"state": "closed"}' >"$state/issue-1.json"
 check "a closed issue in 今の焦点 fails" 1 "$(run)"
 check "the closed issue is named" "NG   the roadmap #42 names closed issues in 今の焦点: #1" "$(grep '^NG' "$tmp/out")"
 
@@ -80,6 +82,18 @@ reset
 echo '[{"number": 7, "state": "closed"}, {"number": 8, "state": "open"}]' >"$state/blocked-1.json"
 check "an issue blocked by a closed one fails" 1 "$(run)"
 check "only the closed blockers are named" "NG   #1 is blocked by closed issues: #7" "$(grep '^NG' "$tmp/out")"
+
+reset
+echo '{"state": "closed", "pull_request": {}}' >"$state/issue-1.json"
+check "a pull request in 今の焦点 is not a closed issue" 0 "$(run)"
+
+reset
+roadmap $'## 焦点\n\n1. #1 をする'
+check "a roadmap without the section 今の焦点 fails" "NG   the roadmap #42 has no section ## 今の焦点" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+
+reset
+{ issue 1 theme:ops,bug; issue 42 ""; } | jq -s . >"$state/issues.json"
+check "a default label of GitHub is not a label of where" "NG   #1 どこを変えるか のラベルがない" "$(run >/dev/null; grep '^NG' "$tmp/out")"
 
 reset
 touch "$state/fail-list"
