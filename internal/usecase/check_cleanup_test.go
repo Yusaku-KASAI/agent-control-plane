@@ -48,3 +48,11 @@ func TestCheckCleanup(t *testing.T) {
 		t.Errorf("CheckCleanup() of a tidy session = %+v, %v; want no reasons", got, err)
 	}
 }
+
+// Every kind of reason has a name, published by ReasonKinds.
+func TestReasonKinds(t *testing.T) {
+	kinds := usecase.ReasonKinds()
+	if len(kinds) != 8 || slices.Contains(kinds, "") {
+		t.Errorf("ReasonKinds() = %v, want the eight kinds, each named", kinds)
+	}
+}

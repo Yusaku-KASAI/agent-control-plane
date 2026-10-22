@@ -60,6 +60,21 @@ func TestDispatch_CleanupCheck(t *testing.T) {
 	if code, out, errOut := run(); code != 0 || !strings.Contains(out, "changes\t") {
 		t.Errorf("cleanup-check from a linked worktree = %d, %q (stderr %q); want the main worktree's changes", code, out, errOut)
 	}
+	// From a submodule, the workspace that holds it.
+	module := filepath.Join(t.TempDir(), "module")
+	for _, args := range [][]string{
+		{"init", "--quiet", module},
+		{"-C", module, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "--allow-empty", "-m", "m"},
+		{"-C", dir, "-c", "protocol.file.allow=always", "submodule", "--quiet", "add", module, "mod"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	t.Chdir(filepath.Join(dir, "mod"))
+	if code, out, errOut := run(); code != 0 || !strings.Contains(out, "changes\t") {
+		t.Errorf("cleanup-check from a submodule = %d, %q (stderr %q); want the workspace's changes", code, out, errOut)
+	}
 	t.Chdir(dir)
 
 	delete(env, "ACP_SESSION_BRANCH")

@@ -81,7 +81,7 @@
   | `stash` | stash がある |
   | `operation` | rebase や merge などの操作が途中で止まっている |
   | `detached-commits` | detached HEAD に、どのブランチにもないコミットがある |
-  | `unpushed-commits` | ブランチに、push していないか、既定のブランチにも PR（マージしたか閉じたもの）の head コミットにもそのリモートのブランチにも入っていないコミットがある |
+  | `lost-commits` | ブランチに、push していないか、既定のブランチにも PR（マージしたか閉じたもの）の head コミットにもそのリモートのブランチにも入っていないコミットがある |
   | `unmerged-branch` | セッションのブランチ（リモート）を head とする開いている PR がなく、その先頭が既定のブランチにも PR の head コミットにも入っていない（消すと失われる。ほかの書き手が push した先頭でも当たる） |
 
   - `changes`、`operation`、`detached-commits` は、作業領域の中のほかの worktree（サブエージェントのものなど）の

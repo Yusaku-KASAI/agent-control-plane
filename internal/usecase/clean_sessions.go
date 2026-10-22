@@ -71,6 +71,8 @@ const (
 	reasonUnmerged
 	// reasonOpenBase: deleting a branch the session created would close the pull requests into it.
 	reasonOpenBase
+	// reasonKindEnd follows the last kind.
+	reasonKindEnd
 )
 
 // reason is why an expired session is kept: work found nowhere else, or work that may go on.
@@ -405,7 +407,7 @@ func (c *SessionCleaner) since(s domain.Session) string {
 // ReasonKinds are the kinds of reasons CheckCleanup tells, which the harness contract publishes.
 func ReasonKinds() []string {
 	var kinds []string
-	for k := reasonOpenPull; k <= reasonOpenBase; k++ {
+	for k := reasonOpenPull; k < reasonKindEnd; k++ {
 		kinds = append(kinds, reason{kind: k}.key())
 		if k == reasonLostCommits {
 			kinds = append(kinds, reason{kind: k, branch: "HEAD"}.key())
@@ -429,7 +431,7 @@ func (r reason) key() string {
 		if r.branch == "HEAD" {
 			return "detached-commits"
 		}
-		return "unpushed-commits"
+		return "lost-commits"
 	case reasonUnmerged:
 		return "unmerged-branch"
 	case reasonOpenBase:

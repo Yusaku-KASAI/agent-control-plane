@@ -199,14 +199,30 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Root returns the workspace a directory is in: the main worktree of its repository, also from a
-// subdirectory or a linked worktree.
+// Root returns the workspace a directory is in: the main worktree of its outermost repository, also
+// from a subdirectory, a linked worktree or a submodule. It fails rather than return a directory
+// whose state would read as empty.
 func Root(ctx context.Context, dir string) (string, error) {
-	common, err := gitRunner{}.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	g := gitRunner{}
+	for {
+		super, err := g.run(ctx, dir, "rev-parse", "--show-superproject-working-tree")
+		if err != nil {
+			return "", err
+		}
+		if super == "" {
+			break
+		}
+		dir = super
+	}
+	common, err := g.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", err
 	}
-	return filepath.Dir(common), nil
+	root := filepath.Dir(common)
+	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() || filepath.Join(root, ".git") != common {
+		return "", fmt.Errorf("%s: the repository keeps its git directory elsewhere (%s)", root, common)
+	}
+	return root, nil
 }
 
 // Origin returns the origin URL of the repository at path, or "" when it has none.
