@@ -24,6 +24,7 @@ case $args in
     jq -r "$(jq_filter "$@")" "$dir/blocked-$n.json" 2>/dev/null || echo "" ;;
   *" api repos/o/r/issues/"*)
     n=${args#* api repos/o/r/issues/}; n=${n%% *}
+    [[ ! -f $dir/gone-$n ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     f=$dir/issue-$n.json; [[ -f $f ]] || f=$dir/open.json
     jq -r "$(jq_filter "$@")" "$f" ;;
   *) echo "unexpected: $*" >&2; exit 3 ;;
@@ -97,6 +98,14 @@ check "a roadmap without the section 今の焦点 is not also told as fine" 0 "$
 reset
 { issue 1 theme:ops,accessibility; issue 42 ""; } | jq -s . >"$state/issues.json"
 check "a default label of GitHub is not a label of where" "NG   #1 どこを変えるか のラベルがない" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+
+reset
+touch "$state/gone-1"
+echo '[{"number": 7, "state": "closed"}]' >"$state/blocked-1.json"
+check "a number in 今の焦点 that is no issue here fails" 1 "$(run)"
+check "the number is named and the dependencies are still checked" \
+  "NG   the roadmap #42 names in 今の焦点 what is no issue here: #1
+NG   #1 is blocked by closed issues: #7" "$(grep '^NG' "$tmp/out")"
 
 reset
 touch "$state/fail-list"
