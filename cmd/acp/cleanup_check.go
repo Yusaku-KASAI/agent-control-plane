@@ -44,9 +44,10 @@ func cleanupCheck(ctx context.Context, getenv func(string) string, stdout, stder
 		fmt.Fprintln(stderr, "acp:", err)
 		return 1
 	}
-	branches := githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin)
-	agent := domain.Agent{Target: domain.Target{Path: dir}}
-	reasons, err := usecase.CheckCleanup(ctx, ownWorkspace{gitworkspace.NewProvider("")}, branches, agent, branch, dir,
+	// The cleanup asks the target's remote, which the workspace's origin is (the harness contract).
+	origin := func(ctx context.Context, _ string) (string, error) { return gitworkspace.Origin(ctx, dir) }
+	branches := githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, origin)
+	reasons, err := usecase.CheckCleanup(ctx, ownWorkspace{gitworkspace.NewProvider("")}, branches, domain.Agent{}, branch, dir,
 		domain.Credentials{GitHubToken: token})
 	if err != nil {
 		fmt.Fprintln(stderr, "acp:", err)

@@ -189,8 +189,8 @@
     促し、`kept_notified_at` が保持期間より前のときだけ知らせる。知らせはロックを持たずに投稿し、投稿できて
     から `kept_notified_at` を書く。スレッドで始まっていないセッションには知らせない。
   - いつ動かすか（[ライフサイクル](#lifecycle)）は `cmd/acp/serve.go` が持つ。
-- **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
-  保持期間によらず残す理由を種類と文面で返す。エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
+  - **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
+    保持期間によらず残す理由を種類と文面で返す。エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
   `SessionNotifier`）だけに依存する。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
   作業領域を読むコンテナの中で読む）、会話の履歴と認証情報を消すのは `SessionFiles`

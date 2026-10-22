@@ -52,7 +52,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     ホストと同じパスに（置き場所は [.env.example](../../../.env.example "在りか")）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）、`acp-tools`（control-plane が起動のたびに自分のバイナリを
-    置き、作業領域を読むコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
+    置き、作業領域を読むコンテナとエージェントのコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
     control-plane が作るコンテナから名前で指す）。
   - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
     （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。

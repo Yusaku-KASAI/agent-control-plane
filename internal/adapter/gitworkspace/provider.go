@@ -204,21 +204,28 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 // whose state would read as empty.
 func Root(ctx context.Context, dir string) (string, error) {
 	g := gitRunner{}
+	var root, common string
 	for {
+		// Up out of a submodule.
 		super, err := g.run(ctx, dir, "rev-parse", "--show-superproject-working-tree")
 		if err != nil {
 			return "", err
 		}
-		if super == "" {
+		if super != "" {
+			dir = super
+			continue
+		}
+		if common, err = g.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir"); err != nil {
+			return "", err
+		}
+		root = filepath.Dir(common)
+		// Up out of a repository cloned inside another's work tree.
+		outer, err := g.run(ctx, filepath.Dir(root), "rev-parse", "--show-toplevel")
+		if err != nil {
 			break
 		}
-		dir = super
+		dir = outer
 	}
-	common, err := g.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return "", err
-	}
-	root := filepath.Dir(common)
 	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() || filepath.Join(root, ".git") != common {
 		return "", fmt.Errorf("%s: the repository keeps its git directory elsewhere (%s)", root, common)
 	}

@@ -75,6 +75,15 @@ func TestDispatch_CleanupCheck(t *testing.T) {
 	if code, out, errOut := run(); code != 0 || !strings.Contains(out, "changes\t") {
 		t.Errorf("cleanup-check from a submodule = %d, %q (stderr %q); want the workspace's changes", code, out, errOut)
 	}
+	// From a repository cloned inside the workspace, the workspace too.
+	inner := filepath.Join(dir, "inner")
+	if out, err := exec.Command("git", "init", "--quiet", inner).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	t.Chdir(inner)
+	if code, out, errOut := run(); code != 0 || !strings.Contains(out, "changes\t") {
+		t.Errorf("cleanup-check from a repository inside = %d, %q (stderr %q); want the workspace's changes", code, out, errOut)
+	}
 	t.Chdir(dir)
 
 	delete(env, "ACP_SESSION_BRANCH")
