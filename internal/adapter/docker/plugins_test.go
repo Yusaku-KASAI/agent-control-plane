@@ -350,22 +350,41 @@ func TestDeclaredPlugins_OwnFromTheClone(t *testing.T) {
 	}
 }
 
-// Each read is bounded, and so is what is read for one container: enabling many plugins of one
-// marketplace reads it again for each.
+// A marketplace is read once for one container, however many of its plugins are enabled; what is
+// read in all is bounded too, should links name it by many paths.
 func TestDeclaredPlugins_ReadBoundedInAll(t *testing.T) {
-	repo := t.TempDir()
-	var enabled, listed []string
+	var listed []string
 	for i := range 10 {
-		enabled = append(enabled, fmt.Sprintf(`"x%d@m": true`, i))
 		listed = append(listed, fmt.Sprintf(`{"name": "x%d", "source": "./x%d"}`, i, i))
 	}
-	writeFile(t, filepath.Join(repo, ".claude", "settings.json"),
-		`{"extraKnownMarketplaces": {"m": {"source": {"source": "directory", "path": "./p"}}}, "enabledPlugins": {`+strings.Join(enabled, ", ")+`}}`)
-	// Under the bound for one file; ten of them are over the bound in all.
-	writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"),
-		`{"plugins": [`+strings.Join(listed, ", ")+`]}`+strings.Repeat(" ", maxConfigRead/8))
+	// Under the bound for one file; ten reads of it are over the bound in all.
+	catalogFile := `{"plugins": [` + strings.Join(listed, ", ") + `]}` + strings.Repeat(" ", maxConfigRead/8)
+	settings := func(paths ...string) string {
+		var markets, enabled []string
+		for i, p := range paths {
+			markets = append(markets, fmt.Sprintf(`"m%d": {"source": {"source": "directory", "path": %q}}`, i, p))
+			for j := range 10 {
+				enabled = append(enabled, fmt.Sprintf(`"x%d@m%d": true`, j, i))
+			}
+		}
+		return `{"extraKnownMarketplaces": {` + strings.Join(markets, ", ") + `}, "enabledPlugins": {` + strings.Join(enabled, ", ") + `}}`
+	}
 
-	if got, err := declaredPlugins(repo, repo, "/workspace"); err == nil {
-		t.Errorf("declaredPlugins() = %d plugins, want the reading refused once over the bound in all", len(got))
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), catalogFile)
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings("./p"))
+	if got, err := declaredPlugins(repo, repo, "/workspace"); err != nil || len(got) != 10 {
+		t.Errorf("declaredPlugins() = %d plugins, %v; want the ten from one reading", len(got), err)
+	}
+
+	var paths []string
+	for i := range 10 {
+		link := fmt.Sprintf("p%d", i)
+		symlink(t, "p", filepath.Join(repo, link))
+		paths = append(paths, "./"+link)
+	}
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings(paths...))
+	if _, err := declaredPlugins(repo, repo, "/workspace"); err == nil || !strings.Contains(err.Error(), "for one container") {
+		t.Errorf("declaredPlugins() error = %v, want the bound in all reached", err)
 	}
 }

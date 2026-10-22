@@ -47,7 +47,7 @@ type settingsFile struct {
 // for the agent may write anything in its clone, links included.
 func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 	hostRoot, name := filepath.Dir(target), filepath.Base(repo)
-	budget := &readBudget{left: maxConfigRead}
+	budget := &configReader{left: maxConfigRead, catalogs: make(map[string]catalog)}
 	var dirs []pluginDir
 	for _, from := range []struct {
 		dir    string
@@ -133,15 +133,21 @@ func linkedIntoRepository(host, repoRoot string) (string, bool) {
 	return rel, true
 }
 
-func pluginSource(budget *readBudget, repo, marketplace, plugin string) (string, error) {
-	var catalog struct {
-		Plugins []struct {
-			Name   string          `json:"name"`
-			Source json.RawMessage `json:"source"`
-		} `json:"plugins"`
-	}
-	if err := budget.readJSON(repo, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &catalog); err != nil {
-		return "", err
+type catalog struct {
+	Plugins []struct {
+		Name   string          `json:"name"`
+		Source json.RawMessage `json:"source"`
+	} `json:"plugins"`
+}
+
+func pluginSource(budget *configReader, repo, marketplace, plugin string) (string, error) {
+	key := filepath.Join(repo, marketplace)
+	catalog, ok := budget.catalogs[key]
+	if !ok {
+		if err := budget.readJSON(repo, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &catalog); err != nil {
+			return "", err
+		}
+		budget.catalogs[key] = catalog
 	}
 	for _, p := range catalog.Plugins {
 		if p.Name != plugin {
@@ -164,19 +170,31 @@ func local(p string) bool {
 const (
 	// maxConfigFile bounds what is read of a settings or marketplace file.
 	maxConfigFile = 1 << 20
-	// maxConfigRead bounds what is read for one container in all: the settings may enable a
-	// plugin many times over, each reading its marketplace again.
+	// maxConfigRead bounds what is read for one container in all, should the settings name one
+	// marketplace by many paths through links.
 	maxConfigRead = 4 << 20
 )
 
-// readBudget is what is left to read for one container.
-type readBudget struct {
-	left int64
+var errTooLarge = errors.New("larger than allowed")
+
+// configReader reads the settings and marketplaces for one container: each marketplace once, and
+// no more than maxConfigRead in all.
+type configReader struct {
+	left     int64
+	catalogs map[string]catalog
 }
 
-func (b *readBudget) readJSON(dir, name string, v any) error {
-	data, err := readUntrusted(dir, name, min(maxConfigFile, b.left))
+func (b *configReader) readJSON(dir, name string, v any) error {
+	limit := min(maxConfigFile, b.left)
+	data, err := readUntrusted(dir, name, limit)
 	b.left -= int64(len(data))
+	if errors.Is(err, errTooLarge) {
+		if limit < maxConfigFile {
+			err = fmt.Errorf("the read limit for one container (%d bytes) reached", maxConfigRead)
+		} else {
+			err = fmt.Errorf("larger than %d bytes", maxConfigFile)
+		}
+	}
 	if err == nil {
 		err = json.Unmarshal(data, v)
 	}
@@ -212,7 +230,7 @@ func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("larger than %d bytes", limit)
+		return nil, errTooLarge
 	}
 	return data, nil
 }
