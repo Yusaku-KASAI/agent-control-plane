@@ -265,7 +265,8 @@ type Runner interface {
 	// Start launches the session's agent process, which then waits for prompts.
 	Start(ctx context.Context, r StartRequest) (Process, error)
 	// RemoveLeftovers removes the processes a previous control plane left behind and returns
-	// their sessions.
+	// their sessions. It removes what was left reading workspaces (SessionWorkspace) too, which
+	// holds no session's work.
 	RemoveLeftovers(ctx context.Context) ([]domain.SessionID, error)
 }
 

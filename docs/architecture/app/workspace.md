@@ -65,8 +65,8 @@ GitHub のブランチと PR
 
 ### git の実行（`internal/adapter/gitworkspace/provider.go` の `gitRunner`）
 
-- **責務**：control-plane が作業領域を作るときと、作業領域を読むコンテナ（`acp workspace-state`）が作業領域の状態を
-  読むときの git の操作を、動かす人の環境によらず同じにする。
+- **責務**：control-plane が作業領域を作るときと、作業領域の状態を読むとき（作業領域を読むコンテナの
+  `acp workspace-state`、エージェントのコンテナの `acp cleanup-check`）の git の操作を、動かす人の環境によらず同じにする。
 - **置くもの / 置かないもの**：ホストのユーザーとシステムの git 設定を読まず、端末で聞かない。認証には
   control-plane が発行したトークンだけを使う（認証ヘルパーで渡す）。github.com の SSH の URL は HTTPS に読み替える。
   所有者の違う作業領域も扱えるよう `safe.directory` を `*` にする。状態を読むときに index を書き換えない
@@ -76,7 +76,7 @@ GitHub のブランチと PR
 
 <a id="branch"></a>
 
-### セッションのブランチ（`internal/domain/session.go` の `SessionID.Branch`、`OwnsBranch`）
+### セッションのブランチ（`internal/domain/session.go` の `SessionID.Branch`、`OwnsBranch`、`BranchOwnedBy`）
 
 - **責務**：セッションのブランチの名前と、あるブランチをセッションが作ったかを決める。
 - **置くもの / 置かないもの**：名前は `acp/<ID の先頭8文字>`。セッションが作ったブランチは、その名前か、それに
@@ -86,7 +86,8 @@ GitHub のブランチと PR
   作ったブランチだけをリモートから消す。[pre-push フック](#pre-push)は、セッションが作ったブランチでない名前の
   新しいブランチに注意を出す。
 - **当てはめた原則・パターン**：[SSOT](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：名前の決まりはここだけに置き、
-  作るとき、渡すとき、片付けるときは同じ関数を使う。シェルで動く pre-push フックだけは、`-` で続ける決まりを写して
+  作るとき、渡すとき、片付けるときは同じ関数を使う（ID のないエージェントのコンテナの `acp cleanup-check` は、
+  `ACP_SESSION_BRANCH` から `BranchOwnedBy` で決める）。シェルで動く pre-push フックだけは、`-` で続ける決まりを写して
   持つ。写しが `OwnsBranch` と食い違わないことは、フックの試験が `OwnsBranch` から期待を求めて確かめる
   （[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)）。
 
@@ -154,6 +155,12 @@ GitHub のブランチと PR
   それを、[作業領域を読むコンテナ](containers.md#workspace-reader "在りか")の中で動かし、
   usecase の `SessionWorkspace` として[片付け](sessions.md#cleaner "在りか")に渡す。control-plane のプロセスでは回さない。
   作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
+  `acp cleanup-check` は、エージェントのコンテナの中でこれをその場で回す（エージェント自身のコンテナなので、読む
+  コンテナは要らない。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）。
+  `acp cleanup-check` は、作業領域のどこから動かされても作業領域全体を読むよう、`Root` で根（外側の
+  リポジトリの主の worktree）を解いてから回す。`Root` はサブモジュールからはスーパープロジェクトへ、中に clone したリポジトリからは外の
+  作業ツリーへ上がり、linked worktree からは主の worktree へ戻る。根の `.git` が共通の git ディレクトリでなければ、
+  空の状態を読まないようエラーにする。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 
@@ -161,7 +168,8 @@ GitHub のブランチと PR
 
 ### GitHub のブランチ（`internal/adapter/githubapp/branches.go` の `Branches`）
 
-- **責務**：ターゲットの `origin` の GitHub のリポジトリで、ブランチの事実を読み、ブランチを消す。
+- **責務**：GitHub のリポジトリで、ブランチの事実を読み、ブランチを消す。聞くリポジトリは、作るときに渡す origin の
+  読み方で決まる（片付けはターゲットの `origin`、`acp cleanup-check` は作業領域の `origin`）。
 - **置くもの / 置かないもの**：
   - `List`：名前の前方一致（`matching-refs`）でリモートのブランチを探す。作業領域が知らないブランチも見つかる。
   - `Inspect`：ブランチごとに、リモートにあるか、先頭、そのブランチを head ブランチとする開いている PR、

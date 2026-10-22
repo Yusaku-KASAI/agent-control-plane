@@ -71,6 +71,8 @@ const (
 	reasonUnmerged
 	// reasonOpenBase: deleting a branch the session created would close the pull requests into it.
 	reasonOpenBase
+	// reasonKindEnd follows the last kind.
+	reasonKindEnd
 )
 
 // reason is why an expired session is kept: work found nowhere else, or work that may go on.
@@ -218,7 +220,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	if err != nil {
 		return false, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
 	}
-	f, err := c.facts(ctx, agent, s, creds)
+	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
 	if err != nil {
 		return false, err
 	}
@@ -240,20 +242,21 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	return true, nil
 }
 
-// facts reads the workspace and asks the remote about the branches the session pushed or created,
-// and about the local branches holding unpushed commits: the remote may keep those commits under the
-// same name, as when a merge deleted the branch and a prune removed its remote-tracking branch.
-func (c *SessionCleaner) facts(ctx context.Context, agent domain.Agent, s domain.Session, creds domain.Credentials) (sessionFacts, error) {
-	ws, err := c.workspaces.State(ctx, agent, s.Workspace.Path)
+// readFacts reads the workspace and asks the remote about the branches the session pushed or
+// created, and about the local branches holding unpushed commits: the remote may keep those commits
+// under the same name, as when a merge deleted the branch and a prune removed its remote-tracking
+// branch. branch is the session's default working branch, which names those it created.
+func readFacts(ctx context.Context, workspaces SessionWorkspace, branches SessionBranches, agent domain.Agent, branch, path string, creds domain.Credentials) (sessionFacts, error) {
+	ws, err := workspaces.State(ctx, agent, path)
 	if err != nil {
 		return sessionFacts{}, fmt.Errorf("read workspace: %w", err)
 	}
 	f := sessionFacts{workspace: ws}
-	listed, err := c.branches.List(ctx, agent, creds, s.ID.Branch())
+	listed, err := branches.List(ctx, agent, creds, branch)
 	if err != nil {
 		return sessionFacts{}, fmt.Errorf("list branches: %w", err)
 	}
-	f.owned = slices.DeleteFunc(listed, func(name string) bool { return !s.ID.OwnsBranch(name) })
+	f.owned = slices.DeleteFunc(listed, func(name string) bool { return !domain.BranchOwnedBy(branch, name) })
 	var queries []BranchQuery
 	ask := func(name, commit string) {
 		i := slices.IndexFunc(queries, func(q BranchQuery) bool { return q.Name == name })
@@ -279,7 +282,7 @@ func (c *SessionCleaner) facts(ctx context.Context, agent domain.Agent, s domain
 	if len(queries) == 0 {
 		return f, nil
 	}
-	facts, err := c.branches.Inspect(ctx, agent, creds, queries)
+	facts, err := branches.Inspect(ctx, agent, creds, queries)
 	if err != nil {
 		return sessionFacts{}, fmt.Errorf("inspect branches: %w", err)
 	}
@@ -309,7 +312,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 	if !s.LastUsedAt.Before(cutoff) {
 		return nil, fmt.Errorf("%w: used meanwhile", errKept)
 	}
-	f, err := c.facts(ctx, agent, s, creds)
+	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
 	if err != nil {
 		return nil, err
 	}
@@ -384,26 +387,7 @@ func (c *SessionCleaner) keptText(s domain.Session, rs []reason) string {
 	fmt.Fprintf(&b, "このスレッドのセッションは、最後に使ってから%sたちましたが、次の理由で消さずに残しています。\n", c.since(s))
 	for _, r := range rs {
 		b.WriteString("\n- ")
-		switch r.kind {
-		case reasonOpenPull:
-			fmt.Fprintf(&b, "開いている PR：#%d %s %s", r.pull.Number, r.pull.Title, r.pull.URL)
-		case reasonChanges:
-			b.WriteString("作業領域（サブエージェントなどの worktree を含む）に、コミットしていない変更か追跡していないファイルがある")
-		case reasonStash:
-			b.WriteString("作業領域の stash に変更がある")
-		case reasonOperation:
-			fmt.Fprintf(&b, "作業領域（サブエージェントなどの worktree を含む）で %s が途中で止まっている", r.operation)
-		case reasonLostCommits:
-			if r.branch == "HEAD" {
-				b.WriteString("どのブランチにもないコミットがある（作業領域か、その中のサブエージェントなどの worktree の detached HEAD）")
-			} else {
-				fmt.Fprintf(&b, "push していないか、GitHub に見つからないコミットがあるブランチ：`%s`", r.branch)
-			}
-		case reasonUnmerged:
-			fmt.Fprintf(&b, "既定のブランチにも、マージした PR や閉じた PR にも入っていないブランチ：`%s`", r.branch)
-		case reasonOpenBase:
-			fmt.Fprintf(&b, "`%s` に向けて開いている PR：#%d %s %s", r.branch, r.pull.Number, r.pull.Title, r.pull.URL)
-		}
+		b.WriteString(r.text())
 	}
 	b.WriteString("\n\nPR をマージするか閉じる、要らない変更やブランチを消すなどで片付くと、次の片付けでセッションを消します。" +
 		"続きや片付けを頼む場合は、このスレッドで依頼してください。")
@@ -418,4 +402,63 @@ func (c *SessionCleaner) since(s domain.Session) string {
 		return fmt.Sprintf(" %d 日", d/day)
 	}
 	return " " + d.Round(time.Minute).String()
+}
+
+// ReasonKinds are the kinds of reasons CheckCleanup tells, which the harness contract publishes.
+func ReasonKinds() []string {
+	var kinds []string
+	for k := reasonOpenPull; k < reasonKindEnd; k++ {
+		kinds = append(kinds, reason{kind: k}.key())
+		if k == reasonLostCommits {
+			kinds = append(kinds, reason{kind: k, branch: "HEAD"}.key())
+		}
+	}
+	return kinds
+}
+
+// key names the kind of the reason, for whoever resolves it (CheckCleanup).
+func (r reason) key() string {
+	switch r.kind {
+	case reasonOpenPull:
+		return "open-pull"
+	case reasonChanges:
+		return "changes"
+	case reasonStash:
+		return "stash"
+	case reasonOperation:
+		return "operation"
+	case reasonLostCommits:
+		if r.branch == "HEAD" {
+			return "detached-commits"
+		}
+		return "lost-commits"
+	case reasonUnmerged:
+		return "unmerged-branch"
+	case reasonOpenBase:
+		return "open-base"
+	}
+	return ""
+}
+
+func (r reason) text() string {
+	switch r.kind {
+	case reasonOpenPull:
+		return fmt.Sprintf("開いている PR：#%d %s %s", r.pull.Number, r.pull.Title, r.pull.URL)
+	case reasonChanges:
+		return "作業領域（サブエージェントなどの worktree を含む）に、コミットしていない変更か追跡していないファイルがある"
+	case reasonStash:
+		return "作業領域の stash に変更がある"
+	case reasonOperation:
+		return fmt.Sprintf("作業領域（サブエージェントなどの worktree を含む）で %s が途中で止まっている", r.operation)
+	case reasonLostCommits:
+		if r.branch == "HEAD" {
+			return "どのブランチにもないコミットがある（作業領域か、その中のサブエージェントなどの worktree の detached HEAD）"
+		}
+		return fmt.Sprintf("push していないか、GitHub に見つからないコミットがあるブランチ：`%s`", r.branch)
+	case reasonUnmerged:
+		return fmt.Sprintf("既定のブランチにも、マージした PR や閉じた PR にも入っていないブランチ：`%s`", r.branch)
+	case reasonOpenBase:
+		return fmt.Sprintf("`%s` に向けて開いている PR：#%d %s %s", r.branch, r.pull.Number, r.pull.Title, r.pull.URL)
+	}
+	return ""
 }

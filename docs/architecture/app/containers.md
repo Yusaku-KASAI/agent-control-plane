@@ -18,7 +18,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 ├─ エージェントのコンテナ（動いているセッションごとに 1 つ。ターゲットのイメージ）
 │    claude -p --input-format stream-json ...（標準入出力は control-plane が attach）
 │    マウント：作業領域 / エージェントの Claude Code の設定 / セッションの認証情報（読み取り専用）
-│             / ターゲットの隣のマーケットプレイス（読み取り専用）
+│             / control-plane のバイナリ（読み取り専用）/ ターゲットの隣のマーケットプレイス（読み取り専用）
 └─ 作業領域を読むコンテナ（片付けで判定するたびに 1 つ、使い捨て。ターゲットのイメージ、ネットワークなし）
      acp workspace-state（control-plane のバイナリ）
      マウント：作業領域（読み取り専用）/ control-plane のバイナリ（読み取り専用）
@@ -52,7 +52,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     ホストと同じパスに（置き場所は [.env.example](../../../.env.example "在りか")）。
     名前付きボリュームの `acp-credentials`（セッションの認証情報）、`acp-claude`（エージェントの Claude Code の設定）、
     `acp-state`（control-plane だけが読み書きする状態）、`acp-tools`（control-plane が起動のたびに自分のバイナリを
-    置き、作業領域を読むコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
+    置き、作業領域を読むコンテナとエージェントのコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
     control-plane が作るコンテナから名前で指す）。
   - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
     （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
@@ -102,7 +102,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     - 環境変数は、`CLAUDE_CONFIG_DIR`、`ACP_SESSION_BRANCH`、`ACP_CO_AUTHORS_FILE` と、認証情報とコミットの作者
       から決まるもの。
     - マウントは、作業領域（書き込める）、エージェントの Claude Code の設定、セッションの認証情報（読み取り専用）、
-      ターゲットの隣のマーケットプレイス（読み取り専用）。
+      control-plane のバイナリ（`/run/acp/bin`、読み取り専用。エージェントが `acp cleanup-check` で片付けの判定を見る
+      ため。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）、ターゲットの隣の
+      マーケットプレイス（読み取り専用）。
     - ラベル `acp.session`（セッション ID）と `acp.agent`（エージェント名）。Docker Compose がプロジェクトのコンテナを探す
       ラベル（`com.docker.compose.project`、`com.docker.compose.service`）は空にする。`docker compose build` で作った
       イメージはこれを持ち、コンテナはイメージのラベルを引き継ぐので、空にしないとエージェントのコンテナが devcontainer の
@@ -186,7 +188,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   （`core.fsmonitor`、フィルタなど）を動かし、名前付きパイプなどで止まりもするため（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 - **置くもの / 置かないもの**：
   - `InstallTool`：`acp serve` の起動のたびに、動いている自分のバイナリを `tools.dir`（ボリュームは `tools.volume`）に
-    置き換える。
+    置き換える。エージェントのコンテナにも同じ置き場をマウントする（`runner.go`）。
   - `State`：作業領域が git のリポジトリなら、使い捨てのコンテナで `acp workspace-state` を動かし、標準出力の JSON を
     読む。期限（2 分）を過ぎたら諦めてエラーにし、どの終わり方でもコンテナを消す。読む出力は標準出力 4 MiB、
     標準エラー 16 KiB まで。返る事実はエージェントが左右できるので、ブランチの名前、コミット、途中の操作が git の
@@ -199,6 +201,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     - マウントは、作業領域（読み取り専用）と、`tools` のバイナリ（`/run/acp/bin`、読み取り専用）だけ。認証情報も
       環境変数も渡さない。
     - ネットワークなし、ケーパビリティなし、`no-new-privileges`、読み取り専用のルート（`/tmp` だけ 16 MiB の tmpfs）。
+      ログは書かない（出力は attach で読み、読む量の上限は `State` にある。エージェントのコマンドが上限なく書きうるため）。
       プロセス数とメモリにも上限を付ける。エージェントが設定に書いたコマンドが、依頼と関係なく動くため。
     - ラベル `acp.workspace-state`。Docker Compose のラベルは、エージェントのコンテナと同じく空にする。
 - **関係**：片付け（[片付け](sessions.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
