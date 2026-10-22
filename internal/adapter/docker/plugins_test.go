@@ -4,7 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -172,5 +175,81 @@ func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 	}
 	if !slices.Contains(got, pluginDir{Path: "platform/plugins/roles"}) {
 		t.Errorf("declaredPlugins() = %+v, want the roles plugin from the session's own clone", got)
+	}
+}
+
+// The workspace is the agent's to write: what it holds may not make the control plane read outside
+// it, hang, or read without end.
+func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
+	const settings = `{"extraKnownMarketplaces": {"m": {"source": {"source": "directory", "path": "./p"}}}, "enabledPlugins": {"x@m": true}}`
+	const catalog = `{"plugins": [{"name": "x", "source": "./x"}]}`
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "settings.json"), settings)
+	writeFile(t, filepath.Join(outside, ".claude-plugin", "marketplace.json"), catalog)
+
+	tests := map[string]func(t *testing.T, repo string){
+		"settings linked outside": func(t *testing.T, repo string) {
+			symlink(t, filepath.Join(outside, "settings.json"), filepath.Join(repo, ".claude", "settings.json"))
+		},
+		"settings linked to a device": func(t *testing.T, repo string) {
+			symlink(t, "/dev/zero", filepath.Join(repo, ".claude", "settings.json"))
+		},
+		"settings a named pipe": func(t *testing.T, repo string) {
+			if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := syscall.Mkfifo(filepath.Join(repo, ".claude", "settings.json"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"settings too large": func(t *testing.T, repo string) {
+			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings+strings.Repeat(" ", maxConfigFile))
+		},
+		"marketplace linked outside": func(t *testing.T, repo string) {
+			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings)
+			symlink(t, outside, filepath.Join(repo, "p"))
+		},
+	}
+	for name, arrange := range tests {
+		t.Run(name, func(t *testing.T) {
+			repo := t.TempDir()
+			// With the file read as if trusted, the plugin would be found.
+			if name != "marketplace linked outside" {
+				writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), catalog)
+			}
+			arrange(t, repo)
+			done := make(chan error, 1)
+			go func() {
+				_, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace")
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Error("declaredPlugins() error = nil, want the file refused")
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("declaredPlugins() hangs")
+			}
+		})
+	}
+
+	// A link that stays inside the repository is followed.
+	repo := t.TempDir()
+	writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings)
+	writeFile(t, filepath.Join(repo, "real", ".claude-plugin", "marketplace.json"), catalog)
+	symlink(t, "real", filepath.Join(repo, "p"))
+	if got, err := declaredPlugins(repo, filepath.Dir(repo), "/workspace"); err != nil || !slices.Equal(got, []pluginDir{{Path: "p/x"}}) {
+		t.Errorf("declaredPlugins() = %+v, %v; want the plugin through the link inside", got, err)
+	}
+}
+
+func symlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
 	}
 }
