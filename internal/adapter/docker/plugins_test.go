@@ -187,14 +187,21 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 	writeFile(t, filepath.Join(outside, "settings.json"), settings)
 	writeFile(t, filepath.Join(outside, ".claude-plugin", "marketplace.json"), catalog)
 
+	inside := func(t *testing.T, repo string) {
+		writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), catalog)
+	}
+	// Each but the last has the marketplace inside, so that read as if trusted, the plugin is found.
 	tests := map[string]func(t *testing.T, repo string){
 		"settings linked outside": func(t *testing.T, repo string) {
+			inside(t, repo)
 			symlink(t, filepath.Join(outside, "settings.json"), filepath.Join(repo, ".claude", "settings.json"))
 		},
 		"settings linked to a device": func(t *testing.T, repo string) {
+			inside(t, repo)
 			symlink(t, "/dev/zero", filepath.Join(repo, ".claude", "settings.json"))
 		},
 		"settings a named pipe": func(t *testing.T, repo string) {
+			inside(t, repo)
 			if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -203,6 +210,7 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 			}
 		},
 		"settings too large": func(t *testing.T, repo string) {
+			inside(t, repo)
 			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings+strings.Repeat(" ", maxConfigFile))
 		},
 		"marketplace linked outside": func(t *testing.T, repo string) {
@@ -213,10 +221,6 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 	for name, arrange := range tests {
 		t.Run(name, func(t *testing.T) {
 			repo := t.TempDir()
-			// With the file read as if trusted, the plugin would be found.
-			if name != "marketplace linked outside" {
-				writeFile(t, filepath.Join(repo, "p", ".claude-plugin", "marketplace.json"), catalog)
-			}
 			arrange(t, repo)
 			done := make(chan error, 1)
 			go func() {
@@ -251,5 +255,62 @@ func symlink(t *testing.T, target, link string) {
 	}
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Between telling a regular file and opening it, the agent may swap it.
+func TestOpenRegular_Swapped(t *testing.T) {
+	// Each makes the replacement beside the file, while the file still holds its inode.
+	tests := map[string]func(t *testing.T, next string){
+		"by a named pipe": func(t *testing.T, next string) {
+			if err := syscall.Mkfifo(next, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"by another file": func(t *testing.T, next string) {
+			writeFile(t, next, "other")
+		},
+		"by a link to a regular file": func(t *testing.T, next string) {
+			writeFile(t, filepath.Join(filepath.Dir(next), "real"), "real")
+			symlink(t, "real", next)
+		},
+	}
+	for name, replace := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "settings.json")
+			writeFile(t, path, "{}")
+			root, err := os.OpenRoot(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = root.Close() }()
+			info, err := root.Lstat("settings.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := filepath.Join(dir, "next")
+			replace(t, next)
+			if err := os.Rename(next, path); err != nil {
+				t.Fatal(err)
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				f, err := openRegular(root, "settings.json", info)
+				if f != nil {
+					_ = f.Close()
+				}
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Error("openRegular() error = nil, want the swap refused")
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("openRegular() hangs")
+			}
+		})
 	}
 }

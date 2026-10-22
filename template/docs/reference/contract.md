@@ -38,6 +38,10 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   - `directory` のマーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
   - 宣言したマーケットプレイスがエージェントにどう見えるかは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
+  - `.claude/settings.json` とマーケットプレイスの `.claude-plugin/marketplace.json` は、シンボリックリンクにせず通常の
+    ファイルで置き、1 MiB 以内にする。途中のディレクトリのシンボリックリンクは、リポジトリ（隣のマーケットプレイスなら
+    その中）の中に留まるものだけにする。control-plane は、作業領域をエージェントが書けるので、外れたものを読まずに
+    依頼を失敗させる（[control-plane の ADR 0044](../../../docs/adr/app/0044-read-workspace-files-confined.md "在りか")）。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
 - `.claude/settings.json` の `language` に、CLAUDE.md の言語の節で決めた回答の言語を書く。Claude Code はこれを毎回の
   指示として渡す。決まりは CLAUDE.md にあり、ここはそれを届ける。

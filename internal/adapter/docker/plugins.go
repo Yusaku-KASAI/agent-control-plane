@@ -164,8 +164,9 @@ func readJSON(dir, name string, v any) error {
 }
 
 // readUntrusted reads the file name under dir, which the agent may have written in the workspace.
-// Whatever symbolic links say, it reads nothing outside dir; it takes only a regular file, so a
-// named pipe or a device cannot make it hang or read without end; and it reads at most limit bytes.
+// Whatever symbolic links say, it reads nothing outside dir; it takes only a regular file, not a
+// link to one, so a named pipe or a device cannot make it hang or read without end; and it reads at
+// most limit bytes.
 func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -179,17 +180,11 @@ func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s: not a regular file", name)
 	}
-	// Non-blocking, should it have become a named pipe since.
-	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := openRegular(root, name, info)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	if opened, err := f.Stat(); err != nil {
-		return nil, err
-	} else if !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
-		return nil, fmt.Errorf("%s: changed while opened", name)
-	}
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
@@ -198,4 +193,18 @@ func readUntrusted(dir, name string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s: larger than %d bytes", name, limit)
 	}
 	return data, nil
+}
+
+// openRegular opens name as the regular file info told of. It may have been replaced since, by a
+// named pipe, which it opens without waiting for a writer, or by a link or another file.
+func openRegular(root *os.Root, name string, info fs.FileInfo) (*os.File, error) {
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	if opened, err := f.Stat(); err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
+		_ = f.Close()
+		return nil, fmt.Errorf("%s: changed while opened", name)
+	}
+	return f, nil
 }
