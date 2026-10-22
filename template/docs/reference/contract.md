@@ -39,7 +39,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
     `/workspace/agent-platform` で宣言する（[ADR 0007](../adr/0007-marketplaces-beside-the-target.md)）。
   - 宣言したマーケットプレイスがエージェントにどう見え、どの宣言が効くかは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
   - `.claude/settings.json` とマーケットプレイスの `.claude-plugin/marketplace.json` は、通常のファイルで、1 MiB 以内に
-    する。シンボリックリンクは、リポジトリ（隣のマーケットプレイスならその中）の中に留まるものだけにする。control-plane
+    する。シンボリックリンクは、相対パスで、リポジトリ（隣のマーケットプレイスならその中）の中に留まるものだけにする。control-plane
     は、作業領域をエージェントが書けるので、外れたものを読まずに依頼を失敗させる
     （[control-plane の ADR 0044](../../../docs/adr/app/0044-read-workspace-files-confined.md "在りか")）。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。

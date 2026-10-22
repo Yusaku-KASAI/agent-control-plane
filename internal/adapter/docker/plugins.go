@@ -47,14 +47,14 @@ type settingsFile struct {
 // for the agent may write anything in its clone, links included.
 func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 	hostRoot, name := filepath.Dir(target), filepath.Base(repo)
-	budget := &configReader{left: maxConfigRead, catalogs: make(map[string]catalog)}
+	reader := &configReader{left: maxConfigRead, catalogs: make(map[string]catalog)}
 	var dirs []pluginDir
 	for _, from := range []struct {
 		dir    string
 		beside bool
 	}{{repo, false}, {target, true}} {
 		var settings settingsFile
-		if err := budget.readJSON(from.dir, filepath.Join(".claude", "settings.json"), &settings); errors.Is(err, fs.ErrNotExist) {
+		if err := reader.readJSON(from.dir, filepath.Join(".claude", "settings.json"), &settings); errors.Is(err, fs.ErrNotExist) {
 			continue
 		} else if err != nil {
 			return nil, err
@@ -70,10 +70,10 @@ func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
 			switch inTree, beside := marketplaceDir(src.Path, name, hostRoot, workspaceDir); {
 			case beside != nil && from.beside:
 				var rel string
-				rel, err = pluginSource(budget, beside.Host, ".", plugin)
+				rel, err = pluginSource(reader, beside.Host, ".", plugin)
 				dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
 			case inTree != "" && !from.beside:
-				dir.Path, err = pluginSource(budget, repo, inTree, plugin)
+				dir.Path, err = pluginSource(reader, repo, inTree, plugin)
 			default:
 				continue
 			}
@@ -140,14 +140,10 @@ type catalog struct {
 	} `json:"plugins"`
 }
 
-func pluginSource(budget *configReader, repo, marketplace, plugin string) (string, error) {
-	key := filepath.Join(repo, marketplace)
-	catalog, ok := budget.catalogs[key]
-	if !ok {
-		if err := budget.readJSON(repo, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &catalog); err != nil {
-			return "", err
-		}
-		budget.catalogs[key] = catalog
+func pluginSource(reader *configReader, repo, marketplace, plugin string) (string, error) {
+	catalog, err := reader.catalog(repo, marketplace)
+	if err != nil {
+		return "", err
 	}
 	for _, p := range catalog.Plugins {
 		if p.Name != plugin {
@@ -182,6 +178,20 @@ var errTooLarge = errors.New("larger than allowed")
 type configReader struct {
 	left     int64
 	catalogs map[string]catalog
+}
+
+// catalog reads the marketplace at dir/marketplace, once for one container.
+func (b *configReader) catalog(dir, marketplace string) (catalog, error) {
+	key := filepath.Join(dir, marketplace)
+	if c, ok := b.catalogs[key]; ok {
+		return c, nil
+	}
+	var c catalog
+	if err := b.readJSON(dir, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &c); err != nil {
+		return c, err
+	}
+	b.catalogs[key] = c
+	return c, nil
 }
 
 func (b *configReader) readJSON(dir, name string, v any) error {

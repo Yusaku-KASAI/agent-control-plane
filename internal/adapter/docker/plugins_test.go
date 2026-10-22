@@ -221,6 +221,12 @@ func TestDeclaredPlugins_UntrustedFiles(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = writer.Close() })
 		},
+		// os.Root takes no absolute link, though this one leads inside.
+		"settings an absolute link inside": func(t *testing.T, repo string) {
+			inside(t, repo)
+			writeFile(t, filepath.Join(repo, "shared", "settings.json"), settings)
+			symlink(t, filepath.Join(repo, "shared", "settings.json"), filepath.Join(repo, ".claude", "settings.json"))
+		},
 		"settings too large": func(t *testing.T, repo string) {
 			inside(t, repo)
 			writeFile(t, filepath.Join(repo, ".claude", "settings.json"), settings+strings.Repeat(" ", maxConfigFile))
