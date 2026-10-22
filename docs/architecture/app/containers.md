@@ -158,9 +158,9 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     隣のマーケットプレイス）の外を読まないように読む（`readUntrusted`）。シンボリックリンクは、その中に留まるものだけを
     たどる。待たずに開いて、開いたものが通常のファイルかを確かめ（名前付きパイプ、デバイスは断る）、1 MiB までしか
     読まない。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
-  - 隣のマーケットプレイスは、リンクを解いた先がターゲットの親ディレクトリの中にあり、`sessions.root` の中でも
-    それを含むものでもないものだけにし、解いた先をマウントする（`confineBeside`）。設定のパスも作業領域のリンクも
-    エージェントが書けるので、ほかのセッションの作業領域や、外のディレクトリをマウントさせないため。
+  - ターゲット自身の中のマーケットプレイスは作業領域の設定の宣言から、隣のマーケットプレイス（マウントするもの）は
+    ホストのターゲットの checkout の設定の宣言からだけ決める。作業領域の設定とリンクはエージェントが書けるので、
+    ほかのセッションの作業領域や外のディレクトリをマウントさせないため。
 - **関係**：決まりの理由は [target-template ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：

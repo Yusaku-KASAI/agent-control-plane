@@ -26,56 +26,64 @@ type mountedDir struct {
 	Host, Container string
 }
 
-// declaredPlugins returns the plugins the repository at repo enables in .claude/settings.json from
-// directory marketplaces in its own tree or in a repository beside it (see marketplaceDir). Headless
-// Claude Code does not install a project's declared plugins, so they are passed with --plugin-dir.
-// Plugins from other marketplaces are left to Claude Code.
-func declaredPlugins(repo, hostRoot, sessionsRoot, workspaceDir string) ([]pluginDir, error) {
-	var settings struct {
-		ExtraKnownMarketplaces map[string]struct {
-			Source struct {
-				Source string `json:"source"`
-				Path   string `json:"path"`
-			} `json:"source"`
-		} `json:"extraKnownMarketplaces"`
-		EnabledPlugins map[string]bool `json:"enabledPlugins"`
-	}
-	if err := readJSON(repo, filepath.Join(".claude", "settings.json"), &settings); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
+type settingsFile struct {
+	ExtraKnownMarketplaces map[string]struct {
+		Source struct {
+			Source string `json:"source"`
+			Path   string `json:"path"`
+		} `json:"source"`
+	} `json:"extraKnownMarketplaces"`
+	EnabledPlugins map[string]bool `json:"enabledPlugins"`
+}
 
+// declaredPlugins returns the plugins enabled in .claude/settings.json from directory marketplaces
+// in the repository's own tree or in a repository beside it (see marketplaceDir). Headless Claude
+// Code does not install a project's declared plugins, so they are passed with --plugin-dir. Plugins
+// from other marketplaces are left to Claude Code.
+//
+// The repository's own marketplaces are read in the session's clone at repo, where the agent may be
+// changing them, and as its settings there declare them. A marketplace beside it is the host's, and
+// is mounted into the agent's container: it is taken as the target's checkout at target declares it,
+// for the agent may write anything in its clone, links included.
+func declaredPlugins(repo, target, workspaceDir string) ([]pluginDir, error) {
+	hostRoot, name := filepath.Dir(target), filepath.Base(repo)
 	var dirs []pluginDir
-	for id, enabled := range settings.EnabledPlugins {
-		plugin, market, ok := strings.Cut(id, "@")
-		src := settings.ExtraKnownMarketplaces[market].Source
-		if !enabled || !ok || src.Source != "directory" {
+	for _, from := range []struct {
+		dir    string
+		beside bool
+	}{{repo, false}, {target, true}} {
+		var settings settingsFile
+		if err := readJSON(from.dir, filepath.Join(".claude", "settings.json"), &settings); errors.Is(err, fs.ErrNotExist) {
 			continue
+		} else if err != nil {
+			return nil, err
 		}
-		var dir pluginDir
-		var err error
-		switch inTree, beside := marketplaceDir(src.Path, filepath.Base(repo), hostRoot, workspaceDir); {
-		case beside != nil:
-			if beside, err = confineBeside(beside, hostRoot, sessionsRoot); err != nil {
-				break
+		for id, enabled := range settings.EnabledPlugins {
+			plugin, market, ok := strings.Cut(id, "@")
+			src := settings.ExtraKnownMarketplaces[market].Source
+			if !enabled || !ok || src.Source != "directory" {
+				continue
 			}
-			var rel string
-			rel, err = pluginSource(beside.Host, ".", plugin)
-			dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
-		case inTree != "":
-			dir.Path, err = pluginSource(repo, inTree, plugin)
-		default:
-			continue
+			var dir pluginDir
+			var err error
+			switch inTree, beside := marketplaceDir(src.Path, name, hostRoot, workspaceDir); {
+			case beside != nil && from.beside:
+				var rel string
+				rel, err = pluginSource(beside.Host, ".", plugin)
+				dir = pluginDir{Path: path.Join(beside.Container, filepath.ToSlash(rel)), Beside: beside}
+			case inTree != "" && !from.beside:
+				dir.Path, err = pluginSource(repo, inTree, plugin)
+			default:
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("plugin %s: %w", id, err)
+			}
+			dirs = append(dirs, dir)
 		}
-		if err != nil {
-			return nil, fmt.Errorf("plugin %s: %w", id, err)
-		}
-		dirs = append(dirs, dir)
 	}
 	slices.SortFunc(dirs, func(a, b pluginDir) int { return strings.Compare(a.Path, b.Path) })
-	return dirs, nil
+	return slices.CompactFunc(dirs, func(a, b pluginDir) bool { return a.Path == b.Path }), nil
 }
 
 // marketplaceDir resolves where a directory marketplace is: relative to the repository, or at a
@@ -103,35 +111,6 @@ func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, 
 		return own, nil
 	}
 	return "", &mountedDir{Host: host, Container: p}
-}
-
-// confineBeside resolves a marketplace beside the repository to the directory it is, which the
-// agent's container mounts. The settings naming it, and links on the way, may be the agent's: it must
-// be a directory among the repositories beside the target, and hold no session, whose workspaces the
-// agent writes, nor lie in one.
-func confineBeside(m *mountedDir, hostRoot, sessionsRoot string) (*mountedDir, error) {
-	resolved, err := filepath.EvalSymlinks(m.Host)
-	if err != nil {
-		return nil, err
-	}
-	root, err := filepath.EvalSymlinks(hostRoot)
-	if err != nil {
-		return nil, err
-	}
-	sessions, err := filepath.EvalSymlinks(sessionsRoot)
-	if err != nil {
-		return nil, err
-	}
-	if !inside(resolved, root) || inside(resolved, sessions) || resolved == sessions || inside(sessions, resolved) {
-		return nil, fmt.Errorf("%s: not a repository beside the target", m.Container)
-	}
-	return &mountedDir{Host: resolved, Container: m.Container}, nil
-}
-
-// inside reports whether path is strictly under dir.
-func inside(path, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && rel != "." && filepath.IsLocal(rel)
 }
 
 // linkedIntoRepository reports where in the repository at repoRoot the host path leads, when a

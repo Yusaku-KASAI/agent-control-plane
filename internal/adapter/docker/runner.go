@@ -28,8 +28,6 @@ type dockerAPI interface {
 }
 
 type Options struct {
-	// SessionsRoot holds the sessions' workspaces, which no marketplace beside a target may reach.
-	SessionsRoot string
 	// ClaudeConfigDir holds a Claude Code config directory per agent: its conversation history and
 	// auto memory. When ClaudeConfigVolume is set, that volume is mounted at ClaudeConfigDir and
 	// agents get their subpath of it; otherwise ClaudeConfigDir is a host path and is bind-mounted.
@@ -52,7 +50,7 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 }
 
 func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.Process, error) {
-	plugins, err := declaredPlugins(req.Session.Workspace.Path, filepath.Dir(req.Agent.Target.Path), r.opts.SessionsRoot, workspaceDir)
+	plugins, err := declaredPlugins(req.Session.Workspace.Path, req.Agent.Target.Path, workspaceDir)
 	if err != nil {
 		return nil, fmt.Errorf("read declared plugins: %w", err)
 	}
