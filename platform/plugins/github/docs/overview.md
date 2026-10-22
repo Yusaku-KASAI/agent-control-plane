@@ -26,6 +26,8 @@ github/
   bin/check-protection 既定のブランチの守り（ルールセットと CODEOWNERS）が外れていないかの検査
   actions/check-protection/  check-protection を CI で回す GitHub Actions の複合アクション
   tests/check-protection-test.sh  check-protection の振る舞いの検査（make check-platform が回す）
+  bin/check-issues     開いている Issue とロードマップが、課題の扱い方の整っている状態のうち判断の要らないものを満たすかの検査
+  tests/check-issues-test.sh  check-issues の振る舞いの検査（make check-platform が回す）
   hooks/hooks.json     Bash のあと（PostToolUse）とターンの終わり（Stop）に prctl hook を呼ぶ
   skills/github/       PR の本文とコメントの書き方、差分のレビューの残し方、レビューと CI への対応
 ```
@@ -128,6 +130,24 @@ github/
 - **関係**：`bin/prctl` を呼ぶ。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：本文を書き換えること、差分を
   レビューさせること、CI の失敗を直すことをプロンプトに頼らず、hook で見つけて促す。[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)。
+
+### `bin/check-issues`
+
+- **責務**：リポジトリの開いている Issue とロードマップが、conventions の
+  [課題の扱い方](../../conventions/docs/reference/issues.md#tidy)の「整っている状態」のうち、判断の要らないものを満たすかを確かめる。
+  満たさない項目を `NG` の行で出し、終了コードは 0 が通過、1 がずれ、2 が GitHub を読めない。
+- **置くもの / 置かないもの**：
+  - 確かめるのは三つ。テーマの Issue（ラベル `theme`）とロードマップのほかの開いている Issue が、どこを変えるかのラベル
+    （`theme`、`theme:*`、`canvas` のほかのラベル）と `theme:<名前>` を一つ以上ずつ持つこと。ピン留めした「ロードマップ」の
+    `## 今の焦点` の節が、このリポジトリの閉じた Issue を挙げていないこと（`<リポジトリ>#<番号>` のほかのリポジトリへの
+    参照は数えない）。開いている Issue が、閉じた Issue に blocked by されていないこと。
+  - 本文、重なり、順番、テーマの狙いは確かめない（判断が要り、課題を整える手順に任せる）。
+  - Issue を書き換えない。読むだけ。CI では回さない（Issue は PR と関わりなく変わる）。課題を整えるときとセッションを
+    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)）。
+- **関係**：`gh` と `jq` を使う。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
+  スキルの「Issue のずれを挙げる」が届ける。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：ロードマップの今の焦点が古いまま残る
+  ことを、人の気づきに頼らず見つける。
 
 ### `bin/check-protection`
 

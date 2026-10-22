@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Checks the open issues of a repository against conventions' docs/reference/issues.md ("整っている
+# 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
+# theme:<name> label, the roadmap's "## 今の焦点" names no closed issue, and no issue is blocked by a
+# closed one. Only what needs no judgement is checked; the rest of the tidy state is left to the
+# procedure that tidies issues.
+#
+# Usage: check-issues [<owner>/<repo>]
+#   The repository defaults to $GITHUB_REPOSITORY, else the one gh sees here.
+# Exits 0 when every check passes, 1 when one fails, 2 when GitHub cannot be read. Each failure is
+# an NG line.
+set -euo pipefail
+
+repo=${1:-${GITHUB_REPOSITORY:-}}
+if [[ -z $repo ]]; then
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || { echo "check-issues: cannot tell the repository" >&2; exit 2; }
+fi
+owner=${repo%/*} name=${repo#*/}
+
+failed=0
+ok() { echo "ok   $*"; }
+ng() { echo "NG   $*"; failed=1; }
+unreadable() { echo "check-issues: cannot read $1" >&2; exit 2; }
+
+issues=$(gh issue list -R "$repo" --state open --limit 1000 --json number,title,labels) || unreadable "the open issues"
+# The $ are GraphQL variables, not the shell's.
+# shellcheck disable=SC2016
+roadmap=$(gh api graphql -f owner="$owner" -f name="$name" -f query='
+  query($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) { pinnedIssues(first: 10) { nodes { issue { number title body } } } }
+  }' --jq '[.data.repository.pinnedIssues.nodes[].issue | select(.title == "ロードマップ")][0] // empty') ||
+  unreadable "the pinned issues"
+roadmap_number=$(jq -r '.number // empty' <<<"${roadmap:-null}")
+
+# Labels: a theme issue (label theme) and the roadmap are not members of a theme.
+missing=$(jq -r --arg roadmap "${roadmap_number:-0}" '.[]
+  | select((.number | tostring) != $roadmap)
+  | .number as $number
+  | [.labels[].name] as $labels
+  | select(($labels | index("theme")) | not)
+  | (if any($labels[]; startswith("theme:")) then [] else ["theme:<名前>"] end)
+    + (if any($labels[]; . != "theme" and (startswith("theme:") | not) and . != "canvas") then [] else ["どこを変えるか"] end)
+  | select(length > 0) as $lack
+  | "#\($number) \($lack | join(" と ")) のラベルがない"' <<<"$issues")
+if [[ -n $missing ]]; then
+  while IFS= read -r line; do ng "$line"; done <<<"$missing"
+else
+  ok "every open issue has the labels of where and what for"
+fi
+
+# The roadmap's focus.
+if [[ -z $roadmap_number ]]; then
+  echo "--   no pinned issue titled ロードマップ; the focus is not checked"
+else
+  focus=$(jq -r '.body' <<<"$roadmap" | awk '/^## /{inside = ($0 ~ /^## 今の焦点/); next} inside')
+  closed=()
+  # Only this repository's issues: a reference such as other-repo#3 points elsewhere.
+  while read -r n; do
+    [[ -n $n ]] || continue
+    state=$(gh api "repos/$repo/issues/$n" --jq .state) || unreadable "issue #$n"
+    [[ $state == closed ]] && closed+=("#$n")
+  done < <(grep -oE '(^|[^[:alnum:]_/-])#[0-9]+' <<<"$focus" | grep -oE '[0-9]+$' | sort -un)
+  if ((${#closed[@]})); then
+    ng "the roadmap #$roadmap_number names closed issues in 今の焦点: ${closed[*]}"
+  else
+    ok "the roadmap #$roadmap_number names no closed issue in 今の焦点"
+  fi
+fi
+
+# Dependencies.
+blocked=0
+for n in $(jq -r '.[].number' <<<"$issues"); do
+  by=$(gh api "repos/$repo/issues/$n/dependencies/blocked_by" --jq '[.[] | select(.state == "closed") | "#\(.number)"] | join(" ")') ||
+    unreadable "the dependencies of #$n"
+  if [[ -n $by ]]; then ng "#$n is blocked by closed issues: $by"; blocked=1; fi
+done
+((blocked)) || ok "no open issue is blocked by a closed one"
+
+exit "$failed"
