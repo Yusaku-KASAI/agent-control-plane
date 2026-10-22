@@ -199,6 +199,16 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 	return strings.TrimSpace(string(out)), nil
 }
 
+// Root returns the workspace a directory is in: the main worktree of its repository, also from a
+// subdirectory or a linked worktree.
+func Root(ctx context.Context, dir string) (string, error) {
+	common, err := gitRunner{}.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(common), nil
+}
+
 // Origin returns the origin URL of the repository at path, or "" when it has none.
 func Origin(ctx context.Context, path string) (string, error) {
 	g := gitRunner{}

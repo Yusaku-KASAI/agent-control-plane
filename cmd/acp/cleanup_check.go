@@ -19,7 +19,7 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
-// cleanupCheck prints the reasons the cleanup would keep the session whose workspace is the working
+// cleanupCheck prints the reasons the cleanup would keep the session whose workspace holds the working
 // directory, one per line as the kind and the text, or that there are none. The agent runs it in its
 // container (the harness contract), where the session's branch and GitHub token are given.
 func cleanupCheck(ctx context.Context, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -28,9 +28,15 @@ func cleanupCheck(ctx context.Context, getenv func(string) string, stdout, stder
 		fmt.Fprintln(stderr, "acp: ACP_SESSION_BRANCH is not set; cleanup-check runs in an agent's container")
 		return 2
 	}
-	dir, err := os.Getwd()
+	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(stderr, "acp:", err)
+		return 1
+	}
+	// The cleanup looks at the whole workspace, wherever in it this runs.
+	dir, err := gitworkspace.Root(ctx, wd)
+	if err != nil {
+		fmt.Fprintln(stderr, "acp: not in the session's workspace:", err)
 		return 1
 	}
 	token, err := githubToken(getenv("GH_CONFIG_DIR"))

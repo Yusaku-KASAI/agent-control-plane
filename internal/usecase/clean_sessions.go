@@ -402,6 +402,18 @@ func (c *SessionCleaner) since(s domain.Session) string {
 	return " " + d.Round(time.Minute).String()
 }
 
+// ReasonKinds are the kinds of reasons CheckCleanup tells, which the harness contract publishes.
+func ReasonKinds() []string {
+	var kinds []string
+	for k := reasonOpenPull; k <= reasonOpenBase; k++ {
+		kinds = append(kinds, reason{kind: k}.key())
+		if k == reasonLostCommits {
+			kinds = append(kinds, reason{kind: k, branch: "HEAD"}.key())
+		}
+	}
+	return kinds
+}
+
 // key names the kind of the reason, for whoever resolves it (CheckCleanup).
 func (r reason) key() string {
 	switch r.kind {

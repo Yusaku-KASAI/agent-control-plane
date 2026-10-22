@@ -6,8 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
 )
 
 func TestDispatch_CleanupCheck(t *testing.T) {
@@ -33,6 +37,31 @@ func TestDispatch_CleanupCheck(t *testing.T) {
 		t.Errorf("cleanup-check with an untracked file = %d, %q (stderr %q); want the changes", code, out, errOut)
 	}
 
+	// From a subdirectory or a linked worktree, the whole workspace is checked.
+	sub := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+	if code, out, errOut := run(); code != 0 || !strings.HasPrefix(out, "changes\t") {
+		t.Errorf("cleanup-check from a subdirectory = %d, %q (stderr %q); want the changes", code, out, errOut)
+	}
+	for _, args := range [][]string{
+		{"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "--allow-empty", "-m", "first"},
+		{"worktree", "add", "--quiet", filepath.Join(dir, ".claude", "worktrees", "a")},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	t.Chdir(filepath.Join(dir, ".claude", "worktrees", "a"))
+	if code, out, errOut := run(); code != 0 || !strings.Contains(out, "changes\t") {
+		t.Errorf("cleanup-check from a linked worktree = %d, %q (stderr %q); want the main worktree's changes", code, out, errOut)
+	}
+	t.Chdir(dir)
+
 	delete(env, "ACP_SESSION_BRANCH")
 	if code, _, _ := run(); code != 2 {
 		t.Errorf("cleanup-check outside an agent's container = %d, want 2", code)
@@ -52,5 +81,24 @@ func TestGitHubToken(t *testing.T) {
 	}
 	if got, err := githubToken(t.TempDir()); err != nil || got != "" {
 		t.Errorf("githubToken() without hosts = %q, %v; want none", got, err)
+	}
+}
+
+// The kinds are published in the harness contract, where resolving each is looked up.
+func TestCleanupCheck_KindsInHarnessContract(t *testing.T) {
+	contract, err := os.ReadFile(filepath.Join("..", "..", "platform", "docs", "reference", "harness.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := usecase.ReasonKinds()
+	for _, kind := range kinds {
+		if !strings.Contains(string(contract), "| `"+kind+"` |") {
+			t.Errorf("kind %s is not in the harness contract's table", kind)
+		}
+	}
+	for _, m := range regexp.MustCompile("(?m)^  \\| `([a-z-]+)` \\|").FindAllStringSubmatch(string(contract), -1) {
+		if !slices.Contains(kinds, m[1]) {
+			t.Errorf("the harness contract tells kind %s, which cleanup-check does not", m[1])
+		}
 	}
 }
