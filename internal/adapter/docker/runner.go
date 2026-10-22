@@ -50,7 +50,7 @@ func NewRunner(api dockerAPI, opts Options) *Runner {
 }
 
 func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.Process, error) {
-	plugins, err := declaredPlugins(req.Session.Workspace.Path, filepath.Dir(req.Agent.Target.Path), workspaceDir)
+	plugins, err := declaredPlugins(req.Session.Workspace.Path, req.Agent.Target.Path, workspaceDir)
 	if err != nil {
 		return nil, fmt.Errorf("read declared plugins: %w", err)
 	}

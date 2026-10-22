@@ -148,12 +148,17 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **責務**：ターゲットが宣言したプラグインのうち、control-plane が読み込ませるものと、その場所を決める。
 - **置くもの / 置かないもの**：どのプラグインをどこから読み込ませるかの決まりは、ターゲットの契約の
   [プラグインとロール](../../../template/docs/reference/contract.md#plugins "在りか")にある。ここはそれを実装する。
-  - 作業領域の `.claude/settings.json` の `enabledPlugins` と `extraKnownMarketplaces` を読み、`directory` の
-    マーケットプレイスのプラグインを選んで `--plugin-dir` で渡す。ヘッドレスの Claude Code は宣言されたプラグインを
+  - 作業領域とホストのターゲットの checkout の `.claude/settings.json` の `enabledPlugins` と `extraKnownMarketplaces` を
+    読み、`directory` のマーケットプレイスのプラグインを選んで `--plugin-dir` で渡す。ヘッドレスの Claude Code は宣言されたプラグインを
     入れないため。
   - マーケットプレイスのパスは、契約の形（devcontainer でのパス）のほか、リポジトリからの相対パスも受け付ける。
     ターゲット自身の中か隣のリポジトリかの分け方と、それぞれをどう見せるかは契約のとおり。
   - プラグインの場所はマーケットプレイスの `.claude-plugin/marketplace.json` で引き、相対パスの source だけを扱う。
+  - 作業領域はエージェントが書けるので、これらのファイルは control-plane のプロセスで、読む元のディレクトリ（作業領域、
+    ホストのターゲットの checkout、隣のマーケットプレイス）の外を読まないように読む（`readUntrusted`）。シンボリックリンクは、相対パスでその中に留まるものだけを
+    たどる。待たずに開いて、開いたものが通常のファイルかを確かめ（名前付きパイプ、デバイスは断る）、1 ファイル 1 MiB
+    までしか読まない。一つのコンテナのためには、マーケットプレイスを一度ずつ読み、合計 4 MiB までにする。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
+  - どちらの設定の宣言を使うかは[ハーネスの契約](../../../platform/docs/reference/harness.md#work-area "在りか")のとおり。
 - **関係**：決まりの理由は [target-template ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：
