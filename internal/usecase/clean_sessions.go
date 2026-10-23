@@ -514,6 +514,10 @@ func (workFound) Unwrap() error { return errKept }
 // covers the control plane's clock running behind Slack's, whose time the reactions carry.
 const readingTime = 10 * time.Second
 
+// forceWindow is how long after the thread is told the person told may still force: a :fire: put
+// days after, by habit, is not taken as having just weighed the reasons.
+const forceWindow = time.Hour
+
 // name tells the reason apart from others: its kind and what it is about.
 func (r reason) name() string {
 	return fmt.Sprintf("%s %s %s %d %s", r.key(), r.branch, r.tip, r.pull.Number, r.operation)
@@ -584,6 +588,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	// changed the work; and only of these reasons (told).
 	forced := s.KeptAskedBy != nil && *s.KeptAskedBy == by &&
 		s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
+		s.KeptNotifiedAt.Add(forceWindow).After(askedAt) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
 	if force && !forced && len(rs) == 0 {
 		// A :fire: not taken as forcing removes nothing: it may be praise.
@@ -593,7 +598,8 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	onFire := force
 	force = force && forced
 	if keeps(rs, force) {
-		return c.tellKept(ctx, s, rs, onFire, by)
+		// A :fire: taken as forcing, kept only by an open pull request, leaves the person able to force.
+		return c.tellKept(ctx, s, rs, onFire && !force, by)
 	}
 	// Used since it was judged, it may hold work the judgement did not see.
 	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, s.KeptReasons)
@@ -603,7 +609,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return nil
 	case errors.As(err, &found):
 		// The thread is told what kept it, so that it may be forced knowingly.
-		return c.tellKept(ctx, s, found.reasons, onFire, by)
+		return c.tellKept(ctx, s, found.reasons, onFire && !force, by)
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
@@ -654,7 +660,9 @@ func keptNowText(rs []reason, onClean bool) string {
 			ForceCleanReaction + ": を付けてください（付けてあれば、外して付け直してください）。")
 	} else {
 		b.WriteString("失われるものを承知で消すなら、まず :" + ForceCleanReaction + ": を外し、このスレッドの最初のメッセージに :" +
-			CleanReaction + ": を付けてこの理由を確かめてから、:" + ForceCleanReaction + ": を付け直してください。")
+			CleanReaction + ": を付けて（付けてあれば、外して付け直して）この理由を確かめてから、:" + ForceCleanReaction +
+			": を付け直してください。:" + ForceCleanReaction + ": が効くのは、自分で付けた :" + CleanReaction +
+			": に理由が返ってから 1 時間のうちに、そのあと依頼せずに付けたときだけです。")
 	}
 	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
 		"片付いたら、:" + CleanReaction + ": を外して付け直してください。")

@@ -305,13 +305,26 @@ func TestSessionCleaner_CleanNowForcedOnlyByWhoAsked(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		"told by the retention's notice": func(e *cleanEnv) {
+		"told by the retention's notice after one's own :wastebasket:": func(e *cleanEnv) {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+				t.Fatal(err)
+			}
 			s := e.sessions.saved[existingID]
 			s.LastUsedAt = e.now.Add(-2 * retention)
+			s.KeptNotifiedAt = e.now.Add(-2 * retention)
 			e.sessions.saved[existingID] = s
 			if _, err := e.cleaner.Clean(context.Background()); err != nil {
 				t.Fatal(err)
 			}
+		},
+		"told on one's own :wastebasket: long before": func(e *cleanEnv) {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(-2*time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			s := e.sessions.saved[existingID]
+			s.LastUsedAt = e.now.Add(-3 * time.Hour)
+			s.KeptNotifiedAt = e.now.Add(-2 * time.Hour)
+			e.sessions.saved[existingID] = s
 		},
 		"told on a :fire: of one's own": func(e *cleanEnv) {
 			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
@@ -332,5 +345,26 @@ func TestSessionCleaner_CleanNowForcedOnlyByWhoAsked(t *testing.T) {
 				t.Errorf("removed %v, told %q; want kept and told to put :wastebasket: first", e.files.removed, posts[len(posts)-1])
 			}
 		})
+	}
+}
+
+// A :fire: stopped only by an open pull request leaves the person able to force once it is gone.
+func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	b := merged("acp/0f8fad5b")
+	b.OpenHead = []usecase.PullRequest{{Number: 7}}
+	e.branches.remote["acp/0f8fad5b"] = b
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil || len(e.files.removed) != 0 {
+		t.Fatalf("forced with the pull request open = %v, removed %v; want kept", err, e.files.removed)
+	}
+	// Gone, the pull request no longer keeps it: :fire: put again forces, with no new :wastebasket:.
+	e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b")
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(2*time.Minute)); err != nil || len(e.files.removed) == 0 {
+		t.Errorf("forced again once the pull request was gone = %v, removed %v; want removed", err, e.files.removed)
 	}
 }
