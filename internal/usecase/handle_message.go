@@ -52,7 +52,7 @@ type TurnExecutor interface {
 
 // SessionCleanup cleans one session now, as a person asked in its thread (SessionCleaner.CleanNow).
 type SessionCleanup interface {
-	CleanNow(ctx context.Context, id domain.SessionID, force bool, askedAt time.Time) error
+	CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error
 }
 
 type HandleMessage struct {
@@ -149,7 +149,7 @@ func (u *HandleMessage) CleanSession(ctx context.Context, agent domain.AgentName
 	if !u.policy.Allows(agent, r) {
 		return domain.ErrRequesterNotAllowed
 	}
-	return u.cleanup.CleanNow(ctx, c.SessionID(agent), force, askedAt)
+	return u.cleanup.CleanNow(ctx, c.SessionID(agent), force, r, askedAt)
 }
 
 func failureText(s domain.Session, err error) string {

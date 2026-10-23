@@ -269,7 +269,7 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 
 type cleanCalls struct{ ids []domain.SessionID }
 
-func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool, _ time.Time) error {
+func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool, _ domain.Requester, _ time.Time) error {
 	c.ids = append(c.ids, id)
 	return nil
 }

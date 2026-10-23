@@ -66,6 +66,9 @@ type Session struct {
 	KeptNotifiedAt time.Time
 	// KeptReasons names the reasons the thread was last told, each by kind and what it is about.
 	KeptReasons []string
+	// KeptAskedBy is who asked to clean the session now and was so told the reasons; nil when no
+	// one was, as when the cleanup told them of itself.
+	KeptAskedBy *Requester
 	// ReportedUsage is the session's total that Claude Code reported at the end of the last turn; nil
 	// when it is unknown, as after a process that ended by itself, which may not have saved it.
 	ReportedUsage *Usage

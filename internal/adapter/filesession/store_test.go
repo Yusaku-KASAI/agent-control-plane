@@ -29,6 +29,8 @@ func TestStore_SaveFind(t *testing.T) {
 		Conversation:   domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
 		LastUsedAt:     time.Date(2026, 10, 7, 1, 2, 3, 4, time.UTC),
 		KeptNotifiedAt: time.Date(2026, 10, 8, 1, 2, 3, 4, time.UTC),
+		KeptReasons:    []string{"changes   0 "},
+		KeptAskedBy:    &domain.Requester{Platform: "slack", ID: "U_ALICE"},
 		ReportedUsage: &domain.Usage{CostUSD: 1.5, Models: map[string]domain.ModelUsage{
 			"claude-opus": {InputTokens: 1, OutputTokens: 2, CacheReadInputTokens: 3, CacheCreationInputTokens: 4, CostUSD: 1.5},
 		}},

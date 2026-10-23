@@ -83,7 +83,7 @@ type cleanRecorder struct {
 	done   chan struct{}
 }
 
-func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, askedAt time.Time) error {
+func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, _ domain.Requester, askedAt time.Time) error {
 	c.mu.Lock()
 	c.cleans = append(c.cleans, fmt.Sprintf("%s %v", id, force))
 	c.asked = append(c.asked, askedAt)

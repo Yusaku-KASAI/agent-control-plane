@@ -368,7 +368,7 @@ func (c *SessionCleaner) notifyKept(ctx context.Context, s domain.Session, rs []
 	if err := c.notifier.Notify(ctx, s, c.keptText(s, rs)); err != nil {
 		return fmt.Errorf("notify kept session: %w", err)
 	}
-	return c.update(ctx, s.ID, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(rs) })
+	return c.update(ctx, s.ID, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons, s.KeptAskedBy = c.now(), names(rs), nil })
 }
 
 func (c *SessionCleaner) update(ctx context.Context, id domain.SessionID, change func(s *domain.Session)) error {
@@ -548,7 +548,7 @@ func blocksForce(r reason) bool {
 // (keeps), once the thread was told of it before askedAt, when the person asked, and since the
 // session was last used: forcing before only tells. What the judgement under the lock finds
 // beyond what was told keeps the session too.
-func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool, askedAt time.Time) error {
+func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error {
 	defer c.cleanOne(id)()
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
@@ -582,19 +582,18 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	rs := reasons(f)
 	// The person must have been told before asking, with time to read, and since the agent last
 	// changed the work; and only of these reasons (told).
-	forced := s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
+	forced := s.KeptAskedBy != nil && *s.KeptAskedBy == by &&
+		s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
 	if force && !forced && len(rs) == 0 {
 		// A :fire: not taken as forcing removes nothing: it may be praise.
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションに、片付けを止めるものはありません。"+
 			"片付けるなら、このスレッドの最初のメッセージに :"+CleanReaction+": を付けてください。")
 	}
+	onFire := force
 	force = force && forced
 	if keeps(rs, force) {
-		if err := c.notifier.Notify(ctx, s, keptNowText(rs)); err != nil {
-			return err
-		}
-		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(rs) })
+		return c.tellKept(ctx, s, rs, onFire, by)
 	}
 	// Used since it was judged, it may hold work the judgement did not see.
 	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, s.KeptReasons)
@@ -604,10 +603,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return nil
 	case errors.As(err, &found):
 		// The thread is told what kept it, so that it may be forced knowingly.
-		if err := c.notifier.Notify(ctx, s, keptNowText(found.reasons)); err != nil {
-			return err
-		}
-		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(found.reasons) })
+		return c.tellKept(ctx, s, found.reasons, onFire, by)
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
@@ -628,7 +624,21 @@ const (
 const cleanHint = "エージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
 	"片付けを今すぐ回すには、このスレッドの最初のメッセージに :" + CleanReaction + ": を付けてください。"
 
-func keptNowText(rs []reason) string {
+// tellKept tells the thread the reasons that keep the session and records them. Told on
+// :wastebasket:, the person who put it may then force; told on a :fire: not taken as forcing, no
+// one may until they put :wastebasket: themselves.
+func (c *SessionCleaner) tellKept(ctx context.Context, s domain.Session, rs []reason, onFire bool, by domain.Requester) error {
+	if err := c.notifier.Notify(ctx, s, keptNowText(rs, !onFire)); err != nil {
+		return err
+	}
+	var asked *domain.Requester
+	if !onFire {
+		asked = &by
+	}
+	return c.update(ctx, s.ID, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons, s.KeptAskedBy = c.now(), names(rs), asked })
+}
+
+func keptNowText(rs []reason, onClean bool) string {
 	var b strings.Builder
 	b.WriteString("このスレッドのセッションは、次の理由で消していません。\n")
 	for _, r := range rs {
@@ -639,9 +649,12 @@ func keptNowText(rs []reason) string {
 	if slices.ContainsFunc(rs, blocksForce) {
 		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、" +
 			"リアクションを外して付け直してください。")
+	} else if onClean {
+		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が、このスレッドの最初のメッセージに :" +
+			ForceCleanReaction + ": を付けてください（付けてあれば、外して付け直してください）。")
 	} else {
-		b.WriteString("失われるものを承知で消すなら、このスレッドの最初のメッセージに :" + ForceCleanReaction + ": を付けてください" +
-			"（付けてあれば、外して付け直してください）。")
+		b.WriteString("失われるものを承知で消すなら、まず :" + ForceCleanReaction + ": を外し、このスレッドの最初のメッセージに :" +
+			CleanReaction + ": を付けてこの理由を確かめてから、:" + ForceCleanReaction + ": を付け直してください。")
 	}
 	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
 		"片付いたら、:" + CleanReaction + ": を外して付け直してください。")

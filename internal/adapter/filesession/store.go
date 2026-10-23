@@ -44,6 +44,7 @@ type record struct {
 	LastUsedAt     *time.Time    `json:"last_used_at,omitempty"`
 	KeptNotifiedAt *time.Time    `json:"kept_notified_at,omitempty"`
 	KeptReasons    []string      `json:"kept_reasons,omitempty"`
+	KeptAskedBy    *requester    `json:"kept_asked_by,omitempty"`
 	ReportedUsage  *usage        `json:"reported_usage,omitempty"`
 }
 
@@ -114,6 +115,7 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 		Turns:     r.Turns,
 
 		KeptReasons:   r.KeptReasons,
+		KeptAskedBy:   r.KeptAskedBy.toDomain(),
 		ReportedUsage: r.ReportedUsage.toDomain(),
 	}
 	if r.LastUsedAt != nil {
@@ -137,6 +139,7 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 		LastUsedAt:     optionalTime(sess.LastUsedAt),
 		KeptNotifiedAt: optionalTime(sess.KeptNotifiedAt),
 		KeptReasons:    sess.KeptReasons,
+		KeptAskedBy:    fromRequester(sess.KeptAskedBy),
 		ReportedUsage:  fromUsage(sess.ReportedUsage),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
@@ -292,4 +295,23 @@ const removedPrefix = ".removed-"
 
 func (s *Store) file(id domain.SessionID, name ...string) string {
 	return filepath.Join(append([]string{s.root, string(id)}, name...)...)
+}
+
+type requester struct {
+	Platform string `json:"platform"`
+	ID       string `json:"id"`
+}
+
+func (r *requester) toDomain() *domain.Requester {
+	if r == nil {
+		return nil
+	}
+	return &domain.Requester{Platform: r.Platform, ID: r.ID}
+}
+
+func fromRequester(r *domain.Requester) *requester {
+	if r == nil {
+		return nil
+	}
+	return &requester{Platform: r.Platform, ID: r.ID}
 }
