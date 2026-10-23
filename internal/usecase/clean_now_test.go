@@ -106,8 +106,9 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			e := newCleanEnv()
 			recently(e)
 			tt.arrange(e)
+			e.now = e.now.Add(time.Minute)
 
-			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, person, e.now.Add(time.Minute)); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, person, e.now); err != nil {
 				t.Fatal(err)
 			}
 
@@ -302,23 +303,26 @@ func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
 		} else {
 			more()
 		}
-		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil {
+		e.now = e.now.Add(time.Minute)
+		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
 			t.Fatal(err)
 		}
 		if len(e.files.removed) != 0 {
 			t.Errorf("under the lock %v: removed with a stash the thread was not told of", underLock)
 		}
-		// Found before the reaction or under the lock, the stash is told; once the person has seen
-		// it on their :wastebasket:, it can be forced.
-		if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") {
-			t.Errorf("under the lock %v: told %q, want the stash told", underLock, posts[len(posts)-1])
+		// Found before the reaction or under the lock, the stash is told, and the person is asked to
+		// see it on their :wastebasket: first; once they have, it can be forced.
+		if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") ||
+			!strings.Contains(posts[len(posts)-1], "まず :fire: を外し") {
+			t.Errorf("under the lock %v: told %q, want the stash told and :wastebasket: asked first", underLock, posts[len(posts)-1])
 		}
 		e.sessions.onLock = nil
 		e.now = e.now.Add(time.Hour)
 		if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil || len(e.files.removed) == 0 {
+		e.now = e.now.Add(time.Minute)
+		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
 			t.Errorf("under the lock %v: forced once told of the stash = %v, removed %v; want removed", underLock, err, e.files.removed)
 		}
 	}
@@ -382,6 +386,63 @@ func TestSessionCleaner_CleanNowForcedOnTheChatsClock(t *testing.T) {
 				t.Errorf("forced %v, want %v", forced, tt.wantForced)
 			}
 		})
+	}
+}
+
+// The notice is as late on the chat's clock as the judgement took, and the :fire: must come a while
+// after it on both clocks: reactions put a minute apart may come together after a delay.
+func TestSessionCleaner_CleanNowForcedAfterReadingTheNotice(t *testing.T) {
+	for name, tt := range map[string]struct {
+		put, came  time.Duration
+		wantForced bool
+	}{
+		"put before the notice, the judgement being slow": {put: 15 * time.Second, came: time.Minute},
+		"put a while after the notice":                    {put: time.Minute, came: time.Minute, wantForced: true},
+		"come together with the :wastebasket:":            {put: time.Minute, came: time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newCleanEnv()
+			e.save(existingID, dev.Name, e.now.Add(-1))
+			e.work[existingID] = usecase.WorkspaceState{Changes: true}
+			cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+				Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: slowIssuer{e},
+				Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
+			}, retention, func() time.Time { return e.now })
+			put := e.now
+			if err := cleaner.CleanNow(context.Background(), existingID, false, person, put); err != nil {
+				t.Fatal(err)
+			}
+			e.now = e.now.Add(tt.came)
+			if err := cleaner.CleanNow(context.Background(), existingID, true, person, put.Add(tt.put)); err != nil {
+				t.Fatal(err)
+			}
+			if forced := len(e.files.removed) > 0; forced != tt.wantForced {
+				t.Errorf("forced %v, want %v", forced, tt.wantForced)
+			}
+		})
+	}
+}
+
+// slowIssuer has the judgement take 30 seconds.
+type slowIssuer struct{ e *cleanEnv }
+
+func (s slowIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, error) {
+	s.e.now = s.e.now.Add(30 * time.Second)
+	return domain.Credentials{GitHubToken: "token"}, nil
+}
+
+// Answered, the thread is not told of a failure after: the answer stands, and an unrecorded notice
+// only has a :fire: told again to put :wastebasket: first.
+func TestSessionCleaner_CleanNowAnsweredThenFailing(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	e.sessions.busy = true
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err == nil {
+		t.Error("CleanNow() = nil, want the failure to record")
+	}
+	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "次の理由で") {
+		t.Errorf("told %q, want only the reasons", posts)
 	}
 }
 
@@ -485,12 +546,14 @@ func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
 	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil || len(e.files.removed) != 0 {
+	e.now = e.now.Add(time.Minute)
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) != 0 {
 		t.Fatalf("forced with the pull request open = %v, removed %v; want kept", err, e.files.removed)
 	}
 	// Gone, the pull request no longer keeps it: :fire: put again forces, with no new :wastebasket:.
 	e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b")
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(2*time.Minute)); err != nil || len(e.files.removed) == 0 {
+	e.now = e.now.Add(time.Minute)
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
 		t.Errorf("forced again once the pull request was gone = %v, removed %v; want removed", err, e.files.removed)
 	}
 }

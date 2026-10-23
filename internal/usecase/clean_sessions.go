@@ -566,7 +566,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return err
 	}
 	err = c.cleanNow(ctx, s, force, q)
-	if err == nil || errors.Is(err, errNotTold) {
+	if err == nil || errors.Is(err, errAnswered) {
 		return err
 	}
 	// Told nothing, the person could not tell a failure from a judgement still running.
@@ -582,8 +582,9 @@ type cleanRequest struct {
 	received time.Time
 }
 
-// errNotTold is a failure to post to the thread, which posting again would not mend.
-var errNotTold = errors.New("thread not told")
+// errAnswered is a failure once the thread was answered, or a failure to answer it: telling the
+// failure would contradict the answer, or not reach the thread either.
+var errAnswered = errors.New("thread answered or not reachable")
 
 func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force bool, q cleanRequest) error {
 	agent, err := c.agents.FindByName(ctx, s.AgentName)
@@ -600,10 +601,12 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 	}
 	rs := reasons(f)
 	// The person must have been told on their own request, with time to read, and since the agent
-	// last changed the work; and only of these reasons. The times of the request and of the notice
-	// are on the chat's clock, the times of the notice and of the use on the control plane's.
+	// last changed the work; and only of these reasons. The time to read is counted on both clocks,
+	// each against its own: on the chat's, as the person put the reactions; on the control plane's,
+	// as they came, which may be together after a delay.
 	forced := s.KeptAskedBy != nil && *s.KeptAskedBy == q.by && s.KeptNotifiedAt.After(s.LastUsedAt) &&
 		s.KeptToldAt.Add(readingTime).Before(q.at) && s.KeptToldAt.Add(forceWindow).After(q.at) &&
+		s.KeptNotifiedAt.Add(readingTime).Before(q.received) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
 	if force && !forced && len(rs) == 0 {
 		// A :fire: not taken as forcing removes nothing: it may be praise.
@@ -633,8 +636,9 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 	case errors.Is(err, domain.ErrSessionNotFound):
 		return nil
 	case errors.As(err, &found):
-		// The thread is told what kept it, so that it may be forced knowingly.
-		return c.tellKept(ctx, s, found.reasons, onFire && !force, q)
+		// The thread is told what kept it, so that it may be forced knowingly; a :fire: stopped by
+		// what was not told, as before the lock, asks for :wastebasket: first.
+		return c.tellKept(ctx, s, found.reasons, onFire, q)
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		return c.tell(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
@@ -646,7 +650,7 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 
 func (c *SessionCleaner) tell(ctx context.Context, s domain.Session, text string) error {
 	if err := c.notifier.Notify(ctx, s, text); err != nil {
-		return fmt.Errorf("%w: %w", errNotTold, err)
+		return fmt.Errorf("%w: %w", errAnswered, err)
 	}
 	return nil
 }
@@ -676,9 +680,14 @@ func (c *SessionCleaner) tellKept(ctx context.Context, s domain.Session, rs []re
 	if !onFire {
 		asked, toldAt = &q.by, q.at.Add(now.Sub(q.received))
 	}
-	return c.update(ctx, s.ID, func(s *domain.Session) {
+	err := c.update(ctx, s.ID, func(s *domain.Session) {
 		s.KeptNotifiedAt, s.KeptReasons, s.KeptAskedBy, s.KeptToldAt = now, names(rs), asked, toldAt
 	})
+	if err != nil {
+		// Unrecorded, a :fire: is told again to put :wastebasket: first.
+		return fmt.Errorf("%w: record kept session: %w", errAnswered, err)
+	}
+	return nil
 }
 
 func keptNowText(rs []reason, onClean bool) string {
