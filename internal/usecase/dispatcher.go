@@ -539,7 +539,12 @@ func (w *worker) handle(e ProcessEvent) {
 	case EventTurnFinished:
 		w.finishTurn(e.Result)
 	case EventBackgroundTasks:
+		// A task that ended, stopped or not, may have changed the work, with no turn to tell it.
+		ended := slices.ContainsFunc(w.background, func(id string) bool { return !slices.Contains(e.BackgroundTasks, id) })
 		w.background = e.BackgroundTasks
+		if ended {
+			w.markUsed()
+		}
 		w.notifyStatus()
 	case EventActivity:
 		if w.running {
@@ -834,8 +839,8 @@ func (w *worker) refreshCredentials() {
 	}
 }
 
-// markUsed records that the agent may have changed the work now: a turn begins, or one ends without
-// finishTurn. SessionCleaner forces only what it told of since (CleanNow). Failing to save leaves
+// markUsed records that the agent may have changed the work now: a turn begins, one ends without
+// finishTurn, or a background task ends. SessionCleaner forces only what it told of since (CleanNow). Failing to save leaves
 // the time the turn began, or the one before.
 func (w *worker) markUsed() {
 	w.session.LastUsedAt = time.Now()

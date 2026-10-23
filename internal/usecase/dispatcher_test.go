@@ -1422,21 +1422,47 @@ func TestDispatcher_SessionReplacedBeforeLock(t *testing.T) {
 	}
 }
 
-// A turn that never finishes still counts as using the session, so that it is not cleaned up.
+// A request counts as using the session as its lock is taken, before any turn begins, so that it
+// is not cleaned up.
 func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	e.sessions.saves = 0
+	gate := make(chan struct{})
+	e.runner.mu.Lock()
+	e.runner.gate = gate
+	e.runner.mu.Unlock()
 	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
-	p := e.runner.next(t)
-	eventually(t, func() bool { return len(p.sent()) == 1 })
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
 	e.sessions.mu.Lock()
 	saves, used := e.sessions.saves, e.sessions.saved[existingID].LastUsedAt
 	e.sessions.mu.Unlock()
-	if saves == 0 || time.Since(used) > time.Minute {
-		t.Errorf("before the turn finished: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
+	if saves != 1 || time.Since(used) > time.Minute {
+		t.Errorf("before the turn began: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
 	}
+	close(gate)
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
 	p.finish("done")
 	wait(t, done)
+}
+
+// A background task that ends with no turn, as one stopped, counts as using the session.
+func TestDispatcher_BackgroundEndMarksSessionUsed(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	used := func() time.Time {
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		return e.sessions.saved[existingID].LastUsedAt
+	}
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("bash1")
+	p.finish("done")
+	wait(t, done)
+	finished := used()
+	p.background()
+	eventually(t, func() bool { return used().After(finished) })
 }
 
 func TestDispatcher_TurnEndedOnError(t *testing.T) {
