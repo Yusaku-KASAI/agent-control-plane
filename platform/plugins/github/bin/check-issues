@@ -2,7 +2,7 @@
 # Checks the open issues of a repository against conventions' docs/reference/issues.md ("整っている
 # 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
 # theme:<name> label, the roadmap's "## 今の焦点" names only open issues of this repository (a closed
-# issue, a pull request, or a number that is no issue here is a drift), and no issue is blocked by a
+# issue, a pull request, or a number that is neither here is a drift), and no issue is blocked by a
 # closed one. Only what needs no judgement is checked; the rest of the tidy state is left to the
 # procedure that tidies issues.
 #
@@ -81,7 +81,7 @@ else
     done < <(grep -oE '(^|[^[:alnum:]_/-])#[0-9]+' <<<"$focus" | grep -oE '[0-9]+$' | sort -un)
     rm -f "$err"
     ((${#prs[@]} == 0)) || ng "the roadmap #$roadmap_number names pull requests in 今の焦点: ${prs[*]}"
-    ((${#unknown[@]} == 0)) || ng "the roadmap #$roadmap_number names in 今の焦点 what is no issue here: ${unknown[*]}"
+    ((${#unknown[@]} == 0)) || ng "the roadmap #$roadmap_number names in 今の焦点 what is neither an issue nor a pull request here: ${unknown[*]}"
     if ((${#closed[@]})); then
       ng "the roadmap #$roadmap_number names closed issues in 今の焦点: ${closed[*]}"
     elif ((${#prs[@]} + ${#unknown[@]} == 0)); then
