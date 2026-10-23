@@ -82,7 +82,7 @@ usecase.SessionCleaner（起動時と定期的に）
 ### `internal/usecase/ports.go`
 
 - **責務**：ユースケースが外部に求めるインターフェースと、それに渡す値の型。
-- **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）だけは
+- **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`、`SessionCleanup`）だけは
   ここに置かず、それを使う `handle_message.go` に置く（上の表）。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   中心が外側に要るものをポートとして決め、アダプターはここに合わせて作る。

@@ -234,8 +234,13 @@ func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
 		if len(e.files.removed) != 0 {
 			t.Errorf("under the lock %v: removed with a stash the thread was not told of", underLock)
 		}
-		if posts := e.notifier.posts[existingID]; !underLock && !strings.Contains(posts[len(posts)-1], "stash") {
-			t.Errorf("told %q, want the stash told", posts[len(posts)-1])
+		// Found before the reaction or under the lock, the stash is told, and can then be forced.
+		if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") {
+			t.Errorf("under the lock %v: told %q, want the stash told", underLock, posts[len(posts)-1])
+		}
+		e.now = e.now.Add(time.Hour)
+		if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(time.Minute)); err != nil || len(e.files.removed) == 0 {
+			t.Errorf("under the lock %v: forced once told of the stash = %v, removed %v; want removed", underLock, err, e.files.removed)
 		}
 	}
 }

@@ -31,11 +31,6 @@ type SessionCleaner struct {
 	now        func() time.Time
 }
 
-// SessionHolder lets go of a session it holds while it waits idle (Dispatcher.Release).
-type SessionHolder interface {
-	Release(ctx context.Context, id domain.SessionID) (bool, error)
-}
-
 type SessionCleanerDeps struct {
 	// Holder lets go of the sessions whose agents wait idle, for cleaning them now; nil holds none.
 	Holder      SessionHolder
@@ -333,7 +328,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 	}
 	// Forced, it lets go only of what the thread was told.
 	if rs := reasons(f); keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
-		return nil, fmt.Errorf("%w: work found meanwhile", errKept)
+		return nil, workFound{rs}
 	}
 	var branches []string
 	if names := f.removable(); len(names) > 0 {
@@ -507,10 +502,12 @@ func (c *SessionCleaner) cleanOne(id domain.SessionID) func() {
 	}
 }
 
-// keeps tells whether the reasons keep the session. Any reason does, unless a person forces the
-// removal, accepting to lose the work found nowhere else; a pull request open from or into the
-// session's branches keeps it even then, for removing would close it or leave its review without
-// the session.
+// workFound is a session kept for the reasons the judgement under the lock found.
+type workFound struct{ reasons []reason }
+
+func (workFound) Error() string { return "session kept: work found meanwhile" }
+func (workFound) Unwrap() error { return errKept }
+
 // readingTime is how long after the thread is told a person is taken to have read it: it also
 // covers the control plane's clock running behind Slack's, whose time the reactions carry.
 const readingTime = 10 * time.Second
@@ -528,6 +525,10 @@ func names(rs []reason) []string {
 	return out
 }
 
+// keeps tells whether the reasons keep the session. Any reason does, unless a person forces the
+// removal, accepting to lose the work found nowhere else; a pull request open from or into the
+// session's branches keeps it even then, for removing would close it or leave its review without
+// the session.
 func keeps(rs []reason, force bool) bool {
 	if !force {
 		return len(rs) > 0
@@ -589,9 +590,16 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	}
 	// Used since it was judged, it may hold work the judgement did not see.
 	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, s.KeptReasons)
+	var found workFound
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
 		return nil
+	case errors.As(err, &found):
+		// The thread is told what kept it, so that it may be forced knowingly.
+		if err := c.notifier.Notify(ctx, s, keptNowText(found.reasons, force)); err != nil {
+			return err
+		}
+		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(found.reasons) })
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		// Another cleaning, of the same reactions or of the retention, may have taken it meanwhile.
 		if _, err := c.sessions.Find(ctx, id); errors.Is(err, domain.ErrSessionNotFound) {
