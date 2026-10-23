@@ -27,7 +27,7 @@ type SessionCleaner struct {
 	// cleaning runs the cleanings of one session one at a time, so that a later one finds what
 	// an earlier one did: removed, or kept and told.
 	cleaningMu sync.Mutex
-	cleaning   map[domain.SessionID]*sync.Mutex
+	cleaning   map[domain.SessionID]*cleaningLock
 	now        func() time.Time
 }
 
@@ -52,7 +52,7 @@ func NewSessionCleaner(deps SessionCleanerDeps, retention time.Duration, now fun
 	return &SessionCleaner{
 		agents: deps.Agents, sessions: deps.Sessions, credentials: deps.Credentials, workspaces: deps.Workspaces,
 		branches: deps.Branches, files: deps.Files, notifier: deps.Notifier, holder: deps.Holder, retention: retention, now: now,
-		cleaning: make(map[domain.SessionID]*sync.Mutex),
+		cleaning: make(map[domain.SessionID]*cleaningLock),
 	}
 }
 
@@ -247,7 +247,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		}
 		return false, errHasWork
 	}
-	branches, err := c.remove(ctx, agent, id, creds, cutoff, false)
+	branches, err := c.remove(ctx, agent, id, creds, cutoff, false, nil)
 	if err != nil {
 		return false, err
 	}
@@ -314,7 +314,7 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, cutoff time.Time, force bool) ([]string, error) {
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, cutoff time.Time, force bool, told []reason) ([]string, error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
 		return nil, err
@@ -331,7 +331,8 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 	if err != nil {
 		return nil, err
 	}
-	if keeps(reasons(f), force) {
+	// Forced, it lets go only of what the thread was told.
+	if rs := reasons(f); keeps(rs, force) || slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r) }) {
 		return nil, fmt.Errorf("%w: work found meanwhile", errKept)
 	}
 	var branches []string
@@ -478,17 +479,32 @@ func (r reason) text() string {
 	return ""
 }
 
+// cleaningLock lets one cleaning of a session run at a time; users counts those waiting or running,
+// so that it goes once none is.
+type cleaningLock struct {
+	sync.Mutex
+	users int
+}
+
 // cleanOne waits for the other cleanings of the session in this process and returns the release.
 func (c *SessionCleaner) cleanOne(id domain.SessionID) func() {
 	c.cleaningMu.Lock()
-	mu, ok := c.cleaning[id]
+	l, ok := c.cleaning[id]
 	if !ok {
-		mu = &sync.Mutex{}
-		c.cleaning[id] = mu
+		l = &cleaningLock{}
+		c.cleaning[id] = l
 	}
+	l.users++
 	c.cleaningMu.Unlock()
-	mu.Lock()
-	return mu.Unlock
+	l.Lock()
+	return func() {
+		l.Unlock()
+		c.cleaningMu.Lock()
+		defer c.cleaningMu.Unlock()
+		if l.users--; l.users == 0 {
+			delete(c.cleaning, id)
+		}
+	}
 }
 
 // keeps tells whether the reasons keep the session. Any reason does, unless a person forces the
@@ -509,9 +525,10 @@ func blocksForce(r reason) bool {
 // CleanNow judges one session now, whatever its retention, as a person asked in its thread, and
 // tells the thread what came of it: removed, or kept and why. An agent waiting idle is let go of
 // first; one at work keeps the session. With force, the work found nowhere else does not keep it
-// (keeps), once the thread has been told of it since the session was last used: forcing before
-// only tells.
-func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool) error {
+// (keeps), once the thread was told of it before askedAt, when the person asked, and since the
+// session was last used: forcing before only tells. What the judgement under the lock finds
+// beyond what was told keeps the session too.
+func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool, askedAt time.Time) error {
 	defer c.cleanOne(id)()
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
@@ -543,8 +560,8 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return err
 	}
 	rs := reasons(f)
-	// The thread must have been told since the work last changed: only the agent changes it.
-	force = force && s.KeptNotifiedAt.After(s.LastUsedAt)
+	// The person must have been told before asking, and since the agent last changed the work.
+	force = force && s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Before(askedAt)
 	if keeps(rs, force) {
 		if err := c.notifier.Notify(ctx, s, keptNowText(rs, force)); err != nil {
 			return err
@@ -552,7 +569,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt = c.now() })
 	}
 	// Used since it was judged, it may hold work the judgement did not see.
-	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force)
+	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, rs)
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
 		return nil

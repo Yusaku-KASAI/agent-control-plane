@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -164,7 +165,7 @@ func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEv
 		c := domain.Conversation{Platform: platform, Workspace: team, Channel: e.Item.Channel, Thread: e.Item.Timestamp}
 		// Shutting down cancels it: removing goes in an order a later run can resume (docs/adr/app/0026).
 		go func() {
-			if err := b.handler.CleanSession(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, force); err != nil {
+			if err := b.handler.CleanSession(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, force, slackTime(e.EventTimestamp)); err != nil {
 				b.log.Warn("clean failed", "session", c.SessionID(b.agent), "user", e.User, "force", force, "err", err)
 			}
 		}()
@@ -318,4 +319,20 @@ func truncate(s string, limit int, suffix string) string {
 		return s
 	}
 	return string(r[:limit]) + suffix
+}
+
+// slackTime reads a Slack timestamp ("1700000000.000100"), or gives the zero time, which no notice
+// precedes, for one it cannot read.
+func slackTime(ts string) time.Time {
+	sec, frac, _ := strings.Cut(ts, ".")
+	s, err := strconv.ParseInt(sec, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	frac = (frac + "000000")[:6]
+	us, err := strconv.ParseInt(frac, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(s, us*1000)
 }

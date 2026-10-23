@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -268,7 +269,7 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 
 type cleanCalls struct{ ids []domain.SessionID }
 
-func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool) error {
+func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool, _ time.Time) error {
 	c.ids = append(c.ids, id)
 	return nil
 }
@@ -279,10 +280,10 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 	h := usecase.NewHandleMessage(&fakeTurns{}, cleanup, allowList{alice: true}, &fakeResponder{})
 	c := domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"}
 
-	if err := h.CleanSession(context.Background(), "dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, c, false); !errors.Is(err, domain.ErrRequesterNotAllowed) {
+	if err := h.CleanSession(context.Background(), "dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, c, false, time.Now()); !errors.Is(err, domain.ErrRequesterNotAllowed) {
 		t.Errorf("CleanSession() by someone else = %v, want ErrRequesterNotAllowed", err)
 	}
-	if err := h.CleanSession(context.Background(), "dev", alice, c, true); err != nil || len(cleanup.ids) != 1 || cleanup.ids[0] != c.SessionID("dev") {
+	if err := h.CleanSession(context.Background(), "dev", alice, c, true, time.Now()); err != nil || len(cleanup.ids) != 1 || cleanup.ids[0] != c.SessionID("dev") {
 		t.Errorf("CleanSession() = %v, cleaned %v; want the thread's session", err, cleanup.ids)
 	}
 }

@@ -82,7 +82,7 @@ type cleanRecorder struct {
 	done   chan struct{}
 }
 
-func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool) error {
+func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, _ time.Time) error {
 	c.mu.Lock()
 	c.cleans = append(c.cleans, fmt.Sprintf("%s %v", id, force))
 	c.mu.Unlock()
@@ -114,5 +114,14 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	slices.Sort(cleanup.cleans)
 	if want := []string{id + " false", id + " true"}; !slices.Equal(cleanup.cleans, want) {
 		t.Errorf("cleaned %q, want %q (not for the bot's own reaction)", cleanup.cleans, want)
+	}
+}
+
+func TestSlackTime(t *testing.T) {
+	if got := slackTime("1700000000.000100"); !got.Equal(time.Unix(1700000000, 100000)) {
+		t.Errorf("slackTime() = %v", got)
+	}
+	if got := slackTime("bad"); !got.IsZero() {
+		t.Errorf("slackTime(bad) = %v, want zero, which no notice precedes", got)
 	}
 }

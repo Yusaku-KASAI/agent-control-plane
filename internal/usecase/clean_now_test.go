@@ -52,6 +52,16 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			force:    true,
 			wantText: ":fire:",
 		},
+		"forced before the notice, as in a burst of reactions, it only tells": {
+			arrange: func(e *cleanEnv) {
+				e.work[existingID] = usecase.WorkspaceState{Changes: true}
+				s := e.sessions.saved[existingID]
+				s.KeptNotifiedAt = e.now.Add(time.Hour)
+				e.sessions.saved[existingID] = s
+			},
+			force:    true,
+			wantText: ":fire:",
+		},
 		"forced before being told, it only tells": {
 			arrange:  func(e *cleanEnv) { e.work[existingID] = usecase.WorkspaceState{Changes: true} },
 			force:    true,
@@ -84,7 +94,7 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			recently(e)
 			tt.arrange(e)
 
-			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, e.now.Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
 
@@ -110,7 +120,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 		s.LastUsedAt = e.now.Add(-1).Add(time.Nanosecond)
 		e.sessions.saved[id] = s
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != 1 || !strings.Contains(posts[0], "使われた") {
@@ -121,7 +131,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 // A thread with no session, such as one already cleaned, is left alone.
 func TestSessionCleaner_CleanNowWithoutSession(t *testing.T) {
 	e := newCleanEnv()
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -149,7 +159,7 @@ func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
 		}, retention, func() time.Time { return e.now })
 		e.save(existingID, dev.Name, e.now.Add(-1))
 
-		if err := cleaner.CleanNow(context.Background(), existingID, false); err != nil {
+		if err := cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -171,7 +181,7 @@ func TestSessionCleaner_CleanNowAfterAnotherCleaning(t *testing.T) {
 		e.sessions.onLock = nil
 		delete(e.sessions.saved, id)
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -189,7 +199,7 @@ func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
 				t.Error(err)
 			}
 		})
@@ -197,5 +207,26 @@ func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
 	wg.Wait()
 	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "片付けました") {
 		t.Errorf("told %q, want only that it was cleaned", posts)
+	}
+}
+
+// Forced, it lets go only of what the thread was told: what the judgement under the lock finds
+// beyond that keeps the session.
+func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	s := e.sessions.saved[existingID]
+	s.KeptNotifiedAt = e.now
+	e.sessions.saved[existingID] = s
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	e.sessions.onLock = func(domain.SessionID) {
+		e.sessions.onLock = nil
+		e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
+	}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.files.removed) != 0 {
+		t.Error("removed with a stash the thread was not told of")
 	}
 }
