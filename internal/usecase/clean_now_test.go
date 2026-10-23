@@ -15,7 +15,7 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 	recently := func(e *cleanEnv) { e.save(existingID, dev.Name, e.now.Add(-1)) }
 	told := func(e *cleanEnv) {
 		s := e.sessions.saved[existingID]
-		s.KeptNotifiedAt = e.now.Add(-1)
+		s.KeptNotifiedAt = e.now
 		e.sessions.saved[existingID] = s
 	}
 	pull := usecase.PullRequest{Number: 7, Title: "fix", URL: "https://example.com/7"}
@@ -40,6 +40,16 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			},
 			force:       true,
 			wantRemoved: true, wantText: "承知のうえで捨てたもの",
+		},
+		"forced after being used since told, it only tells again": {
+			arrange: func(e *cleanEnv) {
+				e.work[existingID] = usecase.WorkspaceState{Changes: true}
+				s := e.sessions.saved[existingID]
+				s.KeptNotifiedAt = e.now.Add(-40 * 24 * time.Hour)
+				e.sessions.saved[existingID] = s
+			},
+			force:    true,
+			wantText: ":fire:",
 		},
 		"forced before being told, it only tells": {
 			arrange:  func(e *cleanEnv) { e.work[existingID] = usecase.WorkspaceState{Changes: true} },

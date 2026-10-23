@@ -489,7 +489,8 @@ func blocksForce(r reason) bool {
 // CleanNow judges one session now, whatever its retention, as a person asked in its thread, and
 // tells the thread what came of it: removed, or kept and why. An agent waiting idle is let go of
 // first; one at work keeps the session. With force, the work found nowhere else does not keep it
-// (keeps), once the thread has been told of it: forcing at first only tells.
+// (keeps), once the thread has been told of it since the session was last used: forcing before
+// only tells.
 func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool) error {
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
@@ -521,7 +522,8 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return err
 	}
 	rs := reasons(f)
-	force = force && !s.KeptNotifiedAt.IsZero()
+	// The thread must have been told since the work last changed: only the agent changes it.
+	force = force && s.KeptNotifiedAt.After(s.LastUsedAt)
 	if keeps(rs, force) {
 		if err := c.notifier.Notify(ctx, s, keptNowText(rs, force)); err != nil {
 			return err

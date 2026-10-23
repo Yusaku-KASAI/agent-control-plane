@@ -214,8 +214,6 @@ func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName
 	return nil
 }
 
-// Recover removes the agent processes a previous control plane left behind, as when it was
-// killed, and tells their sessions. It must run before the first request.
 // Release retires the session's worker now if it waits idle, holding the session's lock until its
 // idle timeout (no turn, no queued request, no background work), so that the session can be
 // cleaned at once. It reports whether nothing of the dispatcher holds the session anymore.
@@ -244,6 +242,8 @@ func (d *Dispatcher) Release(ctx context.Context, id domain.SessionID) (bool, er
 	}
 }
 
+// Recover removes the agent processes a previous control plane left behind, as when it was
+// killed, and tells their sessions. It must run before the first request.
 func (d *Dispatcher) Recover(ctx context.Context) (int, error) {
 	ids, err := d.runner.RemoveLeftovers(ctx)
 	for _, id := range ids {
