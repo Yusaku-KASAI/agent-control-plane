@@ -47,12 +47,18 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 		"forced after being used since told, it only tells again": {
 			arrange: func(e *cleanEnv) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
+				told(e)
 				s := e.sessions.saved[existingID]
-				s.KeptNotifiedAt = e.now.Add(-40 * 24 * time.Hour)
+				s.LastUsedAt = s.KeptNotifiedAt.Add(time.Second)
 				e.sessions.saved[existingID] = s
 			},
 			force:    true,
 			wantText: ":fire:",
+		},
+		"forced with nothing keeping it, as in praise, it removes nothing": {
+			arrange:  func(e *cleanEnv) { e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b") },
+			force:    true,
+			wantText: ":wastebasket:",
 		},
 		"forced before the notice, as in a burst of reactions, it only tells": {
 			arrange: func(e *cleanEnv) {

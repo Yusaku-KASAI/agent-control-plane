@@ -582,8 +582,14 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	rs := reasons(f)
 	// The person must have been told before asking, with time to read, and since the agent last
 	// changed the work; and only of these reasons (told).
-	force = force && s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
+	forced := s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
+	if force && !forced && len(rs) == 0 {
+		// A :fire: not taken as forcing removes nothing: it may be praise.
+		return c.notifier.Notify(ctx, s, "このスレッドのセッションに、片付けを止めるものはありません。"+
+			"片付けるなら、このスレッドの最初のメッセージに :"+CleanReaction+": を付けてください。")
+	}
+	force = force && forced
 	if keeps(rs, force) {
 		if err := c.notifier.Notify(ctx, s, keptNowText(rs)); err != nil {
 			return err
