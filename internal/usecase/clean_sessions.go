@@ -314,7 +314,7 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, cutoff time.Time, force bool, told []reason) ([]string, error) {
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, cutoff time.Time, force bool, told []string) ([]string, error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
 		return nil, err
@@ -332,7 +332,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 		return nil, err
 	}
 	// Forced, it lets go only of what the thread was told.
-	if rs := reasons(f); keeps(rs, force) || slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r) }) {
+	if rs := reasons(f); keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
 		return nil, fmt.Errorf("%w: work found meanwhile", errKept)
 	}
 	var branches []string
@@ -371,7 +371,7 @@ func (c *SessionCleaner) notifyKept(ctx context.Context, s domain.Session, rs []
 	if err := c.notifier.Notify(ctx, s, c.keptText(s, rs)); err != nil {
 		return fmt.Errorf("notify kept session: %w", err)
 	}
-	return c.update(ctx, s.ID, func(s *domain.Session) { s.KeptNotifiedAt = c.now() })
+	return c.update(ctx, s.ID, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(rs) })
 }
 
 func (c *SessionCleaner) update(ctx context.Context, id domain.SessionID, change func(s *domain.Session)) error {
@@ -511,6 +511,23 @@ func (c *SessionCleaner) cleanOne(id domain.SessionID) func() {
 // removal, accepting to lose the work found nowhere else; a pull request open from or into the
 // session's branches keeps it even then, for removing would close it or leave its review without
 // the session.
+// readingTime is how long after the thread is told a person is taken to have read it: it also
+// covers the control plane's clock running behind Slack's, whose time the reactions carry.
+const readingTime = 10 * time.Second
+
+// name tells the reason apart from others: its kind and what it is about.
+func (r reason) name() string {
+	return fmt.Sprintf("%s %s %d %s", r.key(), r.branch, r.pull.Number, r.operation)
+}
+
+func names(rs []reason) []string {
+	var out []string
+	for _, r := range rs {
+		out = append(out, r.name())
+	}
+	return out
+}
+
 func keeps(rs []reason, force bool) bool {
 	if !force {
 		return len(rs) > 0
@@ -560,16 +577,18 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return err
 	}
 	rs := reasons(f)
-	// The person must have been told before asking, and since the agent last changed the work.
-	force = force && s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Before(askedAt)
+	// The person must have been told before asking, with time to read, and since the agent last
+	// changed the work; and only of these reasons (told).
+	force = force && s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
+		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
 	if keeps(rs, force) {
 		if err := c.notifier.Notify(ctx, s, keptNowText(rs, force)); err != nil {
 			return err
 		}
-		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt = c.now() })
+		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(rs) })
 	}
 	// Used since it was judged, it may hold work the judgement did not see.
-	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, rs)
+	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force, s.KeptReasons)
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
 		return nil

@@ -64,6 +64,8 @@ type Session struct {
 	LastUsedAt time.Time
 	// KeptNotifiedAt is when the thread was last told that the session is kept for the work it holds.
 	KeptNotifiedAt time.Time
+	// KeptReasons names the reasons the thread was last told, each by kind and what it is about.
+	KeptReasons []string
 	// ReportedUsage is the session's total that Claude Code reported at the end of the last turn; nil
 	// when it is unknown, as after a process that ended by itself, which may not have saved it.
 	ReportedUsage *Usage

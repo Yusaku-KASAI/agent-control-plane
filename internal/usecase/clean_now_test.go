@@ -14,10 +14,12 @@ import (
 // A person asks in the thread: the session is judged now, however recently it was used.
 func TestSessionCleaner_CleanNow(t *testing.T) {
 	recently := func(e *cleanEnv) { e.save(existingID, dev.Name, e.now.Add(-1)) }
+	// told has the thread told of the reasons, as by :wastebasket:, before the test's reaction.
 	told := func(e *cleanEnv) {
-		s := e.sessions.saved[existingID]
-		s.KeptNotifiedAt = e.now
-		e.sessions.saved[existingID] = s
+		if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now); err != nil {
+			panic(err)
+		}
+		e.notifier.posts = nil
 	}
 	pull := usecase.PullRequest{Number: 7, Title: "fix", URL: "https://example.com/7"}
 	tests := map[string]struct {
@@ -94,7 +96,7 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			recently(e)
 			tt.arrange(e)
 
-			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, e.now.Add(time.Second)); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, e.now.Add(time.Minute)); err != nil {
 				t.Fatal(err)
 			}
 
@@ -120,7 +122,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 		s.LastUsedAt = e.now.Add(-1).Add(time.Nanosecond)
 		e.sessions.saved[id] = s
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != 1 || !strings.Contains(posts[0], "使われた") {
@@ -131,7 +133,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 // A thread with no session, such as one already cleaned, is left alone.
 func TestSessionCleaner_CleanNowWithoutSession(t *testing.T) {
 	e := newCleanEnv()
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Minute)); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -159,7 +161,7 @@ func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
 		}, retention, func() time.Time { return e.now })
 		e.save(existingID, dev.Name, e.now.Add(-1))
 
-		if err := cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
+		if err := cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Minute)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -181,7 +183,7 @@ func TestSessionCleaner_CleanNowAfterAnotherCleaning(t *testing.T) {
 		e.sessions.onLock = nil
 		delete(e.sessions.saved, id)
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Minute)); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -199,7 +201,7 @@ func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Second)); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now.Add(time.Minute)); err != nil {
 				t.Error(err)
 			}
 		})
@@ -210,23 +212,46 @@ func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
 	}
 }
 
-// Forced, it lets go only of what the thread was told: what the judgement under the lock finds
-// beyond that keeps the session.
+// Forced, it lets go only of what the thread was told: a reason found since, before the reaction
+// or under the lock, keeps the session and is told.
 func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
+	for _, underLock := range []bool{false, true} {
+		e := newCleanEnv()
+		e.save(existingID, dev.Name, e.now.Add(-1))
+		e.work[existingID] = usecase.WorkspaceState{Changes: true}
+		if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now); err != nil {
+			t.Fatal(err)
+		}
+		more := func() { e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true} }
+		if underLock {
+			e.sessions.onLock = func(domain.SessionID) { e.sessions.onLock = nil; more() }
+		} else {
+			more()
+		}
+		if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if len(e.files.removed) != 0 {
+			t.Errorf("under the lock %v: removed with a stash the thread was not told of", underLock)
+		}
+		if posts := e.notifier.posts[existingID]; !underLock && !strings.Contains(posts[len(posts)-1], "stash") {
+			t.Errorf("told %q, want the stash told", posts[len(posts)-1])
+		}
+	}
+}
+
+// A :fire: within moments of the notice, as when the clocks differ, is not taken as read.
+func TestSessionCleaner_CleanNowForcedRightAfterTheNotice(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-1))
-	s := e.sessions.saved[existingID]
-	s.KeptNotifiedAt = e.now
-	e.sessions.saved[existingID] = s
 	e.work[existingID] = usecase.WorkspaceState{Changes: true}
-	e.sessions.onLock = func(domain.SessionID) {
-		e.sessions.onLock = nil
-		e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now); err != nil {
+		t.Fatal(err)
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(time.Second)); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.files.removed) != 0 {
-		t.Error("removed with a stash the thread was not told of")
+		t.Error("removed by a :fire: put right after the notice")
 	}
 }
