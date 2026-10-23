@@ -656,8 +656,8 @@ func keptNowText(rs []reason, onClean bool) string {
 		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、" +
 			"リアクションを外して付け直してください。")
 	} else if onClean {
-		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が、このスレッドの最初のメッセージに :" +
-			ForceCleanReaction + ": を付けてください（付けてあれば、外して付け直してください）。")
+		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が 1 時間のうちに、このスレッドの最初の" +
+			"メッセージに :" + ForceCleanReaction + ": を付けてください（付けてあれば、外して付け直してください）。")
 	} else {
 		b.WriteString("失われるものを承知で消すなら、まず :" + ForceCleanReaction + ": を外し、このスレッドの最初のメッセージに :" +
 			CleanReaction + ": を付けて（付けてあれば、外して付け直して）この理由を確かめてから、:" + ForceCleanReaction +

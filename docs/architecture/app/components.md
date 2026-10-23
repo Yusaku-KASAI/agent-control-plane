@@ -19,7 +19,8 @@ acp run / stop ──HTTP──▶ httpapi ────────────�
                                                               ▼
                                        docker.Runner ──▶ docker-proxy ──▶ エージェントのコンテナ
 
-usecase.SessionCleaner（起動時と定期的に）
+usecase.SessionCleaner（起動時と定期的に。今すぐの片付けは usecase.HandleMessage ──SessionCleanup──▶ SessionCleaner）
+SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワーカーを手放させる）
 
 知らせ：worker ──SessionObserver──▶ sessionObserver（serve.go）──▶ slackbot.Bot
        SessionCleaner ──SessionNotifier──▶ sessionObserver ──▶ slackbot.Bot
@@ -51,6 +52,8 @@ usecase.SessionCleaner（起動時と定期的に）
 | `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
+| `SessionCleanup` | `handle_message.go` | `usecase.SessionCleaner` |
+| `SessionHolder` | `ports.go` | `usecase.Dispatcher` |
 
 ほかの部品は、それを扱う文書に構成要素として書いてある（文書の一覧は[docs/README.md](../../README.md "在りか")）。
 
