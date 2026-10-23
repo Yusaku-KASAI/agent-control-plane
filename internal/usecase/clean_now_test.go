@@ -452,6 +452,49 @@ func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWhileJudged(t *testing.T) {
 	}
 }
 
+// Used while the :fire: is judged, the session is kept even when the clock was set back meanwhile.
+func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWithTheClockSetBack(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-time.Hour))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Minute)
+	e.sessions.onLock = func(id domain.SessionID) {
+		e.sessions.onLock = nil
+		s := e.sessions.saved[id]
+		s.LastUsedAt = s.LastUsedAt.Add(-time.Second)
+		e.sessions.saved[id] = s
+	}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.files.removed) != 0 {
+		t.Error("removed a session used while the :fire: was judged")
+	}
+}
+
+// A :fire: in praise, taken as nothing to force, forgets the notice: a later :fire: is praise too.
+func TestSessionCleaner_CleanNowPraiseForgetsTheNotice(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	e.work[existingID] = usecase.WorkspaceState{}
+	for _, after := range []time.Duration{time.Second, time.Minute} {
+		e.now = e.now.Add(after)
+		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(e.files.removed) != 0 {
+		t.Error("removed on a :fire: after one in praise")
+	}
+}
+
 // usingIssuer has the agent use the session, a second before the notice, while the first
 // cleaning is judged.
 type usingIssuer struct {

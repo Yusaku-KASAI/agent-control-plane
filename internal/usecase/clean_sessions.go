@@ -261,7 +261,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		}
 		return false, errHasWork
 	}
-	branches, err := c.remove(ctx, agent, id, creds, cutoff, false, nil)
+	branches, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
 	if err != nil {
 		return false, err
 	}
@@ -328,7 +328,7 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, cutoff time.Time, force bool, told []string) ([]string, error) {
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) ([]string, error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
 		return nil, err
@@ -338,7 +338,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 	if err != nil {
 		return nil, err
 	}
-	if !s.LastUsedAt.Before(cutoff) {
+	if !unused(s) {
 		return nil, fmt.Errorf("%w: used meanwhile", errKept)
 	}
 	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
@@ -626,6 +626,7 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(n.reasons, r.name()) })
 	if force && !forced && len(rs) == 0 {
 		// A :fire: not taken as forcing removes nothing: it may be praise.
+		c.setTold(s.ID, nil)
 		return c.tell(ctx, s, "このスレッドのセッションに、片付けを止めるものはありません。"+
 			"片付けるなら、このスレッドの先頭（ルート）のメッセージに :"+CleanReaction+": を付けてください。")
 	}
@@ -645,8 +646,9 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 				"作業が終わってから、リアクションを外して付け直してください。")
 		}
 	}
-	// Used since it was judged, it may hold work the judgement did not see.
-	branches, err := c.remove(ctx, agent, s.ID, creds, s.LastUsedAt.Add(time.Nanosecond), force, n.reasons)
+	// Used since it was judged, it may hold work the judgement did not see. Unused is LastUsedAt as
+	// read, not before it: a clock set back writes earlier times.
+	branches, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
 	var found workFound
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
@@ -741,7 +743,7 @@ func keptNowText(rs []reason, onClean bool) string {
 		b.WriteString("失われるものを承知で消すなら、まず :" + ForceCleanReaction + ": を外し、このスレッドの先頭（ルート）のメッセージに :" +
 			CleanReaction + ": を付けて（付けてあれば、外して付け直して）この理由を確かめてから、:" + ForceCleanReaction +
 			": を付け直してください。:" + ForceCleanReaction + ": が効くのは、自分で付けた :" + CleanReaction +
-			": に理由が返ってから 1 時間のうちに、そのあと依頼せずに付けたときだけです。")
+			": に理由が返ってから 1 時間のうちに、そのあとエージェントが動いていない（依頼も、エージェントが自分で始めたターンも、バックグラウンドの処理の終わりもない）ときだけです。")
 	}
 	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
 		"片付いたら、:" + CleanReaction + ": を外して付け直してください。")
