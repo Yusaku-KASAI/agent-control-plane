@@ -104,6 +104,11 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	}
 
 	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "UBOT"), "UBOT", "T1")
+	select {
+	case <-cleanup.done:
+		t.Fatal("cleaned for the bot's own reaction")
+	case <-time.After(200 * time.Millisecond):
+	}
 	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "U1"), "UBOT", "T1")
 	b.handleReaction(context.Background(), reaction(usecase.ForceCleanReaction, "U1"), "UBOT", "T1")
 	for range 2 {
@@ -113,10 +118,12 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 			t.Fatal("the session was not cleaned")
 		}
 	}
+	cleanup.mu.Lock()
+	defer cleanup.mu.Unlock()
 	id := string(thread.SessionID("dev"))
 	slices.Sort(cleanup.cleans)
 	if want := []string{id + " false", id + " true"}; !slices.Equal(cleanup.cleans, want) {
-		t.Errorf("cleaned %q, want %q (not for the bot's own reaction)", cleanup.cleans, want)
+		t.Errorf("cleaned %q, want %q", cleanup.cleans, want)
 	}
 	// When the reaction was put, not when it came: a redelivered one stays as old as it was.
 	for _, at := range cleanup.asked {

@@ -45,6 +45,7 @@ type record struct {
 	KeptNotifiedAt *time.Time    `json:"kept_notified_at,omitempty"`
 	KeptReasons    []string      `json:"kept_reasons,omitempty"`
 	KeptAskedBy    *requester    `json:"kept_asked_by,omitempty"`
+	KeptToldAt     *time.Time    `json:"kept_told_at,omitempty"`
 	ReportedUsage  *usage        `json:"reported_usage,omitempty"`
 }
 
@@ -124,6 +125,9 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 	if r.KeptNotifiedAt != nil {
 		sess.KeptNotifiedAt = *r.KeptNotifiedAt
 	}
+	if r.KeptToldAt != nil {
+		sess.KeptToldAt = *r.KeptToldAt
+	}
 	if c := r.Conversation; c != nil {
 		sess.Conversation = domain.Conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
 	}
@@ -140,6 +144,7 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 		KeptNotifiedAt: optionalTime(sess.KeptNotifiedAt),
 		KeptReasons:    sess.KeptReasons,
 		KeptAskedBy:    fromRequester(sess.KeptAskedBy),
+		KeptToldAt:     optionalTime(sess.KeptToldAt),
 		ReportedUsage:  fromUsage(sess.ReportedUsage),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
