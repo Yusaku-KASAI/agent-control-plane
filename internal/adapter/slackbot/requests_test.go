@@ -79,12 +79,14 @@ func TestHandleReactionStopsTheRequest(t *testing.T) {
 type cleanRecorder struct {
 	mu     sync.Mutex
 	cleans []string
+	asked  []time.Time
 	done   chan struct{}
 }
 
-func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, _ time.Time) error {
+func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, askedAt time.Time) error {
 	c.mu.Lock()
 	c.cleans = append(c.cleans, fmt.Sprintf("%s %v", id, force))
+	c.asked = append(c.asked, askedAt)
 	c.mu.Unlock()
 	c.done <- struct{}{}
 	return nil
@@ -97,7 +99,8 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
 	reaction := func(name, user string) *slackevents.ReactionAddedEvent {
-		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: "1.0"}}
+		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, EventTimestamp: "1700000000.000100",
+			Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: "1.0"}}
 	}
 
 	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "UBOT"), "UBOT", "T1")
@@ -114,6 +117,12 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	slices.Sort(cleanup.cleans)
 	if want := []string{id + " false", id + " true"}; !slices.Equal(cleanup.cleans, want) {
 		t.Errorf("cleaned %q, want %q (not for the bot's own reaction)", cleanup.cleans, want)
+	}
+	// When the reaction was put, not when it came: a redelivered one stays as old as it was.
+	for _, at := range cleanup.asked {
+		if !at.Equal(time.Unix(1700000000, 100000)) {
+			t.Errorf("asked at %v, want the reaction's event time", at)
+		}
 	}
 }
 

@@ -260,3 +260,23 @@ func TestSessionCleaner_CleanNowForcedRightAfterTheNotice(t *testing.T) {
 		t.Error("removed by a :fire: put right after the notice")
 	}
 }
+
+// A branch others pushed to since the thread was told is not what was told: forcing tells again.
+func TestSessionCleaner_CleanNowForcedKeepsABranchPushedSinceTold(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.branches.remote["acp/0f8fad5b"] = unmerged("acp/0f8fad5b")
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, e.now); err != nil {
+		t.Fatal(err)
+	}
+	b := unmerged("acp/0f8fad5b")
+	b.Tip = "pushed-by-someone"
+	b.Commits = map[string]usecase.CommitPlaces{b.Tip: {InBranch: true}}
+	e.branches.remote["acp/0f8fad5b"] = b
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, e.now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.files.removed) != 0 || len(e.branches.removed) != 0 {
+		t.Errorf("removed files %v, branches %v; want the branch others pushed to kept", e.files.removed, e.branches.removed)
+	}
+}

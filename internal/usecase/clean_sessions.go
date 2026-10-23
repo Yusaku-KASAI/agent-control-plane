@@ -86,8 +86,10 @@ const (
 
 // reason is why an expired session is kept: work found nowhere else, or work that may go on.
 type reason struct {
-	kind      reasonKind
-	branch    string
+	kind   reasonKind
+	branch string
+	// tip is the head of a branch to be deleted (reasonUnmerged), which others may push to.
+	tip       string
 	pull      PullRequest
 	operation string
 }
@@ -148,7 +150,7 @@ func reasons(f sessionFacts) []reason {
 		}
 		// An open pull request from the branch is reason enough; the branch is not in it yet.
 		if p := b.Commits[b.Tip]; len(b.OpenHead) == 0 && !p.InDefault && !p.InMergedPull && !p.InClosedPull {
-			add(reason{kind: reasonUnmerged, branch: name})
+			add(reason{kind: reasonUnmerged, branch: name, tip: b.Tip})
 		}
 		for _, p := range b.OpenBase {
 			add(reason{kind: reasonOpenBase, branch: name, pull: p})
@@ -514,7 +516,7 @@ const readingTime = 10 * time.Second
 
 // name tells the reason apart from others: its kind and what it is about.
 func (r reason) name() string {
-	return fmt.Sprintf("%s %s %d %s", r.key(), r.branch, r.pull.Number, r.operation)
+	return fmt.Sprintf("%s %s %s %d %s", r.key(), r.branch, r.tip, r.pull.Number, r.operation)
 }
 
 func names(rs []reason) []string {
@@ -583,7 +585,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	force = force && s.KeptNotifiedAt.After(s.LastUsedAt) && s.KeptNotifiedAt.Add(readingTime).Before(askedAt) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(s.KeptReasons, r.name()) })
 	if keeps(rs, force) {
-		if err := c.notifier.Notify(ctx, s, keptNowText(rs, force)); err != nil {
+		if err := c.notifier.Notify(ctx, s, keptNowText(rs)); err != nil {
 			return err
 		}
 		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(rs) })
@@ -596,15 +598,11 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return nil
 	case errors.As(err, &found):
 		// The thread is told what kept it, so that it may be forced knowingly.
-		if err := c.notifier.Notify(ctx, s, keptNowText(found.reasons, force)); err != nil {
+		if err := c.notifier.Notify(ctx, s, keptNowText(found.reasons)); err != nil {
 			return err
 		}
 		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt, s.KeptReasons = c.now(), names(found.reasons) })
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
-		// Another cleaning, of the same reactions or of the retention, may have taken it meanwhile.
-		if _, err := c.sessions.Find(ctx, id); errors.Is(err, domain.ErrSessionNotFound) {
-			return nil
-		}
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
 	case err != nil:
@@ -624,7 +622,7 @@ const (
 const cleanHint = "エージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
 	"片付けを今すぐ回すには、このスレッドの最初のメッセージに :" + CleanReaction + ": を付けてください。"
 
-func keptNowText(rs []reason, force bool) string {
+func keptNowText(rs []reason) string {
 	var b strings.Builder
 	b.WriteString("このスレッドのセッションは、次の理由で消していません。\n")
 	for _, r := range rs {
