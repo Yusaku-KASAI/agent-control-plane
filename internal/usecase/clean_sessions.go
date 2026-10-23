@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
@@ -23,7 +24,11 @@ type SessionCleaner struct {
 	notifier    SessionNotifier
 	holder      SessionHolder
 	retention   time.Duration
-	now         func() time.Time
+	// cleaning runs the cleanings of one session one at a time, so that a later one finds what
+	// an earlier one did: removed, or kept and told.
+	cleaningMu sync.Mutex
+	cleaning   map[domain.SessionID]*sync.Mutex
+	now        func() time.Time
 }
 
 // SessionHolder lets go of a session it holds while it waits idle (Dispatcher.Release).
@@ -47,6 +52,7 @@ func NewSessionCleaner(deps SessionCleanerDeps, retention time.Duration, now fun
 	return &SessionCleaner{
 		agents: deps.Agents, sessions: deps.Sessions, credentials: deps.Credentials, workspaces: deps.Workspaces,
 		branches: deps.Branches, files: deps.Files, notifier: deps.Notifier, holder: deps.Holder, retention: retention, now: now,
+		cleaning: make(map[domain.SessionID]*sync.Mutex),
 	}
 }
 
@@ -209,6 +215,7 @@ func (c *SessionCleaner) Clean(ctx context.Context) (CleanReport, error) {
 // clean looks for reasons to keep the session before taking the lock, so that a kept session is not locked
 // against requests while GitHub answers.
 func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (removed bool, err error) {
+	defer c.cleanOne(id)()
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
 		return c.removeUnsaved(ctx, id)
@@ -471,6 +478,19 @@ func (r reason) text() string {
 	return ""
 }
 
+// cleanOne waits for the other cleanings of the session in this process and returns the release.
+func (c *SessionCleaner) cleanOne(id domain.SessionID) func() {
+	c.cleaningMu.Lock()
+	mu, ok := c.cleaning[id]
+	if !ok {
+		mu = &sync.Mutex{}
+		c.cleaning[id] = mu
+	}
+	c.cleaningMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
+}
+
 // keeps tells whether the reasons keep the session. Any reason does, unless a person forces the
 // removal, accepting to lose the work found nowhere else; a pull request open from or into the
 // session's branches keeps it even then, for removing would close it or leave its review without
@@ -492,6 +512,7 @@ func blocksForce(r reason) bool {
 // (keeps), once the thread has been told of it since the session was last used: forcing before
 // only tells.
 func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool) error {
+	defer c.cleanOne(id)()
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
 		return nil

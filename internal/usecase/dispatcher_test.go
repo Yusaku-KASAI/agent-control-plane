@@ -35,6 +35,8 @@ type fakeSessions struct {
 	saves   int
 	// onLock runs before Lock takes the lock.
 	onLock func(id domain.SessionID)
+	// exclusive refuses a lock the test already holds, as the store does.
+	exclusive bool
 }
 
 func (f *fakeSessions) Find(_ context.Context, id domain.SessionID) (domain.Session, error) {
@@ -61,7 +63,7 @@ func (f *fakeSessions) Lock(_ context.Context, id domain.SessionID) (func(), err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.busy || f.held[id] {
+	if f.busy || f.held[id] || (f.exclusive && f.locks[id] > 0) {
 		return nil, domain.ErrSessionBusy
 	}
 	if f.locks == nil {

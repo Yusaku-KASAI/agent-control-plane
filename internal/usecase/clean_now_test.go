@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,5 +173,29 @@ func TestSessionCleaner_CleanNowAfterAnotherCleaning(t *testing.T) {
 	}
 	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
+	}
+}
+
+// Two cleanings of one session, as of two reactions in a row, run one after the other: the later
+// finds the session gone and tells nothing.
+func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b")
+	e.sessions.exclusive = true
+	// The first holds the lock, removing, while the second comes.
+	var once sync.Once
+	e.branches.onRemove = func() { once.Do(func() { time.Sleep(100 * time.Millisecond) }) }
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Go(func() {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "片付けました") {
+		t.Errorf("told %q, want only that it was cleaned", posts)
 	}
 }
