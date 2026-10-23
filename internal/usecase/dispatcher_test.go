@@ -1698,3 +1698,33 @@ func TestDispatcher_SpentWithoutKnownTotal(t *testing.T) {
 		t.Errorf("second turn spent %+v, want an unknown turn of a total of 2", sp)
 	}
 }
+
+// A worker waiting idle lets go of the session's lock at once when asked; one at work does not.
+func TestDispatcher_Release(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{IdleTimeout: time.Hour})
+	ctx := context.Background()
+	if released, err := e.d.Release(ctx, existingID); err != nil || !released {
+		t.Fatalf("Release() of a session with no worker = %v, %v; want released", released, err)
+	}
+
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "work"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	if released, err := e.d.Release(ctx, existingID); err != nil || released {
+		t.Fatalf("Release() during a turn = %v, %v; want kept", released, err)
+	}
+	p.finish("done")
+	wait(t, running)
+
+	if released, err := e.d.Release(ctx, existingID); err != nil || !released {
+		t.Fatalf("Release() of an idle worker = %v, %v; want released", released, err)
+	}
+	unlock, err := e.sessions.Lock(ctx, existingID)
+	if err != nil {
+		t.Fatalf("Lock() after Release() = %v; want the lock given up", err)
+	}
+	unlock()
+	if !p.isClosed() {
+		t.Error("the idle process was not closed")
+	}
+}

@@ -21,11 +21,19 @@ type SessionCleaner struct {
 	branches    SessionBranches
 	files       SessionFiles
 	notifier    SessionNotifier
+	holder      SessionHolder
 	retention   time.Duration
 	now         func() time.Time
 }
 
+// SessionHolder lets go of a session it holds while it waits idle (Dispatcher.Release).
+type SessionHolder interface {
+	Release(ctx context.Context, id domain.SessionID) (bool, error)
+}
+
 type SessionCleanerDeps struct {
+	// Holder lets go of the sessions whose agents wait idle, for cleaning them now; nil holds none.
+	Holder      SessionHolder
 	Agents      AgentRegistry
 	Sessions    SessionRepository
 	Credentials CredentialIssuer
@@ -38,7 +46,7 @@ type SessionCleanerDeps struct {
 func NewSessionCleaner(deps SessionCleanerDeps, retention time.Duration, now func() time.Time) *SessionCleaner {
 	return &SessionCleaner{
 		agents: deps.Agents, sessions: deps.Sessions, credentials: deps.Credentials, workspaces: deps.Workspaces,
-		branches: deps.Branches, files: deps.Files, notifier: deps.Notifier, retention: retention, now: now,
+		branches: deps.Branches, files: deps.Files, notifier: deps.Notifier, holder: deps.Holder, retention: retention, now: now,
 	}
 }
 
@@ -479,8 +487,9 @@ func blocksForce(r reason) bool {
 }
 
 // CleanNow judges one session now, whatever its retention, as a person asked in its thread, and
-// tells the thread what came of it: removed, or kept and why. With force, the work found nowhere
-// else does not keep it (keeps).
+// tells the thread what came of it: removed, or kept and why. An agent waiting idle is let go of
+// first; one at work keeps the session. With force, the work found nowhere else does not keep it
+// (keeps), once the thread has been told of it: forcing at first only tells.
 func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool) error {
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
@@ -488,6 +497,16 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	}
 	if err != nil {
 		return err
+	}
+	if c.holder != nil {
+		released, err := c.holder.Release(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !released {
+			return c.notifier.Notify(ctx, s, "エージェントが作業しているあいだは、このスレッドのセッションを片付けません。"+
+				"作業が終わってから、リアクションを外して付け直してください。")
+		}
 	}
 	agent, err := c.agents.FindByName(ctx, s.AgentName)
 	if err != nil {
@@ -502,14 +521,18 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		return err
 	}
 	rs := reasons(f)
+	force = force && !s.KeptNotifiedAt.IsZero()
 	if keeps(rs, force) {
-		return c.notifier.Notify(ctx, s, keptNowText(rs, force))
+		if err := c.notifier.Notify(ctx, s, keptNowText(rs, force)); err != nil {
+			return err
+		}
+		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt = c.now() })
 	}
 	branches, err := c.remove(ctx, agent, id, creds, c.now(), force)
 	switch {
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
-			"エージェントの作業が終わってから、もう一度付けてください。")
+			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
 	case err != nil:
 		return err
 	}
@@ -536,11 +559,14 @@ func keptNowText(rs []reason, force bool) string {
 	}
 	b.WriteString("\n\n")
 	if slices.ContainsFunc(rs, blocksForce) {
-		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、もう一度付けてください。")
-	} else if !force {
-		b.WriteString("失われるものを承知で消すなら、このスレッドの最初のメッセージに :" + ForceCleanReaction + ": を付けてください。")
+		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、" +
+			"リアクションを外して付け直してください。")
+	} else {
+		b.WriteString("失われるものを承知で消すなら、このスレッドの最初のメッセージに :" + ForceCleanReaction + ": を付けてください" +
+			"（付けてあれば、外して付け直してください）。")
 	}
-	b.WriteString("\n\n" + cleanHint)
+	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
+		"片付いたら、:" + CleanReaction + ": を外して付け直してください。")
 	return b.String()
 }
 

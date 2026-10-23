@@ -114,6 +114,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
 		Files:       docker.NewSessionFiles(runnerOpts),
 		Notifier:    observer,
+		Holder:      turns,
 	}, cfg.Retention, time.Now)
 	bots, err := slackBots(cfg, slackTokens, turns, cleaner, log)
 	if err != nil {

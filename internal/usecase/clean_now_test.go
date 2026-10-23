@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -12,6 +13,11 @@ import (
 // A person asks in the thread: the session is judged now, however recently it was used.
 func TestSessionCleaner_CleanNow(t *testing.T) {
 	recently := func(e *cleanEnv) { e.save(existingID, dev.Name, e.now.Add(-1)) }
+	told := func(e *cleanEnv) {
+		s := e.sessions.saved[existingID]
+		s.KeptNotifiedAt = e.now.Add(-1)
+		e.sessions.saved[existingID] = s
+	}
 	pull := usecase.PullRequest{Number: 7, Title: "fix", URL: "https://example.com/7"}
 	tests := map[string]struct {
 		arrange     func(e *cleanEnv)
@@ -27,16 +33,35 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			arrange:  func(e *cleanEnv) { e.branches.remote["acp/0f8fad5b"] = unmerged("acp/0f8fad5b") },
 			wantText: ":fire:",
 		},
-		"forced, the work is let go": {
-			arrange:     func(e *cleanEnv) { e.work[existingID] = usecase.WorkspaceState{Changes: true} },
+		"forced once told, the work is let go": {
+			arrange: func(e *cleanEnv) {
+				e.work[existingID] = usecase.WorkspaceState{Changes: true}
+				told(e)
+			},
 			force:       true,
 			wantRemoved: true, wantText: "承知のうえで捨てたもの",
+		},
+		"forced before being told, it only tells": {
+			arrange:  func(e *cleanEnv) { e.work[existingID] = usecase.WorkspaceState{Changes: true} },
+			force:    true,
+			wantText: ":fire:",
+		},
+		"forced, a pull request into its branch still keeps it": {
+			arrange: func(e *cleanEnv) {
+				b := merged("acp/0f8fad5b")
+				b.OpenBase = []usecase.PullRequest{pull}
+				e.branches.remote["acp/0f8fad5b"] = b
+				told(e)
+			},
+			force:    true,
+			wantText: "開いている PR があるあいだは",
 		},
 		"forced, an open pull request still keeps it": {
 			arrange: func(e *cleanEnv) {
 				b := unmerged("acp/0f8fad5b")
 				b.OpenHead = []usecase.PullRequest{pull}
 				e.branches.remote["acp/0f8fad5b"] = b
+				told(e)
 			},
 			force:    true,
 			wantText: "開いている PR があるあいだは",
@@ -86,5 +111,42 @@ func TestSessionCleaner_CleanNowWithoutSession(t *testing.T) {
 	e := newCleanEnv()
 	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
+	}
+}
+
+type fakeHolder struct {
+	idle     bool
+	released []domain.SessionID
+}
+
+func (f *fakeHolder) Release(_ context.Context, id domain.SessionID) (bool, error) {
+	if f.idle {
+		f.released = append(f.released, id)
+	}
+	return f.idle, nil
+}
+
+// An agent waiting idle is let go of so that the session is cleaned at once; one at work keeps it.
+func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
+	for _, idle := range []bool{true, false} {
+		e := newCleanEnv()
+		holder := &fakeHolder{idle: idle}
+		cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+			Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &fakeIssuer{},
+			Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier, Holder: holder,
+		}, retention, func() time.Time { return e.now })
+		e.save(existingID, dev.Name, e.now.Add(-1))
+
+		if err := cleaner.CleanNow(context.Background(), existingID, false); err != nil {
+			t.Fatal(err)
+		}
+
+		posts := e.notifier.posts[existingID]
+		if removed := len(e.files.removed) > 0; removed != idle || len(posts) != 1 {
+			t.Errorf("idle %v: removed %v, told %q; want removed only when idle", idle, removed, posts)
+		}
+		if !idle && !strings.Contains(posts[0], "作業しているあいだ") {
+			t.Errorf("told %q, want that the agent is at work", posts[0])
+		}
 	}
 }
