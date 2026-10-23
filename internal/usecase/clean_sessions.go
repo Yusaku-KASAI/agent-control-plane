@@ -38,10 +38,13 @@ type SessionCleaner struct {
 
 // notice is the reasons a person was told on their :wastebasket:, and when: on the control
 // plane's clock (at) and on the chat's (chatAt), when they asked plus the time the judgement took.
+// usedAt is the session's LastUsedAt read before the reasons were: once it moves, the work may
+// hold what they were not told of.
 type notice struct {
 	by      domain.Requester
 	at      time.Time
 	chatAt  time.Time
+	usedAt  time.Time
 	reasons []string
 }
 
@@ -565,8 +568,8 @@ func blocksForce(r reason) bool {
 // askedAt, on the chat's clock, and tells the thread what came of it: removed, kept and why, or
 // not judged. The judgement reads without the lock; only a session to remove has an agent waiting
 // idle let go of, and one at work keeps it. With force, the work found nowhere else does not keep
-// it (keeps), once that person was told of it on their own request, a while before askedAt and
-// since the session was last used: forcing before only tells. What the judgement under the lock
+// it (keeps), once that person was told of it on their own request, a while before askedAt, with
+// the session not used since its work was read for the notice: forcing before only tells. What the judgement under the lock
 // finds beyond what was told keeps the session too.
 func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error {
 	q := cleanRequest{by: by, at: askedAt, received: c.now()}
@@ -612,12 +615,12 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 		return err
 	}
 	rs := reasons(f)
-	// The person must have been told on their own request, with time to read, and since the agent
-	// last changed the work; and only of these reasons. The time to read is counted on both clocks,
+	// The person must have been told on their own request, with time to read, of the work as it
+	// still is: unused since it was read for the notice; and only of these reasons. The time to read is counted on both clocks,
 	// each against its own: on the chat's, as the person put the reactions; on the control plane's,
 	// as they came, which may be together after a delay.
 	n, told := c.toldOf(s.ID)
-	forced := told && n.by == q.by && n.at.After(s.LastUsedAt) &&
+	forced := told && n.by == q.by && n.usedAt.Equal(s.LastUsedAt) &&
 		n.chatAt.Add(readingTime).Before(q.at) && n.chatAt.Add(forceWindow).After(q.at) &&
 		n.at.Add(readingTime).Before(q.received) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(n.reasons, r.name()) })
@@ -693,7 +696,7 @@ func (c *SessionCleaner) tellKept(ctx context.Context, s domain.Session, rs []re
 		return nil
 	}
 	now := c.now()
-	c.setTold(s.ID, &notice{by: q.by, at: now, chatAt: q.at.Add(now.Sub(q.received)), reasons: names(rs)})
+	c.setTold(s.ID, &notice{by: q.by, at: now, chatAt: q.at.Add(now.Sub(q.received)), usedAt: s.LastUsedAt, reasons: names(rs)})
 	return nil
 }
 

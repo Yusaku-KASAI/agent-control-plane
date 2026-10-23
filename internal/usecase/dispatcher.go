@@ -844,7 +844,7 @@ func (w *worker) refreshCredentials() {
 // the time the turn began, or the one before.
 func (w *worker) markUsed() {
 	w.session.LastUsedAt = time.Now()
-	_ = w.d.sessions.Save(w.d.ctx, w.session)
+	_ = w.d.sessions.Save(context.WithoutCancel(w.d.ctx), w.session)
 }
 
 // stopProcess closes the process. With cause, the running turn fails with it.
@@ -895,6 +895,7 @@ func (w *worker) shutdown() {
 	}
 	if w.running {
 		w.running = false
+		w.markUsed()
 		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: len(w.current) == 0})
 	}
 	w.stopProcess(ErrShuttingDown)

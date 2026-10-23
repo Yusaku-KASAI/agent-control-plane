@@ -430,6 +430,47 @@ func TestSessionCleaner_CleanNowForcedAfterReadingTheNotice(t *testing.T) {
 	}
 }
 
+// Work done while the :wastebasket: is judged, after the session was read and before the notice,
+// is not what was told: the :fire: tells again.
+func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWhileJudged(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+		Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &usingIssuer{e: e},
+		Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
+	}, retention, func() time.Time { return e.now })
+	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Minute)
+	if err := cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.files.removed) != 0 {
+		t.Error("removed the work done while the :wastebasket: was judged")
+	}
+}
+
+// usingIssuer has the agent use the session, a second before the notice, while the first
+// cleaning is judged.
+type usingIssuer struct {
+	e    *cleanEnv
+	used bool
+}
+
+func (u *usingIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, error) {
+	if u.used {
+		return domain.Credentials{GitHubToken: "token"}, nil
+	}
+	u.used = true
+	s := u.e.sessions.saved[existingID]
+	s.LastUsedAt = u.e.now
+	u.e.sessions.saved[existingID] = s
+	u.e.now = u.e.now.Add(time.Second)
+	return domain.Credentials{GitHubToken: "token"}, nil
+}
+
 // slowIssuer has the judgement take 30 seconds.
 type slowIssuer struct{ e *cleanEnv }
 

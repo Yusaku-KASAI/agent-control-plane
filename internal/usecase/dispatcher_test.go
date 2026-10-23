@@ -1329,11 +1329,21 @@ func TestDispatcher_ShutdownInterruptsRunningTurn(t *testing.T) {
 	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "work"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
+	e.sessions.mu.Lock()
+	began := e.sessions.saved[existingID].LastUsedAt
+	e.sessions.mu.Unlock()
 
 	e.d.Close()
 
 	if o := wait(t, done); !errors.Is(o.err, usecase.ErrShuttingDown) {
 		t.Fatalf("Execute() error = %v, want ErrShuttingDown", o.err)
+	}
+	// The interrupted turn may have changed the work since it began.
+	e.sessions.mu.Lock()
+	ended := e.sessions.saved[existingID].LastUsedAt
+	e.sessions.mu.Unlock()
+	if !ended.After(began) {
+		t.Errorf("LastUsedAt = %v after the interrupted turn, want later than its start %v", ended, began)
 	}
 	if !p.interrupted || !p.isClosed() {
 		t.Errorf("interrupted = %v, closed = %v; want both", p.interrupted, p.isClosed())
