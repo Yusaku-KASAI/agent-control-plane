@@ -20,6 +20,7 @@ check-platform:
 	shellcheck $$(grep -lE '^#!.*[/ ](ba)?sh$$' $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/* platform/plugins/*/tests/*))
 	platform/plugins/github/tests/prctl-test.sh
 	platform/plugins/github/tests/check-protection-test.sh
+	platform/plugins/github/tests/check-issues-test.sh
 	platform/plugins/harness/tests/foreground-test.sh
 	platform/plugins/harness/tests/detach-test.sh
 	platform/plugins/harness/tests/watch-tree-test.sh
