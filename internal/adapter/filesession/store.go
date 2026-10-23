@@ -43,9 +43,6 @@ type record struct {
 	Turns          int           `json:"turns"`
 	LastUsedAt     *time.Time    `json:"last_used_at,omitempty"`
 	KeptNotifiedAt *time.Time    `json:"kept_notified_at,omitempty"`
-	KeptReasons    []string      `json:"kept_reasons,omitempty"`
-	KeptAskedBy    *requester    `json:"kept_asked_by,omitempty"`
-	KeptToldAt     *time.Time    `json:"kept_told_at,omitempty"`
 	ReportedUsage  *usage        `json:"reported_usage,omitempty"`
 }
 
@@ -115,8 +112,6 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 		Workspace: domain.Workspace{Path: r.WorkspacePath},
 		Turns:     r.Turns,
 
-		KeptReasons:   r.KeptReasons,
-		KeptAskedBy:   r.KeptAskedBy.toDomain(),
 		ReportedUsage: r.ReportedUsage.toDomain(),
 	}
 	if r.LastUsedAt != nil {
@@ -124,9 +119,6 @@ func (s *Store) Find(_ context.Context, id domain.SessionID) (domain.Session, er
 	}
 	if r.KeptNotifiedAt != nil {
 		sess.KeptNotifiedAt = *r.KeptNotifiedAt
-	}
-	if r.KeptToldAt != nil {
-		sess.KeptToldAt = *r.KeptToldAt
 	}
 	if c := r.Conversation; c != nil {
 		sess.Conversation = domain.Conversation{Platform: c.Platform, Workspace: c.Workspace, Channel: c.Channel, Thread: c.Thread}
@@ -142,9 +134,6 @@ func (s *Store) Save(_ context.Context, sess domain.Session) error {
 		Turns:          sess.Turns,
 		LastUsedAt:     optionalTime(sess.LastUsedAt),
 		KeptNotifiedAt: optionalTime(sess.KeptNotifiedAt),
-		KeptReasons:    sess.KeptReasons,
-		KeptAskedBy:    fromRequester(sess.KeptAskedBy),
-		KeptToldAt:     optionalTime(sess.KeptToldAt),
 		ReportedUsage:  fromUsage(sess.ReportedUsage),
 	}
 	if c := sess.Conversation; c != (domain.Conversation{}) {
@@ -300,23 +289,4 @@ const removedPrefix = ".removed-"
 
 func (s *Store) file(id domain.SessionID, name ...string) string {
 	return filepath.Join(append([]string{s.root, string(id)}, name...)...)
-}
-
-type requester struct {
-	Platform string `json:"platform"`
-	ID       string `json:"id"`
-}
-
-func (r *requester) toDomain() *domain.Requester {
-	if r == nil {
-		return nil
-	}
-	return &domain.Requester{Platform: r.Platform, ID: r.ID}
-}
-
-func fromRequester(r *domain.Requester) *requester {
-	if r == nil {
-		return nil
-	}
-	return &requester{Platform: r.Platform, ID: r.ID}
 }

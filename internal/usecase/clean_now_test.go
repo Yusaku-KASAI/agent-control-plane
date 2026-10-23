@@ -53,7 +53,7 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
 				told(e)
 				s := e.sessions.saved[existingID]
-				s.LastUsedAt = s.KeptNotifiedAt.Add(time.Second)
+				s.LastUsedAt = e.now.Add(time.Second)
 				e.sessions.saved[existingID] = s
 			},
 			force:    true,
@@ -67,10 +67,12 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 		"forced before the notice, as in a burst of reactions, it only tells": {
 			arrange: func(e *cleanEnv) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
-				told(e)
-				s := e.sessions.saved[existingID]
-				s.KeptToldAt = e.now.Add(time.Hour)
-				e.sessions.saved[existingID] = s
+				// The :wastebasket: put an hour after the :fire: to come, as when the reactions came
+				// in the other order.
+				if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Hour)); err != nil {
+					panic(err)
+				}
+				e.notifier.posts = nil
 			},
 			force:    true,
 			wantText: ":fire:",
@@ -154,10 +156,15 @@ type fakeHolder struct {
 	idle  bool
 	err   error
 	asked []domain.SessionID
+	// onRelease runs as an idle agent is let go of.
+	onRelease func()
 }
 
 func (f *fakeHolder) Release(_ context.Context, id domain.SessionID) (bool, error) {
 	f.asked = append(f.asked, id)
+	if f.idle && f.onRelease != nil {
+		f.onRelease()
+	}
 	return f.idle, f.err
 }
 
@@ -431,18 +438,24 @@ func (s slowIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, er
 	return domain.Credentials{GitHubToken: "token"}, nil
 }
 
-// Answered, the thread is not told of a failure after: the answer stands, and an unrecorded notice
-// only has a :fire: told again to put :wastebasket: first.
-func TestSessionCleaner_CleanNowAnsweredThenFailing(t *testing.T) {
+// An agent waiting idle holds the session's lock: the :wastebasket: does not let go of it, nor
+// need to, for the person to force once told.
+func TestSessionCleaner_CleanNowForcedWhileTheAgentWaits(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-1))
 	e.work[existingID] = usecase.WorkspaceState{Changes: true}
-	e.sessions.busy = true
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err == nil {
-		t.Error("CleanNow() = nil, want the failure to record")
+	e.sessions.held = map[domain.SessionID]bool{existingID: true}
+	holder := &fakeHolder{idle: true, onRelease: func() { e.sessions.held = nil }}
+	cleaner := e.withHolder(holder)
+	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
 	}
-	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "次の理由で") {
-		t.Errorf("told %q, want only the reasons", posts)
+	if len(holder.asked) != 0 {
+		t.Errorf("let go of %v on :wastebasket:, want the agent left be", holder.asked)
+	}
+	e.now = e.now.Add(time.Minute)
+	if err := cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
+		t.Errorf("forced = %v, removed %v; want removed", err, e.files.removed)
 	}
 }
 
@@ -513,6 +526,14 @@ func TestSessionCleaner_CleanNowForcedOnlyByWhoAsked(t *testing.T) {
 			s.KeptNotifiedAt = e.now.Add(-2 * time.Hour)
 			e.sessions.saved[existingID] = s
 		},
+		"told again on one's own :fire: put too soon after": func(e *cleanEnv) {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+		},
 		"told on a :fire: of one's own": func(e *cleanEnv) {
 			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
 				t.Fatal(err)
@@ -524,7 +545,8 @@ func TestSessionCleaner_CleanNowForcedOnlyByWhoAsked(t *testing.T) {
 			e.save(existingID, dev.Name, e.now.Add(-1))
 			e.work[existingID] = usecase.WorkspaceState{Changes: true}
 			tell(e)
-			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil {
+			e.now = e.now.Add(time.Minute)
+			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
 				t.Fatal(err)
 			}
 			posts := e.notifier.posts[existingID]
