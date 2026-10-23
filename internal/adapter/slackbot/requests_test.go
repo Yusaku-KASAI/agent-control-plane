@@ -2,8 +2,10 @@ package slackbot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -54,22 +56,63 @@ func (allowAll) Allows(domain.AgentName, domain.Requester) bool { return true }
 
 func TestHandleReactionStopsTheRequest(t *testing.T) {
 	turns := &stopRecorder{}
-	b := New("dev", "", nil, turns, allowAll{}, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, turns, nil, allowAll{}, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
 	b.requests.remember(thread, "2.0", time.Now())
 	reaction := func(name, itemType, ts, user string) *slackevents.ReactionAddedEvent {
 		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, Item: slackevents.Item{Type: itemType, Channel: "C1", Timestamp: ts}}
 	}
 
-	b.handleReaction(context.Background(), reaction("thumbsup", "message", "2.0", "U1"), "UBOT")
-	b.handleReaction(context.Background(), reaction(stopReaction, "file", "2.0", "U1"), "UBOT")
-	b.handleReaction(context.Background(), reaction(stopReaction, "message", "9.0", "U1"), "UBOT")
-	b.handleReaction(context.Background(), reaction(stopReaction, "message", "2.0", "UBOT"), "UBOT")
+	b.handleReaction(context.Background(), reaction("thumbsup", "message", "2.0", "U1"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(stopReaction, "file", "2.0", "U1"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(stopReaction, "message", "9.0", "U1"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(stopReaction, "message", "2.0", "UBOT"), "UBOT", "T1")
 	if len(turns.stops) != 0 {
 		t.Fatalf("stopped %q for reactions that are not a stop on a request by a person", turns.stops)
 	}
-	b.handleReaction(context.Background(), reaction(stopReaction, "message", "2.0", "U1"), "UBOT")
+	b.handleReaction(context.Background(), reaction(stopReaction, "message", "2.0", "U1"), "UBOT", "T1")
 	if want := []string{string(thread.SessionID("dev")) + " 2.0"}; !slices.Equal(turns.stops, want) {
 		t.Errorf("stopped %q, want %q", turns.stops, want)
+	}
+}
+
+type cleanRecorder struct {
+	mu     sync.Mutex
+	cleans []string
+	done   chan struct{}
+}
+
+func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool) error {
+	c.mu.Lock()
+	c.cleans = append(c.cleans, fmt.Sprintf("%s %v", id, force))
+	c.mu.Unlock()
+	c.done <- struct{}{}
+	return nil
+}
+
+// A clean reaction on the message that started a thread names the thread's session by itself,
+// with no memory of the request (docs/adr/app/0046).
+func TestHandleReactionCleansTheSession(t *testing.T) {
+	cleanup := &cleanRecorder{done: make(chan struct{}, 4)}
+	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, slog.New(slog.DiscardHandler))
+	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
+	reaction := func(name, user string) *slackevents.ReactionAddedEvent {
+		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: "1.0"}}
+	}
+
+	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "UBOT"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "U1"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.ForceCleanReaction, "U1"), "UBOT", "T1")
+	for range 2 {
+		select {
+		case <-cleanup.done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("the session was not cleaned")
+		}
+	}
+	id := string(thread.SessionID("dev"))
+	slices.Sort(cleanup.cleans)
+	if want := []string{id + " false", id + " true"}; !slices.Equal(cleanup.cleans, want) {
+		t.Errorf("cleaned %q, want %q (not for the bot's own reaction)", cleanup.cleans, want)
 	}
 }

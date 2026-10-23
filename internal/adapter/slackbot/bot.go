@@ -56,7 +56,7 @@ type TokenSource interface {
 	Token(ctx context.Context) (string, error)
 }
 
-func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
+func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, cleanup usecase.SessionCleanup, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
 	b := &Bot{
 		agent:     agent,
 		appToken:  appToken,
@@ -71,7 +71,7 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		releases:  make(map[*time.Timer]func()),
 	}
 	b.post = b.postAsync
-	b.handler = usecase.NewHandleMessage(turns, policy, b)
+	b.handler = usecase.NewHandleMessage(turns, cleanup, policy, b)
 	return b
 }
 
@@ -112,7 +112,7 @@ func (b *Bot) Run(ctx context.Context) error {
 					}
 				})
 			case *slackevents.ReactionAddedEvent:
-				b.handleReaction(ctx, e, auth.UserID)
+				b.handleReaction(ctx, e, auth.UserID, b.team(evt))
 			}
 		}
 	}
@@ -150,10 +150,27 @@ func (b *Bot) team(evt socketmode.Event) string {
 	return api.TeamID
 }
 
-// handleReaction takes a stop reaction on a request's message as stopping that request. The
-// bot's own reactions, such as the stop mark it puts on stopped requests, are not instructions.
-func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent, botUserID string) {
-	if e.Reaction != stopReaction || e.Item.Type != "message" || e.User == botUserID {
+// handleReaction takes a stop reaction on a request's message as stopping that request, and a
+// clean reaction on the message that started a thread as cleaning the thread's session now
+// (docs/adr/app/0046). The bot's own reactions, such as the stop mark it puts on stopped
+// requests, are not instructions.
+func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent, botUserID, team string) {
+	if e.Item.Type != "message" || e.User == botUserID {
+		return
+	}
+	if force := e.Reaction == usecase.ForceCleanReaction; force || e.Reaction == usecase.CleanReaction {
+		// The thread is named by the message that started it, so a reaction there names the
+		// session without asking Slack, and still does after a restart.
+		c := domain.Conversation{Platform: platform, Workspace: team, Channel: e.Item.Channel, Thread: e.Item.Timestamp}
+		// Shutting down cancels it: removing goes in an order a later run can resume (docs/adr/app/0026).
+		go func() {
+			if err := b.handler.CleanSession(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, force); err != nil {
+				b.log.Warn("clean failed", "session", c.SessionID(b.agent), "user", e.User, "force", force, "err", err)
+			}
+		}()
+		return
+	}
+	if e.Reaction != stopReaction {
 		return
 	}
 	c, ok := b.requests.find(e.Item.Channel, e.Item.Timestamp, time.Now())
