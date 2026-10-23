@@ -60,7 +60,7 @@ type Session struct {
 	Conversation Conversation
 	// Turns counts completed turns. The first turn starts the Claude Code session; later turns resume it.
 	Turns int
-	// LastUsedAt is when the session was created, last took a request or last finished a turn.
+	// LastUsedAt is when the session was created, last took a request, or last began or ended a turn.
 	LastUsedAt time.Time
 	// KeptNotifiedAt is when the thread was last told that the session is kept for the work it holds.
 	KeptNotifiedAt time.Time

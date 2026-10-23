@@ -1160,6 +1160,34 @@ func TestDispatcher_ProcessExitFailsRunningTurn(t *testing.T) {
 	}
 }
 
+// A worker kept from an earlier turn marks the session used as a turn begins, and as one ends
+// without finishing, so that the cleanup does not take work changed since as told of before.
+func TestDispatcher_TurnsMarkSessionUsed(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	used := func() time.Time {
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		return e.sessions.saved[existingID].LastUsedAt
+	}
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("done")
+	wait(t, first)
+	finished := used()
+
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "crash"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	eventually(t, func() bool { return used().After(finished) })
+	began := used()
+	p.err = errors.New("exit status 1")
+	close(p.events)
+	wait(t, second)
+	if !used().After(began) {
+		t.Errorf("LastUsedAt = %v after the turn failed, want later than its start %v", used(), began)
+	}
+}
+
 func TestDispatcher_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1404,7 +1432,7 @@ func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	e.sessions.mu.Lock()
 	saves, used := e.sessions.saves, e.sessions.saved[existingID].LastUsedAt
 	e.sessions.mu.Unlock()
-	if saves != 1 || time.Since(used) > time.Minute {
+	if saves == 0 || time.Since(used) > time.Minute {
 		t.Errorf("before the turn finished: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
 	}
 	p.finish("done")

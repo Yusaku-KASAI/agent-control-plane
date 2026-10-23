@@ -612,6 +612,7 @@ func (w *worker) send(r request) error {
 func (w *worker) startTurn(agentStarted bool) {
 	w.turn++
 	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
+	w.markUsed()
 	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }
 
@@ -833,6 +834,14 @@ func (w *worker) refreshCredentials() {
 	}
 }
 
+// markUsed records that the agent may have changed the work now: a turn begins, or one ends without
+// finishTurn. SessionCleaner forces only what it told of since (CleanNow). Failing to save leaves
+// the time the turn began, or the one before.
+func (w *worker) markUsed() {
+	w.session.LastUsedAt = time.Now()
+	_ = w.d.sessions.Save(w.d.ctx, w.session)
+}
+
 // stopProcess closes the process. With cause, the running turn fails with it.
 func (w *worker) stopProcess(cause error) {
 	if w.proc == nil {
@@ -847,6 +856,9 @@ func (w *worker) stopProcess(cause error) {
 	w.proc = nil
 	wasRunning, hadBackground := w.running, len(w.background) > 0
 	w.running, w.background, w.requesters = false, nil, nil
+	if wasRunning || hadBackground {
+		w.markUsed()
+	}
 	if cause == nil {
 		return
 	}
