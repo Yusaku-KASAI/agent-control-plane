@@ -17,7 +17,7 @@ oauth_config:
       - channels:history # read threads, in the control plane and the agent
       - groups:history
       - chat:write # replies and status messages
-      - reactions:read # stop reactions
+      - reactions:read # stop and clean reactions
       - reactions:write # acknowledgement reactions
 settings:
   event_subscriptions:

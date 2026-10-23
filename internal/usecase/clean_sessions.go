@@ -530,9 +530,16 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		}
 		return c.update(ctx, id, func(s *domain.Session) { s.KeptNotifiedAt = c.now() })
 	}
-	branches, err := c.remove(ctx, agent, id, creds, c.now(), force)
+	// Used since it was judged, it may hold work the judgement did not see.
+	branches, err := c.remove(ctx, agent, id, creds, s.LastUsedAt.Add(time.Nanosecond), force)
 	switch {
+	case errors.Is(err, domain.ErrSessionNotFound):
+		return nil
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
+		// Another cleaning, of the same reactions or of the retention, may have taken it meanwhile.
+		if _, err := c.sessions.Find(ctx, id); errors.Is(err, domain.ErrSessionNotFound) {
+			return nil
+		}
 		return c.notifier.Notify(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
 	case err != nil:

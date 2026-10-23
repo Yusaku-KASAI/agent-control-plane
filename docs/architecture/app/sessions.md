@@ -17,7 +17,7 @@
 | ID が決まる | Slack では、エージェントとスレッドから決まる。同じスレッドなら何度でも同じ ID になる（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。CLI では新しいセッションごとにランダム |
 | 作る | 記録がなければ、ロックを取って作業領域（ターゲットの clone と、そこで切ったセッションのブランチ）を作り、記録を保存する（[作業領域とブランチ](workspace.md "在りか")） |
 | 動かす | 依頼が来るとセッションのワーカーができ、ロックを取る。コンテナがなければ起動し、Claude Code を、終えたターンが 0 なら `--session-id <ID>`、それ以外は `--resume <ID>` で動かし続ける（[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。ターンを終えるたびに記録の `turns` を増やして保存する |
-| 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを止めて消し、ロックを放す。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
+| 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを止めて消し、ロックを放す。その状態で今すぐの片付けを頼まれたときは、その場で休む（`Dispatcher.Release`、[片付け](#cleaner)）。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
 | 中断する | control-plane の再起動で、動いていた処理は中断され、コンテナは消され、スレッドにそう知らせる（[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。次の依頼で `--resume` する |
 | 片付ける | 使われないまま `sessions.retention`（既定値は [acp.example.yaml](../../../acp.example.yaml "在りか")）を過ぎたセッションを、control-plane が起動時と 1 時間ごとに調べ、残す理由がなければ丸ごと消す。残す理由があれば残し、保持期間ごとに 1 回スレッドで片付けを促す。人はスレッドの最初のメッセージへのリアクションで、保持期間によらず今すぐ片付けさせられる（[片付け](#cleaner)、[依頼の仕方](../../reference/usage.md "在りか")） |
 
@@ -201,7 +201,8 @@
   - **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
     保持期間によらず残す理由を種類と文面で返す。エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
-  `SessionNotifier`）だけに依存する。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
+  `SessionNotifier`、`SessionHolder`）だけに依存する。休んでいるワーカーを手放させるのは `SessionHolder`
+  （`Dispatcher.Release`）。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
   作業領域を読むコンテナの中で読む）、会話の履歴と認証情報を消すのは `SessionFiles`
   （`internal/adapter/docker/sessionfiles.go`）、記録と作業領域を消すのは `SessionRepository.Remove`。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：アダプターは事実

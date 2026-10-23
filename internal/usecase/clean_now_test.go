@@ -105,7 +105,8 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 	e.sessions.onLock = func(id domain.SessionID) {
 		e.sessions.onLock = nil
 		s := e.sessions.saved[id]
-		s.LastUsedAt = e.now.Add(1)
+		// Used after the judgement, though before the clock the cleaner reads.
+		s.LastUsedAt = e.now.Add(-1).Add(time.Nanosecond)
 		e.sessions.saved[id] = s
 	}
 	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil {
@@ -158,5 +159,18 @@ func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
 		if !idle && !strings.Contains(posts[0], "作業しているあいだ") {
 			t.Errorf("told %q, want that the agent is at work", posts[0])
 		}
+	}
+}
+
+// Taken by another cleaning meanwhile, the session is gone: nothing contradicts that.
+func TestSessionCleaner_CleanNowAfterAnotherCleaning(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.sessions.onLock = func(id domain.SessionID) {
+		e.sessions.onLock = nil
+		delete(e.sessions.saved, id)
+	}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false); err != nil || len(e.notifier.posts) != 0 {
+		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
