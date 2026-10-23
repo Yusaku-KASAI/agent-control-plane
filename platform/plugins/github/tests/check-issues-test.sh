@@ -88,13 +88,14 @@ check "only the closed blockers are named" "NG   #1 is blocked by closed issues:
 
 reset
 echo '{"state": "closed", "pull_request": {}}' >"$state/issue-1.json"
-check "a pull request in 今の焦点 fails as no issue" 1 "$(run)"
-check "the pull request is named as no issue, not as a closed one" \
-  "NG   the roadmap #42 names in 今の焦点 what is no issue here (a pull request or a missing number): #1" "$(grep '^NG' "$tmp/out")"
+check "a pull request in 今の焦点 fails" 1 "$(run)"
+check "the pull request is named as such, not as a closed issue" \
+  "NG   the roadmap #42 names pull requests in 今の焦点: #1" "$(grep '^NG' "$tmp/out")"
 
 reset
 echo '{"state": "open", "pull_request": {}}' >"$state/issue-1.json"
-check "an open pull request in 今の焦点 fails as no issue too" 1 "$(run)"
+check "an open pull request in 今の焦点 fails too" "NG   the roadmap #42 names pull requests in 今の焦点: #1" \
+  "$(run >/dev/null; grep '^NG' "$tmp/out")"
 
 reset
 roadmap $'## 焦点\n\n1. #1 をする'
@@ -110,7 +111,7 @@ touch "$state/gone-1"
 echo '[{"number": 7, "state": "closed"}]' >"$state/blocked-1.json"
 check "a number in 今の焦点 that is no issue here fails" 1 "$(run)"
 check "the number is named and the dependencies are still checked" \
-  "NG   the roadmap #42 names in 今の焦点 what is no issue here (a pull request or a missing number): #1
+  "NG   the roadmap #42 names in 今の焦点 what is no issue here: #1
 NG   #1 is blocked by closed issues: #7" "$(grep '^NG' "$tmp/out")"
 
 reset
