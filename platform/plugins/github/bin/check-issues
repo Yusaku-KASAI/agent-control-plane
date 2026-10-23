@@ -84,7 +84,7 @@ else
     if ((${#closed[@]})); then
       ng "the roadmap #$roadmap_number names closed issues in 今の焦点: ${closed[*]}"
     elif ((${#unknown[@]} == 0)); then
-      ok "the roadmap #$roadmap_number names no closed issue in 今の焦点"
+      ok "the roadmap #$roadmap_number names only open issues in 今の焦点"
     fi
   fi
 fi

@@ -93,9 +93,13 @@ check "the pull request is named as no issue, not as a closed one" \
   "NG   the roadmap #42 names in 今の焦点 what is no issue here (a pull request or a missing number): #1" "$(grep '^NG' "$tmp/out")"
 
 reset
+echo '{"state": "open", "pull_request": {}}' >"$state/issue-1.json"
+check "an open pull request in 今の焦点 fails as no issue too" 1 "$(run)"
+
+reset
 roadmap $'## 焦点\n\n1. #1 をする'
 check "a roadmap without the section 今の焦点 fails" "NG   the roadmap #42 has no section ## 今の焦点" "$(run >/dev/null; grep '^NG' "$tmp/out")"
-check "a roadmap without the section 今の焦点 is not also told as fine" 0 "$(grep -c 'names no closed' "$tmp/out" || true)"
+check "a roadmap without the section 今の焦点 is not also told as fine" 0 "$(grep -c 'names only open' "$tmp/out" || true)"
 
 reset
 { issue 1 theme:ops,accessibility; issue 42 ""; } | jq -s . >"$state/issues.json"
