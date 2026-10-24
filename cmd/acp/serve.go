@@ -106,7 +106,17 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			StopTimeout:       30 * time.Second,
 		},
 	)
-	bots, err := slackBots(cfg, slackTokens, turns, log)
+	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+		Agents:      cfg.Agents,
+		Sessions:    sessions,
+		Credentials: issuer,
+		Workspaces:  docker.NewWorkspaceReader(dockerClient, tools),
+		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
+		Files:       docker.NewSessionFiles(runnerOpts),
+		Notifier:    observer,
+		Holder:      turns,
+	}, cfg.Retention, time.Now)
+	bots, err := slackBots(cfg, slackTokens, turns, cleaner, log)
 	if err != nil {
 		turns.Close()
 		return err
@@ -138,15 +148,6 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 			}
 		})
 	}
-	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
-		Agents:      cfg.Agents,
-		Sessions:    sessions,
-		Credentials: issuer,
-		Workspaces:  docker.NewWorkspaceReader(dockerClient, tools),
-		Branches:    githubapp.NewBranches(githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin),
-		Files:       docker.NewSessionFiles(runnerOpts),
-		Notifier:    observer,
-	}, cfg.Retention, time.Now)
 	running.Go(func() { cleanSessions(ctx, cleaner, time.Hour, log) })
 	for name, src := range rotating {
 		go src.Run(ctx, 10*time.Minute, func(err error) {
@@ -202,14 +203,14 @@ func cleanSessions(ctx context.Context, cleaner *usecase.SessionCleaner, interva
 	}
 }
 
-func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, turns usecase.TurnExecutor, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
+func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, turns usecase.TurnExecutor, cleanup usecase.SessionCleanup, log *slog.Logger) (map[domain.AgentName]*slackbot.Bot, error) {
 	bots := make(map[domain.AgentName]*slackbot.Bot, len(cfg.SlackApps))
 	for name, app := range cfg.SlackApps {
 		appToken, err := readSecret(app.AppTokenPath)
 		if err != nil {
 			return nil, fmt.Errorf("agent %q: %w", name, err)
 		}
-		bots[name] = slackbot.New(name, appToken, tokens[name], turns, cfg.Access, log)
+		bots[name] = slackbot.New(name, appToken, tokens[name], turns, cleanup, cfg.Access, log)
 	}
 	return bots, nil
 }

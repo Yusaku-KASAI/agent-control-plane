@@ -131,7 +131,7 @@ func TestStatusViewRender(t *testing.T) {
 }
 
 func TestErrorNotice(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess"}
 	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
 	steps := []struct {
@@ -157,7 +157,7 @@ func TestErrorNotice(t *testing.T) {
 }
 
 func TestStatusForAgentStartedTurn(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	start := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 
@@ -181,7 +181,7 @@ func TestStatusForAgentStartedTurn(t *testing.T) {
 }
 
 func TestObserveKeepsLatestRemarks(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
 	m.updating = true // keeps observe from starting to write to Slack
@@ -262,7 +262,7 @@ func (failingTokens) Token(context.Context) (string, error) {
 // recordingBot is a Bot whose posts outside requests are recorded instead of sent.
 func recordingBot(t *testing.T) (*Bot, func() []string) {
 	t.Helper()
-	b := New("dev", "", failingTokens{}, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", failingTokens{}, nil, nil, nil, slog.New(slog.DiscardHandler))
 	b.heldGrace = 20 * time.Millisecond
 	var mu sync.Mutex
 	var posts []string
@@ -419,7 +419,7 @@ func TestStatusViewRenderSpent(t *testing.T) {
 }
 
 func TestObserveSumsSpent(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	spent := func(turn, session float64) *usecase.Spent {
 		return &usecase.Spent{Turn: &domain.Usage{CostUSD: turn}, Session: &domain.Usage{CostUSD: session}}

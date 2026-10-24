@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
@@ -49,14 +50,20 @@ type TurnExecutor interface {
 	StopRequest(ctx context.Context, agent domain.AgentName, id domain.SessionID, requestID string) error
 }
 
+// SessionCleanup cleans one session now, as a person asked in its thread (SessionCleaner.CleanNow).
+type SessionCleanup interface {
+	CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error
+}
+
 type HandleMessage struct {
 	turns     TurnExecutor
+	cleanup   SessionCleanup
 	policy    AccessPolicy
 	responder ChatResponder
 }
 
-func NewHandleMessage(turns TurnExecutor, policy AccessPolicy, responder ChatResponder) *HandleMessage {
-	return &HandleMessage{turns: turns, policy: policy, responder: responder}
+func NewHandleMessage(turns TurnExecutor, cleanup SessionCleanup, policy AccessPolicy, responder ChatResponder) *HandleMessage {
+	return &HandleMessage{turns: turns, cleanup: cleanup, policy: policy, responder: responder}
 }
 
 // Execute runs the turn and replies with its output or a description of the failure. The
@@ -134,6 +141,15 @@ func (u *HandleMessage) StopRequest(ctx context.Context, agent domain.AgentName,
 		return domain.ErrRequesterNotAllowed
 	}
 	return u.turns.StopRequest(ctx, agent, c.SessionID(agent), msgID)
+}
+
+// CleanSession cleans the conversation's session now, if the requester may use the agent; with
+// force, despite work found nowhere else (SessionCleaner.CleanNow).
+func (u *HandleMessage) CleanSession(ctx context.Context, agent domain.AgentName, r domain.Requester, c domain.Conversation, force bool, askedAt time.Time) error {
+	if !u.policy.Allows(agent, r) {
+		return domain.ErrRequesterNotAllowed
+	}
+	return u.cleanup.CleanNow(ctx, c.SessionID(agent), force, r, askedAt)
 }
 
 func failureText(s domain.Session, err error) string {

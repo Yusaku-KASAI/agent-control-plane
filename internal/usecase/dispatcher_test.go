@@ -35,6 +35,8 @@ type fakeSessions struct {
 	saves   int
 	// onLock runs before Lock takes the lock.
 	onLock func(id domain.SessionID)
+	// exclusive refuses a lock the test already holds, as the store does.
+	exclusive bool
 }
 
 func (f *fakeSessions) Find(_ context.Context, id domain.SessionID) (domain.Session, error) {
@@ -61,7 +63,7 @@ func (f *fakeSessions) Lock(_ context.Context, id domain.SessionID) (func(), err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.busy || f.held[id] {
+	if f.busy || f.held[id] || (f.exclusive && f.locks[id] > 0) {
 		return nil, domain.ErrSessionBusy
 	}
 	if f.locks == nil {
@@ -1158,6 +1160,34 @@ func TestDispatcher_ProcessExitFailsRunningTurn(t *testing.T) {
 	}
 }
 
+// A worker kept from an earlier turn marks the session used as a turn begins, and as one ends
+// without finishing, so that the cleanup does not take work changed since as told of before.
+func TestDispatcher_TurnsMarkSessionUsed(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	used := func() time.Time {
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		return e.sessions.saved[existingID].LastUsedAt
+	}
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("done")
+	wait(t, first)
+	finished := used()
+
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "crash"})
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	eventually(t, func() bool { return used().After(finished) })
+	began := used()
+	p.err = errors.New("exit status 1")
+	close(p.events)
+	wait(t, second)
+	if !used().After(began) {
+		t.Errorf("LastUsedAt = %v after the turn failed, want later than its start %v", used(), began)
+	}
+}
+
 func TestDispatcher_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1299,11 +1329,21 @@ func TestDispatcher_ShutdownInterruptsRunningTurn(t *testing.T) {
 	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "work"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
+	e.sessions.mu.Lock()
+	began := e.sessions.saved[existingID].LastUsedAt
+	e.sessions.mu.Unlock()
 
 	e.d.Close()
 
 	if o := wait(t, done); !errors.Is(o.err, usecase.ErrShuttingDown) {
 		t.Fatalf("Execute() error = %v, want ErrShuttingDown", o.err)
+	}
+	// The interrupted turn may have changed the work since it began.
+	e.sessions.mu.Lock()
+	ended := e.sessions.saved[existingID].LastUsedAt
+	e.sessions.mu.Unlock()
+	if !ended.After(began) {
+		t.Errorf("LastUsedAt = %v after the interrupted turn, want later than its start %v", ended, began)
 	}
 	if !p.interrupted || !p.isClosed() {
 		t.Errorf("interrupted = %v, closed = %v; want both", p.interrupted, p.isClosed())
@@ -1392,21 +1432,47 @@ func TestDispatcher_SessionReplacedBeforeLock(t *testing.T) {
 	}
 }
 
-// A turn that never finishes still counts as using the session, so that it is not cleaned up.
+// A request counts as using the session as its lock is taken, before any turn begins, so that it
+// is not cleaned up.
 func TestDispatcher_LockMarksSessionUsed(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	e.sessions.saves = 0
+	gate := make(chan struct{})
+	e.runner.mu.Lock()
+	e.runner.gate = gate
+	e.runner.mu.Unlock()
 	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
-	p := e.runner.next(t)
-	eventually(t, func() bool { return len(p.sent()) == 1 })
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
 	e.sessions.mu.Lock()
 	saves, used := e.sessions.saves, e.sessions.saved[existingID].LastUsedAt
 	e.sessions.mu.Unlock()
 	if saves != 1 || time.Since(used) > time.Minute {
-		t.Errorf("before the turn finished: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
+		t.Errorf("before the turn began: saves = %d, LastUsedAt = %v; want the session saved as used", saves, used)
 	}
+	close(gate)
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
 	p.finish("done")
 	wait(t, done)
+}
+
+// A background task that ends with no turn, as one stopped, counts as using the session.
+func TestDispatcher_BackgroundEndMarksSessionUsed(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	used := func() time.Time {
+		e.sessions.mu.Lock()
+		defer e.sessions.mu.Unlock()
+		return e.sessions.saved[existingID].LastUsedAt
+	}
+	done := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("bash1")
+	p.finish("done")
+	wait(t, done)
+	finished := used()
+	p.background()
+	eventually(t, func() bool { return used().After(finished) })
 }
 
 func TestDispatcher_TurnEndedOnError(t *testing.T) {
@@ -1696,5 +1762,35 @@ func TestDispatcher_SpentWithoutKnownTotal(t *testing.T) {
 	}
 	if sp := finished[1].Spent; sp == nil || sp.Turn != nil || sp.Session == nil || sp.Session.CostUSD != 2 {
 		t.Errorf("second turn spent %+v, want an unknown turn of a total of 2", sp)
+	}
+}
+
+// A worker waiting idle lets go of the session's lock at once when asked; one at work does not.
+func TestDispatcher_Release(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{IdleTimeout: time.Hour})
+	ctx := context.Background()
+	if released, err := e.d.Release(ctx, existingID); err != nil || !released {
+		t.Fatalf("Release() of a session with no worker = %v, %v; want released", released, err)
+	}
+
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "work"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	if released, err := e.d.Release(ctx, existingID); err != nil || released {
+		t.Fatalf("Release() during a turn = %v, %v; want kept", released, err)
+	}
+	p.finish("done")
+	wait(t, running)
+
+	if released, err := e.d.Release(ctx, existingID); err != nil || !released {
+		t.Fatalf("Release() of an idle worker = %v, %v; want released", released, err)
+	}
+	unlock, err := e.sessions.Lock(ctx, existingID)
+	if err != nil {
+		t.Fatalf("Lock() after Release() = %v; want the lock given up", err)
+	}
+	unlock()
+	if !p.isClosed() {
+		t.Error("the idle process was not closed")
 	}
 }

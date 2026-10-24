@@ -214,6 +214,34 @@ func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName
 	return nil
 }
 
+// Release retires the session's worker now if it waits idle, holding the session's lock until its
+// idle timeout (no turn, no queued request, no background work), so that the session can be
+// cleaned at once. It reports whether nothing of the dispatcher holds the session anymore.
+func (d *Dispatcher) Release(ctx context.Context, id domain.SessionID) (bool, error) {
+	d.mu.Lock()
+	w, ok := d.workers[id]
+	d.mu.Unlock()
+	if !ok {
+		return true, nil
+	}
+	answer := make(chan bool, 1)
+	select {
+	case w.releases <- answer:
+	case <-w.done:
+		return true, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+	select {
+	case released := <-answer:
+		return released, nil
+	case <-w.done:
+		return true, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
 // Recover removes the agent processes a previous control plane left behind, as when it was
 // killed, and tells their sessions. It must run before the first request.
 func (d *Dispatcher) Recover(ctx context.Context) (int, error) {
@@ -335,6 +363,7 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,
 			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1), requestStops: make(chan string, inboxSize),
+			releases: make(chan chan bool), done: make(chan struct{}),
 		}
 		d.workers[s.ID] = w
 		d.wg.Go(w.run)
@@ -404,6 +433,11 @@ type worker struct {
 	stops   chan struct{}
 	// requestStops carries the IDs of requests to stop alone.
 	requestStops chan string
+	// releases asks the worker to retire now if it is idle; it answers on the channel it is
+	// given, after giving up the session's lock.
+	releases chan chan bool
+	// done is closed once the worker has given up the session's lock.
+	done chan struct{}
 
 	proc Process
 	// running is true from a prompt or a turn start until the turn's result; current may be
@@ -429,7 +463,14 @@ type worker struct {
 }
 
 func (w *worker) run() {
-	defer w.unlock()
+	var released chan bool
+	defer func() {
+		w.unlock()
+		if released != nil {
+			released <- true
+		}
+		close(w.done)
+	}()
 	idle := time.NewTimer(w.d.opts.IdleTimeout)
 	defer idle.Stop()
 	refresh := time.NewTicker(w.d.opts.CredentialRefresh)
@@ -453,6 +494,13 @@ func (w *worker) run() {
 			w.stop()
 		case id := <-w.requestStops:
 			w.stopRequest(id)
+		case answer := <-w.releases:
+			if w.idle() && w.d.retire(w) {
+				released = answer
+				w.stopProcess(nil)
+				return
+			}
+			answer <- false
 		case <-refresh.C:
 			w.refreshCredentials()
 		case <-idle.C:
@@ -491,7 +539,12 @@ func (w *worker) handle(e ProcessEvent) {
 	case EventTurnFinished:
 		w.finishTurn(e.Result)
 	case EventBackgroundTasks:
+		// A task that ended, stopped or not, may have changed the work, with no turn to tell it.
+		ended := slices.ContainsFunc(w.background, func(id string) bool { return !slices.Contains(e.BackgroundTasks, id) })
 		w.background = e.BackgroundTasks
+		if ended {
+			w.markUsed()
+		}
 		w.notifyStatus()
 	case EventActivity:
 		if w.running {
@@ -564,6 +617,7 @@ func (w *worker) send(r request) error {
 func (w *worker) startTurn(agentStarted bool) {
 	w.turn++
 	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
+	w.markUsed()
 	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
 }
 
@@ -785,6 +839,14 @@ func (w *worker) refreshCredentials() {
 	}
 }
 
+// markUsed records that the agent may have changed the work now: a turn begins, one ends without
+// finishTurn, or a background task ends. SessionCleaner forces only what it told of since (CleanNow). Failing to save leaves
+// the time the turn began, or the one before.
+func (w *worker) markUsed() {
+	w.session.LastUsedAt = time.Now()
+	_ = w.d.sessions.Save(context.WithoutCancel(w.d.ctx), w.session)
+}
+
 // stopProcess closes the process. With cause, the running turn fails with it.
 func (w *worker) stopProcess(cause error) {
 	if w.proc == nil {
@@ -799,6 +861,9 @@ func (w *worker) stopProcess(cause error) {
 	w.proc = nil
 	wasRunning, hadBackground := w.running, len(w.background) > 0
 	w.running, w.background, w.requesters = false, nil, nil
+	if wasRunning || hadBackground {
+		w.markUsed()
+	}
 	if cause == nil {
 		return
 	}
@@ -830,6 +895,7 @@ func (w *worker) shutdown() {
 	}
 	if w.running {
 		w.running = false
+		w.markUsed()
 		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: len(w.current) == 0})
 	}
 	w.stopProcess(ErrShuttingDown)

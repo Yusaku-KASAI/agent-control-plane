@@ -98,7 +98,7 @@ func TestReasons(t *testing.T) {
 		{name: "own branch kept only by itself, not in the workspace", facts: sessionFacts{
 			owned:    []string{"acp/1"},
 			branches: map[string]BranchFacts{"acp/1": remote("acp/1", true, CommitPlaces{InBranch: true})},
-		}, want: []reason{{kind: reasonUnmerged, branch: "acp/1"}}, removable: []string{"acp/1"}},
+		}, want: []reason{{kind: reasonUnmerged, branch: "acp/1", tip: "tip-acp/1"}}, removable: []string{"acp/1"}},
 		{name: "own branch is the base of an open pull request", facts: sessionFacts{
 			owned: []string{"acp/1"},
 			branches: map[string]BranchFacts{"acp/1": func() BranchFacts {

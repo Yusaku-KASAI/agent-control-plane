@@ -27,6 +27,8 @@ type fakeBranches struct {
 	remote  map[string]usecase.BranchFacts
 	err     error
 	removed []string
+	// onRemove runs as Remove begins.
+	onRemove func()
 }
 
 func (f *fakeBranches) List(_ context.Context, _ domain.Agent, creds domain.Credentials, prefix string) ([]string, error) {
@@ -59,6 +61,9 @@ func (f *fakeBranches) Inspect(_ context.Context, _ domain.Agent, _ domain.Crede
 }
 
 func (f *fakeBranches) Remove(_ context.Context, _ domain.Agent, _ domain.Credentials, names []string) ([]string, error) {
+	if f.onRemove != nil {
+		f.onRemove()
+	}
 	if !f.sessions.anyLocked() {
 		return nil, errors.New("removed without the lock")
 	}

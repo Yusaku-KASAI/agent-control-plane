@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -93,7 +94,7 @@ func TestHandleMessage_RunsTurnInThreadSession(t *testing.T) {
 	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done"}}
 	responder := &fakeResponder{}
 
-	if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+	if err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	want := usecase.RunAgentInput{
@@ -122,7 +123,7 @@ func TestHandleMessage_MarksHowTheRequestWasTaken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done"}, taken: tt.taken}
 			responder := &fakeResponder{}
-			if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+			if err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
 			if !slices.Equal(responder.marks, tt.want) {
@@ -136,7 +137,7 @@ func TestHandleMessage_RejectsUnknownRequester(t *testing.T) {
 	turns := &fakeTurns{}
 	responder := &fakeResponder{}
 
-	err := usecase.NewHandleMessage(turns, allowList{}, responder).Execute(context.Background(), message)
+	err := usecase.NewHandleMessage(turns, nil, allowList{}, responder).Execute(context.Background(), message)
 	if !errors.Is(err, domain.ErrRequesterNotAllowed) {
 		t.Fatalf("Execute() error = %v, want ErrRequesterNotAllowed", err)
 	}
@@ -163,7 +164,7 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responder := &fakeResponder{}
-			err := usecase.NewHandleMessage(&fakeTurns{out: tt.out, err: tt.err}, allowList{alice: true}, responder).
+			err := usecase.NewHandleMessage(&fakeTurns{out: tt.out, err: tt.err}, nil, allowList{alice: true}, responder).
 				Execute(context.Background(), message)
 			if !errors.Is(err, tt.err) {
 				t.Errorf("Execute() error = %v, want %v", err, tt.err)
@@ -191,7 +192,7 @@ func TestHandleMessage_Stopped(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responder := &fakeResponder{}
-			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out, err: tt.err}, allowList{alice: true}, responder).
+			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out, err: tt.err}, nil, allowList{alice: true}, responder).
 				Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -204,7 +205,7 @@ func TestHandleMessage_Stopped(t *testing.T) {
 
 func TestHandleMessage_StopRequest(t *testing.T) {
 	turns := &fakeTurns{}
-	h := usecase.NewHandleMessage(turns, allowList{alice: true}, &fakeResponder{})
+	h := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, &fakeResponder{})
 
 	if err := h.StopRequest(context.Background(), "repo-dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, thread, "2.000"); !errors.Is(err, domain.ErrRequesterNotAllowed) || turns.stopped != "" {
 		t.Errorf("StopRequest(unknown requester) error = %v, stopped %q", err, turns.stopped)
@@ -226,7 +227,7 @@ func TestHandleMessage_AnsweredTogether(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responder := &fakeResponder{}
-			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out}, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+			if err := usecase.NewHandleMessage(&fakeTurns{out: tt.out}, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
 			if !slices.Equal(responder.marks, tt.want) || len(responder.replies) != 0 {
@@ -249,7 +250,7 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 	} {
 		responder := &fakeResponder{}
 		turns := &fakeTurns{out: tc.out}
-		if err := usecase.NewHandleMessage(turns, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
+		if err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err != nil {
 			t.Fatalf("%s: Execute() error = %v", tc.name, err)
 		}
 		if len(responder.replies) != 1 {
@@ -263,5 +264,26 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 				t.Errorf("%s: reply lacks %q:\n%s", tc.name, w, responder.replies[0])
 			}
 		}
+	}
+}
+
+type cleanCalls struct{ ids []domain.SessionID }
+
+func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool, _ domain.Requester, _ time.Time) error {
+	c.ids = append(c.ids, id)
+	return nil
+}
+
+// Only a person who may use the agent can have its session cleaned.
+func TestHandleMessage_CleanSession(t *testing.T) {
+	cleanup := &cleanCalls{}
+	h := usecase.NewHandleMessage(&fakeTurns{}, cleanup, allowList{alice: true}, &fakeResponder{})
+	c := domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"}
+
+	if err := h.CleanSession(context.Background(), "dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, c, false, time.Now()); !errors.Is(err, domain.ErrRequesterNotAllowed) {
+		t.Errorf("CleanSession() by someone else = %v, want ErrRequesterNotAllowed", err)
+	}
+	if err := h.CleanSession(context.Background(), "dev", alice, c, true, time.Now()); err != nil || len(cleanup.ids) != 1 || cleanup.ids[0] != c.SessionID("dev") {
+		t.Errorf("CleanSession() = %v, cleaned %v; want the thread's session", err, cleanup.ids)
 	}
 }

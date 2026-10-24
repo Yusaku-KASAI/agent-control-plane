@@ -60,6 +60,11 @@ type LocalBranch struct {
 	Unpushed bool
 }
 
+// SessionHolder lets go of a session it holds while it waits idle (Dispatcher.Release).
+type SessionHolder interface {
+	Release(ctx context.Context, id domain.SessionID) (bool, error)
+}
+
 // SessionWorkspace tells what work a session's workspace holds.
 type SessionWorkspace interface {
 	// State returns nothing for a path that is missing or not a repository. It reads the workspace

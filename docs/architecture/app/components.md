@@ -19,7 +19,8 @@ acp run / stop ──HTTP──▶ httpapi ────────────�
                                                               ▼
                                        docker.Runner ──▶ docker-proxy ──▶ エージェントのコンテナ
 
-usecase.SessionCleaner（起動時と定期的に）
+usecase.SessionCleaner（起動時と定期的に。今すぐの片付けは usecase.HandleMessage ──SessionCleanup──▶ SessionCleaner）
+SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワーカーを手放させる）
 
 知らせ：worker ──SessionObserver──▶ sessionObserver（serve.go）──▶ slackbot.Bot
        SessionCleaner ──SessionNotifier──▶ sessionObserver ──▶ slackbot.Bot
@@ -51,6 +52,8 @@ usecase.SessionCleaner（起動時と定期的に）
 | `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
+| `SessionCleanup` | `handle_message.go` | `usecase.SessionCleaner` |
+| `SessionHolder` | `ports.go` | `usecase.Dispatcher` |
 
 ほかの部品は、それを扱う文書に構成要素として書いてある（文書の一覧は[docs/README.md](../../README.md "在りか")）。
 
@@ -82,7 +85,7 @@ usecase.SessionCleaner（起動時と定期的に）
 ### `internal/usecase/ports.go`
 
 - **責務**：ユースケースが外部に求めるインターフェースと、それに渡す値の型。
-- **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`）だけは
+- **置くもの / 置かないもの**：チャットの入口に関わるポート（`AccessPolicy`、`ChatResponder`、`TurnExecutor`、`SessionCleanup`）だけは
   ここに置かず、それを使う `handle_message.go` に置く（上の表）。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   中心が外側に要るものをポートとして決め、アダプターはここに合わせて作る。
