@@ -160,7 +160,7 @@ func TestResumes(t *testing.T) {
 			if s.ID == "" {
 				s = testSession
 			}
-			got, err := resumes(dir, testAgent.Name, s)
+			got, err := resumes(filepath.Join(dir, string(testAgent.Name)), s)
 			if err != nil || got != tt.want {
 				t.Errorf("resumes = %v, %v, want %v", got, err, tt.want)
 			}
@@ -281,6 +281,36 @@ func TestSessionCredentials_WriteCoAuthors(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(c.dir(), "git", "co-authors"))
 	if want := "Alice <alice@example.com>\nBob <bob@example.com>\n"; err != nil || string(b) != want {
 		t.Errorf("co-authors = %q, %v; want %q", b, err, want)
+	}
+}
+
+func TestRunner_Start_ResumesSavedConversation(t *testing.T) {
+	for _, saved := range []bool{false, true} {
+		config := t.TempDir()
+		if saved {
+			dir := filepath.Join(config, string(testAgent.Name), "projects", "-workspace-repo")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, string(testSession.ID)+".jsonl"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		api := newFakeAPI()
+		proc, err := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: config}).
+			Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: testSession})
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		api.exit(0)
+		_ = proc.Close(context.Background())
+		want := "--session-id"
+		if saved {
+			want = "--resume"
+		}
+		if i := slices.Index(api.created, want); i < 0 || api.created[i+1] != string(testSession.ID) {
+			t.Errorf("saved = %v: Cmd = %q, want %s %s", saved, api.created, want, testSession.ID)
+		}
 	}
 }
 
@@ -508,6 +538,8 @@ type fakeAPI struct {
 	// containers is what ContainerList returns.
 	containers []container.Summary
 	listed     []client.ContainerListOptions
+	// created is the command of the last container created.
+	created []string
 
 	stdin      chan []byte
 	output     *io.PipeWriter
@@ -519,7 +551,10 @@ func newFakeAPI() *fakeAPI {
 	return &fakeAPI{status: make(chan int64, 1), stdin: make(chan []byte, 8), output: w, outputRead: r}
 }
 
-func (f *fakeAPI) ContainerCreate(context.Context, client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
+func (f *fakeAPI) ContainerCreate(_ context.Context, opts client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.created = opts.Config.Cmd
 	return client.ContainerCreateResult{ID: "c1"}, nil
 }
 

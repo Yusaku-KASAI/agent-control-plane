@@ -61,11 +61,12 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 		return nil, fmt.Errorf("write credentials: %w", err)
 	}
 	// A volume subpath must exist before it is mounted.
-	if err := os.MkdirAll(filepath.Join(r.opts.ClaudeConfigDir, string(req.Agent.Name)), 0o755); err != nil {
+	config := agentClaudeConfigDir(r.opts, req.Agent.Name)
+	if err := os.MkdirAll(config, 0o755); err != nil {
 		return nil, fmt.Errorf("create claude config dir: %w", err)
 	}
 
-	resume, err := resumes(r.opts.ClaudeConfigDir, req.Agent.Name, req.Session)
+	resume, err := resumes(config, req.Session)
 	if err != nil {
 		return nil, fmt.Errorf("look for the saved conversation: %w", err)
 	}
@@ -167,11 +168,11 @@ const (
 // arrives, so a process that ended before finishing its first turn leaves one too, and Claude Code
 // refuses --session-id with an ID it has a conversation for. The ID is a UUID, so the <dir> Claude
 // Code derives from the working directory need not be known.
-func resumes(configDir string, agent domain.AgentName, s domain.Session) (bool, error) {
+func resumes(config string, s domain.Session) (bool, error) {
 	if !s.IsNew() {
 		return true, nil
 	}
-	matches, err := filepath.Glob(filepath.Join(configDir, string(agent), "projects", "*", string(s.ID)+".jsonl"))
+	matches, err := filepath.Glob(filepath.Join(config, "projects", "*", string(s.ID)+".jsonl"))
 	return len(matches) > 0, err
 }
 
@@ -258,7 +259,12 @@ func claudeConfigMount(agent domain.AgentName, opts Options) mount.Mount {
 			VolumeOptions: &mount.VolumeOptions{Subpath: string(agent)},
 		}
 	}
-	return mount.Mount{Type: mount.TypeBind, Source: filepath.Join(opts.ClaudeConfigDir, string(agent)), Target: claudeConfigDir}
+	return mount.Mount{Type: mount.TypeBind, Source: agentClaudeConfigDir(opts, agent), Target: claudeConfigDir}
+}
+
+// agentClaudeConfigDir is where the control plane sees the agent's Claude Code config directory.
+func agentClaudeConfigDir(opts Options, agent domain.AgentName) string {
+	return filepath.Join(opts.ClaudeConfigDir, string(agent))
 }
 
 func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
