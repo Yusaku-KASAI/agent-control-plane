@@ -74,7 +74,7 @@ func TestContainerSpec(t *testing.T) {
 	if !slices.Equal(spec.Config.Cmd, wantCmd) {
 		t.Errorf("Cmd = %q, want %q", spec.Config.Cmd, wantCmd)
 	}
-	for _, want := range []string{"ACP_SESSION_BRANCH=acp/0f8fad5b", "ACP_CO_AUTHORS_FILE=/run/acp/credentials/git/co-authors"} {
+	for _, want := range []string{"ACP_SESSION_BRANCH=acp/0f8fad5b", "ACP_WORKSPACE=/workspace/repo", "ACP_CO_AUTHORS_FILE=/run/acp/credentials/git/co-authors"} {
 		if !slices.Contains(spec.Config.Env, want) {
 			t.Errorf("Env = %q, want %s", spec.Config.Env, want)
 		}
@@ -573,6 +573,11 @@ func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
 			// How git and gh are configured is not part of the contract.
 			if strings.HasPrefix(name, "GIT_CONFIG_") || name == "GH_NO_UPDATE_NOTIFIER" {
 				continue
+			}
+			// The value differs per agent; the contract writes it as /workspace/<名前>, and
+			// TestContainerSpec checks it is the working directory.
+			if name == "ACP_WORKSPACE" {
+				value = "/workspace/<名前>"
 			}
 			if !strings.Contains(string(contract), "`"+name+"`") {
 				t.Errorf("harness.md does not describe %s", name)

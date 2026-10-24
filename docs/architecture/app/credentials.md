@@ -123,7 +123,9 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 ### セッションの認証情報のディレクトリ（`internal/adapter/docker/credentials.go`）
 
 - **責務**：発行した認証情報を、セッションごとのディレクトリにファイルとして書き、コンテナに読み取り専用でマウント
-  させる。
+  させる。書いた `gh/hosts.yml` からトークンを読む処理（`ReadGitHubToken`。エージェントのコンテナの
+  `acp cleanup-check` が使う）も持ち、書いたものを読んで戻る試験で形を照らす
+  （[ADR 0047](../../adr/app/0047-cleanup-check-reads-the-given-workspace-and-splits-lost-pushes.md)）。
 - **置くもの / 置かないもの**：`<credentials.dir>/<セッション ID>/` の下に、`gh/config.yml` と `gh/hosts.yml`（GitHub
   のトークン）、`slack/bot-token`、`git/co-authors`（今のターンの依頼者。認証情報ではないが、ターンの途中で書き換える
   ので同じ場所に置く）。ファイルは一時ファイルからの rename で置き換え、読む側が書きかけを見ないようにする。

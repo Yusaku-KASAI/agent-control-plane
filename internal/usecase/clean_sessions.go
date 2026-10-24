@@ -90,13 +90,16 @@ const (
 	reasonChanges
 	reasonStash
 	reasonOperation
-	// reasonLostCommits: a branch holds commits the remote keeps nowhere.
+	// reasonLostCommits: a branch holds commits never pushed that the remote keeps nowhere.
 	reasonLostCommits
 	// reasonUnmerged: a branch the session created, and would delete, is in neither the default
 	// branch nor a merged or closed pull request.
 	reasonUnmerged
 	// reasonOpenBase: deleting a branch the session created would close the pull requests into it.
 	reasonOpenBase
+	// reasonLostPush: the commit the session last pushed to a branch is no longer on the remote,
+	// as when another writer force-pushed; only the workspace keeps it.
+	reasonLostPush
 	// reasonKindEnd follows the last kind.
 	reasonKindEnd
 )
@@ -145,14 +148,25 @@ func reasons(f sessionFacts) []reason {
 		p := b.Commits[commit]
 		return ok && (p.InDefault || p.InMergedPull || p.InClosedPull || p.InBranch)
 	}
+	lostPush := func(b BranchTip) bool {
+		_, ok := f.branches[b.Name]
+		return ok && !kept(b.Name, b.Tip)
+	}
 	for _, b := range ws.Local {
-		if b.Unpushed && (b.Name == "HEAD" || !kept(b.Name, b.Tip)) {
-			add(reason{kind: reasonLostCommits, branch: b.Name})
+		if !b.Unpushed || b.Name != "HEAD" && kept(b.Name, b.Tip) {
+			continue
 		}
+		// A branch at a commit pushed, under any name, which others pushed away, holds nothing never
+		// pushed: that is the lost push alone. Without the remote, the lost push is unseen, so the
+		// commits stay the workspace's.
+		if slices.ContainsFunc(ws.Pushed, func(p BranchTip) bool { return p.Tip == b.Tip && lostPush(p) }) {
+			continue
+		}
+		add(reason{kind: reasonLostCommits, branch: b.Name})
 	}
 	for _, b := range ws.Pushed {
-		if _, ok := f.branches[b.Name]; ok && !kept(b.Name, b.Tip) {
-			add(reason{kind: reasonLostCommits, branch: b.Name})
+		if lostPush(b) {
+			add(reason{kind: reasonLostPush, branch: b.Name})
 		}
 	}
 	for _, name := range f.touched() {
@@ -467,6 +481,8 @@ func (r reason) key() string {
 		return "unmerged-branch"
 	case reasonOpenBase:
 		return "open-base"
+	case reasonLostPush:
+		return "lost-push"
 	}
 	return ""
 }
@@ -485,11 +501,13 @@ func (r reason) text() string {
 		if r.branch == "HEAD" {
 			return "どのブランチにもないコミットがある（作業領域か、その中のサブエージェントなどの worktree の detached HEAD）"
 		}
-		return fmt.Sprintf("push していないか、GitHub に見つからないコミットがあるブランチ：`%s`", r.branch)
+		return fmt.Sprintf("push していないコミットがあるブランチ：`%s`", r.branch)
 	case reasonUnmerged:
 		return fmt.Sprintf("既定のブランチにも、マージした PR や閉じた PR にも入っていないブランチ：`%s`", r.branch)
 	case reasonOpenBase:
 		return fmt.Sprintf("`%s` に向けて開いている PR：#%d %s %s", r.branch, r.pull.Number, r.pull.Title, r.pull.URL)
+	case reasonLostPush:
+		return fmt.Sprintf("最後に push したコミットが、リモートのブランチにも既定のブランチにも PR にも見つからないブランチ（ほかの書き手の force push など）：`%s`", r.branch)
 	}
 	return ""
 }
@@ -683,7 +701,7 @@ const (
 )
 
 // cleanHint tells how to have the session cleaned, ending a message about kept work.
-const cleanHint = "エージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
+const cleanHint = "エージェントに「締めて」と頼むと、残すものを Issue に残し、自分で解けるものを解いて、解けずに残るものを知らせます。" +
 	"片付けを今すぐ回すには、このスレッドの先頭（ルート）のメッセージに :" + CleanReaction + ": を付けてください。"
 
 // tellKept tells the thread the reasons that keep the session. Told on :wastebasket:, the person
@@ -745,8 +763,8 @@ func keptNowText(rs []reason, onClean bool) string {
 			": を付け直してください。:" + ForceCleanReaction + ": が効くのは、自分で付けた :" + CleanReaction +
 			": に理由が返ってから 1 時間のうちに、そのあとエージェントが動いていない（依頼も、エージェントが自分で始めたターンも、バックグラウンドの処理の終わりもない）ときだけです。")
 	}
-	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、片付けられる状態にします。" +
-		"片付いたら、:" + CleanReaction + ": を外して付け直してください。")
+	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、自分で解けるものを解いて、解けずに残るものを知らせます。" +
+		"解けたら、:" + CleanReaction + ": を外して付け直してください。")
 	return b.String()
 }
 

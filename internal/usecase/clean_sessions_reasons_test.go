@@ -61,7 +61,7 @@ func TestReasons(t *testing.T) {
 		{name: "pushed to another's branch, deleted without merging", facts: sessionFacts{
 			workspace: WorkspaceState{Pushed: []BranchTip{pushed("other")}},
 			branches:  map[string]BranchFacts{"other": remote("other", false, nowhere)},
-		}, want: []reason{{kind: reasonLostCommits, branch: "other"}}},
+		}, want: []reason{{kind: reasonLostPush, branch: "other"}}},
 		{name: "pushed to another's branch with an open pull request", facts: sessionFacts{
 			workspace: WorkspaceState{Pushed: []BranchTip{pushed("other")}},
 			branches: map[string]BranchFacts{"other": func() BranchFacts {
@@ -81,12 +81,30 @@ func TestReasons(t *testing.T) {
 		{name: "pushed to another's branch, force-pushed away by someone", facts: sessionFacts{
 			workspace: WorkspaceState{Pushed: []BranchTip{pushed("other")}},
 			branches:  map[string]BranchFacts{"other": remote("other", true, nowhere)},
-		}, want: []reason{{kind: reasonLostCommits, branch: "other"}}},
+		}, want: []reason{{kind: reasonLostPush, branch: "other"}}},
 		{name: "pushed, remote unreadable", facts: sessionFacts{workspace: WorkspaceState{Pushed: []BranchTip{pushed("other")}}}},
 		{name: "several reasons, each once", facts: sessionFacts{
-			workspace: WorkspaceState{Changes: true, Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{local("x", true)}},
+			workspace: WorkspaceState{Changes: true, Local: []LocalBranch{local("HEAD", true), local("HEAD", true)}},
+		}, want: []reason{{kind: reasonChanges}, {kind: reasonLostCommits, branch: "HEAD"}}},
+		// After others pushed it away and the workspace fetched, the pushed commit is no longer on
+		// origin's remote-tracking branches: the branch at it holds only the lost push.
+		{name: "pushed commit pushed away, fetched", facts: sessionFacts{
+			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: pushed("x"), Unpushed: true}}},
+			branches:  map[string]BranchFacts{"x": remote("x", true, nowhere)},
+		}, want: []reason{{kind: reasonLostPush, branch: "x"}}},
+		{name: "pushed under another name, pushed away, fetched", facts: sessionFacts{
+			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: BranchTip{Name: "acp/1", Tip: "c-x"}, Unpushed: true}}},
+			branches:  map[string]BranchFacts{"x": remote("x", true, nowhere), "acp/1": remote("acp/1", false, nowhere)},
+		}, want: []reason{{kind: reasonLostPush, branch: "x"}}},
+		// Without the remote, the lost push is unseen; the commit stays the workspace's to keep.
+		{name: "pushed commit pushed away, fetched, remote unreadable", facts: sessionFacts{
+			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: pushed("x"), Unpushed: true}}},
+		}, want: []reason{{kind: reasonLostCommits, branch: "x"}}},
+		// Commits made after the push are the workspace's alone; the pushed one, others pushed away.
+		{name: "pushed commit pushed away, and commits since", facts: sessionFacts{
+			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: BranchTip{Name: "x", Tip: "c-x-since"}, Unpushed: true}}},
 			branches:  map[string]BranchFacts{"x": {Name: "x", Commits: map[string]CommitPlaces{"c-x": {}}}},
-		}, want: []reason{{kind: reasonChanges}, {kind: reasonLostCommits, branch: "x"}}},
+		}, want: []reason{{kind: reasonLostCommits, branch: "x"}, {kind: reasonLostPush, branch: "x"}}},
 		{name: "own branch merged", facts: sessionFacts{
 			owned:    []string{"acp/1"},
 			branches: map[string]BranchFacts{"acp/1": remote("acp/1", true, CommitPlaces{InDefault: true, InBranch: true})},

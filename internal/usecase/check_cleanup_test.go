@@ -52,7 +52,7 @@ func TestCheckCleanup(t *testing.T) {
 // Every kind of reason has a name, published by ReasonKinds.
 func TestReasonKinds(t *testing.T) {
 	kinds := usecase.ReasonKinds()
-	if len(kinds) != 8 || slices.Contains(kinds, "") {
-		t.Errorf("ReasonKinds() = %v, want the eight kinds, each named", kinds)
+	if len(kinds) != 9 || slices.Contains(kinds, "") {
+		t.Errorf("ReasonKinds() = %v, want the nine kinds, each named", kinds)
 	}
 }

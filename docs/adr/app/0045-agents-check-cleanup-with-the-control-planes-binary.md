@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-23
 amends: [26, 43]
+amended_by: [47]
 ---
 
 # 0045. エージェントは、control-plane のバイナリをコンテナに置いた `acp cleanup-check` で、片付けと同じ判定を作業領域の中から見る

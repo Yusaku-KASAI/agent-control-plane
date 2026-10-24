@@ -202,7 +202,9 @@
   - 残した知らせ（保持期間ごとの促しと、今すぐの片付けの返事）は、エージェントに「締めて」と頼むことと、
     `:wastebasket:` での片付けを案内する。
   - **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
-    保持期間によらず残す理由を種類と文面で返す。エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
+    保持期間によらず残す理由を種類と文面で返す。種類は下の判定の表の理由ごとで、作業領域の理由は
+    変更、stash、途中の操作、detached HEAD に分ける（[ADR 0047](../../adr/app/0047-cleanup-check-reads-the-given-workspace-and-splits-lost-pushes.md)）。
+    エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
   `SessionNotifier`、`SessionHolder`）だけに依存する。休んでいるワーカーを手放させるのは `SessionHolder`
   （`Dispatcher.Release`）。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
@@ -293,7 +295,7 @@ head コミットは、閉じたときの先頭）。
 | --- | --- |
 | 続きがありうる | 名前：セッションのもの、または push の記録：一度でもある。かつ、head ブランチとする開いている PR：ある |
 | 消すと失われる（作業領域） | 作業ツリーの変更：ある、stash：ある、途中の操作：ある、HEAD：detached でほかにないコミットを持つ、のどれか |
-| 消すと失われる（push していないコミット） | ローカル：あり、ほかにないコミットを持つ。かつ、GitHub：読めない、またはローカルの先頭の行き先：どこにもない |
+| 消すと失われる（push していないコミット） | ローカル：あり、ほかにないコミットを持つ。かつ、GitHub：読めない、またはローカルの先頭の行き先：どこにもない。ただし、ローカルの先頭が、「消すと失われる（push したコミット）」に当たるブランチ（名前は違ってよい）の最後に push したコミットのときは除く |
 | 消すと失われる（push したコミット） | push の記録：一度でもある、GitHub：読める、最後に push したコミットの行き先：どこにもない |
 | 消すと失われる（消すブランチ） | 名前：セッションのもの、リモート：ある、head ブランチとする開いている PR：ない、リモートの先頭の行き先：リモートの同じ名前のブランチ |
 | 消すと PR が閉じる | 名前：セッションのもの、リモート：ある、base ブランチとする開いている PR：ある |

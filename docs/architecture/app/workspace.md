@@ -157,10 +157,8 @@ GitHub のブランチと PR
   作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
   `acp cleanup-check` は、エージェントのコンテナの中でこれをその場で回す（エージェント自身のコンテナなので、読む
   コンテナは要らない。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）。
-  `acp cleanup-check` は、作業領域のどこから動かされても作業領域全体を読むよう、`Root` で根（外側の
-  リポジトリの主の worktree）を解いてから回す。`Root` はサブモジュールからはスーパープロジェクトへ、中に clone したリポジトリからは外の
-  作業ツリーへ上がり、linked worktree からは主の worktree へ戻る。根の `.git` が共通の git ディレクトリでなければ、
-  空の状態を読まないようエラーにする。
+  `acp cleanup-check` は、作業ディレクトリによらず、control-plane が渡した作業領域（`ACP_WORKSPACE`）を読む。
+  作業領域の外に clone したリポジトリ（`/tmp` など）の中で動かされても、そこを判定しない。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
   判定しない（[事実と判定](#facts)）。
 
