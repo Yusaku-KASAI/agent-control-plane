@@ -66,7 +66,7 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 		return nil, fmt.Errorf("create claude config dir: %w", err)
 	}
 
-	resume, err := resumes(config, req.Session)
+	resume, err := resumes(config, req.Session.ID)
 	if err != nil {
 		return nil, fmt.Errorf("look for the saved conversation: %w", err)
 	}
@@ -162,17 +162,14 @@ const (
 	credentialsDir  = "/run/acp/credentials"
 )
 
-// resumes tells whether Claude Code must resume the session's conversation rather than start it: the
-// session has finished a turn, or Claude Code has saved a conversation under its ID in the agent's
-// config directory, as projects/<dir>/<id>.jsonl. Claude Code writes that as soon as the first prompt
-// arrives, so a process that ended before finishing its first turn leaves one too, and Claude Code
-// refuses --session-id with an ID it has a conversation for. The ID is a UUID, so the <dir> Claude
-// Code derives from the working directory need not be known.
-func resumes(config string, s domain.Session) (bool, error) {
-	if !s.IsNew() {
-		return true, nil
-	}
-	matches, err := filepath.Glob(filepath.Join(config, "projects", "*", string(s.ID)+".jsonl"))
+// resumes tells whether Claude Code must resume the session's conversation rather than start it:
+// whether it has saved one under the ID in the agent's config directory, as projects/<dir>/<id>.jsonl.
+// Claude Code refuses --session-id with an ID it has a conversation for, and --resume with one it has
+// none for. The session's finished turns do not tell: Claude Code saves the conversation as soon as
+// the first prompt arrives, before the turn finishes, and deletes it after cleanupPeriodDays. The ID
+// is a UUID, so the <dir> Claude Code derives from the working directory need not be known.
+func resumes(config string, id domain.SessionID) (bool, error) {
+	matches, err := filepath.Glob(filepath.Join(config, "projects", "*", string(id)+".jsonl"))
 	return len(matches) > 0, err
 }
 

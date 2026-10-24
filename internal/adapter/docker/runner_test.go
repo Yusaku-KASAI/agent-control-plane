@@ -125,18 +125,13 @@ func TestContainerSpec_Resumes(t *testing.T) {
 
 func TestResumes(t *testing.T) {
 	id := testSession.ID
-	started := testSession
-	started.Turns = 1
 	other := domain.SessionID("7c9e6679-7425-40de-944b-e07fc1f90ae7")
 	tests := []struct {
-		name    string
-		session domain.Session
-		files   []string
-		want    bool
+		name  string
+		files []string
+		want  bool
 	}{
 		{name: "nothing saved"},
-		// Not only when its conversation is found: one the control plane cannot list is resumed as before.
-		{name: "finished a turn", session: started, want: true},
 		// A process that ended before finishing its first turn leaves this too.
 		{name: "saved", files: []string{"repo-dev/projects/-workspace-repo/" + string(id) + ".jsonl"}, want: true},
 		{name: "another session", files: []string{"repo-dev/projects/-workspace-repo/" + string(other) + ".jsonl"}},
@@ -156,11 +151,7 @@ func TestResumes(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			s := tt.session
-			if s.ID == "" {
-				s = testSession
-			}
-			got, err := resumes(filepath.Join(dir, string(testAgent.Name)), s)
+			got, err := resumes(filepath.Join(dir, string(testAgent.Name)), id)
 			if err != nil || got != tt.want {
 				t.Errorf("resumes = %v, %v, want %v", got, err, tt.want)
 			}
@@ -285,32 +276,45 @@ func TestSessionCredentials_WriteCoAuthors(t *testing.T) {
 }
 
 func TestRunner_Start_ResumesSavedConversation(t *testing.T) {
-	for _, saved := range []bool{false, true} {
-		config := t.TempDir()
-		if saved {
-			dir := filepath.Join(config, string(testAgent.Name), "projects", "-workspace-repo")
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				t.Fatal(err)
+	started := testSession
+	started.Turns = 1
+	tests := []struct {
+		name    string
+		session domain.Session
+		saved   bool
+		want    string
+	}{
+		{name: "new", session: testSession, want: "--session-id"},
+		// The first turn ended before finishing: Claude Code refuses --session-id with this ID.
+		{name: "saved before the first turn finished", session: testSession, saved: true, want: "--resume"},
+		{name: "saved", session: started, saved: true, want: "--resume"},
+		// Claude Code deleted it after cleanupPeriodDays: it refuses --resume with this ID.
+		{name: "deleted after turns", session: started, want: "--session-id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := t.TempDir()
+			if tt.saved {
+				dir := filepath.Join(config, string(testAgent.Name), "projects", "-workspace-repo")
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, string(tt.session.ID)+".jsonl"), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
 			}
-			if err := os.WriteFile(filepath.Join(dir, string(testSession.ID)+".jsonl"), nil, 0o600); err != nil {
-				t.Fatal(err)
+			api := newFakeAPI()
+			proc, err := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: config}).
+				Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: tt.session})
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
 			}
-		}
-		api := newFakeAPI()
-		proc, err := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: config}).
-			Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: testSession})
-		if err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		api.exit(0)
-		_ = proc.Close(context.Background())
-		want := "--session-id"
-		if saved {
-			want = "--resume"
-		}
-		if i := slices.Index(api.created, want); i < 0 || api.created[i+1] != string(testSession.ID) {
-			t.Errorf("saved = %v: Cmd = %q, want %s %s", saved, api.created, want, testSession.ID)
-		}
+			api.exit(0)
+			_ = proc.Close(context.Background())
+			if i := slices.Index(api.created, tt.want); i < 0 || api.created[i+1] != string(tt.session.ID) {
+				t.Errorf("Cmd = %q, want %s %s", api.created, tt.want, tt.session.ID)
+			}
+		})
 	}
 }
 

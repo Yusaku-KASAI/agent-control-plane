@@ -58,7 +58,7 @@ type Session struct {
 	Workspace Workspace
 	// Conversation is where the session started; zero when it did not start in a chat.
 	Conversation Conversation
-	// Turns counts completed turns. A session with any resumes its Claude Code conversation.
+	// Turns counts completed turns.
 	Turns int
 	// LastUsedAt is when the session was created, last took a request, last began or ended a turn, or
 	// last had a background task end: the last time its work may have changed.
@@ -80,7 +80,7 @@ func (s Session) UsageBefore() *Usage {
 }
 
 // IsNew tells whether the session has finished no turn. Its Claude Code conversation may exist all the
-// same, left by a first turn that ended before finishing.
+// same, saved by a first turn that ended before finishing.
 func (s Session) IsNew() bool {
 	return s.Turns == 0
 }
