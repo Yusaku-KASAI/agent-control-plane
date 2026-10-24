@@ -41,7 +41,7 @@ var (
 )
 
 func TestContainerSpec(t *testing.T) {
-	spec := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession},
+	spec := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, false,
 		[]pluginDir{
 			{Path: "platform/plugins/roles"},
 			{Path: "/workspace/kit/platform/plugins/slack", Beside: &mountedDir{Host: "/src/kit/platform", Container: "/workspace/kit/platform"}},
@@ -115,18 +115,52 @@ func TestContainerSpec(t *testing.T) {
 	}
 }
 
-func TestContainerSpec_ResumesStartedSession(t *testing.T) {
-	started := testSession
-	started.Turns = 1
-	cmd := containerSpec(usecase.StartRequest{Agent: testAgent, Session: started}, nil, Options{}).Config.Cmd
+func TestContainerSpec_Resumes(t *testing.T) {
+	cmd := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, true, nil, Options{}).Config.Cmd
 	i := slices.Index(cmd, "--resume")
-	if i < 0 || cmd[i+1] != string(started.ID) || slices.Contains(cmd, "--session-id") {
-		t.Errorf("Cmd = %q, want --resume %s", cmd, started.ID)
+	if i < 0 || cmd[i+1] != string(testSession.ID) || slices.Contains(cmd, "--session-id") {
+		t.Errorf("Cmd = %q, want --resume %s", cmd, testSession.ID)
+	}
+}
+
+func TestResumes(t *testing.T) {
+	id := testSession.ID
+	other := domain.SessionID("7c9e6679-7425-40de-944b-e07fc1f90ae7")
+	tests := []struct {
+		name  string
+		files []string
+		want  bool
+	}{
+		{name: "nothing saved"},
+		// A process that ended before finishing its first turn leaves this too.
+		{name: "saved", files: []string{"repo-dev/projects/-workspace-repo/" + string(id) + ".jsonl"}, want: true},
+		{name: "another session", files: []string{"repo-dev/projects/-workspace-repo/" + string(other) + ".jsonl"}},
+		{name: "another agent", files: []string{"other-dev/projects/-workspace-repo/" + string(id) + ".jsonl"}},
+		// Only the transcript is the conversation; Claude Code resumes nothing from the rest.
+		{name: "only the session's other files", files: []string{"repo-dev/projects/-workspace-repo/" + string(id) + "/subagents/a.jsonl"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, f := range tt.files {
+				p := filepath.Join(dir, f)
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := resumes(filepath.Join(dir, string(testAgent.Name)), id)
+			if err != nil || got != tt.want {
+				t.Errorf("resumes = %v, %v, want %v", got, err, tt.want)
+			}
+		})
 	}
 }
 
 func TestContainerSpec_BindMountsWithoutVolumes(t *testing.T) {
-	mounts := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil,
+	mounts := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, false, nil,
 		Options{CredentialsDir: "/host/creds", ClaudeConfigDir: "/host/claude", Tools: ToolsOptions{Dir: "/host/tools"}}).HostConfig.Mounts
 	if m := mounts[1]; m.Type != mount.TypeBind || m.Source != "/host/claude/repo-dev" || m.Target != "/home/node/.claude" {
 		t.Errorf("claude config mount = %+v", m)
@@ -140,7 +174,7 @@ func TestContainerSpec_BindMountsWithoutVolumes(t *testing.T) {
 }
 
 func TestContainerSpec_ClaudeAPIKey(t *testing.T) {
-	env := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession, Credentials: domain.Credentials{ClaudeAPIKey: "sk-ant-api-x"}}, nil, Options{}).Config.Env
+	env := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession, Credentials: domain.Credentials{ClaudeAPIKey: "sk-ant-api-x"}}, false, nil, Options{}).Config.Env
 	if !slices.Contains(env, "ANTHROPIC_API_KEY=sk-ant-api-x") {
 		t.Errorf("Env = %q, want the API key", env)
 	}
@@ -153,7 +187,7 @@ func TestContainerSpec_Credentials(t *testing.T) {
 		GitHubToken: "ghs_x", SlackBotToken: "xoxb-x", ClaudeOAuthToken: "sk-ant-oat-x",
 	}}
 
-	env := containerSpec(req, nil, Options{}).Config.Env
+	env := containerSpec(req, false, nil, Options{}).Config.Env
 	for _, want := range []string{
 		"GIT_AUTHOR_NAME=repo-dev (agent)",
 		"GIT_COMMITTER_EMAIL=1+u@users.noreply.github.com",
@@ -173,7 +207,7 @@ func TestContainerSpec_Credentials(t *testing.T) {
 		}
 	}
 
-	bare := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, nil, Options{}).Config.Env
+	bare := containerSpec(usecase.StartRequest{Agent: testAgent, Session: testSession}, false, nil, Options{}).Config.Env
 	for _, e := range bare {
 		if strings.HasPrefix(e, "GH_") || strings.HasPrefix(e, "GIT_") || strings.HasPrefix(e, "SLACK_") || strings.HasPrefix(e, "CLAUDE_CODE_OAUTH") {
 			t.Errorf("Env without credentials has %q", e)
@@ -238,6 +272,49 @@ func TestSessionCredentials_WriteCoAuthors(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(c.dir(), "git", "co-authors"))
 	if want := "Alice <alice@example.com>\nBob <bob@example.com>\n"; err != nil || string(b) != want {
 		t.Errorf("co-authors = %q, %v; want %q", b, err, want)
+	}
+}
+
+func TestRunner_Start_ResumesSavedConversation(t *testing.T) {
+	started := testSession
+	started.Turns = 1
+	tests := []struct {
+		name    string
+		session domain.Session
+		saved   bool
+		want    string
+	}{
+		{name: "new", session: testSession, want: "--session-id"},
+		// The first turn ended before finishing: Claude Code refuses --session-id with this ID.
+		{name: "saved before the first turn finished", session: testSession, saved: true, want: "--resume"},
+		{name: "saved", session: started, saved: true, want: "--resume"},
+		// Claude Code deleted it after cleanupPeriodDays: it refuses --resume with this ID.
+		{name: "deleted after turns", session: started, want: "--session-id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := t.TempDir()
+			if tt.saved {
+				dir := filepath.Join(config, string(testAgent.Name), "projects", "-workspace-repo")
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, string(tt.session.ID)+".jsonl"), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			api := newFakeAPI()
+			proc, err := NewRunner(api, Options{CredentialsDir: t.TempDir(), ClaudeConfigDir: config}).
+				Start(context.Background(), usecase.StartRequest{Agent: testAgent, Session: tt.session})
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			api.exit(0)
+			_ = proc.Close(context.Background())
+			if i := slices.Index(api.created, tt.want); i < 0 || api.created[i+1] != string(tt.session.ID) {
+				t.Errorf("Cmd = %q, want %s %s", api.created, tt.want, tt.session.ID)
+			}
+		})
 	}
 }
 
@@ -465,6 +542,8 @@ type fakeAPI struct {
 	// containers is what ContainerList returns.
 	containers []container.Summary
 	listed     []client.ContainerListOptions
+	// created is the command of the last container created.
+	created []string
 
 	stdin      chan []byte
 	output     *io.PipeWriter
@@ -476,7 +555,10 @@ func newFakeAPI() *fakeAPI {
 	return &fakeAPI{status: make(chan int64, 1), stdin: make(chan []byte, 8), output: w, outputRead: r}
 }
 
-func (f *fakeAPI) ContainerCreate(context.Context, client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
+func (f *fakeAPI) ContainerCreate(_ context.Context, opts client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.created = opts.Config.Cmd
 	return client.ContainerCreateResult{ID: "c1"}, nil
 }
 
@@ -567,7 +649,7 @@ func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
 		{GitHubToken: "ghs_x", SlackBotToken: "xoxb-x", ClaudeOAuthToken: "sk-ant-oat-x"},
 		{ClaudeAPIKey: "sk-ant-api-x"},
 	} {
-		env := containerSpec(usecase.StartRequest{Agent: agent, Session: testSession, Credentials: creds}, nil, Options{}).Config.Env
+		env := containerSpec(usecase.StartRequest{Agent: agent, Session: testSession, Credentials: creds}, false, nil, Options{}).Config.Env
 		for _, kv := range env {
 			name, value, _ := strings.Cut(kv, "=")
 			// How git and gh are configured is not part of the contract.

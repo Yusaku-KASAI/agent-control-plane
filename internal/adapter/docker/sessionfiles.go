@@ -26,7 +26,7 @@ func (f *SessionFiles) Remove(_ context.Context, agent domain.AgentName, id doma
 	if err := os.RemoveAll(sessionCredentials{root: f.opts.CredentialsDir, id: id}.dir()); err != nil {
 		return err
 	}
-	config := filepath.Join(f.opts.ClaudeConfigDir, string(agent))
+	config := agentClaudeConfigDir(f.opts, agent)
 	var errs error
 	for _, pattern := range []string{"*", "*/*"} {
 		matches, err := filepath.Glob(filepath.Join(config, pattern, string(id)+"*"))
