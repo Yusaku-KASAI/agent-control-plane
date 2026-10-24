@@ -495,6 +495,28 @@ func TestSessionCleaner_CleanNowPraiseForgetsTheNotice(t *testing.T) {
 	}
 }
 
+// What is discarded is told as judged under the lock, where the removal is decided.
+func TestSessionCleaner_CleanNowForcedTellsWhatItDiscarded(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		t.Fatal(err)
+	}
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	e.sessions.onLock = func(domain.SessionID) {
+		e.sessions.onLock = nil
+		e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
+	}
+	e.now = e.now.Add(time.Minute)
+	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
+		t.Fatalf("forced = %v, removed %v; want removed", err, e.files.removed)
+	}
+	if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") {
+		t.Errorf("told %q, want the stash among what was discarded", posts[len(posts)-1])
+	}
+}
+
 // usingIssuer has the agent use the session, a second before the notice, while the first
 // cleaning is judged.
 type usingIssuer struct {

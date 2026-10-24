@@ -12,8 +12,8 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
 
-// SessionCleaner removes sessions unused for longer than the retention period and tells their
-// threads. It keeps a session holding work found nowhere else or work that may go on (reasons).
+// SessionCleaner removes sessions unused for longer than the retention period, or one a person
+// asks to clean now (CleanNow), and tells their threads. It keeps a session holding work found nowhere else or work that may go on (reasons).
 type SessionCleaner struct {
 	agents      AgentRegistry
 	sessions    SessionRepository
@@ -261,7 +261,7 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		}
 		return false, errHasWork
 	}
-	branches, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
+	branches, _, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
 	if err != nil {
 		return false, err
 	}
@@ -328,40 +328,40 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) ([]string, error) {
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, err error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer unlock()
 	s, err := c.sessions.Find(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !unused(s) {
-		return nil, fmt.Errorf("%w: used meanwhile", errKept)
+		return nil, nil, fmt.Errorf("%w: used meanwhile", errKept)
 	}
 	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Forced, it lets go only of what the thread was told.
-	if rs := reasons(f); keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
-		return nil, workFound{rs}
+	rs := reasons(f)
+	if keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
+		return nil, nil, workFound{rs}
 	}
-	var branches []string
 	if names := f.removable(); len(names) > 0 {
 		if branches, err = c.branches.Remove(ctx, agent, creds, names); err != nil {
-			return nil, fmt.Errorf("remove branches: %w", err)
+			return nil, nil, fmt.Errorf("remove branches: %w", err)
 		}
 	}
 	if err := c.files.Remove(ctx, agent.Name, id); err != nil {
-		return nil, fmt.Errorf("remove agent files: %w", err)
+		return nil, nil, fmt.Errorf("remove agent files: %w", err)
 	}
 	if err := c.sessions.Remove(ctx, id); err != nil {
-		return nil, fmt.Errorf("remove session: %w", err)
+		return nil, nil, fmt.Errorf("remove session: %w", err)
 	}
-	return branches, nil
+	return branches, rs, nil
 }
 
 // removeUnsaved removes a directory without a record. Sessions are created under the lock, so once
@@ -590,7 +590,7 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 		"しばらくしてから、リアクションを外して付け直してください。"))
 }
 
-// request is a person's asking to clean now: by whom, when on the chat's clock, and when the
+// cleanRequest is a person's asking to clean now: by whom, when on the chat's clock, and when the
 // control plane received it on its own.
 type cleanRequest struct {
 	by       domain.Requester
@@ -648,7 +648,7 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 	}
 	// Used since it was judged, it may hold work the judgement did not see. Unused is LastUsedAt as
 	// read, not before it: a clock set back writes earlier times.
-	branches, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
+	branches, discarded, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
 	var found workFound
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
@@ -665,7 +665,7 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 		return err
 	}
 	c.setTold(s.ID, nil)
-	return c.tell(ctx, s, removedNowText(branches, rs))
+	return c.tell(ctx, s, removedNowText(branches, discarded))
 }
 
 func (c *SessionCleaner) tell(ctx context.Context, s domain.Session, text string) error {
