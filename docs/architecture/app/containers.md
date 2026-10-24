@@ -92,11 +92,11 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 - **責務**：usecase の `Runner` を実装し、セッションのエージェントのコンテナを作って起動する。
 - **置くもの / 置かないもの**：
   - `Start`：宣言されたプラグインを読み、セッションの認証情報を書き、エージェントの Claude Code の設定
-    ディレクトリを作ってから、コンテナを作り、attach し、起動する。途中で失敗したらコンテナを消す。
+    ディレクトリを作り、会話を再開するかを決めてから、コンテナを作り、attach し、起動する。途中で失敗したらコンテナを消す。
   - `containerSpec`：コンテナの形を一か所で決める。
     - イメージはエージェントのターゲットのイメージ。ユーザーは指定せず、イメージのユーザーで動く。
     - コマンドは `claude -p` を `stream-json` の入出力、`--agent <ロール>`、`--session-id` か `--resume`
-      （終えたターンが 0 かで決まる）、`--dangerously-skip-permissions`、プラグインごとの `--plugin-dir` で動かす。
+      （`Start` が、終えたターンの数と、エージェントの設定ディレクトリの会話の履歴から決める。[セッションの前提](sessions.md#invariants)）、`--dangerously-skip-permissions`、プラグインごとの `--plugin-dir` で動かす。
     - 作業ディレクトリは `/workspace/<ターゲットのディレクトリ名>`。Claude Code は会話の履歴を作業ディレクトリで
       引くので、セッションの間変えない。
     - 環境変数は、`CLAUDE_CONFIG_DIR`、`ACP_SESSION_BRANCH`、`ACP_WORKSPACE`（作業ディレクトリと同じパス。

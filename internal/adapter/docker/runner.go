@@ -65,7 +65,12 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 		return nil, fmt.Errorf("create claude config dir: %w", err)
 	}
 
-	created, err := r.api.ContainerCreate(ctx, containerSpec(req, plugins, r.opts))
+	resume, err := resumes(r.opts.ClaudeConfigDir, req.Agent.Name, req.Session)
+	if err != nil {
+		return nil, fmt.Errorf("look for the saved conversation: %w", err)
+	}
+
+	created, err := r.api.ContainerCreate(ctx, containerSpec(req, resume, plugins, r.opts))
 	if err != nil {
 		return nil, fmt.Errorf("create container: %w", err)
 	}
@@ -156,7 +161,22 @@ const (
 	credentialsDir  = "/run/acp/credentials"
 )
 
-func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
+// resumes tells whether Claude Code must resume the session's conversation rather than start it: the
+// session has finished a turn, or Claude Code has saved a conversation under its ID in the agent's
+// config directory, as projects/<dir>/<id>.jsonl. Claude Code writes that as soon as the first prompt
+// arrives, so a process that ended before finishing its first turn leaves one too, and Claude Code
+// refuses --session-id with an ID it has a conversation for. The ID is a UUID, so the <dir> Claude
+// Code derives from the working directory need not be known.
+func resumes(configDir string, agent domain.AgentName, s domain.Session) (bool, error) {
+	if !s.IsNew() {
+		return true, nil
+	}
+	matches, err := filepath.Glob(filepath.Join(configDir, string(agent), "projects", "*", string(s.ID)+".jsonl"))
+	return len(matches) > 0, err
+}
+
+// containerSpec starts Claude Code with --resume when resume is set, and with --session-id otherwise.
+func containerSpec(req usecase.StartRequest, resume bool, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
 	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := agentWorkdir(agent)
@@ -165,7 +185,7 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in template/docs/reference/contract.md.
-			Cmd: claudeCommand(agent, s, pluginPaths),
+			Cmd: claudeCommand(agent, s.ID, resume, pluginPaths),
 			Env: append([]string{
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
@@ -211,10 +231,10 @@ func pluginMounts(plugins []pluginDir, workdir string) ([]string, []mount.Mount)
 	return paths, mounts
 }
 
-func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []string {
-	sessionFlag := "--resume"
-	if s.IsNew() {
-		sessionFlag = "--session-id"
+func claudeCommand(agent domain.Agent, id domain.SessionID, resume bool, plugins []string) []string {
+	sessionFlag := "--session-id"
+	if resume {
+		sessionFlag = "--resume"
 	}
 	cmd := []string{
 		"claude", "-p",
@@ -223,7 +243,7 @@ func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []str
 		"--replay-user-messages",
 		"--verbose",
 		"--agent", string(agent.Role),
-		sessionFlag, string(s.ID),
+		sessionFlag, string(id),
 		"--dangerously-skip-permissions",
 	}
 	for _, p := range plugins {

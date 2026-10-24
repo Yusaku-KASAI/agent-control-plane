@@ -120,7 +120,7 @@ func TestWorkspaceReader_State(t *testing.T) {
 	}
 
 	cfg, host := api.created.Config, api.created.HostConfig
-	if agentCfg := containerSpec(usecase.StartRequest{Agent: readerAgent, Session: domain.Session{ID: "0f8fad5b-d9cb-469f-a165-70867728950e"}}, nil, Options{}).Config; cfg.WorkingDir != agentCfg.WorkingDir {
+	if agentCfg := containerSpec(usecase.StartRequest{Agent: readerAgent, Session: domain.Session{ID: "0f8fad5b-d9cb-469f-a165-70867728950e"}}, false, nil, Options{}).Config; cfg.WorkingDir != agentCfg.WorkingDir {
 		t.Errorf("working directory = %q, want the agent's %q", cfg.WorkingDir, agentCfg.WorkingDir)
 	}
 	if cfg.Image != "repo-dev:latest" || !slices.Equal(cfg.Entrypoint, []string{"/run/acp/bin/acp"}) ||
