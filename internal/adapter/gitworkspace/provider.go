@@ -264,15 +264,9 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 	if err != nil {
 		return w, err
 	}
-	// A commit once pushed is not unpushed even if others pushed it away since: the remote lost it,
-	// which the cleanup tells apart by the pushed branch's tip.
-	pushedTips := make([]string, 0, len(w.Pushed))
-	for _, b := range w.Pushed {
-		pushedTips = append(pushedTips, b.Tip)
-	}
 	for line := range strings.Lines(locals) {
 		name, tip, _ := strings.Cut(strings.TrimSpace(line), "\t")
-		unpushed, err := hasUnpushed(ctx, g, path, "refs/heads/"+name, pushedTips...)
+		unpushed, err := hasUnpushed(ctx, g, path, "refs/heads/"+name)
 		if err != nil {
 			return w, err
 		}
@@ -468,9 +462,8 @@ func pushedBranches(ctx context.Context, g gitRunner, path string) ([]usecase.Br
 // kept are the refs whose commits are found elsewhere: on origin, or in the target's checkout.
 var kept = []string{"--remotes=origin", "--glob=refs/acp/*"}
 
-func hasUnpushed(ctx context.Context, g gitRunner, path, rev string, pushed ...string) (bool, error) {
-	args := append([]string{"rev-list", "--count", rev, "--not"}, kept...)
-	n, err := g.run(ctx, path, append(args, pushed...)...)
+func hasUnpushed(ctx context.Context, g gitRunner, path, rev string) (bool, error) {
+	n, err := g.run(ctx, path, append([]string{"rev-list", "--count", rev, "--not"}, kept...)...)
 	return n != "0", err
 }
 

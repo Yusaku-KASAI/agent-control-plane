@@ -877,16 +877,4 @@ func TestProvider_State_PushedTipIsWhatWasPushed(t *testing.T) {
 	if len(got.Pushed) != 1 || got.Pushed[0].Tip != pushed {
 		t.Errorf("Pushed = %+v, want acp/0f8fad5b at the pushed commit %s", got.Pushed, pushed)
 	}
-	// The commit pushed away is the remote's loss (the pushed tip), not a commit never pushed.
-	unpushed := func(got usecase.WorkspaceState) bool {
-		i := slices.IndexFunc(got.Local, func(b usecase.LocalBranch) bool { return b.Name == "acp/0f8fad5b" })
-		return i >= 0 && got.Local[i].Unpushed
-	}
-	if unpushed(got) {
-		t.Errorf("Local = %+v, want acp/0f8fad5b without unpushed commits", got.Local)
-	}
-	commit(t, ws.Path, "c.txt", "since the push")
-	if got, err := p.State(ctx, ws.Path); err != nil || !unpushed(got) {
-		t.Errorf("Local = %+v, %v; want acp/0f8fad5b with the commit made since the push", got.Local, err)
-	}
 }

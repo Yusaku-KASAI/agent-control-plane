@@ -148,13 +148,24 @@ func reasons(f sessionFacts) []reason {
 		p := b.Commits[commit]
 		return ok && (p.InDefault || p.InMergedPull || p.InClosedPull || p.InBranch)
 	}
+	lostPush := func(b BranchTip) bool {
+		_, ok := f.branches[b.Name]
+		return ok && !kept(b.Name, b.Tip)
+	}
 	for _, b := range ws.Local {
-		if b.Unpushed && (b.Name == "HEAD" || !kept(b.Name, b.Tip)) {
-			add(reason{kind: reasonLostCommits, branch: b.Name})
+		if !b.Unpushed || b.Name != "HEAD" && kept(b.Name, b.Tip) {
+			continue
 		}
+		// A branch at the very commit it pushed, which others pushed away, holds nothing it never
+		// pushed: that is the lost push alone. Without the remote, the lost push is unseen, so the
+		// commits stay the workspace's.
+		if slices.ContainsFunc(ws.Pushed, func(p BranchTip) bool { return p == b.BranchTip && lostPush(p) }) {
+			continue
+		}
+		add(reason{kind: reasonLostCommits, branch: b.Name})
 	}
 	for _, b := range ws.Pushed {
-		if _, ok := f.branches[b.Name]; ok && !kept(b.Name, b.Tip) {
+		if lostPush(b) {
 			add(reason{kind: reasonLostPush, branch: b.Name})
 		}
 	}
