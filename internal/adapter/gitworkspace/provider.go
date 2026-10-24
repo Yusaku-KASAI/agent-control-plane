@@ -199,39 +199,6 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Root returns the workspace a directory is in: the main worktree of its outermost repository, also
-// from a subdirectory, a linked worktree or a submodule. It fails rather than return a directory
-// whose state would read as empty.
-func Root(ctx context.Context, dir string) (string, error) {
-	g := gitRunner{}
-	var root, common string
-	for {
-		// Up out of a submodule.
-		super, err := g.run(ctx, dir, "rev-parse", "--show-superproject-working-tree")
-		if err != nil {
-			return "", err
-		}
-		if super != "" {
-			dir = super
-			continue
-		}
-		if common, err = g.run(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir"); err != nil {
-			return "", err
-		}
-		root = filepath.Dir(common)
-		// Up out of a repository cloned inside another's work tree.
-		outer, err := g.run(ctx, filepath.Dir(root), "rev-parse", "--show-toplevel")
-		if err != nil {
-			break
-		}
-		dir = outer
-	}
-	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() || filepath.Join(root, ".git") != common {
-		return "", fmt.Errorf("%s: the repository keeps its git directory elsewhere (%s)", root, common)
-	}
-	return root, nil
-}
-
 // Origin returns the origin URL of the repository at path, or "" when it has none.
 func Origin(ctx context.Context, path string) (string, error) {
 	g := gitRunner{}

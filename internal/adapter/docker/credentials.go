@@ -1,12 +1,14 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/moby/moby/api/types/mount"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
@@ -92,4 +94,27 @@ func credentialsMount(id domain.SessionID, opts Options) mount.Mount {
 		Type: mount.TypeBind, Source: sessionCredentials{root: opts.CredentialsDir, id: id}.dir(),
 		Target: credentialsDir, ReadOnly: true,
 	}
+}
+
+// ReadGitHubToken reads the token write puts into gh's config, for acp cleanup-check in the agent's
+// container, or "" without a GitHub App (no config). With a config but no token, it fails: judging
+// without the remote would miss what the cleanup sees there, such as open pull requests.
+func ReadGitHubToken(configDir string) (string, error) {
+	if configDir == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(filepath.Join(configDir, "hosts.yml"))
+	if err != nil {
+		return "", fmt.Errorf("read the GitHub token: %w", err)
+	}
+	var hosts map[string]struct {
+		OAuthToken string `yaml:"oauth_token"`
+	}
+	if err := yaml.Unmarshal(data, &hosts); err != nil {
+		return "", fmt.Errorf("read gh hosts: %w", err)
+	}
+	if hosts["github.com"].OAuthToken == "" {
+		return "", errors.New("read the GitHub token: none for github.com in gh's hosts")
+	}
+	return hosts["github.com"].OAuthToken, nil
 }

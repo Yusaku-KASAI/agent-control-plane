@@ -202,7 +202,9 @@
   - 残した知らせ（保持期間ごとの促しと、今すぐの片付けの返事）は、エージェントに「締めて」と頼むことと、
     `:wastebasket:` での片付けを案内する。
   - **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
-    保持期間によらず残す理由を種類と文面で返す。エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
+    保持期間によらず残す理由を種類と文面で返す。種類は下の判定の表の理由ごとで、作業領域の理由は
+    変更、stash、途中の操作、detached HEAD に分ける（[ADR 0047](../../adr/app/0047-cleanup-check-reads-the-given-workspace-and-splits-lost-pushes.md)）。
+    エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
 - **関係**：usecase のポート（`SessionRepository`、`SessionWorkspace`、`SessionBranches`、`SessionFiles`、
   `SessionNotifier`、`SessionHolder`）だけに依存する。休んでいるワーカーを手放させるのは `SessionHolder`
   （`Dispatcher.Release`）。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
