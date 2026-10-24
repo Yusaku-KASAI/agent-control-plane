@@ -175,7 +175,6 @@ func resumes(configDir string, agent domain.AgentName, s domain.Session) (bool, 
 	return len(matches) > 0, err
 }
 
-// containerSpec starts Claude Code with --resume when resume is set, and with --session-id otherwise.
 func containerSpec(req usecase.StartRequest, resume bool, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
 	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.

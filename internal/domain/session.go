@@ -79,6 +79,8 @@ func (s Session) UsageBefore() *Usage {
 	return s.ReportedUsage
 }
 
+// IsNew tells whether the session has finished no turn. Its Claude Code conversation may exist all the
+// same, left by a first turn that ended before finishing.
 func (s Session) IsNew() bool {
 	return s.Turns == 0
 }
