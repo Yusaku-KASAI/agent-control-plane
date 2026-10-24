@@ -15,7 +15,7 @@ CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../
 それを `prctl` と hook で守らせる。あわせて、ターゲットの既定のブランチの守りが外れていないことを確かめる
 `check-protection` と、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)、
 [0017](../../../../template/docs/adr/0017-protection-check-follows-contract.md)）。開いている Issue とロードマップのずれのうち判断の
-要らないものを挙げる `check-issues` も配る（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)）。
+要らないものを挙げる `check-issues` も配る（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)）。
 
 ## 構成
 
@@ -140,11 +140,12 @@ github/
 - **置くもの / 置かないもの**：
   - 確かめるのは三つ。テーマの Issue（ラベル `theme`）とロードマップのほかの開いている Issue が、どこを変えるかのラベル
     （`theme`、`theme:*`、`canvas`、GitHub の既定のラベル（`isDefault`。conventions の課題の扱い方が使わないとする）のほかのラベル）と `theme:<名前>` を一つ以上ずつ持つこと。ピン留めした「ロードマップ」の
-    `## 今の焦点` の節が、このリポジトリの閉じた Issue を挙げていないこと（`<リポジトリ>#<番号>` のほかのリポジトリへの
-    参照と PR は数えない）。その節がなければ、それもずれとする。開いている Issue が、閉じた Issue に blocked by されていないこと。
+    `## 今の焦点` の節が、このリポジトリの開いている Issue だけを挙げていること（閉じた Issue、PR、このリポジトリにない
+    番号はずれ。`<リポジトリ>#<番号>` のほかのリポジトリへの参照は数えない）。その節がなければ、それもずれとする。
+    開いている Issue が、閉じた Issue に blocked by されていないこと。
   - 本文、重なり、順番、テーマの狙いは確かめない（判断が要り、課題を整える手順に任せる）。
   - Issue を書き換えない。読むだけ。CI では回さない（Issue は PR と関わりなく変わる）。課題を整えるときとセッションを
-    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)）。
+    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)）。
 - **関係**：`gh` と `jq` を使う。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
   スキルの「Issue のずれを挙げる」が届ける。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：ロードマップの今の焦点が古いまま残る

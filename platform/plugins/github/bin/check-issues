@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the open issues of a repository against conventions' docs/reference/issues.md ("整っている
 # 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
-# theme:<name> label, the roadmap's "## 今の焦点" names no closed issue, and no issue is blocked by a
+# theme:<name> label, the roadmap's "## 今の焦点" names only open issues of this repository (a closed
+# issue, a pull request, or a number that is neither here is a drift), and no issue is blocked by a
 # closed one. Only what needs no judgement is checked; the rest of the tidy state is left to the
 # procedure that tidies issues.
 #
@@ -61,14 +62,17 @@ else
     ng "the roadmap #$roadmap_number has no section ## 今の焦点"
   else
     focus=$(awk '/^## /{inside = ($0 ~ /^## 今の焦点/); next} inside' <<<"$body")
-    closed=() unknown=()
+    closed=() prs=() unknown=()
     err=$(mktemp)
     # Only #N counts as this repository's: other-repo#3 and URLs point elsewhere or are not read.
     while read -r n; do
       [[ -n $n ]] || continue
-      # The issues API answers for pull requests too; a pull request in the focus is not an issue.
+      # The issues API answers for pull requests too; the focus lists issues only (conventions' ADR 0029).
       if state=$(gh api "repos/$repo/issues/$n" --jq 'if .pull_request then "pull request" else .state end' 2>"$err"); then
-        [[ $state == closed ]] && closed+=("#$n")
+        case $state in
+          closed) closed+=("#$n") ;;
+          "pull request") prs+=("#$n") ;;
+        esac
       elif grep -qE 'HTTP (404|410)' "$err"; then
         unknown+=("#$n")
       else
@@ -76,11 +80,12 @@ else
       fi
     done < <(grep -oE '(^|[^[:alnum:]_/-])#[0-9]+' <<<"$focus" | grep -oE '[0-9]+$' | sort -un)
     rm -f "$err"
-    ((${#unknown[@]} == 0)) || ng "the roadmap #$roadmap_number names in 今の焦点 what is no issue here: ${unknown[*]}"
+    ((${#prs[@]} == 0)) || ng "the roadmap #$roadmap_number names pull requests in 今の焦点: ${prs[*]}"
+    ((${#unknown[@]} == 0)) || ng "the roadmap #$roadmap_number names in 今の焦点 what is neither an issue nor a pull request here: ${unknown[*]}"
     if ((${#closed[@]})); then
       ng "the roadmap #$roadmap_number names closed issues in 今の焦点: ${closed[*]}"
-    elif ((${#unknown[@]} == 0)); then
-      ok "the roadmap #$roadmap_number names no closed issue in 今の焦点"
+    elif ((${#prs[@]} + ${#unknown[@]} == 0)); then
+      ok "the roadmap #$roadmap_number names only open issues in 今の焦点"
     fi
   fi
 fi
