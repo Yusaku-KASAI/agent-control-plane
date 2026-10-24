@@ -19,10 +19,10 @@ import (
 // the session's branch, workspace and GitHub token are given.
 func cleanupCheck(ctx context.Context, getenv func(string) string, stdout, stderr io.Writer) int {
 	branch, dir := getenv("ACP_SESSION_BRANCH"), getenv("ACP_WORKSPACE")
-	for name, v := range map[string]string{"ACP_SESSION_BRANCH": branch, "ACP_WORKSPACE": dir} {
-		if v == "" {
+	for _, v := range [][2]string{{"ACP_SESSION_BRANCH", branch}, {"ACP_WORKSPACE", dir}} {
+		if v[1] == "" {
 			fmt.Fprintf(stderr, "acp: %s is not set; cleanup-check runs in an agent's container the control plane started"+
-				" (one started by an older control plane may lack it)\n", name)
+				" (one started by an older control plane may lack it)\n", v[0])
 			return 2
 		}
 	}

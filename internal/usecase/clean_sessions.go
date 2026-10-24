@@ -156,10 +156,10 @@ func reasons(f sessionFacts) []reason {
 		if !b.Unpushed || b.Name != "HEAD" && kept(b.Name, b.Tip) {
 			continue
 		}
-		// A branch at the very commit it pushed, which others pushed away, holds nothing it never
+		// A branch at a commit pushed, under any name, which others pushed away, holds nothing never
 		// pushed: that is the lost push alone. Without the remote, the lost push is unseen, so the
 		// commits stay the workspace's.
-		if slices.ContainsFunc(ws.Pushed, func(p BranchTip) bool { return p == b.BranchTip && lostPush(p) }) {
+		if slices.ContainsFunc(ws.Pushed, func(p BranchTip) bool { return p.Tip == b.Tip && lostPush(p) }) {
 			continue
 		}
 		add(reason{kind: reasonLostCommits, branch: b.Name})
