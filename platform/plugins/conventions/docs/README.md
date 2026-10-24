@@ -18,7 +18,7 @@
 | [guides/design.md](guides/design.md) | 手順 | パターンを当てはめる：変更の種類からパターンを選び、設計とレビューに使う |
 | [guides/review.md](guides/review.md) | 手順 | レビューする（目的の手順）：始めに読む、種類、差分のレビュー、全体のレビュー |
 | [guides/request-review.md](guides/request-review.md) | 手順 | レビューを頼んで答える（共通の手順）：頼む、答える、終える |
-| [guides/close-session.md](guides/close-session.md) | 手順 | セッションを締める（目的の手順）：始めに読む、開いている PR、洗い出す、残す、課題の今の姿、片付けられる状態にする、締めのまとめ |
+| [guides/close-session.md](guides/close-session.md) | 手順 | セッションを締める（目的の手順）：始めに読む、片付けを止めているもの、洗い出す、残す、課題の今の姿、片付けを止めているものを解く、締めのまとめ |
 | [guides/consult.md](guides/consult.md) | 手順 | 相談に乗る（目的の手順）：始めに読む、問い、調べる、広げて絞る、キャンバスに残す、答える |
 | [guides/organize-issues.md](guides/organize-issues.md) | 手順 | 課題を整える（目的の手順）：始めに読む、範囲、今の姿、ずれ、整える、まとめ |
 | [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
