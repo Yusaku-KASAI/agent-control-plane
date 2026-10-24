@@ -61,11 +61,17 @@ func (r *Runner) Start(ctx context.Context, req usecase.StartRequest) (usecase.P
 		return nil, fmt.Errorf("write credentials: %w", err)
 	}
 	// A volume subpath must exist before it is mounted.
-	if err := os.MkdirAll(filepath.Join(r.opts.ClaudeConfigDir, string(req.Agent.Name)), 0o755); err != nil {
+	config := agentClaudeConfigDir(r.opts, req.Agent.Name)
+	if err := os.MkdirAll(config, 0o755); err != nil {
 		return nil, fmt.Errorf("create claude config dir: %w", err)
 	}
 
-	created, err := r.api.ContainerCreate(ctx, containerSpec(req, plugins, r.opts))
+	resume, err := resumes(config, req.Session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("look for the saved conversation: %w", err)
+	}
+
+	created, err := r.api.ContainerCreate(ctx, containerSpec(req, resume, plugins, r.opts))
 	if err != nil {
 		return nil, fmt.Errorf("create container: %w", err)
 	}
@@ -156,7 +162,18 @@ const (
 	credentialsDir  = "/run/acp/credentials"
 )
 
-func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
+// resumes tells whether Claude Code must resume the session's conversation rather than start it:
+// whether it has saved one under the ID in the agent's config directory, as projects/<dir>/<id>.jsonl.
+// Claude Code refuses --session-id with an ID it has a conversation for, and --resume with one it has
+// none for. The session's finished turns do not tell: Claude Code saves the conversation as soon as
+// the first prompt arrives, before the turn finishes, and deletes it after cleanupPeriodDays. The ID
+// is a UUID, so the <dir> Claude Code derives from the working directory need not be known.
+func resumes(config string, id domain.SessionID) (bool, error) {
+	matches, err := filepath.Glob(filepath.Join(config, "projects", "*", string(id)+".jsonl"))
+	return len(matches) > 0, err
+}
+
+func containerSpec(req usecase.StartRequest, resume bool, plugins []pluginDir, opts Options) client.ContainerCreateOptions {
 	agent, s := req.Agent, req.Session
 	// Claude Code keys conversation history by working directory, so it must stay fixed per session.
 	workdir := agentWorkdir(agent)
@@ -165,7 +182,7 @@ func containerSpec(req usecase.StartRequest, plugins []pluginDir, opts Options) 
 		Config: &container.Config{
 			Image: agent.Target.Image,
 			// Relies on the target image contract in template/docs/reference/contract.md.
-			Cmd: claudeCommand(agent, s, pluginPaths),
+			Cmd: claudeCommand(agent, s.ID, resume, pluginPaths),
 			Env: append([]string{
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,
 				"ACP_SESSION_BRANCH=" + s.ID.Branch(),
@@ -211,10 +228,10 @@ func pluginMounts(plugins []pluginDir, workdir string) ([]string, []mount.Mount)
 	return paths, mounts
 }
 
-func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []string {
-	sessionFlag := "--resume"
-	if s.IsNew() {
-		sessionFlag = "--session-id"
+func claudeCommand(agent domain.Agent, id domain.SessionID, resume bool, plugins []string) []string {
+	sessionFlag := "--session-id"
+	if resume {
+		sessionFlag = "--resume"
 	}
 	cmd := []string{
 		"claude", "-p",
@@ -223,7 +240,7 @@ func claudeCommand(agent domain.Agent, s domain.Session, plugins []string) []str
 		"--replay-user-messages",
 		"--verbose",
 		"--agent", string(agent.Role),
-		sessionFlag, string(s.ID),
+		sessionFlag, string(id),
 		"--dangerously-skip-permissions",
 	}
 	for _, p := range plugins {
@@ -239,7 +256,12 @@ func claudeConfigMount(agent domain.AgentName, opts Options) mount.Mount {
 			VolumeOptions: &mount.VolumeOptions{Subpath: string(agent)},
 		}
 	}
-	return mount.Mount{Type: mount.TypeBind, Source: filepath.Join(opts.ClaudeConfigDir, string(agent)), Target: claudeConfigDir}
+	return mount.Mount{Type: mount.TypeBind, Source: agentClaudeConfigDir(opts, agent), Target: claudeConfigDir}
+}
+
+// agentClaudeConfigDir is where the control plane sees the agent's Claude Code config directory.
+func agentClaudeConfigDir(opts Options, agent domain.AgentName) string {
+	return filepath.Join(opts.ClaudeConfigDir, string(agent))
 }
 
 func credentialEnv(git domain.GitIdentity, creds domain.Credentials) []string {
