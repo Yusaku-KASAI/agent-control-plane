@@ -99,8 +99,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
       （終えたターンが 0 かで決まる）、`--dangerously-skip-permissions`、プラグインごとの `--plugin-dir` で動かす。
     - 作業ディレクトリは `/workspace/<ターゲットのディレクトリ名>`。Claude Code は会話の履歴を作業ディレクトリで
       引くので、セッションの間変えない。
-    - 環境変数は、`CLAUDE_CONFIG_DIR`、`ACP_SESSION_BRANCH`、`ACP_CO_AUTHORS_FILE` と、認証情報とコミットの作者
-      から決まるもの。
+    - 環境変数は、`CLAUDE_CONFIG_DIR`、`ACP_SESSION_BRANCH`、`ACP_WORKSPACE`（作業ディレクトリと同じパス。
+      `acp cleanup-check` が判定する作業領域）、`ACP_CO_AUTHORS_FILE` と、認証情報とコミットの作者から決まるもの。
     - マウントは、作業領域（書き込める）、エージェントの Claude Code の設定、セッションの認証情報（読み取り専用）、
       control-plane のバイナリ（`/run/acp/bin`、読み取り専用。エージェントが `acp cleanup-check` で片付けの判定を見る
       ため。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）、ターゲットの隣の

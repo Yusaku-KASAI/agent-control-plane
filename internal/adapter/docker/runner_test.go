@@ -574,7 +574,8 @@ func TestContainerSpec_EnvInHarnessContract(t *testing.T) {
 			if strings.HasPrefix(name, "GIT_CONFIG_") || name == "GH_NO_UPDATE_NOTIFIER" {
 				continue
 			}
-			// The contract names the workspace by the target's directory, which differs per agent.
+			// Only the name is checked here: TestContainerSpec checks the value is the working directory,
+			// which the contract writes by the target's directory name, differing per agent.
 			if name == "ACP_WORKSPACE" {
 				value = "/workspace/<名前>"
 			}
