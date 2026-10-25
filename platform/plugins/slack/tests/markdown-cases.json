@@ -533,5 +533,15 @@
     "name": "a reference link holds no bare URL",
     "text": "[注：https://x.example][1] と書く",
     "found": []
+  },
+  {
+    "name": "code blocks one after another indented less than their item's content are in the list",
+    "text": "1. 手順\n  ```bash\n  make check\n  ```\n  ```bash\n  make test\n  ```",
+    "found": [2, 5]
+  },
+  {
+    "name": "a code block after text indented less than its item's content is in the list",
+    "text": "1. 手順\n  ```bash\n  make check\n  ```\n  続けて実行する\n  ```bash\n  make test\n  ```",
+    "found": [2, 6]
   }
 ]
