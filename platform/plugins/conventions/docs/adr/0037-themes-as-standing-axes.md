@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-25
 amends: [1]
+amended_by: [38]
 ---
 
 # 0037. テーマの Issue は閉じずに続く軸とし、本文は狙いと進め方にして、終えたときの状態を持たない
