@@ -562,7 +562,7 @@ func (b *Bot) updateStatus(m *statusMessage) {
 func (b *Bot) writeStatus(ctx context.Context, m *statusMessage, ts, text string) error {
 	opts := []slack.MsgOption{
 		slack.MsgOptionText(fallbackText(text), false),
-		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", text)),
+		slack.MsgOptionBlocks(markdownBlock(text)),
 	}
 	api, err := b.web(ctx)
 	if err != nil {

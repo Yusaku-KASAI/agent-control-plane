@@ -75,7 +75,7 @@ func TestMessageFromMention(t *testing.T) {
 
 func TestRequestPrompt(t *testing.T) {
 	got := requestPrompt("U1", "C1", "12.0", "10.0")
-	for _, want := range []string{"<@U1>", "channel C1 / ts 12.0", "channel C1 / thread_ts 10.0", "slack スキル"} {
+	for _, want := range []string{"<@U1>", "channel C1 / ts 12.0", "channel C1 / thread_ts 10.0", "slack スキル", "「書く」の書き方"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("prompt lacks %q:\n%s", want, got)
 		}
@@ -85,6 +85,9 @@ func TestRequestPrompt(t *testing.T) {
 func TestMarkdownText(t *testing.T) {
 	if got := markdownText("short"); got != "short" {
 		t.Errorf("markdownText(short) = %q", got)
+	}
+	if got := markdownBlock("PR：https://example.com/pull/1").Text; got != "PR：<https://example.com/pull/1>" {
+		t.Errorf("markdownBlock did not fit the text to Slack: %q", got)
 	}
 	long := strings.Repeat("あ", maxMarkdown+10)
 	got := markdownText(long)

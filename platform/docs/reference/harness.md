@@ -22,6 +22,8 @@
 - Slack からの依頼では、プロンプトは依頼のメッセージの場所だけを指す。本文とスレッドは、エージェントが Slack から読む。
 - ターンの最後の回答は control-plane がスレッドに投稿する（長い回答は途中で省かれるので、長い結果は PR やファイルに
   置く）。自分で投稿しない。依頼に答えるターンの回答は、バックグラウンドの処理が残っていても投稿される。
+- Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示されるので、slack スキルの
+  「書く」の書き方で書く。依頼のプロンプトもそう指す。
 - サブエージェント（Agent）は、harness プラグインの hook がフォアグラウンドで動かす
   （[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。hook は、Agent の呼び出しの `run_in_background` を
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。

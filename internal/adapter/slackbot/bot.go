@@ -232,7 +232,8 @@ slack スキルの手順で次のメッセージを読み、その依頼に応�
 - 依頼のメッセージ: channel %s / ts %s
 - スレッド: channel %s / thread_ts %s
 
-最後の回答は control-plane がこのスレッドに投稿します。回答を自分で投稿しないでください。`, user, channel, ts, channel, thread)
+最後の回答は control-plane がこのスレッドに投稿します。回答を自分で投稿しないでください。
+回答は Slack で表示されるので、slack スキルの「書く」の書き方に沿って書いてください。`, user, channel, ts, channel, thread)
 }
 
 // The reactions on a request's message tell how far it has come (docs/adr/app/0038).
@@ -298,7 +299,7 @@ func (b *Bot) Post(ctx context.Context, c domain.Conversation, text string) erro
 	_, _, err = api.PostMessageContext(ctx, c.Channel,
 		slack.MsgOptionTS(c.Thread),
 		slack.MsgOptionText(fallbackText(text), false),
-		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", markdownText(text))),
+		slack.MsgOptionBlocks(markdownBlock(text)),
 	)
 	return err
 }
@@ -309,8 +310,15 @@ const (
 	maxFallback = 3_000
 )
 
+// markdownBlock carries text to Slack; every message the bot writes goes in one.
+func markdownBlock(text string) *slack.MarkdownBlock {
+	return slack.NewMarkdownBlock("", markdownText(text))
+}
+
+// markdownText fits text to the markdown block: it rewrites the forms Slack reads differently,
+// then truncates.
 func markdownText(text string) string {
-	return truncate(text, maxMarkdown, "\n\n…（長いため省略しました。全文は作業領域や PR を確認してください）")
+	return truncate(slackMarkdown(text), maxMarkdown, "\n\n…（長いため省略しました。全文は作業領域や PR を確認してください）")
 }
 
 func fallbackText(text string) string {
