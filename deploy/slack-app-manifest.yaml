@@ -16,7 +16,7 @@ oauth_config:
       - app_mentions:read # receive mentions
       - channels:history # read threads, in the control plane and the agent
       - groups:history
-      - chat:write # replies and status messages
+      - chat:write # replies, status messages, and the agent's posts when asked
       - reactions:read # stop and clean reactions
       - reactions:write # acknowledgement reactions
 settings:
