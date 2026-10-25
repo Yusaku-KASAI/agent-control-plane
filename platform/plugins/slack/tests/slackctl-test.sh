@@ -60,7 +60,18 @@ check "formatting in a heading is found" 1 "$(found '## **見出し**')"
 check "an entity reference, which may be meant, passes" 0 "$(found '`&amp;` の件')"
 check "a code block in a list item is found" 1 "$(found $'- 項目\n  ```\n  code\n  ```')"
 check "the text after a code block is read" 1 "$(found $'```\ncode\n```\nPR：https://x.example')"
+check "a URL in a link text passes" 0 "$(found '[https://x.example/a](https://x.example/a)、後')"
+check "a code block in a quote is not read" 0 "$(found $'> ```\n> PR：https://x.example\n> ```')"
+check "an unindented code block splits an ordered list" 0 "$(found $'1. 一\n   - 子\n\n```\ncode\n```\n\n2. 二')"
 check "the inside of a code block is not read" 0 "$(found $'```\nPR：https://x.example\n## **x**\n```')"
+
+# A failure of the check is not taken for the forms Slack reads differently.
+mkdir -p "$tmp/broken"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$tmp/broken/python3"
+chmod +x "$tmp/broken/python3"
+got=$(PATH=$tmp/broken:$PATH "$cmd" check <<<'text' 2>&1 || true)
+check "a failing check-markdown is told as a failure" "slackctl: check-markdown failed (exit 1)" "$got"
+check "broken UTF-8 is read" 1 "$(found "$(printf 'PR：https://x.example\xff')")"
 
 # post: the forms Slack reads differently stop the post unless --force.
 echo '{"ok": true, "channel": "C1", "ts": "9.0"}' >"$tmp/api/chat.postMessage.json"

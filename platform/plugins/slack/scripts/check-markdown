@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Finds, in standard Markdown read from stdin, the forms Slack's markdown block reads differently.
 
-Prints one line per finding ("line N: ...") and exits 1 if there is any, 0 otherwise. What Slack does
+Prints one line per finding ("line N: ...") and exits 3 if there is any, 0 otherwise (1, as for an
+uncaught exception, is a failure of the check). What Slack does
 with each form is in the slack plugin's reference (docs/reference/markdown.md).
 """
 
@@ -12,7 +13,7 @@ ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+[.)])\s+")
 ORDERED_ITEM = re.compile(r"^(\s*)\d+[.)]\s+")
 DELIMITER_ROW = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
-FENCE = re.compile(r"^(\s*(?:(?:[-*+]|\d+[.)])\s+)?)(`{3,}|~{3,})")
+FENCE = re.compile(r"^((?:\s*>)*)(\s*)((?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
 URL = re.compile(r"https?://[^\s<>`\"]+")
 
@@ -41,9 +42,9 @@ def bare_url_findings(text):
     for m in URL.finditer(text):
         start = m.start()
         before = text[start - 1] if start else " "
-        if before == "<" or text[max(0, start - 2):start] == "](":
+        if before in "<[" or text[max(0, start - 2):start] == "](":
             continue
-        url = m.group(0)
+        url = m.group(0).split("](")[0]
         tail = re.search(r"[^\x21-\x7e]", url)
         if not (before.isspace() or before in ASCII_PUNCT) or tail:
             yield "URL を <https://…> で囲む（前後に日本語が続くと、リンクにならないか、後ろの文字までリンクに入る）"
@@ -66,7 +67,7 @@ def bold_findings(text):
 def check(lines):
     findings = []
     fence = None
-    list_indent = None  # the indent of the list the lines are in, if any
+    in_list = False
     ordered = {}  # indent -> whether a nested list came under the last ordered item at that indent
     for n, line in enumerate(lines, 1):
         def note(message):
@@ -79,9 +80,12 @@ def check(lines):
             continue
         m = FENCE.match(line)
         if m:
-            fence = m.group(2)
-            if m.group(1).strip() or (m.group(1) and list_indent is not None):
+            fence = m.group(4)
+            if m.group(3) or (m.group(2) and in_list):
                 note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
+            elif not m.group(2):
+                in_list = False
+                ordered.clear()
             continue
 
         if not line.strip():
@@ -89,7 +93,7 @@ def check(lines):
         item = LIST_ITEM.match(line)
         indent = len(line) - len(line.lstrip())
         if item:
-            list_indent = 0 if list_indent is None else list_indent
+            in_list = True
             for k in list(ordered):
                 if k < indent:
                     ordered[k] = True
@@ -102,7 +106,7 @@ def check(lines):
             else:
                 ordered.pop(indent, None)
         elif indent == 0:
-            list_indent = None
+            in_list = False
             ordered.clear()
 
         text = outside_code(line)
@@ -119,10 +123,11 @@ def check(lines):
 
 
 def main():
+    sys.stdin.reconfigure(errors="replace")
     findings = check(sys.stdin.read().split("\n"))
     for f in findings:
         print(f)
-    return 1 if findings else 0
+    return 3 if findings else 0
 
 
 if __name__ == "__main__":

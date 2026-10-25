@@ -111,7 +111,7 @@ check_forms() {
   local found status=0
   found=$(printf '%s' "$1" | python3 -I "$plugin/scripts/check-markdown") || status=$?
   ((status != 0)) || return 0
-  ((status == 1)) || die "check-markdown failed (exit $status)"
+  ((status == 3)) || die "check-markdown failed (exit $status)"
   printf '%s\n' "$found" >&2
   return 1
 }
