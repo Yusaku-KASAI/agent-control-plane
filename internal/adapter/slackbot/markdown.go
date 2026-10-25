@@ -93,41 +93,64 @@ func indentOf(s string) int {
 	return width(s[:leadLength(s)])
 }
 
-// listItems follows the list items open at a line: the column where each one's content starts,
-// innermost last. A line of text indented less than an item's content ends the item; a line of
-// text that carries on an item without the indent (a lazy continuation) is taken to end it too.
+// listItems follows the list items open at a line, for each quote it is in, outermost first: the
+// column where each item's content starts, innermost last. A line of text, or a quote mark,
+// indented less than an item's content ends the item; a line of text that carries on an item
+// without the indent (a lazy continuation) is taken to end it too. A quote within an item has
+// lists of its own, and once it ends, the item's go on.
 type listItems struct {
-	quotes int
-	cols   []int
+	levels [][]int
 }
+
+var listMarker = regexp.MustCompile(`^(?:[-*+]|\d+[.)])[ \t]+`)
 
 // see takes in a line outside code blocks.
 func (l *listItems) see(line string) {
-	quotes, rest := unquote(line, len(line))
-	if quotes != l.quotes {
-		l.quotes, l.cols = quotes, nil
+	rest, depth := line, 0
+	for {
+		if len(l.levels) <= depth {
+			l.levels = append(l.levels, nil)
+		}
+		if strings.TrimSpace(rest) == "" {
+			// A blank line ends the quotes deeper than it.
+			l.levels = l.levels[:depth+1]
+			return
+		}
+		lead := leadLength(rest)
+		l.end(depth, width(rest[:lead]))
+		m := quoteMark.FindString(rest)
+		if m == "" {
+			break
+		}
+		rest, depth = rest[len(m):], depth+1
 	}
-	if strings.TrimSpace(rest) == "" {
-		return
+	l.levels = l.levels[:depth+1]
+	at := leadLength(rest)
+	for m := listMarker.FindString(rest[at:]); m != ""; m = listMarker.FindString(rest[at:]) {
+		at += len(m)
+		l.levels[depth] = append(l.levels[depth], width(rest[:at]))
 	}
-	lead := leadLength(rest)
-	for len(l.cols) > 0 && l.cols[len(l.cols)-1] > width(rest[:lead]) {
-		l.cols = l.cols[:len(l.cols)-1]
+}
+
+// end ends the items of a quote that a line of text at indent leaves.
+func (l *listItems) end(depth, indent int) {
+	cols := l.levels[depth]
+	for len(cols) > 0 && cols[len(cols)-1] > indent {
+		cols = cols[:len(cols)-1]
 	}
-	if m := listMarkers.FindString(rest[lead:]); m != "" {
-		l.cols = append(l.cols, width(rest[:lead+len(m)]))
-	}
+	l.levels[depth] = cols
 }
 
 // content gives where the content of the innermost item holding a block at col starts, or 0
 // outside any item.
 func (l *listItems) content(quotes, col int) int {
-	if quotes != l.quotes {
+	if quotes >= len(l.levels) {
 		return 0
 	}
-	for i := len(l.cols) - 1; i >= 0; i-- {
-		if l.cols[i] <= col {
-			return l.cols[i]
+	cols := l.levels[quotes]
+	for i := len(cols) - 1; i >= 0; i-- {
+		if cols[i] <= col {
+			return cols[i]
 		}
 	}
 	return 0
