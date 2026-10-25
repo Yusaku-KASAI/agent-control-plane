@@ -12,17 +12,21 @@ import (
 func slackMarkdown(text string) string {
 	lines := strings.Split(text, "\n")
 	out := make([]string, 0, len(lines))
-	var fence string
+	var code *fence
 	for i, line := range lines {
-		if fence != "" {
-			if closesFence(line, fence) {
-				fence = ""
+		if code != nil {
+			if code.holds(line) {
+				if code.closedBy(line) {
+					code = nil
+				}
+				out = append(out, line)
+				continue
 			}
-			out = append(out, line)
-			continue
+			// The quote or list item of the code block has ended, and the block with it.
+			code = nil
 		}
-		if f := opensFence(line); f != "" {
-			fence = f
+		if f, ok := opensFence(line); ok {
+			code = &f
 			out = append(out, line)
 			continue
 		}
@@ -34,31 +38,68 @@ func slackMarkdown(text string) string {
 	return strings.Join(out, "\n")
 }
 
-// opensFence gives the fence a line opens (its run of backticks or tildes), or "" if it opens none.
-// Fences are taken at any indent and in quotes, since a fence in a list item is indented.
-func opensFence(line string) string {
-	s := blockContent(line)
+// fence is an open code block: its run of backticks or tildes, how many quote marks hold it, and,
+// in a list item or indented, the column of the run after the quote marks. As in CommonMark, the
+// block ends with its quote, and in a list item with the item: at a line with fewer quote marks,
+// or at a line of text indented less than the run. The same rules are in the slack plugin's
+// check-markdown, and both are tried on its cases (platform/plugins/slack/tests/markdown-cases.json).
+type fence struct {
+	run            string
+	quotes, indent int
+}
+
+var (
+	quoteMark   = regexp.MustCompile(`^ {0,3}> ?`)
+	listMarkers = regexp.MustCompile(`^(?:(?:[-*+]|\d+[.)])[ \t]+)*`)
+)
+
+// unquote drops up to max quote marks from the start of a line, and tells how many it dropped.
+func unquote(line string, max int) (int, string) {
+	n := 0
+	for n < max {
+		m := quoteMark.FindString(line)
+		if m == "" {
+			break
+		}
+		line = line[len(m):]
+		n++
+	}
+	return n, line
+}
+
+// opensFence gives the code block a line opens, if it opens one. The run may follow quote marks,
+// an indent and list markers, since a code block in a list item is indented or starts the item.
+func opensFence(line string) (fence, bool) {
+	quotes, rest := unquote(line, len(line))
+	col := len(rest) - len(strings.TrimLeft(rest, " \t"))
+	col += len(listMarkers.FindString(rest[col:]))
+	s := rest[col:]
 	for _, c := range []string{"`", "~"} {
 		n := len(s) - len(strings.TrimLeft(s, c))
+		// A backtick run with a backtick after it is inline code (```x```), not a fence.
 		if n >= 3 && (c == "~" || !strings.Contains(s[n:], "`")) {
-			return s[:n]
+			return fence{run: s[:n], quotes: quotes, indent: col}, true
 		}
 	}
-	return ""
+	return fence{}, false
 }
 
-// closesFence tells whether a line closes the fence. A closing fence carries no list marker, so a
-// line like "- ```" inside a fence is content.
-func closesFence(line, fence string) bool {
-	s := strings.TrimSpace(strings.TrimLeft(line, " \t>"))
-	return strings.HasPrefix(s, fence) && strings.Trim(s, fence[:1]) == ""
+// holds tells whether a line is still within the quote and the list item of the code block.
+func (f fence) holds(line string) bool {
+	n, rest := unquote(line, f.quotes)
+	if n < f.quotes {
+		return false
+	}
+	text := strings.TrimLeft(rest, " \t")
+	return text == "" || len(rest)-len(text) >= f.indent
 }
 
-var blockMarks = regexp.MustCompile(`^(?:[ \t>]|[-*+][ \t]|\d+[.)][ \t])*`)
-
-// blockContent drops the indent, the quote marks and the list markers before a line's content.
-func blockContent(line string) string {
-	return line[len(blockMarks.FindString(line)):]
+// closedBy tells whether a line closes the code block. A closing run carries no list marker, so a
+// line like "- ```" in a code block is code.
+func (f fence) closedBy(line string) bool {
+	_, rest := unquote(line, f.quotes)
+	s := strings.TrimSpace(rest)
+	return strings.HasPrefix(s, f.run) && strings.Trim(s, f.run[:1]) == ""
 }
 
 var delimiterRow = regexp.MustCompile(`^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
@@ -94,15 +135,9 @@ func bracketURLs(line string) string {
 			}
 			brackets = brackets[:len(brackets)-1]
 		case line[i] == '`':
-			n := runLength(line, i, '`')
-			if end := strings.Index(line[i+n:], line[i:i+n]); end >= 0 {
-				end += i + 2*n
-				b.WriteString(line[i:end])
-				i = end
-				continue
-			}
-			b.WriteString(line[i : i+n])
-			i += n
+			end := codeSpanEnd(line, i)
+			b.WriteString(line[i:end])
+			i = end
 			continue
 		case linkText == 0 && schemeLength(line[i:]) > 0:
 			// The whole URL is passed over, so that a URL inside it (?next=https://…) is not taken
@@ -120,6 +155,16 @@ func bracketURLs(line string) string {
 		i++
 	}
 	return b.String()
+}
+
+// codeSpanEnd gives where the code span opening at the backticks at i ends. Backticks that close
+// nowhere are text, and only they are passed over.
+func codeSpanEnd(line string, i int) int {
+	n := runLength(line, i, '`')
+	if end := strings.Index(line[i+n:], line[i:i+n]); end >= 0 {
+		return i + end + 2*n
+	}
+	return i + n
 }
 
 func runLength(s string, i int, c byte) int {
@@ -147,12 +192,7 @@ func opensLinkText(line string, i int) bool {
 		switch line[j] {
 		case '`':
 			// A code span binds tighter than the brackets of a link, so its ] are not counted.
-			n := runLength(line, j, '`')
-			if end := strings.Index(line[j+n:], line[j:j+n]); end >= 0 {
-				j += end + 2*n - 1
-			} else {
-				j += n - 1
-			}
+			j = codeSpanEnd(line, j) - 1
 		case '[':
 			depth++
 		case ']':
