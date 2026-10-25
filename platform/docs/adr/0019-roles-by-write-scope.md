@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-19
 amends: [7, 18]
-amended_by: [25]
+amended_by: [26]
 ---
 
 # 0019. ロールは書ける範囲と受け持つ手順で分け、developer もレビューするを受け持つ

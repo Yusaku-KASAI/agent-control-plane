@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-20
 amends: [21, 24]
-amended_by: [30, 32]
+amended_by: [30, 33]
 ---
 
 # 0025. 相談に乗ると課題を整えるを目的の手順にし、相談の考えは Issue をキャンバスにして残す

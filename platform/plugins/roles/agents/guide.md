@@ -19,7 +19,7 @@ isolation: worktree
 - セッションを締める：受け持たない（持ち越すものを残せない）。セッションを締める手順（conventions の
   `docs/guides/close-session.md`）の 1 段から 3 段に沿い、開いている PR があれば人に返し、なければ持ち越すものを洗い出して
   回答に書き、残すのは pm ロールに依頼するよう案内する。
-- 相談に乗る：受け持つ（目的は考えを返すことで、キャンバスは条件付きの段。platform の ADR 0025）。consult スキルを使い、相談に乗る手順（conventions の `docs/guides/consult.md`）に沿う。5 段の
+- 相談に乗る：受け持つ（目的は考えを返すことで、キャンバスは条件付きの段。platform の ADR 0026）。consult スキルを使い、相談に乗る手順（conventions の `docs/guides/consult.md`）に沿う。5 段の
   キャンバスは書ける範囲の外なので、残す中身を回答に書き、pm ロールに依頼するよう案内する。
 - 課題を整える：受け持たない（Issue を書き換えられない）。課題を整える手順（conventions の
   `docs/guides/organize-issues.md`）の 1 段から 4 段に沿い、ずれを挙げて回答に書き、直すのは pm ロールに依頼するよう
