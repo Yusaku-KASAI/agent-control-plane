@@ -463,7 +463,7 @@ func TestObserveSumsSpent(t *testing.T) {
 
 func TestStatusViewRenderClosingSuggestion(t *testing.T) {
 	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
-	const suggestion = "💡 コンテキストが約 45 万トークンになりました。"
+	const suggestion = "💡 コンテキストが約 45 万トークンです。"
 	tests := []struct {
 		name  string
 		view  statusView
@@ -481,6 +481,14 @@ func TestStatusViewRenderClosingSuggestion(t *testing.T) {
 		got := tc.view.render(start)
 		if strings.Contains(got, suggestion) != tc.shown {
 			t.Errorf("%s: render shows the suggestion = %v, want %v:\n%s", tc.name, !tc.shown, tc.shown, got)
+		}
+	}
+}
+
+func TestTokenCount(t *testing.T) {
+	for n, want := range map[int64]string{8_000: "8000 トークン", 10_000: "1 万トークン", 456_789: "45 万トークン"} {
+		if got := tokenCount(n); got != want {
+			t.Errorf("tokenCount(%d) = %q, want %q", n, got, want)
 		}
 	}
 }

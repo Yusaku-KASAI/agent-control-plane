@@ -97,14 +97,23 @@ func (v spentView) render() string {
 	return fmt.Sprintf("費用の見積もり：この依頼 %s・セッションの合計 %s\n", turns, session)
 }
 
-// closingSuggestion asks to close a session whose context grew large, since every request the agent
-// makes reads the whole context: one piece of work per thread keeps that small.
+// closingSuggestion asks to move on to a new thread once the session's context grew large, since
+// every request the agent makes reads the whole context. It also shows on the turn that closes the
+// session, which the control plane cannot tell, so it reads right after closing too.
 func (v statusView) closingSuggestion() string {
 	if v.suggestClosingAt <= 0 || v.contextTokens < v.suggestClosingAt {
 		return ""
 	}
-	return fmt.Sprintf("💡 コンテキストが約 %d 万トークンになりました。作業に区切りがついたら「締めて」と頼み、次の作業は新しいスレッドで依頼すると、費用を抑えられます\n",
-		v.contextTokens/10_000)
+	return fmt.Sprintf("💡 コンテキストが約 %sです。次の作業は新しいスレッドで依頼すると、費用を抑えられます（締めるには「締めて」と頼んでください）\n",
+		tokenCount(v.contextTokens))
+}
+
+// tokenCount rounds n down to ten thousands, as people count large numbers in Japanese.
+func tokenCount(n int64) string {
+	if n < 10_000 {
+		return fmt.Sprintf("%d トークン", n)
+	}
+	return fmt.Sprintf("%d 万トークン", n/10_000)
 }
 
 func dollars(usd float64) string {
