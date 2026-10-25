@@ -347,7 +347,7 @@
   {
     "name": "a code block left open in a list item, before an item opening one",
     "text": "- 一\n  ```\n  code\n- ```\n  https://in.example\n  ```\n本文：https://out.example",
-    "found": [2, 4, 7]
+    "found": [2, 7]
   },
   {
     "name": "a code block in a quote ends with the quote",
@@ -490,8 +490,33 @@
     "found": [2, 8]
   },
   {
-    "name": "an item like a sibling in a code block in a list item ends the item",
+    "name": "a line like a sibling item in a closed code block is code",
     "text": "1. 作る\n   ```bash\n   cat <<EOF > list.md\n1. 一：https://in.example\nEOF\n   ```\n2. 次：https://out.example",
-    "found": [2, 4]
+    "found": [2, 7]
+  },
+  {
+    "name": "a closing run without the quote mark closes a code block in a quote",
+    "text": "> ```\n> code\n```\n後：https://x.example",
+    "found": [4]
+  },
+  {
+    "name": "a blank line in a code block in a quote is code",
+    "text": "> ```\n> a\n\n> b\n> ```\n> 後：https://x.example",
+    "found": [6]
+  },
+  {
+    "name": "a line without the quote mark in a code block in a quote is code",
+    "text": "> ```\n> a\nlazy\n> ```\n> 後：https://x.example",
+    "found": [5]
+  },
+  {
+    "name": "a code block after a list marker and a quote mark",
+    "text": "- > ```\n  > PR：https://in.example\n  > ```\n後：https://out.example",
+    "found": [1, 4]
+  },
+  {
+    "name": "a code block after a number and a quote mark",
+    "text": "1. > ```\n   > PR：https://in.example\n   > ```\n後：https://out.example",
+    "found": [1, 4]
   }
 ]

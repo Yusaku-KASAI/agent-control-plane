@@ -12,24 +12,14 @@ import (
 func slackMarkdown(text string) string {
 	lines := strings.Split(text, "\n")
 	out := make([]string, 0, len(lines))
-	var code *fence
 	var list listItems
-	for i, line := range lines {
-		if code != nil {
-			if code.holds(line) {
-				if code.closedBy(line) {
-					code = nil
-				}
-				out = append(out, line)
-				continue
-			}
-			// The quote or list item of the code block has ended, and the block with it.
-			code = nil
-		}
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		list.see(line)
 		if f, opens := opensFence(line, &list); opens {
-			code = &f
-			out = append(out, line)
+			end := f.end(lines, i)
+			out = append(out, lines[i:end+1]...)
+			i = end
 			continue
 		}
 		if i > 0 && strings.TrimSpace(lines[i-1]) != "" && startsTable(lines, i) {
@@ -40,10 +30,14 @@ func slackMarkdown(text string) string {
 	return strings.Join(out, "\n")
 }
 
-// fence is an open code block: its run of backticks or tildes, how many quote marks hold it, and,
-// in a list item, the column where the item's content starts after the quote marks and the items
-// holding it. As in CommonMark, the block ends with its quote, and in a list item with the item: at
-// a line with fewer quote marks, or at an item that follows one holding the block (a sibling).
+// fence is a code block: its run of backticks or tildes, and, for when it is left open, how many
+// quote marks hold it, the column where the content of the list item holding it starts, and the
+// items holding it. A code block runs to its closing run, whatever quotes and list items the lines
+// between are in, so that a line such as a here-document's EOF, or a line without the quote mark,
+// stays code. Only a code block that has no closing run ends with its quote or its list item, as
+// in CommonMark: at a line with fewer quote marks, or at an item that follows one holding the
+// block (a sibling). The same rules are in the slack plugin's check-markdown, and both read the
+// plugin's cases (platform/plugins/slack/tests/markdown-cases.json).
 type fence struct {
 	run            string
 	quotes, indent int
@@ -51,9 +45,8 @@ type fence struct {
 }
 
 var (
-	quoteMark   = regexp.MustCompile(`^[ \t]*> ?`)
-	listMarkers = regexp.MustCompile(`^(?:(?:[-*+]|\d+[.)])[ \t]+)*`)
-	listMarker  = regexp.MustCompile(`^(?:[-*+]|\d+([.)]))[ \t]+`)
+	quoteMark  = regexp.MustCompile(`^[ \t]*> ?`)
+	listMarker = regexp.MustCompile(`^(?:[-*+]|\d+([.)]))[ \t]+`)
 )
 
 // unquote drops up to max quote marks from the start of a line, and tells how many it dropped.
@@ -176,18 +169,25 @@ func (l *listItems) holding(quotes, col int) []listItem {
 	return append([]listItem(nil), items[:n]...)
 }
 
+var blockMarks = regexp.MustCompile(`^(?:[ \t>]|[-*+][ \t]|\d+[.)][ \t])*`)
+
 // opensFence gives the code block a line opens, if it opens one, after the list has taken in the
-// line. The run may follow quote marks, an indent and list markers, since a code block in a list
-// item is indented or starts the item.
+// line. The run may follow quote marks, an indent and list markers in any order, since a code block
+// in a list item is indented or starts the item.
 func opensFence(line string, list *listItems) (fence, bool) {
-	quotes, rest := unquote(line, len(line))
-	at := leadLength(rest) + len(listMarkers.FindString(rest[leadLength(rest):]))
-	s := rest[at:]
+	prefix := blockMarks.FindString(line)
+	s := line[len(prefix):]
 	for _, c := range []string{"`", "~"} {
 		n := len(s) - len(strings.TrimLeft(s, c))
 		// A backtick run with a backtick after it is inline code (```x```), not a fence.
 		if n >= 3 && (c == "~" || !strings.Contains(s[n:], "`")) {
-			items := list.holding(quotes, width(rest[:at]))
+			// The column counts from after the last quote mark and the space that may follow it.
+			quotes := strings.Count(prefix, ">")
+			inner := prefix
+			if quotes > 0 {
+				inner = strings.TrimPrefix(prefix[strings.LastIndex(prefix, ">")+1:], " ")
+			}
+			items := list.holding(quotes, width(inner))
 			indent := 0
 			if len(items) > 0 {
 				indent = items[len(items)-1].content
@@ -198,11 +198,25 @@ func opensFence(line string, list *listItems) (fence, bool) {
 	return fence{}, false
 }
 
-// holds tells whether a line is still within the quote and the list item of the code block.
-// Unlike in CommonMark, a line indented less than the item ends the block only if it starts a
-// sibling of an item holding the block: a line such as a here-document's EOF, its list, or the
-// closing run, is more likely meant as code, and ending the block there would open another one
-// over the rest of the text.
+// end gives the last line of the code block opening at lines[i]: its closing run, or, if it has
+// none, the last line before its quote or list item ends.
+func (f fence) end(lines []string, i int) int {
+	for j := i + 1; j < len(lines); j++ {
+		if f.closedBy(lines[j]) {
+			return j
+		}
+	}
+	for j := i + 1; j < len(lines); j++ {
+		if !f.holds(lines[j]) {
+			return j - 1
+		}
+	}
+	return len(lines) - 1
+}
+
+// holds tells whether a line is still within the quote and the list item of a code block left
+// open. A line indented less than the item ends it only if it starts a sibling of an item holding
+// the block; any other line, such as one carrying on the item without the indent, is taken as code.
 func (f fence) holds(line string) bool {
 	n, rest := unquote(line, f.quotes)
 	if n < f.quotes {
@@ -224,10 +238,9 @@ func (f fence) holds(line string) bool {
 }
 
 // closedBy tells whether a line closes the code block. A closing run carries no list marker, so a
-// line like "- ```" in a code block is code.
+// line like "- ```" in a code block is code; it may follow quote marks, whichever quotes hold it.
 func (f fence) closedBy(line string) bool {
-	_, rest := unquote(line, f.quotes)
-	s := strings.TrimSpace(rest)
+	s := strings.TrimSpace(strings.TrimLeft(line, " \t>"))
 	return strings.HasPrefix(s, f.run) && strings.Trim(s, f.run[:1]) == ""
 }
 
