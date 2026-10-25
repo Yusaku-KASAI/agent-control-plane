@@ -160,6 +160,9 @@ type TurnResult struct {
 	UsageLimited bool
 	// Usage is the session's total that the agent reported at the end of the turn.
 	Usage domain.Usage
+	// ContextTokens is the size of the conversation the agent's last API request in the turn read,
+	// subagents left out; 0 when the turn made none that reported it.
+	ContextTokens int64
 }
 
 // TurnRecord is what one finished turn spent, and on whose behalf.

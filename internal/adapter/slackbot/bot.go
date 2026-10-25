@@ -27,6 +27,9 @@ type Bot struct {
 	sm        *socketmode.Client
 	handler   *usecase.HandleMessage
 	log       *slog.Logger
+	// suggestClosingAt is the agent's context size, in tokens, from which a finished status message
+	// suggests closing the session; 0 never suggests it.
+	suggestClosingAt int64
 
 	webMu    sync.Mutex
 	webToken string
@@ -57,12 +60,13 @@ type TokenSource interface {
 	Token(ctx context.Context) (string, error)
 }
 
-func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, cleanup usecase.SessionCleanup, policy usecase.AccessPolicy, log *slog.Logger) *Bot {
+func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, cleanup usecase.SessionCleanup, policy usecase.AccessPolicy, suggestClosingAt int64, log *slog.Logger) *Bot {
 	b := &Bot{
-		agent:     agent,
-		appToken:  appToken,
-		botTokens: botTokens,
-		log:       log.With("agent", agent),
+		agent:            agent,
+		appToken:         appToken,
+		botTokens:        botTokens,
+		log:              log.With("agent", agent),
+		suggestClosingAt: suggestClosingAt,
 
 		status:    make(map[domain.SessionID]*statusMessage),
 		limited:   make(map[domain.SessionID]bool),

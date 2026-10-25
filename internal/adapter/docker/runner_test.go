@@ -346,7 +346,10 @@ func TestRunner_Start(t *testing.T) {
 	api.emit(1, `{"type":"system","subtype":"init"}`+"\n")
 	api.emit(1, `{"type":"user","isReplay":true,"uuid":"p1","message":{"role":"user","content":"fix it"}}`+"\n")
 	api.emit(1, `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}`+"\n")
-	api.emit(1, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check","description":"Run lint and tests"}}]}}`+"\n")
+	api.emit(1, `{"type":"assistant","message":{"content":[],"usage":{"input_tokens":1,"cache_read_input_tokens":10,"cache_creation_input_tokens":100,"output_tokens":7}}}`+"\n")
+	api.emit(1, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"make check","description":"Run lint and tests"}}],`+
+		`"usage":{"input_tokens":2,"cache_read_input_tokens":30000,"cache_creation_input_tokens":4000,"output_tokens":50}}}`+"\n")
+	api.emit(1, `{"type":"assistant","parent_tool_use_id":"toolu_1","message":{"content":[],"usage":{"input_tokens":1,"cache_read_input_tokens":900000,"cache_creation_input_tokens":0}}}`+"\n")
 	api.emit(2, "some noise\n")
 	api.emit(1, `{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"b1"}]}`+"\n")
 	api.emit(1, `{"type":"result","subtype":"success","result":"done","total_cost_usd":0.75,"usage":{"input_tokens":9},`+
@@ -375,6 +378,9 @@ func TestRunner_Start(t *testing.T) {
 	if !reflect.DeepEqual(finished.Result.Usage, wantUsage) {
 		t.Errorf("usage = %+v, want %+v", finished.Result.Usage, wantUsage)
 	}
+	if finished.Result.ContextTokens != 34002 {
+		t.Errorf("context tokens = %d, want those of the main agent's last request", finished.Result.ContextTokens)
+	}
 
 	if err := proc.Interrupt(context.Background()); err != nil {
 		t.Fatalf("Interrupt() error = %v", err)
@@ -389,8 +395,8 @@ func TestRunner_Start(t *testing.T) {
 		t.Errorf("stdin got %s, want a stop_task request", line)
 	}
 	api.emit(1, `{"type":"result","subtype":"error_during_execution","result":""}`+"\n")
-	if e := receive(t, proc.Events()); !e.Result.Interrupted || e.Result.Error {
-		t.Errorf("event = %+v, want an interrupted result", e)
+	if e := receive(t, proc.Events()); !e.Result.Interrupted || e.Result.Error || e.Result.ContextTokens != 0 {
+		t.Errorf("event = %+v, want an interrupted result whose turn made no request", e)
 	}
 	stops := []struct {
 		name      string

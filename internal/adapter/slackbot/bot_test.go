@@ -131,7 +131,7 @@ func TestStatusViewRender(t *testing.T) {
 }
 
 func TestErrorNotice(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess"}
 	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
 	steps := []struct {
@@ -157,7 +157,7 @@ func TestErrorNotice(t *testing.T) {
 }
 
 func TestStatusForAgentStartedTurn(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	start := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 
@@ -181,7 +181,7 @@ func TestStatusForAgentStartedTurn(t *testing.T) {
 }
 
 func TestObserveKeepsLatestRemarks(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
 	m.updating = true // keeps observe from starting to write to Slack
@@ -262,7 +262,7 @@ func (failingTokens) Token(context.Context) (string, error) {
 // recordingBot is a Bot whose posts outside requests are recorded instead of sent.
 func recordingBot(t *testing.T) (*Bot, func() []string) {
 	t.Helper()
-	b := New("dev", "", failingTokens{}, nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", failingTokens{}, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	b.heldGrace = 20 * time.Millisecond
 	var mu sync.Mutex
 	var posts []string
@@ -419,7 +419,7 @@ func TestStatusViewRenderSpent(t *testing.T) {
 }
 
 func TestObserveSumsSpent(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	spent := func(turn, session float64) *usecase.Spent {
 		return &usecase.Spent{Turn: &domain.Usage{CostUSD: turn}, Session: &domain.Usage{CostUSD: session}}
@@ -458,5 +458,66 @@ func TestObserveSumsSpent(t *testing.T) {
 
 	if next := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted}); next.view.spent != (spentView{}) {
 		t.Errorf("a requested turn's new status message carries earlier costs: %+v", next.view.spent)
+	}
+}
+
+func TestStatusViewRenderClosingSuggestion(t *testing.T) {
+	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	const suggestion = "💡 コンテキストが約 45 万トークンです。"
+	tests := []struct {
+		name  string
+		view  statusView
+		shown bool
+	}{
+		{"over the threshold", statusView{outcome: done, contextTokens: 456_789, suggestClosingAt: 400_000}, true},
+		{"at the threshold after an error", statusView{outcome: failed, contextTokens: 450_000, suggestClosingAt: 450_000}, true},
+		{"under the threshold", statusView{outcome: done, contextTokens: 456_789, suggestClosingAt: 500_000}, false},
+		{"turned off", statusView{outcome: done, contextTokens: 456_789}, false},
+		{"unknown context", statusView{outcome: usageLimited, suggestClosingAt: 400_000}, false},
+		{"running", statusView{outcome: running, contextTokens: 456_789, suggestClosingAt: 400_000}, false},
+	}
+	for _, tc := range tests {
+		tc.view.session, tc.view.startedAt, tc.view.finishedAt = "sess", start, start
+		got := tc.view.render(start)
+		if strings.Contains(got, suggestion) != tc.shown {
+			t.Errorf("%s: render shows the suggestion = %v, want %v:\n%s", tc.name, !tc.shown, tc.shown, got)
+		}
+	}
+}
+
+func TestTokenCount(t *testing.T) {
+	for n, want := range map[int64]string{8_000: "8000 トークン", 10_000: "1 万トークン", 456_789: "45 万トークン"} {
+		if got := tokenCount(n); got != want {
+			t.Errorf("tokenCount(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+func TestObserveKeepsContextSize(t *testing.T) {
+	b := New("dev", "", nil, nil, nil, nil, 400_000, slog.New(slog.DiscardHandler))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	m := b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted})
+	m.updating = true // keeps observe from starting to write to Slack
+	if m.view.suggestClosingAt != 400_000 {
+		t.Fatalf("suggestClosingAt = %d, want the bot's", m.view.suggestClosingAt)
+	}
+
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{ContextTokens: 410_000}})
+	if m.view.contextTokens != 410_000 {
+		t.Errorf("contextTokens = %d, want the turn's", m.view.contextTokens)
+	}
+
+	// A turn that made no request keeps the size last known.
+	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}})
+	if m.view.contextTokens != 410_000 {
+		t.Errorf("contextTokens after a turn without a request = %d, want the last known", m.view.contextTokens)
+	}
+
+	// A compacted context goes under the threshold again.
+	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{ContextTokens: 30_000}})
+	if m.view.contextTokens != 30_000 {
+		t.Errorf("contextTokens after compacting = %d, want the latest", m.view.contextTokens)
 	}
 }

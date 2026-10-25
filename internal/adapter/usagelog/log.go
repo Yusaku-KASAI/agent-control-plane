@@ -39,6 +39,8 @@ type line struct {
 	// Usage is null when the turn's usage cannot be told.
 	Usage         *usage `json:"usage"`
 	ReportedTotal usage  `json:"reported_total"`
+	// ContextTokens is null when the turn made no API request that reported it.
+	ContextTokens *int64 `json:"context_tokens"`
 }
 
 type conversation struct {
@@ -107,6 +109,9 @@ func newLine(u usecase.TurnRecord) line {
 	if u.Usage != nil {
 		turn := fromUsage(*u.Usage)
 		l.Usage = &turn
+	}
+	if n := u.Result.ContextTokens; n > 0 {
+		l.ContextTokens = &n
 	}
 	return l
 }
