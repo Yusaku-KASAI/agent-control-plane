@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-05
-amended_by: [29]
+amended_by: [29, 37]
 ---
 
 # 0001. Issue の分類は木にせず、関心・テーマ・依存・焦点を別々の仕組みで持つ
