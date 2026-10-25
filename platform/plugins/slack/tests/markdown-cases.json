@@ -483,5 +483,15 @@
     "name": "a quote at the margin and a blank line end an ordered list",
     "text": "1. 一\n   - 子\n> 注\n\n2. 二",
     "found": []
+  },
+  {
+    "name": "a list in a here-document in a code block in a list item is code",
+    "text": "1. 作る\n   ```bash\n   cat <<EOF > list.md\n- 一：https://in.example\n- 二\nEOF\n   ```\n2. 次：https://out.example",
+    "found": [2, 8]
+  },
+  {
+    "name": "an item like a sibling in a code block in a list item ends the item",
+    "text": "1. 作る\n   ```bash\n   cat <<EOF > list.md\n1. 一：https://in.example\nEOF\n   ```\n2. 次：https://out.example",
+    "found": [2, 4]
   }
 ]

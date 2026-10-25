@@ -72,6 +72,8 @@ var fixedMarkdown = map[string]string{
 	"a code block left open in an item of two markers ends with the item":    "- 1. a\n     ```\n     code\n- b：<https://x.example>",
 	"a here-document's EOF in a code block in a list item is code":           "1. 作る\n   ```bash\n   cat <<EOF > a.txt\n   x\nEOF\n   ```\n2. 次：<https://out.example>",
 	"an unindented line of code in a list item is code":                      "1. 実行する\n   ```bash\ncurl https://in.example\n   ```\n2. 次：<https://out.example>\n\n表です\n\n| a | b |\n| --- | --- |",
+	"a list in a here-document in a code block in a list item is code":       "1. 作る\n   ```bash\n   cat <<EOF > list.md\n- 一：https://in.example\n- 二\nEOF\n   ```\n2. 次：<https://out.example>",
+	"an item like a sibling in a code block in a list item ends the item":    "1. 作る\n   ```bash\n   cat <<EOF > list.md\n1. 一：<https://in.example>\nEOF\n   ```\n2. 次：https://out.example",
 }
 
 // formsFixed are check-markdown's findings of the forms slackMarkdown fixes, told by how their

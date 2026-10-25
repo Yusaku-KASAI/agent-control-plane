@@ -26,9 +26,8 @@ func slackMarkdown(text string) string {
 			// The quote or list item of the code block has ended, and the block with it.
 			code = nil
 		}
-		f, opens := opensFence(line, &list)
 		list.see(line)
-		if opens {
+		if f, opens := opensFence(line, &list); opens {
 			code = &f
 			out = append(out, line)
 			continue
@@ -42,19 +41,19 @@ func slackMarkdown(text string) string {
 }
 
 // fence is an open code block: its run of backticks or tildes, how many quote marks hold it, and,
-// in a list item, the column where the item's content starts after the quote marks. As in
-// CommonMark, the block ends with its quote, and in a list item with the item: at a line with fewer
-// quote marks, or at another item indented less than the item's content. The same rules are in
-// the slack plugin's check-markdown, and both read the plugin's cases
-// (platform/plugins/slack/tests/markdown-cases.json).
+// in a list item, the column where the item's content starts after the quote marks and the items
+// holding it. As in CommonMark, the block ends with its quote, and in a list item with the item: at
+// a line with fewer quote marks, or at an item that follows one holding the block (a sibling).
 type fence struct {
 	run            string
 	quotes, indent int
+	items          []listItem
 }
 
 var (
 	quoteMark   = regexp.MustCompile(`^[ \t]*> ?`)
 	listMarkers = regexp.MustCompile(`^(?:(?:[-*+]|\d+[.)])[ \t]+)*`)
+	listMarker  = regexp.MustCompile(`^(?:[-*+]|\d+([.)]))[ \t]+`)
 )
 
 // unquote drops up to max quote marks from the start of a line, and tells how many it dropped.
@@ -93,16 +92,37 @@ func indentOf(s string) int {
 	return width(s[:leadLength(s)])
 }
 
-// listItems follows the list items open at a line, for each quote it is in, outermost first: the
-// column where each item's content starts, innermost last. A line of text, or a quote mark,
-// indented less than an item's content ends the item; a line of text that carries on an item
-// without the indent (a lazy continuation) is taken to end it too. A quote within an item has
-// lists of its own, and once it ends, the item's go on.
-type listItems struct {
-	levels [][]int
+// listItem is an open item of a list: the column of its marker, the kind of the marker (the bullet,
+// or the delimiter after the number), and the column where its content starts.
+type listItem struct {
+	marker  int
+	kind    string
+	content int
 }
 
-var listMarker = regexp.MustCompile(`^(?:[-*+]|\d+[.)])[ \t]+`)
+// startsItem gives the item a text starts at the start of rest, if it starts one. The columns
+// count from the start of rest.
+func startsItem(rest string, at int) (listItem, int, bool) {
+	m := listMarker.FindStringSubmatch(rest[at:])
+	if m == nil {
+		return listItem{}, 0, false
+	}
+	kind := m[0][:1]
+	if m[1] != "" {
+		kind = m[1]
+	}
+	end := at + len(m[0])
+	return listItem{marker: width(rest[:at]), kind: kind, content: width(rest[:end])}, end, true
+}
+
+// listItems follows the list items open at a line, for each quote it is in, outermost first,
+// innermost item last. A line of text, or a quote mark, indented less than an item's content ends
+// the item; a line of text that carries on an item without the indent (a lazy continuation) is
+// taken to end it too. A quote within an item has lists of its own, and once it ends, the item's
+// go on.
+type listItems struct {
+	levels [][]listItem
+}
 
 // see takes in a line outside code blocks.
 func (l *listItems) see(line string) {
@@ -116,8 +136,7 @@ func (l *listItems) see(line string) {
 			l.levels = l.levels[:depth+1]
 			return
 		}
-		lead := leadLength(rest)
-		l.end(depth, width(rest[:lead]))
+		l.end(depth, indentOf(rest))
 		m := quoteMark.FindString(rest)
 		if m == "" {
 			break
@@ -125,68 +144,83 @@ func (l *listItems) see(line string) {
 		rest, depth = rest[len(m):], depth+1
 	}
 	l.levels = l.levels[:depth+1]
-	at := leadLength(rest)
-	for m := listMarker.FindString(rest[at:]); m != ""; m = listMarker.FindString(rest[at:]) {
-		at += len(m)
-		l.levels[depth] = append(l.levels[depth], width(rest[:at]))
+	for at := leadLength(rest); ; {
+		item, end, ok := startsItem(rest, at)
+		if !ok {
+			break
+		}
+		l.levels[depth] = append(l.levels[depth], item)
+		at = end
 	}
 }
 
 // end ends the items of a quote that a line of text at indent leaves.
 func (l *listItems) end(depth, indent int) {
-	cols := l.levels[depth]
-	for len(cols) > 0 && cols[len(cols)-1] > indent {
-		cols = cols[:len(cols)-1]
+	items := l.levels[depth]
+	for len(items) > 0 && items[len(items)-1].content > indent {
+		items = items[:len(items)-1]
 	}
-	l.levels[depth] = cols
+	l.levels[depth] = items
 }
 
-// content gives where the content of the innermost item holding a block at col starts, or 0
-// outside any item.
-func (l *listItems) content(quotes, col int) int {
+// holding gives the open items of a quote that hold a block at col, innermost last.
+func (l *listItems) holding(quotes, col int) []listItem {
 	if quotes >= len(l.levels) {
-		return 0
+		return nil
 	}
-	cols := l.levels[quotes]
-	for i := len(cols) - 1; i >= 0; i-- {
-		if cols[i] <= col {
-			return cols[i]
-		}
+	items := l.levels[quotes]
+	n := len(items)
+	for n > 0 && items[n-1].content > col {
+		n--
 	}
-	return 0
+	return append([]listItem(nil), items[:n]...)
 }
 
-// opensFence gives the code block a line opens, if it opens one. The run may follow quote marks,
-// an indent and list markers, since a code block in a list item is indented or starts the item.
+// opensFence gives the code block a line opens, if it opens one, after the list has taken in the
+// line. The run may follow quote marks, an indent and list markers, since a code block in a list
+// item is indented or starts the item.
 func opensFence(line string, list *listItems) (fence, bool) {
 	quotes, rest := unquote(line, len(line))
-	lead := leadLength(rest)
-	markers := len(listMarkers.FindString(rest[lead:]))
-	s := rest[lead+markers:]
+	at := leadLength(rest) + len(listMarkers.FindString(rest[leadLength(rest):]))
+	s := rest[at:]
 	for _, c := range []string{"`", "~"} {
 		n := len(s) - len(strings.TrimLeft(s, c))
 		// A backtick run with a backtick after it is inline code (```x```), not a fence.
 		if n >= 3 && (c == "~" || !strings.Contains(s[n:], "`")) {
-			indent := width(rest[:lead+markers])
-			if markers == 0 {
-				indent = list.content(quotes, width(rest[:lead]))
+			items := list.holding(quotes, width(rest[:at]))
+			indent := 0
+			if len(items) > 0 {
+				indent = items[len(items)-1].content
 			}
-			return fence{run: s[:n], quotes: quotes, indent: indent}, true
+			return fence{run: s[:n], quotes: quotes, indent: indent, items: items}, true
 		}
 	}
 	return fence{}, false
 }
 
 // holds tells whether a line is still within the quote and the list item of the code block.
-// Unlike in CommonMark, a line indented less than the item ends the block only if it starts
-// another item: a line such as a here-document's EOF, or the closing run, is more likely meant as
-// code, and ending the block there would open another one over the rest of the text.
+// Unlike in CommonMark, a line indented less than the item ends the block only if it starts a
+// sibling of an item holding the block: a line such as a here-document's EOF, its list, or the
+// closing run, is more likely meant as code, and ending the block there would open another one
+// over the rest of the text.
 func (f fence) holds(line string) bool {
 	n, rest := unquote(line, f.quotes)
 	if n < f.quotes {
 		return false
 	}
-	return indentOf(rest) >= f.indent || !listMarker.MatchString(rest[leadLength(rest):])
+	if indentOf(rest) >= f.indent {
+		return true
+	}
+	item, _, ok := startsItem(rest, leadLength(rest))
+	if !ok {
+		return true
+	}
+	for _, held := range f.items {
+		if held.marker == item.marker && held.kind == item.kind {
+			return false
+		}
+	}
+	return true
 }
 
 // closedBy tells whether a line closes the code block. A closing run carries no list marker, so a
