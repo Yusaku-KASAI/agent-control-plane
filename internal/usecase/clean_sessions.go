@@ -379,8 +379,8 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 }
 
 // removeUnsaved removes a directory without a record. Sessions are created under the lock, so once
-// the lock is taken such a directory is left from a creation that failed or from a request that
-// found the session gone.
+// the lock is taken such a directory is left from a creation that crashed or could not remove what
+// it left, or from a request that found the session gone.
 func (c *SessionCleaner) removeUnsaved(ctx context.Context, id domain.SessionID) (bool, error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {

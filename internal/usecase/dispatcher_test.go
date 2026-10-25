@@ -34,6 +34,8 @@ type fakeSessions struct {
 	removed []domain.SessionID
 	saves   int
 	saveErr error
+	// onRemove runs when Remove removes a session.
+	onRemove func(id domain.SessionID)
 	// onLock runs before Lock takes the lock.
 	onLock func(id domain.SessionID)
 	// exclusive refuses a lock the test already holds, as the store does.
@@ -109,6 +111,9 @@ func (f *fakeSessions) Remove(_ context.Context, id domain.SessionID) error {
 	delete(f.saved, id)
 	delete(f.orphans, id)
 	f.removed = append(f.removed, id)
+	if f.onRemove != nil {
+		f.onRemove(id)
+	}
 	return nil
 }
 
@@ -116,12 +121,22 @@ type fakeWorkspaces struct {
 	err      error
 	prepared int
 	sessions *fakeSessions
+	// made are the workspaces left in place, which a clone into the same place refuses, until the
+	// session is removed.
+	made map[domain.SessionID]bool
 }
 
 func (f *fakeWorkspaces) Prepare(_ context.Context, _ domain.Agent, id domain.SessionID, _ domain.Credentials) (domain.Workspace, error) {
 	if !f.sessions.isLocked(id) {
 		return domain.Workspace{}, errors.New("prepared without the lock")
 	}
+	if f.made[id] {
+		return domain.Workspace{}, errors.New("destination path already exists")
+	}
+	if f.made == nil {
+		f.made = make(map[domain.SessionID]bool)
+	}
+	f.made[id] = true
 	f.prepared++
 	return domain.Workspace{Path: "/sessions/" + string(id)}, f.err
 }
@@ -415,6 +430,7 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		usage:      &fakeUsage{},
 	}
 	e.workspaces.sessions = e.sessions
+	e.sessions.onRemove = func(id domain.SessionID) { delete(e.workspaces.made, id) }
 	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, e.usage, opts)
 	t.Cleanup(e.d.Close)
 	return e

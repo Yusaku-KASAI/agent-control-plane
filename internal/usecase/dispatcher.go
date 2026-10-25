@@ -305,7 +305,8 @@ func (d *Dispatcher) openSession(ctx context.Context, agent domain.Agent, in Run
 }
 
 // createSession holds the lock while it creates the session, so that SessionCleaner can tell a
-// directory being created from one left by a failed creation, which it also removes itself.
+// directory being created from one left by a failed creation. A creation that fails removes what it
+// left itself.
 func (d *Dispatcher) createSession(ctx context.Context, agent domain.Agent, id domain.SessionID, conv domain.Conversation) (domain.Session, error) {
 	unlock, err := d.sessions.Lock(ctx, id)
 	if err != nil {
