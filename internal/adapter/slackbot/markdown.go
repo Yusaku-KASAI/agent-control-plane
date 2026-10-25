@@ -35,9 +35,9 @@ func slackMarkdown(text string) string {
 }
 
 // opensFence gives the fence a line opens (its run of backticks or tildes), or "" if it opens none.
-// Fences are taken at any indent, since a fence in a list item is indented.
+// Fences are taken at any indent and in quotes, since a fence in a list item is indented.
 func opensFence(line string) string {
-	s := strings.TrimLeft(line, " \t")
+	s := blockContent(line)
 	for _, c := range []string{"`", "~"} {
 		n := len(s) - len(strings.TrimLeft(s, c))
 		if n >= 3 && (c == "~" || !strings.Contains(s[n:], "`")) {
@@ -48,8 +48,13 @@ func opensFence(line string) string {
 }
 
 func closesFence(line, fence string) bool {
-	s := strings.TrimSpace(line)
+	s := strings.TrimSpace(blockContent(line))
 	return strings.HasPrefix(s, fence) && strings.Trim(s, fence[:1]) == ""
+}
+
+// blockContent drops the indent and the quote marks before a line's content.
+func blockContent(line string) string {
+	return strings.TrimLeft(line, " \t>")
 }
 
 var delimiterRow = regexp.MustCompile(`^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
@@ -91,11 +96,11 @@ func bracketURLs(line string) string {
 			b.WriteString(line[i : i+n])
 			i += n
 			continue
-		case schemeLength(line[i:]) > 0:
+		case linkText == 0 && schemeLength(line[i:]) > 0:
 			// The whole URL is passed over, so that a URL inside it (?next=https://…) is not taken
 			// for another one.
 			end := urlEnd(line, i)
-			if linkText == 0 && !linkedAlready(line, i) && end > i+schemeLength(line[i:]) {
+			if !linkedAlready(line, i) && end > i+schemeLength(line[i:]) {
 				b.WriteString("<" + line[i:end] + ">")
 			} else {
 				b.WriteString(line[i:end])
