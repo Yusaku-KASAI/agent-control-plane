@@ -39,44 +39,34 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	if _, err := g.run(ctx, "", "clone", "--quiet", "--", src, dest); err != nil {
 		return domain.Workspace{}, err
 	}
-	// Without a record, a session retried in the same thread gets the same ID, and so the same
-	// dest, which clone refuses while a failed attempt's clone is left there.
-	if err := setUp(ctx, g, src, dest, id); err != nil {
-		if rmErr := os.RemoveAll(dest); rmErr != nil {
-			return domain.Workspace{}, errors.Join(err, fmt.Errorf("remove the half-made workspace: %w", rmErr))
-		}
-		return domain.Workspace{}, err
-	}
-	return domain.Workspace{Path: dest}, nil
-}
-
-// setUp turns a fresh clone of src at dest into the session's workspace.
-func setUp(ctx context.Context, g gitRunner, src, dest string, id domain.SessionID) error {
 	upstream, err := g.run(ctx, src, "remote", "get-url", "origin")
 	hasUpstream := err == nil
 	if hasUpstream {
 		if _, err := g.run(ctx, dest, "remote", "set-url", "origin", upstream); err != nil {
-			return err
+			return domain.Workspace{}, err
 		}
 	}
 
 	if err := keepWorkRecords(ctx, g, dest); err != nil {
-		return err
+		return domain.Workspace{}, err
 	}
 	start := "HEAD"
 	if hasUpstream && g.token != "" {
 		if _, err := g.run(ctx, dest, "fetch", "--quiet", "--prune", "origin"); err != nil {
-			return err
+			return domain.Workspace{}, err
 		}
 		if _, err := g.run(ctx, dest, "remote", "set-head", "origin", "--auto"); err != nil {
-			return err
+			return domain.Workspace{}, err
 		}
 		start = "refs/remotes/origin/HEAD"
 	}
 	if _, err := g.run(ctx, dest, "switch", "--quiet", "--no-track", "-c", id.Branch(), start); err != nil {
-		return err
+		return domain.Workspace{}, err
 	}
-	return installHooks(dest, id)
+	if err := installHooks(dest, id); err != nil {
+		return domain.Workspace{}, err
+	}
+	return domain.Workspace{Path: dest}, nil
 }
 
 // commitMsgHook adds a Co-authored-by trailer for each person in $ACP_CO_AUTHORS_FILE. It lives

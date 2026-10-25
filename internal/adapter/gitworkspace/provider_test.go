@@ -520,32 +520,6 @@ func TestProvider_Prepare_NotARepository(t *testing.T) {
 	}
 }
 
-func TestProvider_Prepare_RetriesAfterFailure(t *testing.T) {
-	f := newFixture(t)
-	reachable := gitOutput(t, f.source, "remote", "get-url", "origin")
-	git(t, f.source, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "unreachable.git"))
-	agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
-	creds := domain.Credentials{GitHubToken: "token"}
-	root := t.TempDir()
-	p := gitworkspace.NewProvider(root)
-
-	if _, err := p.Prepare(context.Background(), agent, sessionID, creds); err == nil {
-		t.Fatal("Prepare() error = nil, want the fetch to fail")
-	}
-	if _, err := os.Stat(filepath.Join(root, string(sessionID), "workspace", "repo")); !os.IsNotExist(err) {
-		t.Errorf("the failed attempt left its clone (stat err = %v)", err)
-	}
-
-	git(t, f.source, "remote", "set-url", "origin", reachable)
-	ws, err := p.Prepare(context.Background(), agent, sessionID, creds)
-	if err != nil {
-		t.Fatalf("Prepare() on retry error = %v", err)
-	}
-	if got := gitOutput(t, ws.Path, "rev-parse", "HEAD"); got != f.remoteMain {
-		t.Errorf("HEAD = %s, want %s", got, f.remoteMain)
-	}
-}
-
 func commit(t *testing.T, dir, file, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0o644); err != nil {

@@ -305,7 +305,7 @@ func (d *Dispatcher) openSession(ctx context.Context, agent domain.Agent, in Run
 }
 
 // createSession holds the lock while it creates the session, so that SessionCleaner can tell a
-// directory being created from one left by a failed creation.
+// directory being created from one left by a failed creation, which it also removes itself.
 func (d *Dispatcher) createSession(ctx context.Context, agent domain.Agent, id domain.SessionID, conv domain.Conversation) (domain.Session, error) {
 	unlock, err := d.sessions.Lock(ctx, id)
 	if err != nil {
@@ -318,6 +318,19 @@ func (d *Dispatcher) createSession(ctx context.Context, agent domain.Agent, id d
 		return domain.Session{}, fmt.Errorf("find session %s: %w", id, err)
 	}
 
+	s, err := d.makeSession(ctx, agent, id, conv)
+	if err != nil {
+		// What a failed creation leaves has no record, and a retry with the same ID, as from the same
+		// thread, would clone into it and fail. Removing lets the lock go, which is no longer needed.
+		if rmErr := d.sessions.Remove(context.WithoutCancel(ctx), id); rmErr != nil {
+			err = errors.Join(err, fmt.Errorf("remove the half-made session %s: %w", id, rmErr))
+		}
+		return domain.Session{}, err
+	}
+	return s, nil
+}
+
+func (d *Dispatcher) makeSession(ctx context.Context, agent domain.Agent, id domain.SessionID, conv domain.Conversation) (domain.Session, error) {
 	creds, err := d.credentials.Issue(ctx, agent)
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("issue credentials for agent %q: %w", agent.Name, err)
