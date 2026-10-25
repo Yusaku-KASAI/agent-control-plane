@@ -29,8 +29,8 @@
    そのうえで、選んだ形で壊れうる場面を挙げて確かめる。たとえば、同じものを作り直すとき、再起動や失敗の途中、同時に
    動くとき、すでにあるデータや設定との組み合わせ。変更の種類に応じて[変更とパターン](../reference/changes.md#patterns)の
    パターンを当てはめる。選び方と使い方は、共通の手順の[パターンを当てはめる](design.md "在りか")にある。
-5. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、一つの目的ごとに分ける
-   （[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
+5. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、一つの目的ごとに分ける。依頼の範囲の中を何本かの PR に
+   分けるときの依頼の Issue の扱いは[依頼の範囲](../reference/issues.md#scope)にある（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
    文書を足したり書き換えたりするときは、共通の手順の[文書を書く](write-docs.md "在りか")に沿う。コミットの前と
    push の前は[検査と履歴](../reference/changes.md#checks)に、コミットメッセージと PR の本文は[書き方](../reference/writing.md "在りか")に
    沿う。

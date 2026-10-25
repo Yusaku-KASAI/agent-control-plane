@@ -45,7 +45,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   こと、下に push したときの取り込みは[変更](../../../conventions/docs/reference/changes.md#changes)）。`prctl` は、
   ブランチが下のブランチの上にあり、下に開いている PR があるときだけ作る。重ねたあと、下が先に進んで取り込んで
   いないときと、下の PR が閉じたとき（マージされたか、されずに閉じたか）は、`prctl status` と hook が知らせる。
-- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く。依頼の Issue に積んだ指摘が残って閉じないときは、`Refs #<番号>` に
+- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く。依頼の Issue に範囲の中の残りか積んだ指摘が残って閉じないときは、`Refs #<番号>` に
   する（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー
