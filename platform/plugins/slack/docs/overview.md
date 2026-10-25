@@ -8,7 +8,7 @@ slack/
   scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post が使う）
   skills/slack/    読み方と書き方の手順
   tests/slackctl-test.sh  slackctl の振る舞いの検査（make check-platform が回す）
-  tests/markdown-cases.json  Slack で崩れる形の例の一覧（slackctl の検査と control-plane の直しの試験が読む）
+  tests/markdown-cases.json  Slack で崩れる形と崩れない形の例と、check-markdown が知らせる行
 ```
 
 - `slackctl` は、渡された認証情報の組み合わせで、できること（読む、どこへ投稿するか）を決める。エージェントは
@@ -52,8 +52,8 @@ slack/
     確かめるのは `**` だけ）。
   - 行ごとに読む。太字の `**` は行の中で順に開きと閉じとして組にするので、組がずれると知らせることも見逃すこともある。
   - コードブロックは CommonMark に倣い、閉じの行のほか、引用の中のものは引用が終わると、リストの項目の中のものは
-    その項目が終わる（印より浅く字下げした文字の行が来る）と閉じる。閉じを書き忘れても、そのあとの本文を読む。
-    引用の中のリストは、引用ごとに読む。
+    その項目が終わる（項目の内容より浅く字下げした文字の行が来る）と閉じる。閉じを書き忘れても、そのあとの本文を
+    読む。リストの項目は、字下げのない続きの行（遅延の続き）でも終わるとみなす。引用の中のリストは、引用ごとに読む。
   - リンクの表示の文（`[…](…)`、参照形式の `[…][…]`）の中の URL は、リンクの中なので見つけない。
   - 標準入力の Markdown を読み、見つけた形を `line N: …` で出して終了コード 3 で終わる。なければ 0。ほかの終了コード
     （捕まえていない例外の 1 など）は検知の失敗で、`slackctl` は崩れる形とは分けて落とす。
@@ -62,20 +62,10 @@ slack/
 
 ### `tests/markdown-cases.json`
 
-- **責務**：Slack で崩れる形と崩れない形の例を、一か所に並べる。`check-markdown` と、control-plane が投稿する前に
-  Markdown を直す処理は、どちらもコード、リンク、引用、リストを手で書いた走査で見分けるので、二つが同じに読むことを
-  この例で確かめる。
-- **置くもの / 置かないもの**：例ごとに、名前（`name`）、文（`text`）、`check-markdown` が知らせる行（`found`）。
-  control-plane が直す文には、直した文（`fixed`）と、そこで知らせる行（`found_in_fixed`）。直した文では、裸の URL と
-  すぐ上が文字の行の表を知らせない。
-- **関係**：`tests/slackctl-test.sh` が `found` と `found_in_fixed` を、control-plane の試験が `fixed` を確かめる。
-- **当てはめた原則・パターン**：[契約の試験](../../principles/docs/reference/patterns.md#contract-test)：二つの読み分けを、同じ例で
-  それぞれの側から確かめる。
-
-### `skills/slack/`
-
-- **責務**：依頼が Slack を指すときや、Slack に投稿するときの手順。
-- **置くもの / 置かないもの**：コマンドの使い方と、投稿してよい場面（ハーネスの契約の「Slack への投稿」の要約）と、
-  書き方（標準の Markdown、Slack で崩れない形、上限を超えるとき）。崩れない形は[Slack の markdown ブロックが読む形](reference/markdown.md "在りか")の要約にする。認証情報の選び方は置かない。
-- **関係**：control-plane 経由の Slack からの依頼では、プロンプトが依頼の場所だけを指すので、このスキルで本文と
-  スレッドを読む（[ハーネスの契約](../../../docs/reference/harness.md)）。
+- **責務**：Slack で崩れる形と崩れない形の例を、一か所に並べる。`check-markdown` の振る舞いの例で、Slack に投稿する前に
+  Markdown を読むほかの道具も、同じ例で試して読み分けをそろえられる。
+- **置くもの / 置かないもの**：例ごとに、名前（`name`）、文（`text`）、`check-markdown` が知らせる行（`found`）。ほかの道具が
+  その文をどうするかは置かない（その道具が持つ）。
+- **関係**：`tests/slackctl-test.sh` が `found` を確かめる。
+- **当てはめた原則・パターン**：[契約の試験](../../principles/docs/reference/patterns.md#contract-test)：読み分けを、使う側が同じ例で
+  確かめられるようにする。

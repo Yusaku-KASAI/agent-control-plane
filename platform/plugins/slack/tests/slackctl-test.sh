@@ -43,21 +43,11 @@ got=$("$cmd" thread C1 1.0 | sed -n 5p)
 check "a message without text does not stop the thread" "next" "$got"
 
 # check: the forms Slack reads differently are found, line by line; the forms that read well pass.
-# The cases are shared with control-plane, which fixes Markdown before it posts and gives "fixed":
-# in it, no bare URL and no table right under text is found.
 found() { "$cmd" check 2>&1 >/dev/null <<<"$1" | grep -c '^line' || true; }
 lines() { "$cmd" check 2>&1 >/dev/null <<<"$1" | sed -n 's/^line \([0-9]*\):.*/\1/p' | paste -sd, -; }
-cases=$(cd "$(dirname "$0")" && pwd)/markdown-cases.json
 while IFS= read -r c; do
-  name=$(jq -r .name <<<"$c")
-  check "$name" "$(jq -r '.found | join(",")' <<<"$c")" "$(lines "$(jq -r .text <<<"$c")")"
-  if jq -e 'has("fixed")' <<<"$c" >/dev/null; then
-    fixed=$(jq -r .fixed <<<"$c")
-    check "$name, once fixed" "$(jq -r '.found_in_fixed | join(",")' <<<"$c")" "$(lines "$fixed")"
-    check "$name, once fixed, has no form control-plane fixes" 0 \
-      "$("$cmd" check 2>&1 >/dev/null <<<"$fixed" | grep -cE '^line [0-9]+: (URL を|表の前に)' || true)"
-  fi
-done < <(jq -c '.[]' "$cases")
+  check "$(jq -r .name <<<"$c")" "$(jq -r '.found | join(",")' <<<"$c")" "$(lines "$(jq -r .text <<<"$c")")"
+done < <(jq -c '.[]' "$(dirname "$cmd")/../tests/markdown-cases.json")
 
 got=$("$cmd" check <<<'PR：https://x.example' 2>/dev/null && echo passed || echo failed)
 check "check fails on the forms Slack reads differently" failed "$got"

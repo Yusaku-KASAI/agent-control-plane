@@ -123,8 +123,8 @@ FROM check-base AS check-go
 COPY --chown=node:node go.mod go.sum ./
 RUN go mod download
 # The Go version is compared with the one that builds acp. Tests also read the example config, the
-# compose file (the Docker proxy's allowlist), this repository's plugin declarations and the harness
-# contract.
+# compose file (the Docker proxy's allowlist), this repository's plugin declarations, the harness
+# contract, and the slack plugin's Markdown cases, which they also run its check-markdown on.
 COPY --chown=node:node Dockerfile .golangci.yml acp.example.yaml compose.yaml ./
 COPY --chown=node:node .devcontainer/Dockerfile .devcontainer/
 COPY --chown=node:node .claude .claude

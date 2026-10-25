@@ -81,8 +81,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     閉じる（CommonMark に倣う）。直せない形（太字の内側の ASCII の記号など）は、エージェントの書き方に任せる
     （[Slack の markdown ブロックが読む形](../../../platform/plugins/slack/docs/reference/markdown.md)、
     [ADR 0050](../../adr/app/0050-fix-slack-markdown-forms-before-posting.md)）。
-  - 直す場所は、行ごとの手書きの走査で見つける。直す例は slack プラグインの検知（`check-markdown`）と同じ一覧
-    （`platform/plugins/slack/tests/markdown-cases.json`）に置き、試験は直した文を確かめる（[ADR 0051](../../adr/app/0051-own-markdown-scan-checked-by-shared-cases.md)）。
+  - 直す場所は、行ごとの手書きの走査で見つける。試験は、slack プラグインの例の一覧
+    （`platform/plugins/slack/tests/markdown-cases.json`）の文を直し、直した文を確かめ、その文でプラグインの
+    `check-markdown` が裸の URL とすぐ上が文字の行の表を知らせないことも確かめる（[ADR 0051](../../adr/app/0051-own-markdown-scan-checked-by-shared-cases.md)）。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
 - **関係**：`ChatResponder` を満たす。Bot のトークンは毎回 `slackauth.Source` から受け取る。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Slack の受け方と書き方

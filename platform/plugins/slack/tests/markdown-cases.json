@@ -2,72 +2,52 @@
   {
     "name": "url after Japanese",
     "text": "PR：https://github.com/o/r/pull/1",
-    "fixed": "PR：<https://github.com/o/r/pull/1>",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "url before Japanese",
     "text": "https://example.com/a、後",
-    "fixed": "<https://example.com/a>、後",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "url in full-width parentheses",
     "text": "（https://example.com/a）",
-    "fixed": "（<https://example.com/a>）",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "url in ASCII parentheses",
     "text": "(https://example.com/a) と",
-    "fixed": "(<https://example.com/a>) と",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "parentheses inside a url",
     "text": "https://example.com/a_(b) と",
-    "fixed": "<https://example.com/a_(b)> と",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "sentence end",
     "text": "see https://example.com/a.",
-    "fixed": "see <https://example.com/a>.",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "query",
     "text": "https://example.com/a?b=1&c=2#x",
-    "fixed": "<https://example.com/a?b=1&c=2#x>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "http",
     "text": "http://example.com",
-    "fixed": "<http://example.com>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "bold url",
     "text": "**https://example.com**",
-    "fixed": "**<https://example.com>**",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "two urls",
     "text": "https://a.example と https://b.example",
-    "fixed": "<https://a.example> と <https://b.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "scheme only",
@@ -92,9 +72,7 @@
   {
     "name": "url within a link text",
     "text": "[詳細は https://x.example を](https://y.example) と https://z.example",
-    "fixed": "[詳細は https://x.example を](https://y.example) と <https://z.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "url inside an autolink",
@@ -109,30 +87,22 @@
   {
     "name": "url inside a bare url",
     "text": "https://a.example/?next=https://b.example",
-    "fixed": "<https://a.example/?next=https://b.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "link text starting with a url",
     "text": "[https://x.example](https://y.example) と https://z.example",
-    "fixed": "[https://x.example](https://y.example) と <https://z.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "bracketed url",
     "text": "[https://x.example/a] と https://z.example",
-    "fixed": "[<https://x.example/a>] と <https://z.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "url in brackets that are not a link",
     "text": "[注：https://x.example]",
-    "fixed": "[注：<https://x.example>]",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "code with ] in a link text",
@@ -142,44 +112,32 @@
   {
     "name": "brackets in a query",
     "text": "https://x.example/?a[]=1&a[]=2 と 検索 https://x.example/?filter[state]=open の結果",
-    "fixed": "<https://x.example/?a[]=1&a[]=2> と 検索 <https://x.example/?filter[state]=open> の結果",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "brackets in a query within brackets",
     "text": "配列 a[i の https://x.example/?a[]=1 の結果 [注：https://x.example/?filter[state]=open]",
-    "fixed": "配列 a[i の <https://x.example/?a[]=1> の結果 [注：<https://x.example/?filter[state]=open>]",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "reference link",
     "text": "[https://x.example][1] と https://z.example",
-    "fixed": "[https://x.example][1] と <https://z.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "unclosed bracket before a closed one",
     "text": "配列 a[i の https://a.example/x と [注]",
-    "fixed": "配列 a[i の <https://a.example/x> と [注]",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "unclosed bracket",
     "text": "配列 a[i の要素は https://example.com/a、後",
-    "fixed": "配列 a[i の要素は <https://example.com/a>、後",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "non-ASCII path",
     "text": "https://ja.wikipedia.org/wiki/日本 の記事",
-    "fixed": "<https://ja.wikipedia.org/wiki/>日本 の記事",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "code span",
@@ -189,44 +147,32 @@
   {
     "name": "unclosed backtick",
     "text": "` https://example.com",
-    "fixed": "` <https://example.com>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "fenced code",
     "text": "前\n```\nhttps://example.com\n本文\n| a | b |\n| --- | --- |\n```\nhttps://example.com",
-    "fixed": "前\n```\nhttps://example.com\n本文\n| a | b |\n| --- | --- |\n```\n<https://example.com>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "fence in a quote",
     "text": "> ```\n> https://x.example\n> ```\n> https://y.example",
-    "fixed": "> ```\n> https://x.example\n> ```\n> <https://y.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "fence on a list marker",
     "text": "- ```bash\n  echo https://a.example\n  ```\n本文 https://b.example",
-    "fixed": "- ```bash\n  echo https://a.example\n  ```\n本文 <https://b.example>",
-    "found": [1],
-    "found_in_fixed": [1]
+    "found": [1]
   },
   {
     "name": "fence on a numbered list marker",
     "text": "1. ```\n   https://a.example\n   ```\nhttps://b.example",
-    "fixed": "1. ```\n   https://a.example\n   ```\n<https://b.example>",
-    "found": [1],
-    "found_in_fixed": [1]
+    "found": [1]
   },
   {
     "name": "list marker fence inside a fence",
     "text": "```markdown\n- ```\nhttps://in.example\n```\nhttps://out.example",
-    "fixed": "```markdown\n- ```\nhttps://in.example\n```\n<https://out.example>",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "tilde fence in a list",
@@ -236,23 +182,17 @@
   {
     "name": "table under text",
     "text": "表です\n| a | b |\n| --- | :-: |\n| 1 | 2 |",
-    "fixed": "表です\n\n| a | b |\n| --- | :-: |\n| 1 | 2 |",
-    "found": [2],
-    "found_in_fixed": []
+    "found": [2]
   },
   {
     "name": "table without outer bars",
     "text": "表です\na | b\n--- | ---",
-    "fixed": "表です\n\na | b\n--- | ---",
-    "found": [2],
-    "found_in_fixed": []
+    "found": [2]
   },
   {
     "name": "table under a list",
     "text": "- 項目\n| a | b |\n|---|---|",
-    "fixed": "- 項目\n\n| a | b |\n|---|---|",
-    "found": [2],
-    "found_in_fixed": []
+    "found": [2]
   },
   {
     "name": "table after a blank line",
@@ -282,16 +222,12 @@
   {
     "name": "url in a table",
     "text": "| https://example.com/a |\n| --- |",
-    "fixed": "| <https://example.com/a> |\n| --- |",
-    "found": [],
-    "found_in_fixed": []
+    "found": []
   },
   {
     "name": "a bare URL after Japanese is found",
     "text": "PR：https://x.example/pull/1",
-    "fixed": "PR：<https://x.example/pull/1>",
-    "found": [1],
-    "found_in_fixed": []
+    "found": [1]
   },
   {
     "name": "a URL in angle brackets passes",
@@ -331,9 +267,7 @@
   {
     "name": "a table right under text is found",
     "text": "表です\n| a | b |\n| --- | --- |",
-    "fixed": "表です\n\n| a | b |\n| --- | --- |",
-    "found": [2],
-    "found_in_fixed": []
+    "found": [2]
   },
   {
     "name": "a table after a blank line passes",
@@ -368,9 +302,7 @@
   {
     "name": "the text after a code block is read",
     "text": "```\ncode\n```\nPR：https://x.example",
-    "fixed": "```\ncode\n```\nPR：<https://x.example>",
-    "found": [4],
-    "found_in_fixed": []
+    "found": [4]
   },
   {
     "name": "a URL in a link text passes",
@@ -400,9 +332,7 @@
   {
     "name": "inline code at the start of a line is no code block",
     "text": "```x``` は先頭\nPR：https://x.example",
-    "fixed": "```x``` は先頭\nPR：<https://x.example>",
-    "found": [2],
-    "found_in_fixed": []
+    "found": [2]
   },
   {
     "name": "the inside of a code block is not read",
@@ -412,44 +342,32 @@
   {
     "name": "a code block left open in a list item ends with the item",
     "text": "- 一\n  ```\n  code\n- 二：https://a.example",
-    "fixed": "- 一\n  ```\n  code\n- 二：<https://a.example>",
-    "found": [2, 4],
-    "found_in_fixed": [2]
+    "found": [2, 4]
   },
   {
     "name": "a code block left open in a list item, before an item opening one",
     "text": "- 一\n  ```\n  code\n- ```\n  https://in.example\n  ```\n本文：https://out.example",
-    "fixed": "- 一\n  ```\n  code\n- ```\n  https://in.example\n  ```\n本文：<https://out.example>",
-    "found": [2, 4, 7],
-    "found_in_fixed": [2, 4]
+    "found": [2, 4, 7]
   },
   {
     "name": "a code block in a quote ends with the quote",
     "text": "> ```\n> https://in.example\n\n本文：https://out.example",
-    "fixed": "> ```\n> https://in.example\n\n本文：<https://out.example>",
-    "found": [4],
-    "found_in_fixed": []
+    "found": [4]
   },
   {
     "name": "a code block in a quote ends at a line without the mark",
     "text": "> ```\n> https://in.example\n本文：https://out.example",
-    "fixed": "> ```\n> https://in.example\n本文：<https://out.example>",
-    "found": [3],
-    "found_in_fixed": []
+    "found": [3]
   },
   {
     "name": "a code block in a nested quote is closed there",
     "text": "> > ```\n> > https://in.example\n> > ```\n> > 後：https://out.example",
-    "fixed": "> > ```\n> > https://in.example\n> > ```\n> > 後：<https://out.example>",
-    "found": [4],
-    "found_in_fixed": []
+    "found": [4]
   },
   {
     "name": "quote marks in a code block are code",
     "text": "```\n> https://in.example\n```\n後：https://out.example",
-    "fixed": "```\n> https://in.example\n```\n後：<https://out.example>",
-    "found": [4],
-    "found_in_fixed": []
+    "found": [4]
   },
   {
     "name": "a code block on a list marker in a quote",
@@ -465,5 +383,20 @@
     "name": "an ordered list in a quote ends with the quote",
     "text": "> 1. 一\n>    - 子\n\n2. 二",
     "found": []
+  },
+  {
+    "name": "an indented code block outside a list holds lines indented less",
+    "text": "   ```\ncurl https://in.example/a\n   ```\n後：https://out.example",
+    "found": [4]
+  },
+  {
+    "name": "a code block indented deeper than its item holds the item's lines",
+    "text": "- 項目\n    ```\n  curl https://in.example/a\n    ```\n  続き：https://out.example",
+    "found": [2, 5]
+  },
+  {
+    "name": "a code block of an outer item ends with that item",
+    "text": "- a\n  - b\n  ```\n  https://in.example\n- c：https://out.example",
+    "found": [3, 5]
   }
 ]

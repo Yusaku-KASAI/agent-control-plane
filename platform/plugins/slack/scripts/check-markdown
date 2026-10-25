@@ -85,10 +85,9 @@ def unquote(line, most=None):
 
 class Fence:
     """An open code block: its run of backticks or tildes, how many quote marks hold it, and, in a
-    list item or indented, the column of the run after the quote marks. As in CommonMark, the block
-    ends with its quote, and in a list item with the item: at a line with fewer quote marks, or at a
-    line of text indented less than the run. control-plane, which fixes Markdown before it posts,
-    reads code blocks by the same rules, and both are tried on tests/markdown-cases.json."""
+    list item, the column where the item's content starts after the quote marks. As in CommonMark,
+    the block ends with its quote, and in a list item with the item: at a line with fewer quote
+    marks, or at a line of text indented less than the item's content."""
 
     def __init__(self, run, quotes, indent):
         self.run, self.quotes, self.indent = run, quotes, indent
@@ -97,8 +96,7 @@ class Fence:
         n, rest = unquote(line, self.quotes)
         if n < self.quotes:
             return False
-        text = rest.lstrip(" \t")
-        return not text or len(rest) - len(text) >= self.indent
+        return not rest.strip() or indent_of(rest) >= self.indent
 
     def closed_by(self, line):
         # A closing run carries no list marker, so a line like "- ```" in a code block is code.
@@ -106,16 +104,50 @@ class Fence:
         return s.startswith(self.run) and not s.strip(self.run[0])
 
 
-def open_fence(line):
+def indent_of(s):
+    return len(s) - len(s.lstrip(" \t"))
+
+
+class ListItems:
+    """The list items open at a line: the column where each one's content starts, innermost last.
+    A line of text indented less than an item's content ends the item; a line of text that carries
+    on an item without the indent (a lazy continuation) is taken to end it too."""
+
+    def __init__(self):
+        self.quotes, self.cols = 0, []
+
+    def see(self, line):
+        """Takes in a line outside code blocks."""
+        quotes, rest = unquote(line)
+        if quotes != self.quotes:
+            self.quotes, self.cols = quotes, []
+        if not rest.strip():
+            return
+        indent = indent_of(rest)
+        while self.cols and self.cols[-1] > indent:
+            self.cols.pop()
+        markers = LIST_MARKERS.match(rest, indent).end() - indent
+        if markers:
+            self.cols.append(indent + markers)
+
+    def content(self, quotes, col):
+        """Gives where the content of the innermost item holding a block at col starts, or 0."""
+        if quotes != self.quotes:
+            return 0
+        return next((c for c in reversed(self.cols) if c <= col), 0)
+
+
+def open_fence(line, items):
     """Gives the code block a line opens, and whether its run follows a list marker or an indent,
     or None. A backtick run with a backtick after it is inline code (```x```), not a fence."""
     quotes, rest = unquote(line)
-    lead = len(rest) - len(rest.lstrip(" \t"))
+    lead = indent_of(rest)
     markers = LIST_MARKERS.match(rest, lead).end() - lead
     m = RUN.match(rest, lead + markers)
     if not m or (m.group(0)[0] == "`" and "`" in rest[m.end():]):
         return None
-    return Fence(m.group(0), quotes, lead + markers), bool(markers), bool(lead)
+    indent = lead + markers if markers else items.content(quotes, lead)
+    return Fence(m.group(0), quotes, indent), bool(markers), bool(lead)
 
 
 def check(lines):
@@ -124,6 +156,7 @@ def check(lines):
     in_list = False
     ordered = {}  # indent -> whether a nested list came under the last ordered item at that indent
     depth = 0  # the quote marks of the last line of text, as a list in a quote is its own
+    items = ListItems()
     for n, line in enumerate(lines, 1):
         def note(message):
             findings.append(f"line {n}: {message}")
@@ -135,7 +168,8 @@ def check(lines):
                 continue
             # The quote or list item of the code block has ended, and the block with it.
             fence = None
-        opened = open_fence(line)
+        opened = open_fence(line, items)
+        items.see(line)
         if opened:
             fence, on_marker, indented = opened
             if on_marker or (indented and in_list and not fence.quotes):
