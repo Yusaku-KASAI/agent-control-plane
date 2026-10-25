@@ -184,9 +184,24 @@ func linkedAlready(line string, i int) bool {
 // otherwise a URL may hold, as in a query (?a[]=1).
 func urlEnd(line string, i int, inBrackets bool) int {
 	end := i
-	for end < len(line) && isURLByte(line[end]) && (!inBrackets || line[end] != ']') {
-		end++
+	open := 0 // the [ opened within the URL
+	for ; end < len(line) && isURLByte(line[end]); end++ {
+		switch line[end] {
+		case '[':
+			open++
+		case ']':
+			if open == 0 && inBrackets {
+				return trimURLEnd(line, i, end)
+			}
+			open = max(open-1, 0)
+		}
 	}
+	return trimURLEnd(line, i, end)
+}
+
+// trimURLEnd drops the punctuation that ends a sentence, and a ) the URL does not open, from the
+// end of the URL at line[i:end].
+func trimURLEnd(line string, i, end int) int {
 	for end > i {
 		c := line[end-1]
 		if strings.IndexByte(".,:;!?'*_~", c) >= 0 || (c == ')' && strings.Count(line[i:end], "(") < strings.Count(line[i:end], ")")) {
