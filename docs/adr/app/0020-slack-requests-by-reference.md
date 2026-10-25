@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-03
+amended_by: ["../../../platform/docs/adr/0027-agents-post-to-slack-when-asked.md"]
 ---
 
 # 0020. Slack からの依頼は本文ではなく場所を渡し、エージェントが Bot トークンで Slack を読み書きする
