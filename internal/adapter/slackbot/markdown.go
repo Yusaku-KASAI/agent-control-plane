@@ -26,7 +26,7 @@ func slackMarkdown(text string) string {
 			out = append(out, line)
 			continue
 		}
-		if i > 0 && strings.TrimSpace(lines[i-1]) != "" && !isTableRow(lines[i-1]) && startsTable(lines, i) {
+		if i > 0 && strings.TrimSpace(lines[i-1]) != "" && startsTable(lines, i) {
 			out = append(out, "")
 		}
 		out = append(out, bracketURLs(line))
@@ -52,21 +52,19 @@ func closesFence(line, fence string) bool {
 	return strings.HasPrefix(s, fence) && strings.Trim(s, fence[:1]) == ""
 }
 
-// blockContent drops the indent and the quote marks before a line's content.
+var blockMarks = regexp.MustCompile(`^(?:[ \t>]|[-*+][ \t]|\d+[.)][ \t])*`)
+
+// blockContent drops the indent, the quote marks and the list markers before a line's content.
 func blockContent(line string) string {
-	return strings.TrimLeft(line, " \t>")
+	return line[len(blockMarks.FindString(line)):]
 }
 
 var delimiterRow = regexp.MustCompile(`^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
 
 // startsTable tells whether lines[i] is the header row of a table, which the delimiter row
-// (| --- | --- |) follows.
+// (| --- | --- |, or --- | --- without the outer bars) follows.
 func startsTable(lines []string, i int) bool {
-	return i+1 < len(lines) && isTableRow(lines[i]) && strings.Contains(lines[i+1], "|") && delimiterRow.MatchString(lines[i+1])
-}
-
-func isTableRow(line string) bool {
-	return strings.HasPrefix(strings.TrimSpace(line), "|")
+	return i+1 < len(lines) && strings.Contains(lines[i], "|") && strings.Contains(lines[i+1], "|") && delimiterRow.MatchString(lines[i+1])
 }
 
 // bracketURLs puts each bare URL of a line in angle brackets. Slack links a bare URL only after
