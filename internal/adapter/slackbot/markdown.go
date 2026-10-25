@@ -47,8 +47,10 @@ func opensFence(line string) string {
 	return ""
 }
 
+// closesFence tells whether a line closes the fence. A closing fence carries no list marker, so a
+// line like "- ```" inside a fence is content.
 func closesFence(line, fence string) bool {
-	s := strings.TrimSpace(blockContent(line))
+	s := strings.TrimSpace(strings.TrimLeft(line, " \t>"))
 	return strings.HasPrefix(s, fence) && strings.Trim(s, fence[:1]) == ""
 }
 
@@ -72,17 +74,25 @@ func startsTable(lines []string, i int) bool {
 // next to Japanese text is either not linked or linked with the text. A URL ends at a space, a
 // non-ASCII character, or a character a URL does not hold here (< > ` " and the like), and loses
 // the punctuation that ends a sentence. Code spans, autolinks, link texts and link destinations
-// stay as they are: a link cannot hold another link. A [ is taken to open a link text only when a ]
-// follows it on the line.
+// stay as they are: a link cannot hold another link.
 func bracketURLs(line string) string {
 	var b strings.Builder
+	// brackets holds, for each [ still open, whether it opens a link text.
+	var brackets []bool
 	linkText := 0
 	for i := 0; i < len(line); {
 		switch {
-		case line[i] == '[' && strings.Contains(line[i:], "]"):
-			linkText++
-		case line[i] == ']' && linkText > 0:
-			linkText--
+		case line[i] == '[':
+			opens := opensLinkText(line, i)
+			brackets = append(brackets, opens)
+			if opens {
+				linkText++
+			}
+		case line[i] == ']' && len(brackets) > 0:
+			if brackets[len(brackets)-1] {
+				linkText--
+			}
+			brackets = brackets[:len(brackets)-1]
 		case line[i] == '`':
 			n := runLength(line, i, '`')
 			if end := strings.Index(line[i+n:], line[i:i+n]); end >= 0 {
@@ -129,6 +139,24 @@ func schemeLength(s string) int {
 	return 0
 }
 
+// opensLinkText tells whether the [ at i opens a link text: its ] is followed by ( or [, as in
+// [text](URL) and [text][ref]. Brackets that are not links, such as [注：URL], hold bare URLs too.
+func opensLinkText(line string, i int) bool {
+	depth := 0
+	for j := i; j < len(line); j++ {
+		switch line[j] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return j+1 < len(line) && (line[j+1] == '(' || line[j+1] == '[')
+			}
+		}
+	}
+	return false
+}
+
 // linkedAlready tells whether the URL at i is already an autolink (<URL>) or a link destination
 // ([text](URL)).
 func linkedAlready(line string, i int) bool {
@@ -161,5 +189,5 @@ func urlEnd(line string, i int) int {
 }
 
 func isURLByte(c byte) bool {
-	return c > ' ' && c < 0x7f && strings.IndexByte("<>`\"{}|\\^", c) < 0
+	return c > ' ' && c < 0x7f && strings.IndexByte("<>`\"{}|\\^[]", c) < 0
 }

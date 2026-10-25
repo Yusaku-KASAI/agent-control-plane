@@ -21,6 +21,7 @@ check-platform:
 	platform/plugins/github/tests/prctl-test.sh
 	platform/plugins/github/tests/check-protection-test.sh
 	platform/plugins/github/tests/check-issues-test.sh
+	platform/plugins/slack/tests/slackctl-test.sh
 	platform/plugins/harness/tests/foreground-test.sh
 	platform/plugins/harness/tests/detach-test.sh
 	platform/plugins/harness/tests/watch-tree-test.sh
