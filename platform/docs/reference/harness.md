@@ -45,7 +45,9 @@
   依頼者に届かない。伝えたいことは、次の依頼に答えるターンの回答に書く。
 - ほかの投稿は、依頼者に頼まれれば[Slack への投稿](#slack-posts)のとおりにする。
 - Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示されるので、slack スキルの
-  「書く」の書き方で書く。依頼のプロンプトもそう指す。
+  「書く」の書き方で書く。依頼のプロンプトもそう指す。slack プラグインの hook が、ターンの終わりに最後の回答を
+  確かめ、Slack で崩れる形があれば、書き直すようターンを一度止める（CLI からの依頼の回答も同じ。どちらでも読める
+  標準の Markdown の形に寄せる）。
 - サブエージェント（Agent）は、harness プラグインの hook がフォアグラウンドで動かす
   （[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。hook は、Agent の呼び出しの `run_in_background` を
   `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。

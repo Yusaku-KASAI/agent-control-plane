@@ -5,9 +5,12 @@
 ```
 slack/
   bin/slackctl     Slack の Web API と incoming webhook のクライアント
-  scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post が使う）
+  hooks/hooks.json  ターンの終わりに check-answer-at-stop を呼ぶ
+  scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post、check-answer-at-stop が使う）
+  scripts/check-answer-at-stop  control-plane 経由で、ターンの最後の回答に崩れる形がないかを確かめる（Stop hook）
   skills/slack/    読み方と書き方の手順
   tests/slackctl-test.sh  slackctl の振る舞いの検査（make check-platform が回す）
+  tests/check-answer-at-stop-test.sh  Stop hook の振る舞いの検査（make check-platform が回す）
   tests/markdown-cases.json  Slack で崩れる形と崩れない形の例と、check-markdown が知らせる行
 ```
 
@@ -61,6 +64,24 @@ slack/
     （捕まえていない例外の 1 など）は検知の失敗で、`slackctl` は崩れる形とは分けて落とす。
 - **関係**：`python3` を使い、`slackctl` の `check` と `post` から呼ばれる。振る舞いは `tests/slackctl-test.sh` が
   `tests/markdown-cases.json` の例で確かめる。
+
+### `scripts/check-answer-at-stop`
+
+- **責務**：control-plane 経由で、ターンの最後の回答（依頼者が読む回答。Slack からの依頼ではスレッドに投稿される）に、
+  Slack で崩れる形がないかを `check-markdown` で確かめ、あればエージェントに書き直させる。
+- **置くもの / 置かないもの**：
+  - 環境変数 `ACP_SESSION_BRANCH` があるときだけ動く（[ハーネスの契約](../../../docs/reference/harness.md)の動き方）。
+    devcontainer で直接動くときの回答は端末に出るだけなので、確かめない。CLI からの依頼の回答も確かめる。依頼が Slack
+    からかは渡されておらず、崩れない形はどちらでも読める標準の Markdown なので、分けない。
+  - 回答は、Stop hook の入力の `last_assistant_message` から読む。見つけた形を行ごとに理由に書き、ターンを止める
+    （`decision: block`）。直しも投稿もしない。
+  - 同じ見つけた形では、セッションの中で一度だけ止める（わざとその形にする回答と、ほかの hook で続いたターンのため）。
+    崩れる形のない回答で覚えを消すので、あとのターンで同じ形が出ればまた止める。覚えは `TMPDIR` に置く。
+  - hook 自身の失敗（`python3` や `jq` がない、入力に回答がない、検知が失敗する、覚えを書けない）では止めない。
+  - 判断は [ADR 0030](../../../docs/adr/0030-check-the-last-answer-at-stop.md)。
+- **関係**：`scripts/check-markdown` に任せる。振る舞いは `tests/check-answer-at-stop-test.sh` で確かめる。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：エージェントが
+  `slackctl check` を通すかに頼っていた最後の回答の検査を、hook で必ず回す。
 
 ### `tests/markdown-cases.json`
 
