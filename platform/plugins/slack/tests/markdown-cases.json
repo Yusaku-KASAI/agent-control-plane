@@ -543,5 +543,15 @@
     "name": "a code block after text indented less than its item's content is in the list",
     "text": "1. 手順\n  ```bash\n  make check\n  ```\n  続けて実行する\n  ```bash\n  make test\n  ```",
     "found": [2, 6]
+  },
+  {
+    "name": "a code block at the margin ends the list",
+    "text": "- a\n\n```\nx\n```\n  ```\ny\n  ```",
+    "found": []
+  },
+  {
+    "name": "a code block at the margin of a quote ends the list in it",
+    "text": "> - a\n>\n> ```\n> x\n> ```\n>   ```\n> y\n>   ```",
+    "found": []
   }
 ]

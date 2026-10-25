@@ -171,8 +171,8 @@ class Level:
     def __init__(self):
         self.items, self.ordered = [], {}
         # Whether a list goes on, for telling a code block in it: set at an item, and cleared only
-        # at a line of text or a code block at the margin, so that a code block indented less
-        # than the item's content, and those after it, are in the list.
+        # at a line of text, a quote mark or a code block at the margin, so that a code block
+        # indented less than the item's content, and those after it, are in the list.
         self.in_list = False
 
 
