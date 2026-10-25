@@ -47,8 +47,10 @@ func opensFence(line string) string {
 	return ""
 }
 
+// closesFence tells whether a line closes the fence. A closing fence carries no list marker, so a
+// line like "- ```" inside a fence is content.
 func closesFence(line, fence string) bool {
-	s := strings.TrimSpace(blockContent(line))
+	s := strings.TrimSpace(strings.TrimLeft(line, " \t>"))
 	return strings.HasPrefix(s, fence) && strings.Trim(s, fence[:1]) == ""
 }
 
@@ -72,17 +74,25 @@ func startsTable(lines []string, i int) bool {
 // next to Japanese text is either not linked or linked with the text. A URL ends at a space, a
 // non-ASCII character, or a character a URL does not hold here (< > ` " and the like), and loses
 // the punctuation that ends a sentence. Code spans, autolinks, link texts and link destinations
-// stay as they are: a link cannot hold another link. A [ is taken to open a link text only when a ]
-// follows it on the line.
+// stay as they are: a link cannot hold another link.
 func bracketURLs(line string) string {
 	var b strings.Builder
+	// brackets holds, for each [ still open, whether it opens a link text.
+	var brackets []bool
 	linkText := 0
 	for i := 0; i < len(line); {
 		switch {
-		case line[i] == '[' && strings.Contains(line[i:], "]"):
-			linkText++
-		case line[i] == ']' && linkText > 0:
-			linkText--
+		case line[i] == '[':
+			opens := opensLinkText(line, i)
+			brackets = append(brackets, opens)
+			if opens {
+				linkText++
+			}
+		case line[i] == ']' && len(brackets) > 0:
+			if brackets[len(brackets)-1] {
+				linkText--
+			}
+			brackets = brackets[:len(brackets)-1]
 		case line[i] == '`':
 			n := runLength(line, i, '`')
 			if end := strings.Index(line[i+n:], line[i:i+n]); end >= 0 {
@@ -97,7 +107,7 @@ func bracketURLs(line string) string {
 		case linkText == 0 && schemeLength(line[i:]) > 0:
 			// The whole URL is passed over, so that a URL inside it (?next=https://…) is not taken
 			// for another one.
-			end := urlEnd(line, i)
+			end := urlEnd(line, i, len(brackets) > 0)
 			if !linkedAlready(line, i) && end > i+schemeLength(line[i:]) {
 				b.WriteString("<" + line[i:end] + ">")
 			} else {
@@ -129,6 +139,32 @@ func schemeLength(s string) int {
 	return 0
 }
 
+// opensLinkText tells whether the [ at i opens a link text: its ] is followed by ( or [, as in
+// [text](URL) and [text][ref]. Brackets that are not links, such as [注：URL], hold bare URLs too.
+func opensLinkText(line string, i int) bool {
+	depth := 0
+	for j := i; j < len(line); j++ {
+		switch line[j] {
+		case '`':
+			// A code span binds tighter than the brackets of a link, so its ] are not counted.
+			n := runLength(line, j, '`')
+			if end := strings.Index(line[j+n:], line[j:j+n]); end >= 0 {
+				j += end + 2*n - 1
+			} else {
+				j += n - 1
+			}
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return j+1 < len(line) && (line[j+1] == '(' || line[j+1] == '[')
+			}
+		}
+	}
+	return false
+}
+
 // linkedAlready tells whether the URL at i is already an autolink (<URL>) or a link destination
 // ([text](URL)).
 func linkedAlready(line string, i int) bool {
@@ -144,11 +180,28 @@ func linkedAlready(line string, i int) bool {
 	return false
 }
 
-func urlEnd(line string, i int) int {
+// urlEnd gives where the URL at i ends. Within brackets ([注：URL]) the URL ends at a ], which
+// otherwise a URL may hold, as in a query (?a[]=1).
+func urlEnd(line string, i int, inBrackets bool) int {
 	end := i
-	for end < len(line) && isURLByte(line[end]) {
-		end++
+	open := 0 // the [ opened within the URL
+	for ; end < len(line) && isURLByte(line[end]); end++ {
+		switch line[end] {
+		case '[':
+			open++
+		case ']':
+			if open == 0 && inBrackets {
+				return trimURLEnd(line, i, end)
+			}
+			open = max(open-1, 0)
+		}
 	}
+	return trimURLEnd(line, i, end)
+}
+
+// trimURLEnd drops the punctuation that ends a sentence, and a ) the URL does not open, from the
+// end of the URL at line[i:end].
+func trimURLEnd(line string, i, end int) int {
 	for end > i {
 		c := line[end-1]
 		if strings.IndexByte(".,:;!?'*_~", c) >= 0 || (c == ')' && strings.Count(line[i:end], "(") < strings.Count(line[i:end], ")")) {

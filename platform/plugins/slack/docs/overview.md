@@ -6,6 +6,7 @@
 slack/
   bin/slackctl     Slack の Web API と incoming webhook のクライアント
   skills/slack/    読み方と書き方の手順
+  tests/slackctl-test.sh  slackctl の振る舞いの検査（make check-platform が回す）
 ```
 
 - `slackctl` は、渡された認証情報の組み合わせで、できること（読む、どこへ投稿するか）を決める。エージェントは
@@ -18,6 +19,9 @@ slack/
 
 - **責務**：メッセージ、スレッド、リンク先を読み、標準の Markdown で投稿する。
 - **置くもの / 置かないもの**：
+  - 読んだメッセージの文は、Web API が置き換えた `&amp;`、`&lt;`、`&gt;` を元の文字に戻して出す（Slack の画面と同じ文字）。
+    `<@U…>` などの Slack の記法はそのまま出すので、出力では、利用者が文字として打った `<@U…>` や `<https://…|表示>` と
+    Slack の記法とを見分けられない。
   - Bot のトークンは、`SLACK_BOT_TOKEN_FILE` が読めればそのファイルから、呼ばれるたびに読む（毎回読むことは
     ハーネスの契約による）。なければ `SLACK_BOT_TOKEN` を使う。Bot のトークンがあれば、読むこともチャンネルとスレッドへの
     投稿もできる。
@@ -27,7 +31,7 @@ slack/
     `SLACK_WEBHOOK_URL` は、人が対話で使うときに自分で用意する代わりの手段。
   - 投稿の前に、空でないことと、Slack の 1 件の上限（12,000 文字）に収まることを確かめる（`slackctl check`、`post` も
     同じ検査をする）。
-- **関係**：`curl`、`jq` を使う。
+- **関係**：`curl`、`jq` を使う。振る舞いは `tests/slackctl-test.sh`（偽の `curl`）で確かめる。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../principles/docs/reference/patterns.md#published-language)：control-plane からの渡され方は
   契約に合わせる。[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：上限を超える投稿は送る前に止める。
 
