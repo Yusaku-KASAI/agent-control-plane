@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Finds, in standard Markdown read from stdin, the forms Slack's markdown block reads differently.
+
+Prints one line per finding ("line N: ...") and exits 3 if there is any, 0 otherwise (1, as for an
+uncaught exception, is a failure of the check). What Slack does
+with each form is in the slack plugin's reference (docs/reference/markdown.md).
+"""
+
+import re
+import sys
+
+ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+[.)])\s+")
+ORDERED_ITEM = re.compile(r"^(\s*)\d+[.)]\s+")
+DELIMITER_ROW = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+FENCE = re.compile(r"^((?:\s*>)*)(\s*)((?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
+HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
+URL = re.compile(r"https?://[^\s<>`\"]+")
+
+
+def outside_code(line):
+    """Gives the line with the contents of its code spans blanked, so that they are not read as
+    Markdown. The backticks stay: next to ** they are the ASCII punctuation Slack trips on."""
+    out, i = [], 0
+    while i < len(line):
+        if line[i] == "`":
+            n = len(line[i:]) - len(line[i:].lstrip("`"))
+            end = line.find(line[i:i + n], i + n)
+            if end >= 0:
+                out.append(line[i:i + n] + " " * (end - i - n) + line[i:i + n])
+                i = end + n
+                continue
+            out.append(line[i:i + n])
+            i += n
+            continue
+        out.append(line[i])
+        i += 1
+    return "".join(out)
+
+
+LINK_TEXT = re.compile(r"\[[^\[\]]*\](?=[(\[])")
+
+
+def bare_url_findings(text):
+    # A link text ([text](URL), [text][ref]) holds no bare URL: a link cannot hold another link.
+    text = LINK_TEXT.sub(lambda m: "[" + " " * (len(m.group(0)) - 2) + "]", text)
+    for m in URL.finditer(text):
+        start = m.start()
+        before = text[start - 1] if start else " "
+        if before in "<[" or text[max(0, start - 2):start] == "](":
+            continue
+        url = m.group(0).split("](")[0]
+        tail = re.search(r"[^\x21-\x7e]", url)
+        if not (before.isspace() or before in ASCII_PUNCT) or tail:
+            yield "URL を <https://…> で囲む（前後に日本語が続くと、リンクにならないか、後ろの文字までリンクに入る）"
+
+
+def bold_findings(text):
+    """Pairs the ** runs of a line in turn, and finds those Slack does not take, as it counts only
+    ASCII punctuation as punctuation."""
+    runs = [m.start() for m in re.finditer(r"(?<!\*)\*\*(?!\*)", text)]
+    for k, i in enumerate(runs):
+        before = text[i - 1] if i else " "
+        after = text[i + 2] if i + 2 < len(text) else " "
+        plain = lambda c: not c.isspace() and c not in ASCII_PUNCT
+        if k % 2 == 0 and after in ASCII_PUNCT and plain(before):
+            yield f"太字の内側が ASCII の記号（{after}）で始まるので、** の前に空白を置く"
+        elif k % 2 == 1 and before in ASCII_PUNCT and plain(after):
+            yield f"太字の内側が ASCII の記号（{before}）で終わるので、** の後に空白を置く"
+
+
+def check(lines):
+    findings = []
+    fence = None
+    in_list = False
+    ordered = {}  # indent -> whether a nested list came under the last ordered item at that indent
+    for n, line in enumerate(lines, 1):
+        def note(message):
+            findings.append(f"line {n}: {message}")
+
+        if fence:
+            content = line.strip().lstrip(">").strip()
+            if content.startswith(fence) and not content.strip(fence[0]):
+                fence = None
+            continue
+        m = FENCE.match(line)
+        # A backtick fence holds no backtick in its info string; ```x``` is inline code.
+        if m and m.group(4)[0] == "`" and "`" in line[m.end():]:
+            m = None
+        if m:
+            fence = m.group(4)
+            # Within a quote the space after > is not a list's indent.
+            if m.group(3) or (m.group(2) and in_list and not m.group(1)):
+                note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
+            elif not m.group(2) or m.group(1):
+                in_list = False
+                ordered.clear()
+            continue
+
+        if not line.strip():
+            continue
+        item = LIST_ITEM.match(line)
+        indent = len(line) - len(line.lstrip())
+        if item:
+            in_list = True
+            for k in list(ordered):
+                if k < indent:
+                    ordered[k] = True
+                elif k > indent:
+                    del ordered[k]
+            if ORDERED_ITEM.match(line):
+                if ordered.get(indent):
+                    note("番号付きのリストの項目の下に入れ子があると、ここから番号が 1 から振り直しになる")
+                ordered[indent] = False
+            else:
+                ordered.pop(indent, None)
+        elif indent == 0:
+            in_list = False
+            ordered.clear()
+
+        text = outside_code(line)
+        if n < len(lines) and "|" in line and "|" in lines[n] and DELIMITER_ROW.match(lines[n]):
+            if n > 1 and lines[n - 2].strip():
+                note("表の前に空行を置く（すぐ上が文字の行だと、表にならない）")
+        if HEADING.match(line) and re.search(r"\*\*|`|\]\(", line):
+            note("見出しに書式を入れない（見出しの中の書式は消える）")
+        for message in bare_url_findings(text):
+            note(message)
+        for message in bold_findings(text):
+            note(message)
+    return findings
+
+
+def main():
+    sys.stdin.reconfigure(errors="replace")
+    findings = check(sys.stdin.read().split("\n"))
+    for f in findings:
+        print(f)
+    return 3 if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
