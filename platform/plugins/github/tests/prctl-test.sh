@@ -570,6 +570,9 @@ check "a body in the form goes on" "$("$prctl" create t - <<<"$good" 2>&1 || tru
 # shellcheck disable=SC2001,SC2016 # line-wise edits of a sample body, with Markdown backquotes
 check "an issue to close does not fill the last section" \
   "$("$prctl" create t - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n🤖 Generated' 2>&1 || true)" "the section ## 確かめていないこと is empty"
+# shellcheck disable=SC2001,SC2016 # line-wise edits of a sample body, with Markdown backquotes
+check "an issue the PR only refers to does not fill the last section" \
+  "$("$prctl" create t - <<<"$(sed 's/^なし$//; s/^Closes #1$/Refs #1/' <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
 # shellcheck disable=SC2001,SC2016 # a line-wise edit of a sample body, with Markdown backquotes
 check "a heading in a code block is not a section" \
   "$("$prctl" create t - <<<"$(sed 's/^x$/```md\n## どう確かめたか\n```/' <<<"$good")" 2>&1 || true)" "already has an open PR"
