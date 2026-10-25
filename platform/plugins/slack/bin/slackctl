@@ -46,7 +46,7 @@ api() {
 # The Web API escapes &, < and > in text; they are printed as Slack shows them. Slack's own markup,
 # such as <@U…> and <https://…|text>, keeps its brackets.
 print_messages() {
-  jq -r '.messages[] | "[\(.ts)] <@\(.user // .bot_id // "unknown")>\(if .thread_ts and .thread_ts != .ts then " (thread \(.thread_ts))" else "" end)\n\(.text | gsub("&lt;"; "<") | gsub("&gt;"; ">") | gsub("&amp;"; "&"))\n"'
+  jq -r '.messages[] | "[\(.ts)] <@\(.user // .bot_id // "unknown")>\(if .thread_ts and .thread_ts != .ts then " (thread \(.thread_ts))" else "" end)\n\(.text // "" | gsub("&lt;"; "<") | gsub("&gt;"; ">") | gsub("&amp;"; "&"))\n"'
 }
 
 cmd_status() {

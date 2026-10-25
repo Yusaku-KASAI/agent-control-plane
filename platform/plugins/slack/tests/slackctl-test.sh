@@ -33,4 +33,13 @@ got=$("$cmd" thread C1 1.0 | sed -n 2p)
 check "the text is printed as Slack shows it, keeping Slack's markup" \
   '<@U2> a & b, `theme:<名前>`, &lt; and <https://example.com|link>' "$got"
 
+cat >"$tmp/api/conversations.replies.json" <<'JSON'
+{"ok": true, "messages": [
+  {"ts": "1.0", "user": "U1", "files": []},
+  {"ts": "2.0", "user": "U1", "thread_ts": "1.0", "text": "next"}
+]}
+JSON
+got=$("$cmd" thread C1 1.0 | sed -n 5p)
+check "a message without text does not stop the thread" "next" "$got"
+
 ((failures == 0))

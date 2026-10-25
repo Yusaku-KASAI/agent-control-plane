@@ -145,6 +145,14 @@ func opensLinkText(line string, i int) bool {
 	depth := 0
 	for j := i; j < len(line); j++ {
 		switch line[j] {
+		case '`':
+			// A code span binds tighter than the brackets of a link, so its ] are not counted.
+			n := runLength(line, j, '`')
+			if end := strings.Index(line[j+n:], line[j:j+n]); end >= 0 {
+				j += end + 2*n - 1
+			} else {
+				j += n - 1
+			}
 		case '[':
 			depth++
 		case ']':
