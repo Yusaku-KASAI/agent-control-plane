@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Slack Web API / incoming webhook client for agents. Needs curl and jq.
+# Slack Web API / incoming webhook client for agents. Needs curl, jq and python3.
 set -euo pipefail
 
 usage() {

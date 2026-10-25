@@ -81,9 +81,10 @@ def check(lines):
         m = FENCE.match(line)
         if m:
             fence = m.group(4)
-            if m.group(3) or (m.group(2) and in_list):
+            # Within a quote the space after > is not a list's indent.
+            if m.group(3) or (m.group(2) and in_list and not m.group(1)):
                 note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
-            elif not m.group(2):
+            elif not m.group(2) or m.group(1):
                 in_list = False
                 ordered.clear()
             continue

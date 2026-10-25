@@ -63,6 +63,8 @@ check "the text after a code block is read" 1 "$(found $'```\ncode\n```\nPR：ht
 check "a URL in a link text passes" 0 "$(found '[https://x.example/a](https://x.example/a)、後')"
 check "a code block in a quote is not read" 0 "$(found $'> ```\n> PR：https://x.example\n> ```')"
 check "an unindented code block splits an ordered list" 0 "$(found $'1. 一\n   - 子\n\n```\ncode\n```\n\n2. 二')"
+check "a code block in a quote after a list passes" 0 "$(found $'- a\n\n> ```\n> x\n> ```')"
+check "a list ends at an unindented line" 0 "$(found $'- a\n\n文\n  ```\n  x\n  ```')"
 check "the inside of a code block is not read" 0 "$(found $'```\nPR：https://x.example\n## **x**\n```')"
 
 # A failure of the check is not taken for the forms Slack reads differently.
