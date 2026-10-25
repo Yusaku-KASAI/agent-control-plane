@@ -37,6 +37,8 @@ roles/
   control-plane がそのロールを自分の GitHub App で起動するときに、App の権限で分けられる粒度（Contents、Pull requests、
   Issues の読み書き）までだけ。それより細かい範囲（reviewer のレビューを COMMENT だけにすること、PR を書き換えないこと）と、
   サブエージェントとして動くとき（頼んだ側の認証情報を使う）は、ロールの指示（と、COMMENT だけを付ける `prctl review`）が守る。
+  書ける範囲は作業領域と GitHub についてのもので、Slack への投稿はどのロールも[ハーネスの契約](../../../docs/reference/harness.md "在りか")の
+  決まりによる（[ADR 0027](../../../docs/adr/0027-agents-post-to-slack-when-asked.md)）。
 
 ## 構成要素
 

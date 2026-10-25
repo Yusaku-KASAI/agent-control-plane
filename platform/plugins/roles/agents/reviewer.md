@@ -12,7 +12,7 @@ isolation: worktree
 
 ## 受け持つ手順
 
-書ける範囲：PR のレビュー（COMMENT）と Issue だけ。共通のルールの振り分けで決めた目的の手順ごとに、次のとおりにする。
+書ける範囲：PR のレビュー（COMMENT）と Issue だけ（Slack への投稿は別で、ハーネスの契約による）。共通のルールの振り分けで決めた目的の手順ごとに、次のとおりにする。
 
 - レビューする：受け持つ。始めに、レビューする手順（`docs/guides/review.md`）と、その 1 段の文書の体系
   （`docs/architecture/documentation.md`）とレビューの扱い方（`docs/reference/reviews.md`）を全体まで読み、その段に沿う。
