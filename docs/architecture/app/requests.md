@@ -59,7 +59,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **置くもの / 置かないもの**：
   - メンションのスレッド（スレッドの外のメンションなら、そのメッセージ自身）を依頼のスレッドにする。スレッドからセッション ID が
     決まる（[セッション ID](sessions.md#session-id "在りか")）。
-  - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所だけを書く。本文は、
+  - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所と、回答を slack スキルの書き方で
+    書くこと（回答は Slack で表示されるため）だけを書く。本文は、
     `:zap:` で始まるか（流し込み）を見るためだけに使う（[ADR 0020](../../adr/app/0020-slack-requests-by-reference.md)）。
   - Bot が書いたメッセージは依頼にしない。Slack が送り直した同じメッセージ（チャンネルと ts が同じ）は、
     1 時間のあいだ一度だけ扱い、送り直されたものには何も返さない（[ADR 0038](../../adr/app/0038-reactions-tell-how-requests-were-taken.md)）。
@@ -77,7 +78,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     ものを直してから送る。裸の URL は `<…>` で囲み（URL は空白か ASCII でない文字の手前で終わるとみなす）、文字の行のすぐ下の表には前に空行を足す。コードブロックと
     インラインコードの中と、リンクの記法の中は変えない。直せない形（太字の内側の ASCII の記号など）は、エージェントの書き方に任せる
     （[Slack の markdown ブロックが読む形](../../../platform/plugins/slack/docs/reference/markdown.md)、
-    [ADR 0049](../../adr/app/0049-fix-slack-markdown-forms-before-posting.md)）。
+    [ADR 0050](../../adr/app/0050-fix-slack-markdown-forms-before-posting.md)）。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
 - **関係**：`ChatResponder` を満たす。Bot のトークンは毎回 `slackauth.Source` から受け取る。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Slack の受け方と書き方
