@@ -463,5 +463,25 @@
     "name": "a quote at the margin ends the list item before it",
     "text": "- a\n> q\n\n  ```\n  code\n  ```",
     "found": []
+  },
+  {
+    "name": "a here-document's EOF in a code block in a list item is code",
+    "text": "1. 作る\n   ```bash\n   cat <<EOF > a.txt\n   x\nEOF\n   ```\n2. 次：https://out.example",
+    "found": [2, 7]
+  },
+  {
+    "name": "an unindented line of code in a list item is code",
+    "text": "1. 実行する\n   ```bash\ncurl https://in.example\n   ```\n2. 次：https://out.example\n\n表です\n| a | b |\n| --- | --- |",
+    "found": [2, 5, 8]
+  },
+  {
+    "name": "a quote at the margin ends an ordered list",
+    "text": "1. 一\n   - 子\n> 注\n2. 二",
+    "found": []
+  },
+  {
+    "name": "a quote at the margin and a blank line end an ordered list",
+    "text": "1. 一\n   - 子\n> 注\n\n2. 二",
+    "found": []
   }
 ]

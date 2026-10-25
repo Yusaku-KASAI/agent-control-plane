@@ -44,7 +44,7 @@ func slackMarkdown(text string) string {
 // fence is an open code block: its run of backticks or tildes, how many quote marks hold it, and,
 // in a list item, the column where the item's content starts after the quote marks. As in
 // CommonMark, the block ends with its quote, and in a list item with the item: at a line with fewer
-// quote marks, or at a line of text indented less than the item's content. The same rules are in
+// quote marks, or at another item indented less than the item's content. The same rules are in
 // the slack plugin's check-markdown, and both read the plugin's cases
 // (platform/plugins/slack/tests/markdown-cases.json).
 type fence struct {
@@ -177,15 +177,16 @@ func opensFence(line string, list *listItems) (fence, bool) {
 	return fence{}, false
 }
 
-// holds tells whether a line is still within the quote and the list item of the code block. A
-// closing run indented less than the item still closes the block, unlike in CommonMark, so that
-// it does not open another block over the rest of the text.
+// holds tells whether a line is still within the quote and the list item of the code block.
+// Unlike in CommonMark, a line indented less than the item ends the block only if it starts
+// another item: a line such as a here-document's EOF, or the closing run, is more likely meant as
+// code, and ending the block there would open another one over the rest of the text.
 func (f fence) holds(line string) bool {
 	n, rest := unquote(line, f.quotes)
 	if n < f.quotes {
 		return false
 	}
-	return strings.TrimSpace(rest) == "" || indentOf(rest) >= f.indent || f.closedBy(line)
+	return indentOf(rest) >= f.indent || !listMarker.MatchString(rest[leadLength(rest):])
 }
 
 // closedBy tells whether a line closes the code block. A closing run carries no list marker, so a

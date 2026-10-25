@@ -70,6 +70,8 @@ var fixedMarkdown = map[string]string{
 	"a closing run indented less than its item closes the code block":        "- a\n  ```\n  code\n```\n後：<https://out.example>",
 	"a code block left open after a quote in a list item ends with the item": "- a\n  > q\n  ```\n  code\n- b：<https://x.example>",
 	"a code block left open in an item of two markers ends with the item":    "- 1. a\n     ```\n     code\n- b：<https://x.example>",
+	"a here-document's EOF in a code block in a list item is code":           "1. 作る\n   ```bash\n   cat <<EOF > a.txt\n   x\nEOF\n   ```\n2. 次：<https://out.example>",
+	"an unindented line of code in a list item is code":                      "1. 実行する\n   ```bash\ncurl https://in.example\n   ```\n2. 次：<https://out.example>\n\n表です\n\n| a | b |\n| --- | --- |",
 }
 
 // formsFixed are check-markdown's findings of the forms slackMarkdown fixes, told by how their

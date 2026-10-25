@@ -88,18 +88,19 @@ class Fence:
     """An open code block: its run of backticks or tildes, how many quote marks hold it, and, in a
     list item, the column where the item's content starts after the quote marks. As in CommonMark,
     the block ends with its quote, and in a list item with the item: at a line with fewer quote
-    marks, or at a line of text indented less than the item's content."""
+    marks, or at another item indented less than the item's content."""
 
     def __init__(self, run, quotes, indent):
         self.run, self.quotes, self.indent = run, quotes, indent
 
     def holds(self, line):
-        # A closing run indented less than the item still closes the block, unlike in CommonMark,
-        # so that it does not open another block over the rest of the text.
+        # Unlike in CommonMark, a line indented less than the item ends the block only if it starts
+        # another item: a line such as a here-document's EOF, or the closing run, is more likely
+        # meant as code, and ending the block there would open another one over the rest.
         n, rest = unquote(line, self.quotes)
         if n < self.quotes:
             return False
-        return not rest.strip() or indent_of(rest) >= self.indent or self.closed_by(line)
+        return indent_of(rest) >= self.indent or not LIST_MARKER.match(rest, lead_length(rest))
 
     def closed_by(self, line):
         # A closing run carries no list marker, so a line like "- ```" in a code block is code.
@@ -151,13 +152,16 @@ class ListItems:
                 # A blank line ends the quotes deeper than it.
                 del self.levels[depth + 1:]
                 return self.levels[depth]
-            cols = self.levels[depth].cols
+            level = self.levels[depth]
             indent = width(rest[:lead_length(rest)])
-            while cols and cols[-1] > indent:
-                cols.pop()
+            while level.cols and level.cols[-1] > indent:
+                level.cols.pop()
             m = QUOTE_MARK.match(rest)
             if not m:
                 break
+            # A quote mark ends the ordered lists it is not indented into, as a paragraph would.
+            for k in [k for k in level.ordered if k >= indent]:
+                del level.ordered[k]
             rest, depth = rest[m.end():], depth + 1
         del self.levels[depth + 1:]
         at = lead_length(rest)
