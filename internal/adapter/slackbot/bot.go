@@ -233,7 +233,7 @@ slack スキルの手順で次のメッセージを読み、その依頼に応�
 - スレッド: channel %s / thread_ts %s
 
 最後の回答は control-plane がこのスレッドに投稿します。回答を自分で投稿しないでください。
-回答は Slack で表示されるので、slack スキルの「書く」の書き方（URL、太字、番号付きのリスト、表）に沿って書いてください。`, user, channel, ts, channel, thread)
+回答は Slack で表示されるので、slack スキルの「書く」の書き方に沿って書いてください。`, user, channel, ts, channel, thread)
 }
 
 // The reactions on a request's message tell how far it has come (docs/adr/app/0038).
