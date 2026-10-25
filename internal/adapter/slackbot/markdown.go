@@ -91,14 +91,17 @@ func bracketURLs(line string) string {
 			b.WriteString(line[i : i+n])
 			i += n
 			continue
-		case linkText == 0 && !linkedAlready(line, i):
-			if n := schemeLength(line[i:]); n > 0 {
-				if end := urlEnd(line, i); end > i+n {
-					b.WriteString("<" + line[i:end] + ">")
-					i = end
-					continue
-				}
+		case schemeLength(line[i:]) > 0:
+			// The whole URL is passed over, so that a URL inside it (?next=https://…) is not taken
+			// for another one.
+			end := urlEnd(line, i)
+			if linkText == 0 && !linkedAlready(line, i) && end > i+schemeLength(line[i:]) {
+				b.WriteString("<" + line[i:end] + ">")
+			} else {
+				b.WriteString(line[i:end])
 			}
+			i = end
+			continue
 		}
 		b.WriteByte(line[i])
 		i++
