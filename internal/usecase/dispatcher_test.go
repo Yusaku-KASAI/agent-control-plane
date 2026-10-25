@@ -33,6 +33,9 @@ type fakeSessions struct {
 	locks   map[domain.SessionID]int
 	removed []domain.SessionID
 	saves   int
+	saveErr error
+	// onRemove runs when Remove removes a session.
+	onRemove func(id domain.SessionID)
 	// onLock runs before Lock takes the lock.
 	onLock func(id domain.SessionID)
 	// exclusive refuses a lock the test already holds, as the store does.
@@ -52,6 +55,9 @@ func (f *fakeSessions) Find(_ context.Context, id domain.SessionID) (domain.Sess
 func (f *fakeSessions) Save(_ context.Context, s domain.Session) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.saveErr != nil {
+		return f.saveErr
+	}
 	f.saved[s.ID] = s
 	f.saves++
 	return nil
@@ -105,6 +111,9 @@ func (f *fakeSessions) Remove(_ context.Context, id domain.SessionID) error {
 	delete(f.saved, id)
 	delete(f.orphans, id)
 	f.removed = append(f.removed, id)
+	if f.onRemove != nil {
+		f.onRemove(id)
+	}
 	return nil
 }
 
@@ -112,12 +121,22 @@ type fakeWorkspaces struct {
 	err      error
 	prepared int
 	sessions *fakeSessions
+	// made are the workspaces left in place, which a clone into the same place refuses, until the
+	// session is removed.
+	made map[domain.SessionID]bool
 }
 
 func (f *fakeWorkspaces) Prepare(_ context.Context, _ domain.Agent, id domain.SessionID, _ domain.Credentials) (domain.Workspace, error) {
 	if !f.sessions.isLocked(id) {
 		return domain.Workspace{}, errors.New("prepared without the lock")
 	}
+	if f.made[id] {
+		return domain.Workspace{}, errors.New("destination path already exists")
+	}
+	if f.made == nil {
+		f.made = make(map[domain.SessionID]bool)
+	}
+	f.made[id] = true
 	f.prepared++
 	return domain.Workspace{Path: "/sessions/" + string(id)}, f.err
 }
@@ -411,6 +430,7 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		usage:      &fakeUsage{},
 	}
 	e.workspaces.sessions = e.sessions
+	e.sessions.onRemove = func(id domain.SessionID) { delete(e.workspaces.made, id) }
 	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, e.usage, opts)
 	t.Cleanup(e.d.Close)
 	return e
@@ -1229,6 +1249,57 @@ func TestDispatcher_Errors(t *testing.T) {
 			_, err := e.d.Execute(context.Background(), tt.in)
 			if err == nil || (tt.wantErr != nil && !errors.Is(err, tt.wantErr)) {
 				t.Fatalf("Execute() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDispatcher_FailedCreationLeavesNothing(t *testing.T) {
+	tests := []struct {
+		name    string
+		breakIt func(env)
+		fix     func(env)
+	}{
+		{
+			name:    "credentials",
+			breakIt: func(e env) { e.issuer.err = errors.New("no token") },
+			fix:     func(e env) { e.issuer.err = nil },
+		},
+		{
+			name:    "workspace",
+			breakIt: func(e env) { e.workspaces.err = errors.New("fetch failed") },
+			fix:     func(e env) { e.workspaces.err = nil },
+		},
+		{
+			name:    "record",
+			breakIt: func(e env) { e.sessions.saveErr = errors.New("disk full") },
+			fix:     func(e env) { e.sessions.saveErr = nil },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const id domain.SessionID = "33333333-3333-5333-8333-333333333333"
+			e := newEnv(t, usecase.DispatcherOptions{})
+			in := usecase.RunAgentInput{AgentName: dev.Name, SessionID: id, CreateIfMissing: true, Prompt: "hi"}
+
+			tt.breakIt(e)
+			if _, err := e.d.Execute(context.Background(), in); err == nil {
+				t.Fatal("Execute() error = nil, want the creation to fail")
+			}
+			if !slices.Equal(e.sessions.removed, []domain.SessionID{id}) {
+				t.Errorf("removed = %v, want the half-made %s", e.sessions.removed, id)
+			}
+			if e.sessions.isLocked(id) {
+				t.Error("the failed creation kept the lock")
+			}
+
+			tt.fix(e)
+			retry := e.execute(in)
+			p := e.runner.next(t)
+			eventually(t, func() bool { return len(p.sent()) == 1 })
+			p.finish("done")
+			if o := wait(t, retry); o.err != nil || o.out.Session.ID != id {
+				t.Fatalf("retry = %+v, %v", o.out, o.err)
 			}
 		})
 	}

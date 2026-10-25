@@ -56,10 +56,6 @@ GitHub のブランチと PR
      そこからセッションのブランチを切る。なければ clone した HEAD から切る。どちらも upstream は設定しない
      （[ADR 0013](../../adr/app/0013-session-branch-from-remote-default.md)）。
   5. [commit-msg フック](#commit-msg)と[pre-push フック](#pre-push)を置く。
-
-  2〜5 のどれかで失敗したら、1 で clone したものを消してから失敗を返す。記録のないまま残ると、同じスレッドの
-  やり直し（同じセッション ID）の clone が、それにぶつかって失敗するため。clone したばかりで、エージェントはまだ
-  書いていないので、消して失うものはない。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
