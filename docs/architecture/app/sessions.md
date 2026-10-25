@@ -166,12 +166,14 @@
     | `outcome` | `succeeded`、`error`、`usage_limited`（使用上限で断られた）、`interrupted`（止めた） |
     | `usage` | ターンの使用量（`cost_usd` と、モデルごとの `input_tokens`、`output_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens`、`cost_usd`）。分からなければ `null` |
     | `reported_total` | Claude Code が報告したセッションの合計（`usage` と同じ形） |
+    | `context_tokens` | ターンの中でメインのエージェントの最後の API の呼び出しが読んだトークン数（コンテキストの大きさ。assistant のメッセージの `message.usage` の `input_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens` の和）。分からなければ `null`（[ADR 0049](../../adr/app/0049-suggest-closing-when-the-context-grows.md)） |
 
 - **関係**：ワーカーが、ターンを終えたときに usecase の `UsageLog`（`internal/usecase/ports.go`）に `TurnRecord` を渡す。
   ターンの使用量と、次と比べるセッションの合計（0 だけの報告なら前の合計、分からなければなし）を、
   `SessionEvent.Spent` で observer にも渡し、状態メッセージが見せる
   （[依頼と知らせ](requests.md "在りか")、[ADR 0037](../../adr/app/0037-usage-in-status-messages.md)）。`result` を
-  読むのは runner（`internal/adapter/docker/process.go`）。こう決めた理由は [ADR 0036](../../adr/app/0036-record-usage-per-turn.md) にある。
+  読むのは runner（`internal/adapter/docker/process.go`）で、コンテキストの大きさも runner が assistant のメッセージ
+  から読み、`TurnResult.ContextTokens` で渡す。こう決めた理由は [ADR 0036](../../adr/app/0036-record-usage-per-turn.md) にある。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：
   runner は報告された合計だけを返し、ターンの分を出す判定は domain の `TurnUsage` の 1 か所に置く。
   [失われうるものを先に挙げる](../../../platform/plugins/principles/docs/reference/patterns.md#loss-first)：片付けで消えないよう、

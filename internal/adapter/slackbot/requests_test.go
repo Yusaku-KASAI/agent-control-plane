@@ -56,7 +56,7 @@ func (allowAll) Allows(domain.AgentName, domain.Requester) bool { return true }
 
 func TestHandleReactionStopsTheRequest(t *testing.T) {
 	turns := &stopRecorder{}
-	b := New("dev", "", nil, turns, nil, allowAll{}, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, turns, nil, allowAll{}, 0, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
 	b.requests.remember(thread, "2.0", time.Now())
 	reaction := func(name, itemType, ts, user string) *slackevents.ReactionAddedEvent {
@@ -96,7 +96,7 @@ func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force b
 // with no memory of the request (docs/adr/app/0046).
 func TestHandleReactionCleansTheSession(t *testing.T) {
 	cleanup := &cleanRecorder{done: make(chan struct{}, 4)}
-	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, slog.New(slog.DiscardHandler))
+	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, 0, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
 	reaction := func(name, user string) *slackevents.ReactionAddedEvent {
 		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, EventTimestamp: "1700000000.000100",

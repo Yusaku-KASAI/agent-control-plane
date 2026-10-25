@@ -24,6 +24,9 @@ type Config struct {
 	IdleTimeout time.Duration
 	// Retention is how long an unused session is kept.
 	Retention time.Duration
+	// SuggestClosingAt is the size of the agent's context, in tokens, from which a finished status
+	// message suggests closing the session; 0 never suggests it.
+	SuggestClosingAt int64
 	// StateDir is where the control plane keeps state it alone reads and writes, such as rotating tokens.
 	StateDir string
 	// UsageLog is the host file where what each turn spent is appended.
@@ -97,6 +100,8 @@ type fileFormat struct {
 		Root        string `yaml:"root"`
 		IdleTimeout string `yaml:"idle_timeout"`
 		Retention   string `yaml:"retention"`
+		// SuggestClosingAt is a pointer to tell 0, which turns the suggestion off, from unset.
+		SuggestClosingAt *int64 `yaml:"suggest_closing_at"`
 	} `yaml:"sessions"`
 	Credentials struct {
 		Dir    string `yaml:"dir"`
@@ -150,6 +155,9 @@ type fileFormat struct {
 const (
 	defaultIdleTimeout = 15 * time.Minute
 	defaultRetention   = 30 * 24 * time.Hour
+	// defaultSuggestClosingAt is well below the size at which Claude Code compacted the 1M-token
+	// context of a long thread (Issue #240), and above that of a session doing one piece of work.
+	defaultSuggestClosingAt = 400_000
 )
 
 func Load(path string) (Config, error) {
@@ -207,6 +215,13 @@ func Parse(data []byte) (Config, error) {
 			return Config{}, fmt.Errorf("sessions.retention %q is not a positive duration", f.Sessions.Retention)
 		}
 		retention = d
+	}
+	suggestClosingAt := int64(defaultSuggestClosingAt)
+	if n := f.Sessions.SuggestClosingAt; n != nil {
+		if *n < 0 {
+			return Config{}, fmt.Errorf("sessions.suggest_closing_at %d is negative", *n)
+		}
+		suggestClosingAt = *n
 	}
 	if !filepath.IsAbs(f.Credentials.Dir) {
 		return Config{}, fmt.Errorf("credentials.dir %q is not absolute", f.Credentials.Dir)
@@ -269,19 +284,20 @@ func Parse(data []byte) (Config, error) {
 		agents[a.Name] = a
 	}
 	return Config{
-		Agents:       &Registry{agents: agents},
-		Claude:       Claude{OAuthTokenPath: cl.OAuthTokenPath, APIKeyPath: cl.APIKeyPath, ConfigDir: cl.ConfigDir, ConfigVolume: cl.ConfigVolume},
-		SessionsRoot: f.Sessions.Root,
-		IdleTimeout:  idle,
-		Retention:    retention,
-		StateDir:     f.StateDir,
-		UsageLog:     f.UsageLog,
-		Credentials:  Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
-		Tools:        Tools{Dir: f.Tools.Dir, Volume: f.Tools.Volume},
-		GitHubApps:   apps,
-		SlackApps:    slackApps,
-		Access:       access,
-		People:       people,
+		Agents:           &Registry{agents: agents},
+		Claude:           Claude{OAuthTokenPath: cl.OAuthTokenPath, APIKeyPath: cl.APIKeyPath, ConfigDir: cl.ConfigDir, ConfigVolume: cl.ConfigVolume},
+		SessionsRoot:     f.Sessions.Root,
+		IdleTimeout:      idle,
+		Retention:        retention,
+		SuggestClosingAt: suggestClosingAt,
+		StateDir:         f.StateDir,
+		UsageLog:         f.UsageLog,
+		Credentials:      Credentials{Dir: f.Credentials.Dir, Volume: f.Credentials.Volume},
+		Tools:            Tools{Dir: f.Tools.Dir, Volume: f.Tools.Volume},
+		GitHubApps:       apps,
+		SlackApps:        slackApps,
+		Access:           access,
+		People:           people,
 	}, nil
 }
 

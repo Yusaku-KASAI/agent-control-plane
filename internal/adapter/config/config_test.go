@@ -19,6 +19,7 @@ sessions:
   root: /var/acp/sessions
   idle_timeout: 5m
   retention: 240h
+  suggest_closing_at: 300000
 credentials:
   dir: /var/lib/acp/credentials
   volume: acp-credentials
@@ -99,6 +100,9 @@ func TestParse(t *testing.T) {
 		app.Rotation == nil || *app.Rotation != (config.SlackRotation{ClientID: "123.456", ClientSecretPath: "/keys/repo-dev.slack-client-secret"}) {
 		t.Errorf("SlackApps = %+v", cfg.SlackApps)
 	}
+	if cfg.SuggestClosingAt != 300000 {
+		t.Errorf("SuggestClosingAt = %d", cfg.SuggestClosingAt)
+	}
 	if cfg.UsageLog != "/var/acp/usage.jsonl" {
 		t.Errorf("UsageLog = %q", cfg.UsageLog)
 	}
@@ -151,6 +155,13 @@ claude: {oauth_token_path: /t, config_dir: /cc}
 `,
 		"bad retention": `
 sessions: {root: /w, retention: 30d}
+usage_log: /u.jsonl
+credentials: {dir: /c}
+tools: {dir: /tl}
+claude: {oauth_token_path: /t, config_dir: /cc}
+`,
+		"negative suggest_closing_at": `
+sessions: {root: /w, suggest_closing_at: -1}
 usage_log: /u.jsonl
 credentials: {dir: /c}
 tools: {dir: /tl}
@@ -262,6 +273,26 @@ agents:
 				t.Fatal("Parse() error = nil, want error")
 			}
 		})
+	}
+}
+
+func TestParse_SuggestClosingAt(t *testing.T) {
+	for in, want := range map[string]int64{
+		"{root: /w}":                        400_000,
+		"{root: /w, suggest_closing_at: 0}": 0,
+	} {
+		cfg, err := config.Parse([]byte("sessions: " + in + `
+usage_log: /u.jsonl
+credentials: {dir: /c}
+tools: {dir: /tl}
+claude: {oauth_token_path: /t, config_dir: /cc}
+`))
+		if err != nil {
+			t.Fatalf("Parse(%s) error = %v", in, err)
+		}
+		if cfg.SuggestClosingAt != want {
+			t.Errorf("Parse(%s).SuggestClosingAt = %d, want %d", in, cfg.SuggestClosingAt, want)
+		}
 	}
 }
 

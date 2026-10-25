@@ -146,6 +146,12 @@ type streamEvent struct {
 	Message  struct {
 		// Content is a string in prompts and a list of blocks in assistant messages.
 		Content json.RawMessage `json:"content"`
+		// Usage, on assistant messages, is that of the API request that produced the message.
+		Usage *struct {
+			InputTokens              int64 `json:"input_tokens"`
+			CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+			CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+		} `json:"usage"`
 	} `json:"message"`
 }
 
@@ -155,6 +161,16 @@ type modelUsage struct {
 	CacheReadInputTokens     int64   `json:"cacheReadInputTokens"`
 	CacheCreationInputTokens int64   `json:"cacheCreationInputTokens"`
 	CostUSD                  float64 `json:"costUSD"`
+}
+
+// contextTokens is how many tokens of conversation the main agent's API request behind an assistant
+// message read; 0 for other lines, including a subagent's messages, whose context is their own.
+func (e streamEvent) contextTokens() int64 {
+	if e.Type != "assistant" || e.ParentToolUseID != "" || e.Message.Usage == nil {
+		return 0
+	}
+	u := e.Message.Usage
+	return u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
 }
 
 func (e streamEvent) usage() domain.Usage {
@@ -182,6 +198,8 @@ type turnFacts struct {
 	usageLimited bool
 	// interruptSent tells whether Interrupt was called since the previous result.
 	interruptSent bool
+	// contextTokens is what the main agent's last API request in the turn read; 0 when unknown.
+	contextTokens int64
 }
 
 // processEvent translates a stream-json line.
@@ -202,7 +220,7 @@ func (e streamEvent) processEvent(f turnFacts) (usecase.ProcessEvent, bool) {
 			return usecase.ProcessEvent{Kind: usecase.EventActivity, Activity: a, Remark: r}, true
 		}
 	case e.Type == "result":
-		r := usecase.TurnResult{Output: e.Result, Usage: e.usage()}
+		r := usecase.TurnResult{Output: e.Result, Usage: e.usage(), ContextTokens: f.contextTokens}
 		switch {
 		case e.stopped(f.interruptSent):
 			r.Interrupted = true
@@ -308,6 +326,7 @@ func (p *process) read() {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	var limit rateLimit
+	var contextTokens int64
 	for scanner.Scan() {
 		var e streamEvent
 		if json.Unmarshal(scanner.Bytes(), &e) != nil {
@@ -319,9 +338,14 @@ func (p *process) read() {
 				resetsAt: e.RateLimitInfo.ResetsAt,
 			}
 		}
+		if n := e.contextTokens(); n > 0 {
+			contextTokens = n
+		}
 		f := turnFacts{usageLimited: limit.refusing(time.Now())}
 		if e.Type == "result" {
 			f.interruptSent = p.interruptSent.Swap(false)
+			f.contextTokens = contextTokens
+			contextTokens = 0
 		}
 		if pe, ok := e.processEvent(f); ok {
 			p.events <- pe
