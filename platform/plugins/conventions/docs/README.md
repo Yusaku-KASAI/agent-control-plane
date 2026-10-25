@@ -11,7 +11,7 @@
 | [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR |
 | [reference/changes.md](reference/changes.md) | 参照 | 変更の扱い方：PR の流れ、変更とパターン、検査と履歴 |
 | [reference/reviews.md](reference/reviews.md) | 参照 | レビューの扱い方：種類（差分、全体）、観点、指摘の重さと書き方、結果の形、差分のレビューと全体のレビューの決まり |
-| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分類、ロードマップ、Issue の本文、依頼の範囲、整っている状態、キャンバス、セッションを締めるときに持ち越すもの |
+| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分類、ロードマップ、Issue の本文、依頼の範囲、Issue に書き足すとき、整っている状態、キャンバス、セッションを締めるときに持ち越すもの |
 | [reference/glossary.md](reference/glossary.md) | 参照 | 文書、変更と課題の決まりで使う言葉 |
 | [guides/deliver-change.md](guides/deliver-change.md) | 手順 | 変更を届ける（目的の手順）：始めに読む、依頼、今の姿、形と壊れうる場面、作る、レビュー、確かめていないこと |
 | [guides/write-docs.md](guides/write-docs.md) | 手順 | 文書を書く：区切り、種類、持ち主、形、触れ方とリンク、地図、量、確かめる |
