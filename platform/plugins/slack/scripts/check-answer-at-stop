@@ -23,9 +23,11 @@ fi
 ((status == 3)) || exit 0
 
 # The same findings hold a session once until an answer passes: the agent may keep a form on
-# purpose, and a turn that went on for another Stop hook is still checked. Findings that cannot be
-# remembered do not hold the turn, as they would hold every end of it.
-held=$(printf '%s' "$found" | cksum)
+# purpose, and a turn that went on for another Stop hook is still checked. The findings are kept by
+# their forms and how many, not their lines, so that an answer reworded around a kept form is not
+# held again. Findings that cannot be remembered do not hold the turn, as they would hold every end
+# of it.
+held=$(cut -d: -f2- <<<"$found" | sort | cksum)
 [[ $(cat "$state" 2>/dev/null) != "$held" ]] || exit 0
 echo "$held" 2>/dev/null >"$state" || exit 0
-jq -n --arg found "$found" '{decision: "block", reason: ("Your last message is the answer the requester reads, shown in Slack'"'"'s markdown block, which reads these forms of it differently (the slack plugin'"'"'s check-markdown; lines count from the start of the message). Rewrite them as the slack skill'"'"'s writing section tells, then end with your full answer to the request again, not only this update. If a form is meant, end with the same answer: it is checked once.\n" + $found)}'
+jq -n --arg found "$found" '{decision: "block", reason: ("Your last message is the answer the requester reads, shown in Slack'"'"'s markdown block, which reads these forms of it differently (the slack plugin'"'"'s check-markdown; lines count from the start of the message). Rewrite them as the slack skill'"'"'s writing section tells, then end with your full answer to the request again, not only this update. If a form is meant, keep it: the same forms are checked once.\n" + $found)}'

@@ -30,6 +30,7 @@ check "an answer with a form Slack reads differently holds the turn" block "$(st
 reason=$(jq -n --arg a "$broken" '{session_id: "s9", last_assistant_message: $a}' | "$hook" | jq -r .reason)
 check "the reason names the line and the form" yes "$([[ $reason == *"line 1: URL"* ]] && echo yes || echo no)"
 check "the same findings hold the turn once" "" "$(stop s1 "$broken")"
+check "the same findings on other lines hold the turn once" "" "$(stop s1 $'書き直しました。\n\n'"$broken")"
 check "other findings hold the turn again" block "$(stop s1 $'| a |\n| --- |\n文\n本文\n| b |\n| --- |')"
 check "another session is held for the same findings" block "$(stop s2 "$broken")"
 stop s2 "$fine" >/dev/null
