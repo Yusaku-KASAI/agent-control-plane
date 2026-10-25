@@ -34,9 +34,11 @@ slackctl post --force <channel> < message.md       # 崩れる形を知りなが
   devcontainer で直接動くときは、最後の回答は端末に出るだけ（[ハーネスの契約](../../../../docs/reference/harness.md#slack-posts)）。
 - 本文は標準の Markdown で書く（`**太字**`、`` `code` ``、`- 箇条書き`、`[表示](URL)`）。Slack 独自の `*太字*` は使わない。
 - `slackctl check` は、下の崩れる形を行ごとに知らせる（項目の中の段落と実体参照は知らせない）。`post` も同じ検査をし、見つかれば投稿しない（直すのが筋で、
-  わざとその形で送るときだけ `post --force`）。control-plane が投稿する最後の回答も、書式を多く使うときは、答える前に
-  `slackctl check` に通して直す。`python3` がないと `check-markdown failed` で止まるので、そのときは下の書き方を見直したうえで、
-  投稿なら `post --force` で送り、最後の回答ならそのまま答える。
+  わざとその形で送るときだけ `post --force`）。`python3` がないと `check-markdown failed` で止まるので、そのときは下の
+  書き方を見直したうえで `post --force` で送る。
+- control-plane 経由では、最後の回答も、このプラグインの hook がターンの終わりに同じ検査をし、崩れる形があればターンを
+  一度止めて知らせる。下の書き方で直し、依頼への答え全体をもう一度書いて終える。わざとその形にするときは、残して
+  終えれば、そのターンでは同じ形で二度は止まらない。
 - Slack は Markdown を少し違う規則で読む。Slack に届く文章（自分の投稿と、Slack からの依頼への最後の回答）は、
   次のとおりに書く（[Slack の markdown ブロックが読む形](../../docs/reference/markdown.md)）。
   - URL は `<https://…>` か `[表示](https://…)` で書く。裸の URL は、前後に日本語が続くとリンクにならないか、後ろの
