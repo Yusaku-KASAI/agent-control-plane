@@ -106,7 +106,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   観点を `skipped` に理由と書く。指摘の `perspective` は見た観点のどれか。指摘がなければ `findings` は `[]`。
   head の履歴にまだレビューがなければ（PR の最初のレビュー、履歴を書き換えたあと）、`pr` でなければ断られる。
 - `answers`（PR を作る前のレビューだけ）と、`prctl answer` に渡すリストは、指摘の番号ごとに `action` を
-  `直した`（`commit`）、`直さない`（`reason`）、`Issue にした`（`issue`）、`答えた`（`reason`）のどれかにする。
+  `直した`（`commit`）、`直さない`（`reason`）、`Issue にした`（`issue`。任意で `reason`）、`答えた`（`reason`）のどれかにする。
   すべての指摘に答える。
 
 ## ほかの人の PR と既定のブランチを読む
