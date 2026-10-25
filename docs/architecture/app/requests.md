@@ -107,7 +107,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   （[使用量の記録](sessions.md#usage "在りか")）。
   終わったあと、その状態メッセージが追ったターンのうち最後に分かったコンテキストの大きさが `sessions.suggest_closing_at`
   （[acp.example.yaml](../../../acp.example.yaml "在りか")）以上なら、費用の見積もりの次に、締めて次の作業を新しい
-  スレッドで依頼するよう促す 1 行を出す（[ADR 0049](../../adr/app/0049-suggest-closing-when-the-context-grows.md)）。
+  スレッドで依頼するよう促す 1 行を出す。知らせるだけで、自動では締めない（[ADR 0049](../../adr/app/0049-suggest-closing-when-the-context-grows.md)、[0052](../../adr/app/0052-keep-the-closing-threshold-at-400k.md)）。
   コンテキストの大きさは worker が `TurnResult.ContextTokens` で渡す。
   エージェントの発言は状態メッセージが持ち、引き継いでも残る
   （[ADR 0034](../../adr/app/0034-agent-remarks-in-status-messages.md)）。書き換えは 5 秒ごとと、変化から 1 秒
