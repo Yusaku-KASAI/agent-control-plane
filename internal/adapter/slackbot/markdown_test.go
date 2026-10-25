@@ -21,6 +21,7 @@ func TestSlackMarkdown(t *testing.T) {
 		{"link destination", "[PR](https://example.com/a)後", "[PR](https://example.com/a)後"},
 		{"link text", "[https://example.com](https://example.com)", "[https://example.com](https://example.com)"},
 		{"url within a link text", "[詳細は https://x.example を](https://y.example) と https://z.example", "[詳細は https://x.example を](https://y.example) と <https://z.example>"},
+		{"unclosed bracket", "配列 a[i の要素は https://example.com/a、後", "配列 a[i の要素は <https://example.com/a>、後"},
 		{"non-ASCII path", "https://ja.wikipedia.org/wiki/日本 の記事", "<https://ja.wikipedia.org/wiki/>日本 の記事"},
 		{"code span", "`https://example.com` と ``a ` https://example.com``", "`https://example.com` と ``a ` https://example.com``"},
 		{"unclosed backtick", "` https://example.com", "` <https://example.com>"},

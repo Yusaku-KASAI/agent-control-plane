@@ -69,13 +69,14 @@ func isTableRow(line string) bool {
 // next to Japanese text is either not linked or linked with the text. A URL ends at a space, a
 // non-ASCII character, or a character a URL does not hold here (< > ` " and the like), and loses
 // the punctuation that ends a sentence. Code spans, autolinks, link texts and link destinations
-// stay as they are: a link cannot hold another link.
+// stay as they are: a link cannot hold another link. A [ is taken to open a link text only when a ]
+// follows it on the line.
 func bracketURLs(line string) string {
 	var b strings.Builder
 	linkText := 0
 	for i := 0; i < len(line); {
 		switch {
-		case line[i] == '[':
+		case line[i] == '[' && strings.Contains(line[i:], "]"):
 			linkText++
 		case line[i] == ']' && linkText > 0:
 			linkText--

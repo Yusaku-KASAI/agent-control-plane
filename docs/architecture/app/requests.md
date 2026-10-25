@@ -75,7 +75,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     `Dispatcher` が閉じて依頼が終わるのを待つ。
   - 返事と状態メッセージは、Slack の markdown ブロックが標準の Markdown と違って読む形のうち、意味を変えずに直せる
     ものを直してから送る。裸の URL は `<…>` で囲み（URL は空白か ASCII でない文字の手前で終わるとみなす）、文字の行のすぐ下の表には前に空行を足す。コードブロックと
-    インラインコードの中は変えない。直せない形（太字の内側の ASCII の記号など）は、エージェントの書き方に任せる
+    インラインコードの中と、リンクの記法の中は変えない。直せない形（太字の内側の ASCII の記号など）は、エージェントの書き方に任せる
     （[Slack の markdown ブロックが読む形](../../../platform/plugins/slack/docs/reference/markdown.md)、
     [ADR 0049](../../adr/app/0049-fix-slack-markdown-forms-before-posting.md)）。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。

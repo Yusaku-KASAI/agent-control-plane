@@ -294,7 +294,7 @@ func (b *Bot) Post(ctx context.Context, c domain.Conversation, text string) erro
 	_, _, err = api.PostMessageContext(ctx, c.Channel,
 		slack.MsgOptionTS(c.Thread),
 		slack.MsgOptionText(fallbackText(text), false),
-		slack.MsgOptionBlocks(slack.NewMarkdownBlock("", markdownText(text))),
+		slack.MsgOptionBlocks(markdownBlock(text)),
 	)
 	return err
 }
@@ -304,6 +304,11 @@ const (
 	maxMarkdown = 11_000
 	maxFallback = 3_000
 )
+
+// markdownBlock carries text to Slack; every message the bot writes goes in one.
+func markdownBlock(text string) *slack.MarkdownBlock {
+	return slack.NewMarkdownBlock("", markdownText(text))
+}
 
 // markdownText fits text to the markdown block: it rewrites the forms Slack reads differently,
 // then truncates.
