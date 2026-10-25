@@ -125,8 +125,11 @@ cmd_check() {
 }
 
 cmd_post() {
-  local text payload force=false
-  if [[ ${1:-} == --force ]]; then force=true; shift; fi
+  local text payload force=false args=()
+  for a in "$@"; do
+    if [[ $a == --force ]]; then force=true; else args+=("$a"); fi
+  done
+  set -- "${args[@]}"
   text=$(cat)
   check_text "$text"
   $force || check_forms "$text" || die "Slack reads these forms differently (docs/reference/markdown.md); rewrite them, or post with --force"

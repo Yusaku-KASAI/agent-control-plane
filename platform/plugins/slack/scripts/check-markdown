@@ -38,7 +38,12 @@ def outside_code(line):
     return "".join(out)
 
 
+LINK_TEXT = re.compile(r"\[[^\[\]]*\](?=[(\[])")
+
+
 def bare_url_findings(text):
+    # A link text ([text](URL), [text][ref]) holds no bare URL: a link cannot hold another link.
+    text = LINK_TEXT.sub(lambda m: "[" + " " * (len(m.group(0)) - 2) + "]", text)
     for m in URL.finditer(text):
         start = m.start()
         before = text[start - 1] if start else " "
