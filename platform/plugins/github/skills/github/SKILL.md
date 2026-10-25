@@ -45,7 +45,8 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   こと、下に push したときの取り込みは[変更](../../../conventions/docs/reference/changes.md#changes)）。`prctl` は、
   ブランチが下のブランチの上にあり、下に開いている PR があるときだけ作る。重ねたあと、下が先に進んで取り込んで
   いないときと、下の PR が閉じたとき（マージされたか、されずに閉じたか）は、`prctl status` と hook が知らせる。
-- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
+- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く。依頼の Issue に積んだ指摘が残って閉じないときは、`Refs #<番号>` に
+  する（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー
 
@@ -68,7 +69,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - 通常の打ち切り（必須のない PR 全体のレビューが 2 回続いた）は `prctl` が数えない。打ち切った提案には、`直さない` で、理由を「打ち切り」で
   始めて答える（あとの全体のレビューが、それで探す）。
 - 範囲の外の指摘を依頼の Issue に積んだときは、積むコメントを書いてから、`Issue にした` で依頼の Issue の番号を渡し、
-  理由に積んだことを書く（[範囲](../../../conventions/docs/reference/issues.md#scope)）。
+  理由に積んだことを書く（[依頼の範囲](../../../conventions/docs/reference/issues.md#scope)）。
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
 
@@ -123,11 +124,11 @@ prctl worktree remove default
 ```
 
 - 本文の最初の節（何を変えるか）は変更の意図なので、本文は観点「別の形」で別の形を挙げたあとに読む（レビューするの
-  2 段と 4 段）。先に、タイトルと閉じる Issue（本文の `Closes #<番号>` の行）だけを取り出し、Issue から依頼を読む。閉じる
-  Issue がなければ、タイトルから挙げる。
+  2 段と 4 段）。先に、タイトルと依頼の Issue（本文の `Closes #<番号>` か `Refs #<番号>` の行）だけを取り出し、Issue から依頼を読む。
+  依頼の Issue がなければ、タイトルから挙げる。
 
   ```bash
-  gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves) #")))'
+  gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves|Refs) #")))'
   ```
 - 検査は、取り出した worktree の中で回す。
 - レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
