@@ -15,7 +15,7 @@
 | 段階 | 起きること |
 | --- | --- |
 | ID が決まる | Slack では、エージェントとスレッドから決まる。同じスレッドなら何度でも同じ ID になる（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。CLI では新しいセッションごとにランダム |
-| 作る | 記録がなければ、ロックを取って作業領域（ターゲットの clone と、そこで切ったセッションのブランチ）を作り、記録を保存する（[作業領域とブランチ](workspace.md "在りか")） |
+| 作る | 記録がなければ、ロックを取って作業領域（ターゲットの clone と、そこで切ったセッションのブランチ）を作り、記録を保存する（[作業領域とブランチ](workspace.md "在りか")）。途中で失敗したら、作りかけのディレクトリを消してから失敗を返す。記録のないまま残ると、同じ ID でのやり直し（同じスレッドの次の依頼）の clone がそれにぶつかるため |
 | 動かす | 依頼が来るとセッションのワーカーができ、ロックを取る。コンテナがなければ起動し、Claude Code を、会話の履歴があれば `--resume <ID>`、なければ `--session-id <ID>` で動かし続ける（[ADR 0017](../../adr/app/0017-long-lived-session-process.md)、[0048](../../adr/app/0048-resume-when-the-conversation-is-saved.md)）。ターンを終えるたびに記録の `turns` を増やして保存する |
 | 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを止めて消し、ロックを放す。その状態で今すぐの片付けが消すことになったときは、その場で休んでから片付ける（`Dispatcher.Release`、[片付け](#cleaner)）。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
 | 中断する | control-plane の再起動で、動いていた処理は中断され、コンテナは消され、スレッドにそう知らせる（[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。次の依頼で `--resume` する |
@@ -104,9 +104,9 @@
   ならない bind mount（Docker Desktop の fakeowner）の上でも守る。flock は、ほかのプロセスとの間を守る。どちらも
   待たずに取りにいき、取れなければセッションが使われていると返す。プロセスが落ちればロックは外れる。セッションの
   ディレクトリも作るので、記録を作る前に取れる。取ったあと、取ったファイルが今の `.lock` と同じかを確かめ、違えば
-  （片付けがディレクトリを移していれば）取り直す。片付けがディレクトリを移すと、その ID は手放したことになり、
-  古い持ち主がロックを外しても新しい持ち主は外れない。
-- **関係**：持つのは、セッションを作る間（`Dispatcher`）、[ワーカー](#worker)が動いている間（最初の依頼から休むまで）、
+  （ディレクトリが移されていれば）取り直す。ディレクトリを移すと（片付けか、作成に失敗した `Dispatcher` が消すとき）、
+  その ID は手放したことになり、古い持ち主がロックを外しても新しい持ち主は外れない。
+- **関係**：持つのは、セッションを作る間（`Dispatcher`。失敗したら作りかけのディレクトリを消して手放す）、[ワーカー](#worker)が動いている間（最初の依頼から休むまで）、
   [片付け](#cleaner)がセッションや記録のないディレクトリを消す間と `kept_notified_at` を書く間。取れなければ、
   依頼はセッションが使用中だと返し、片付けはそのセッションをその回は飛ばす。ロックを取ったら、記録を読み直してから使う。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同時に触らないことを
@@ -166,12 +166,14 @@
     | `outcome` | `succeeded`、`error`、`usage_limited`（使用上限で断られた）、`interrupted`（止めた） |
     | `usage` | ターンの使用量（`cost_usd` と、モデルごとの `input_tokens`、`output_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens`、`cost_usd`）。分からなければ `null` |
     | `reported_total` | Claude Code が報告したセッションの合計（`usage` と同じ形） |
+    | `context_tokens` | ターンの中でメインのエージェントの最後の API の呼び出しが読んだトークン数（コンテキストの大きさ。assistant のメッセージの `message.usage` の `input_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens` の和）。分からなければ `null`（[ADR 0049](../../adr/app/0049-suggest-closing-when-the-context-grows.md)） |
 
 - **関係**：ワーカーが、ターンを終えたときに usecase の `UsageLog`（`internal/usecase/ports.go`）に `TurnRecord` を渡す。
   ターンの使用量と、次と比べるセッションの合計（0 だけの報告なら前の合計、分からなければなし）を、
   `SessionEvent.Spent` で observer にも渡し、状態メッセージが見せる
   （[依頼と知らせ](requests.md "在りか")、[ADR 0037](../../adr/app/0037-usage-in-status-messages.md)）。`result` を
-  読むのは runner（`internal/adapter/docker/process.go`）。こう決めた理由は [ADR 0036](../../adr/app/0036-record-usage-per-turn.md) にある。
+  読むのは runner（`internal/adapter/docker/process.go`）で、コンテキストの大きさも runner が assistant のメッセージ
+  から読み、`TurnResult.ContextTokens` で渡す。こう決めた理由は [ADR 0036](../../adr/app/0036-record-usage-per-turn.md) にある。
 - **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：
   runner は報告された合計だけを返し、ターンの分を出す判定は domain の `TurnUsage` の 1 か所に置く。
   [失われうるものを先に挙げる](../../../platform/plugins/principles/docs/reference/patterns.md#loss-first)：片付けで消えないよう、

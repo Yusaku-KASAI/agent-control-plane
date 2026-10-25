@@ -99,6 +99,10 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   どれか一つのターンの費用が分からなければ、和は「不明」と出す。`result` の出なかったターンの費用は、次の依頼の
   和に入ることがある。値は worker が `SessionEvent.Spent` で渡す
   （[使用量の記録](sessions.md#usage "在りか")）。
+  終わったあと、その状態メッセージが追ったターンのうち最後に分かったコンテキストの大きさが `sessions.suggest_closing_at`
+  （[acp.example.yaml](../../../acp.example.yaml "在りか")）以上なら、費用の見積もりの次に、締めて次の作業を新しい
+  スレッドで依頼するよう促す 1 行を出す（[ADR 0049](../../adr/app/0049-suggest-closing-when-the-context-grows.md)）。
+  コンテキストの大きさは worker が `TurnResult.ContextTokens` で渡す。
   エージェントの発言は状態メッセージが持ち、引き継いでも残る
   （[ADR 0034](../../adr/app/0034-agent-remarks-in-status-messages.md)）。書き換えは 5 秒ごとと、変化から 1 秒
   まとめたあと。引き継いだ状態メッセージの経過時間は、それを出した依頼のターンの始まりから数える。最後の状態

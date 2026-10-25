@@ -210,7 +210,7 @@ func slackBots(cfg config.Config, tokens map[domain.AgentName]slackauth.Source, 
 		if err != nil {
 			return nil, fmt.Errorf("agent %q: %w", name, err)
 		}
-		bots[name] = slackbot.New(name, appToken, tokens[name], turns, cleanup, cfg.Access, log)
+		bots[name] = slackbot.New(name, appToken, tokens[name], turns, cleanup, cfg.Access, cfg.SuggestClosingAt, log)
 	}
 	return bots, nil
 }

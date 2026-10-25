@@ -45,7 +45,8 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   こと、下に push したときの取り込みは[変更](../../../conventions/docs/reference/changes.md#changes)）。`prctl` は、
   ブランチが下のブランチの上にあり、下に開いている PR があるときだけ作る。重ねたあと、下が先に進んで取り込んで
   いないときと、下の PR が閉じたとき（マージされたか、されずに閉じたか）は、`prctl status` と hook が知らせる。
-- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
+- PR が Issue を閉じるときは、`Closes #<番号>` も本文に書く。依頼の Issue に範囲の中の残りか積んだ指摘が残って閉じないときは、`Refs #<番号>` に
+  する（[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。
 
 ## 差分のレビュー
 
@@ -65,8 +66,10 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の履歴にない、
   `--minor` の記録のあと）は、`prctl` が断る。
 - 念入りでは、観点ごとにサブエージェントを並べて頼み、返った結果を一つの JSON にまとめて残す。
-- 通常の打ち切り（必須のない PR 全体のレビューが 3 回続いた）は `prctl` が数えない。打ち切った提案には、`直さない` で、理由を「打ち切り」で
+- 通常の打ち切り（必須のない PR 全体のレビューが 2 回続いた）は `prctl` が数えない。打ち切った提案には、`直さない` で、理由を「打ち切り」で
   始めて答える（あとの全体のレビューが、それで探す）。
+- 範囲の外の指摘を依頼の Issue に積んだときは、積むコメントを書いてから、`Issue にした` で依頼の Issue の番号を渡し、
+  理由に積んだことを書く（[依頼の範囲](../../../conventions/docs/reference/issues.md#scope)）。
 - PR を作ったあとのレビューの指摘への答えは、どちらの道でも、`prctl answer` でそのレビューへの答えのコメントにする。
   直した push の `prctl update` のコメントには、push で何をなぜ変えたかを書く。
 
@@ -103,7 +106,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   観点を `skipped` に理由と書く。指摘の `perspective` は見た観点のどれか。指摘がなければ `findings` は `[]`。
   head の履歴にまだレビューがなければ（PR の最初のレビュー、履歴を書き換えたあと）、`pr` でなければ断られる。
 - `answers`（PR を作る前のレビューだけ）と、`prctl answer` に渡すリストは、指摘の番号ごとに `action` を
-  `直した`（`commit`）、`直さない`（`reason`）、`Issue にした`（`issue`）、`答えた`（`reason`）のどれかにする。
+  `直した`（`commit`）、`直さない`（`reason`）、`Issue にした`（`issue`。任意で `reason`）、`答えた`（`reason`）のどれかにする。
   すべての指摘に答える。
 
 ## ほかの人の PR と既定のブランチを読む
@@ -121,11 +124,11 @@ prctl worktree remove default
 ```
 
 - 本文の最初の節（何を変えるか）は変更の意図なので、本文は観点「別の形」で別の形を挙げたあとに読む（レビューするの
-  2 段と 4 段）。先に、タイトルと閉じる Issue（本文の `Closes #<番号>` の行）だけを取り出し、Issue から依頼を読む。閉じる
-  Issue がなければ、タイトルから挙げる。
+  2 段と 4 段）。先に、タイトルと依頼の Issue（本文の `Closes #<番号>` か `Refs #<番号>` の行）だけを取り出し、Issue から依頼を読む。
+  依頼の Issue がなければ、タイトルから挙げる。
 
   ```bash
-  gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves) #")))'
+  gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves|Refs) #")))'
   ```
 - 検査は、取り出した worktree の中で回す。
 - レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
@@ -182,7 +185,9 @@ check-issues [<owner>/<repo>]   # NG の行がずれ。終了コードは 0 が�
 
 - 確かめるのは、テーマの Issue とロードマップのほかの開いている Issue に、どこを変えるかのラベルと `theme:<名前>` が
   あること、ロードマップの `## 今の焦点` に開いている Issue だけがあること（閉じた Issue、PR、このリポジトリにない番号は
-  ずれ）、開いている Issue が閉じた Issue に blocked by されていないこと。
+  ずれ）、開いている Issue が閉じた Issue に blocked by されていないこと。ラベルの決まりや当たるテーマの Issue がない
+  リポジトリでは、ラベルの `NG` は整っている状態のずれとは限らない（[課題の扱い方](../../../conventions/docs/reference/issues.md)の
+  分類の下の箇条）。
 - 課題を整えるときは、ほかの「整っている状態」（本文、重なり、順番、テーマ）と、`NG` の行をどう直すか（人が決めるもの
   か）を、[課題を整える](../../../conventions/docs/guides/organize-issues.md "在りか")手順で判断する。
 - セッションを締めるときは、`NG` の行のうち、[セッションを締める](../../../conventions/docs/guides/close-session.md)手順の

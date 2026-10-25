@@ -48,6 +48,10 @@ type statusView struct {
 	queued     int
 	background int
 	spent      spentView
+	// contextTokens is the agent's context after the last turn followed that reported it; 0 before.
+	contextTokens int64
+	// suggestClosingAt is the context size from which the message suggests closing; 0 never does.
+	suggestClosingAt int64
 }
 
 // spentView is what the turns a status message followed spent, by the agent's estimate.
@@ -93,6 +97,25 @@ func (v spentView) render() string {
 	return fmt.Sprintf("費用の見積もり：この依頼 %s・セッションの合計 %s\n", turns, session)
 }
 
+// closingSuggestion asks to move on to a new thread once the session's context grew large, since
+// every request the agent makes reads the whole context. It also shows on the turn that closes the
+// session, which the control plane cannot tell, so it reads right after closing too.
+func (v statusView) closingSuggestion() string {
+	if v.suggestClosingAt <= 0 || v.contextTokens < v.suggestClosingAt {
+		return ""
+	}
+	return fmt.Sprintf("💡 コンテキストが約 %sです。次の作業は新しいスレッドで依頼すると、費用を抑えられます（締めるには「締めて」と頼んでください）\n",
+		tokenCount(v.contextTokens))
+}
+
+// tokenCount rounds n down to ten thousands, as people count large numbers in Japanese.
+func tokenCount(n int64) string {
+	if n < 10_000 {
+		return fmt.Sprintf("%d トークン", n)
+	}
+	return fmt.Sprintf("%d 万トークン", n/10_000)
+}
+
 func dollars(usd float64) string {
 	if usd > 0 && usd < 0.005 {
 		return "$0.01 未満"
@@ -120,6 +143,7 @@ func (v statusView) render(now time.Time) string {
 	}
 	if v.outcome != running {
 		b.WriteString(v.spent.render())
+		b.WriteString(v.closingSuggestion())
 	}
 	if v.queued > 0 {
 		fmt.Fprintf(&b, "待っている依頼：%d 件\n", v.queued)
@@ -279,6 +303,9 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		if e.Kind == usecase.SessionTurnFinished || e.Spent != nil {
 			m.view.spent.add(e.Spent)
 		}
+		if n := e.Result.ContextTokens; n > 0 {
+			m.view.contextTokens = n
+		}
 		m.view.addRemark(e.Remark)
 		m.mu.Unlock()
 		m.apply(e.Status)
@@ -417,7 +444,7 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	// A request's turn answers it whatever happened before, so the held answer is dropped.
 	prev.dropHeld()
 	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
-	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt}
+	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt, suggestClosingAt: b.suggestClosingAt}
 	b.status[s.ID] = m
 	return m
 }

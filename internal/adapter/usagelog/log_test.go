@@ -29,7 +29,7 @@ func TestLog_Record(t *testing.T) {
 		Conversation: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"},
 		StartedAt:    started, FinishedAt: started.Add(time.Minute),
 		Requesters: []domain.Requester{{Platform: "slack", ID: "U_ALICE"}},
-		Result:     usecase.TurnResult{Output: "secret answer", Usage: total},
+		Result:     usecase.TurnResult{Output: "secret answer", Usage: total, ContextTokens: 123456},
 		Usage:      &turn,
 	})
 	log.Record(context.Background(), usecase.TurnRecord{
@@ -50,10 +50,10 @@ func TestLog_Record(t *testing.T) {
 		`{"finished_at":"2026-10-18T01:01:00Z","started_at":"2026-10-18T01:00:00Z","agent":"repo-dev","session":"0f8fad5b-d9cb-469f-a165-70867728950e",` +
 			`"conversation":{"platform":"slack","workspace":"T1","channel":"C1","thread":"1.0"},"requesters":[{"platform":"slack","id":"U_ALICE"}],"agent_started":false,"outcome":"succeeded",` +
 			`"usage":{"cost_usd":0.5,"models":{"claude-opus":{"input_tokens":4,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":0.5}}},` +
-			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}}}`,
+			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}},"context_tokens":123456}`,
 		`{"finished_at":"2026-10-18T01:01:00Z","started_at":"2026-10-18T01:00:00Z","agent":"repo-dev","session":"6ba7b810-9dad-41d1-80b4-00c04fd430c8",` +
 			`"requesters":[],"agent_started":true,"outcome":"usage_limited","usage":null,` +
-			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}}}`,
+			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}},"context_tokens":null}`,
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("got %d lines, want %d:\n%s", len(lines), len(want), data)
