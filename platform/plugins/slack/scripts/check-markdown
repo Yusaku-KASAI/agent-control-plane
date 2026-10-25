@@ -18,16 +18,20 @@ URL = re.compile(r"https?://[^\s<>`\"]+")
 
 
 def outside_code(line):
-    """Gives the line with its code spans blanked, so that their contents are not read as Markdown."""
+    """Gives the line with the contents of its code spans blanked, so that they are not read as
+    Markdown. The backticks stay: next to ** they are the ASCII punctuation Slack trips on."""
     out, i = [], 0
     while i < len(line):
         if line[i] == "`":
-            n = len(line) - len(line[i:].lstrip("`"))
+            n = len(line[i:]) - len(line[i:].lstrip("`"))
             end = line.find(line[i:i + n], i + n)
             if end >= 0:
-                out.append(" " * (end + n - i))
+                out.append(line[i:i + n] + " " * (end - i - n) + line[i:i + n])
                 i = end + n
                 continue
+            out.append(line[i:i + n])
+            i += n
+            continue
         out.append(line[i])
         i += 1
     return "".join(out)

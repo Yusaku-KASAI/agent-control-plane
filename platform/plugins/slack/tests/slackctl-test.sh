@@ -46,6 +46,8 @@ check "a message without text does not stop the thread" "next" "$got"
 found() { "$cmd" check 2>&1 >/dev/null <<<"$1" | grep -c '^line' || true; }
 check "a bare URL after Japanese is found" 1 "$(found 'PR：https://x.example/pull/1')"
 check "a URL in angle brackets passes" 0 "$(found 'PR：<https://x.example/pull/1> と [PR](https://x.example)')"
+check "code in the middle of a line is not read" 0 "$(found '例：`a**(b)**c` です')"
+check "bold closing on code after other code is found" 1 "$(found '`x` と **`code`**：後')"
 check "a URL in code passes" 0 "$(found '`https://x.example`、後')"
 check "bold opening on ASCII punctuation after Japanese is found" 1 "$(found '、**#21 見出し**：後')"
 check "bold closing on code before Japanese is found" 1 "$(found '**`code`**：後')"
