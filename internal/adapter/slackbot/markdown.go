@@ -107,7 +107,7 @@ func bracketURLs(line string) string {
 		case linkText == 0 && schemeLength(line[i:]) > 0:
 			// The whole URL is passed over, so that a URL inside it (?next=https://…) is not taken
 			// for another one.
-			end := urlEnd(line, i)
+			end := urlEnd(line, i, len(brackets) > 0)
 			if !linkedAlready(line, i) && end > i+schemeLength(line[i:]) {
 				b.WriteString("<" + line[i:end] + ">")
 			} else {
@@ -180,9 +180,11 @@ func linkedAlready(line string, i int) bool {
 	return false
 }
 
-func urlEnd(line string, i int) int {
+// urlEnd gives where the URL at i ends. Within brackets ([注：URL]) the URL ends at a ], which
+// otherwise a URL may hold, as in a query (?a[]=1).
+func urlEnd(line string, i int, inBrackets bool) int {
 	end := i
-	for end < len(line) && isURLByte(line[end]) {
+	for end < len(line) && isURLByte(line[end]) && (!inBrackets || line[end] != ']') {
 		end++
 	}
 	for end > i {
@@ -197,5 +199,5 @@ func urlEnd(line string, i int) int {
 }
 
 func isURLByte(c byte) bool {
-	return c > ' ' && c < 0x7f && strings.IndexByte("<>`\"{}|\\^[]", c) < 0
+	return c > ' ' && c < 0x7f && strings.IndexByte("<>`\"{}|\\^", c) < 0
 }

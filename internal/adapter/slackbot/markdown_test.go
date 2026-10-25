@@ -28,6 +28,7 @@ func TestSlackMarkdown(t *testing.T) {
 		{"bracketed url", "[https://x.example/a] と https://z.example", "[<https://x.example/a>] と <https://z.example>"},
 		{"url in brackets that are not a link", "[注：https://x.example]", "[注：<https://x.example>]"},
 		{"code with ] in a link text", "[注 `]` https://a.example](https://b.example)", "[注 `]` https://a.example](https://b.example)"},
+		{"brackets in a query", "https://x.example/?a[]=1&a[]=2 と 検索 https://x.example/?filter[state]=open の結果", "<https://x.example/?a[]=1&a[]=2> と 検索 <https://x.example/?filter[state]=open> の結果"},
 		{"reference link", "[https://x.example][1] と https://z.example", "[https://x.example][1] と <https://z.example>"},
 		{"unclosed bracket before a closed one", "配列 a[i の https://a.example/x と [注]", "配列 a[i の <https://a.example/x> と [注]"},
 		{"unclosed bracket", "配列 a[i の要素は https://example.com/a、後", "配列 a[i の要素は <https://example.com/a>、後"},
