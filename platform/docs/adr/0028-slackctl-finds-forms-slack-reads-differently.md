@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-25
+amended_by: [29]
 ---
 
 # 0028. Slack で崩れる Markdown の形は、slack プラグインの slackctl が見つけて知らせる

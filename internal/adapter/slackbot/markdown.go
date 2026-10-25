@@ -71,8 +71,26 @@ func unquote(line string, max int) (int, string) {
 	return n, line
 }
 
-func indentOf(s string) int {
+// width gives the columns s takes, a tab going on to the next multiple of 4 as in CommonMark.
+func width(s string) int {
+	w := 0
+	for _, c := range s {
+		if c == '\t' {
+			w += 4 - w%4
+		} else {
+			w++
+		}
+	}
+	return w
+}
+
+func leadLength(s string) int {
 	return len(s) - len(strings.TrimLeft(s, " \t"))
+}
+
+// indentOf gives the columns of a line's indent.
+func indentOf(s string) int {
+	return width(s[:leadLength(s)])
 }
 
 // listItems follows the list items open at a line: the column where each one's content starts,
@@ -92,12 +110,12 @@ func (l *listItems) see(line string) {
 	if strings.TrimSpace(rest) == "" {
 		return
 	}
-	indent := indentOf(rest)
-	for len(l.cols) > 0 && l.cols[len(l.cols)-1] > indent {
+	lead := leadLength(rest)
+	for len(l.cols) > 0 && l.cols[len(l.cols)-1] > width(rest[:lead]) {
 		l.cols = l.cols[:len(l.cols)-1]
 	}
-	if m := listMarkers.FindString(rest[indent:]); m != "" {
-		l.cols = append(l.cols, indent+len(m))
+	if m := listMarkers.FindString(rest[lead:]); m != "" {
+		l.cols = append(l.cols, width(rest[:lead+len(m)]))
 	}
 }
 
@@ -119,16 +137,16 @@ func (l *listItems) content(quotes, col int) int {
 // an indent and list markers, since a code block in a list item is indented or starts the item.
 func opensFence(line string, list *listItems) (fence, bool) {
 	quotes, rest := unquote(line, len(line))
-	lead := indentOf(rest)
+	lead := leadLength(rest)
 	markers := len(listMarkers.FindString(rest[lead:]))
 	s := rest[lead+markers:]
 	for _, c := range []string{"`", "~"} {
 		n := len(s) - len(strings.TrimLeft(s, c))
 		// A backtick run with a backtick after it is inline code (```x```), not a fence.
 		if n >= 3 && (c == "~" || !strings.Contains(s[n:], "`")) {
-			indent := lead + markers
+			indent := width(rest[:lead+markers])
 			if markers == 0 {
-				indent = list.content(quotes, lead)
+				indent = list.content(quotes, width(rest[:lead]))
 			}
 			return fence{run: s[:n], quotes: quotes, indent: indent}, true
 		}

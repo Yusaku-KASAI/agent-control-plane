@@ -104,8 +104,20 @@ class Fence:
         return s.startswith(self.run) and not s.strip(self.run[0])
 
 
-def indent_of(s):
+def width(s):
+    """Gives the columns s takes, a tab going on to the next multiple of 4 as in CommonMark."""
+    w = 0
+    for c in s:
+        w += 4 - w % 4 if c == "\t" else 1
+    return w
+
+
+def lead_length(s):
     return len(s) - len(s.lstrip(" \t"))
+
+
+def indent_of(s):
+    return width(s[:lead_length(s)])
 
 
 class ListItems:
@@ -123,12 +135,12 @@ class ListItems:
             self.quotes, self.cols = quotes, []
         if not rest.strip():
             return
-        indent = indent_of(rest)
-        while self.cols and self.cols[-1] > indent:
+        lead = lead_length(rest)
+        while self.cols and self.cols[-1] > width(rest[:lead]):
             self.cols.pop()
-        markers = LIST_MARKERS.match(rest, indent).end() - indent
-        if markers:
-            self.cols.append(indent + markers)
+        end = LIST_MARKERS.match(rest, lead).end()
+        if end > lead:
+            self.cols.append(width(rest[:end]))
 
     def content(self, quotes, col):
         """Gives where the content of the innermost item holding a block at col starts, or 0."""
@@ -141,12 +153,12 @@ def open_fence(line, items):
     """Gives the code block a line opens, and whether its run follows a list marker or an indent,
     or None. A backtick run with a backtick after it is inline code (```x```), not a fence."""
     quotes, rest = unquote(line)
-    lead = indent_of(rest)
+    lead = lead_length(rest)
     markers = LIST_MARKERS.match(rest, lead).end() - lead
     m = RUN.match(rest, lead + markers)
     if not m or (m.group(0)[0] == "`" and "`" in rest[m.end():]):
         return None
-    indent = lead + markers if markers else items.content(quotes, lead)
+    indent = width(rest[:lead + markers]) if markers else items.content(quotes, width(rest[:lead]))
     return Fence(m.group(0), quotes, indent), bool(markers), bool(lead)
 
 

@@ -398,5 +398,10 @@
     "name": "a code block of an outer item ends with that item",
     "text": "- a\n  - b\n  ```\n  https://in.example\n- c：https://out.example",
     "found": [3, 5]
+  },
+  {
+    "name": "a tab indents code in a list item as far as the item's content",
+    "text": "- a\n  ```\n\tcurl https://in.example\n  ```\n後：https://out.example",
+    "found": [2, 5]
   }
 ]

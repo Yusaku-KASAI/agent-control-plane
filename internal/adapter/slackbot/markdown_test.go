@@ -64,6 +64,7 @@ var fixedMarkdown = map[string]string{
 	"an indented code block outside a list holds lines indented less":   "   ```\ncurl https://in.example/a\n   ```\n後：<https://out.example>",
 	"a code block indented deeper than its item holds the item's lines": "- 項目\n    ```\n  curl https://in.example/a\n    ```\n  続き：<https://out.example>",
 	"a code block of an outer item ends with that item":                 "- a\n  - b\n  ```\n  https://in.example\n- c：<https://out.example>",
+	"a tab indents code in a list item as far as the item's content":    "- a\n  ```\n\tcurl https://in.example\n  ```\n後：<https://out.example>",
 }
 
 // formsFixed are check-markdown's findings of the forms slackMarkdown fixes.
