@@ -93,10 +93,12 @@ class Fence:
         self.run, self.quotes, self.indent = run, quotes, indent
 
     def holds(self, line):
+        # A closing run indented less than the item still closes the block, unlike in CommonMark,
+        # so that it does not open another block over the rest of the text.
         n, rest = unquote(line, self.quotes)
         if n < self.quotes:
             return False
-        return not rest.strip() or indent_of(rest) >= self.indent
+        return not rest.strip() or indent_of(rest) >= self.indent or self.closed_by(line)
 
     def closed_by(self, line):
         # A closing run carries no list marker, so a line like "- ```" in a code block is code.
@@ -180,13 +182,14 @@ def check(lines):
                 continue
             # The quote or list item of the code block has ended, and the block with it.
             fence = None
-        if not line.strip():
-            continue
         quotes, rest = unquote(line)
         if quotes != depth:
             depth = quotes
             in_list = False
             ordered.clear()
+        if not line.strip():
+            items.see(line)
+            continue
         opened = open_fence(line, items)
         items.see(line)
         if opened:

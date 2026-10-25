@@ -154,13 +154,15 @@ func opensFence(line string, list *listItems) (fence, bool) {
 	return fence{}, false
 }
 
-// holds tells whether a line is still within the quote and the list item of the code block.
+// holds tells whether a line is still within the quote and the list item of the code block. A
+// closing run indented less than the item still closes the block, unlike in CommonMark, so that
+// it does not open another block over the rest of the text.
 func (f fence) holds(line string) bool {
 	n, rest := unquote(line, f.quotes)
 	if n < f.quotes {
 		return false
 	}
-	return strings.TrimSpace(rest) == "" || indentOf(rest) >= f.indent
+	return strings.TrimSpace(rest) == "" || indentOf(rest) >= f.indent || f.closedBy(line)
 }
 
 // closedBy tells whether a line closes the code block. A closing run carries no list marker, so a

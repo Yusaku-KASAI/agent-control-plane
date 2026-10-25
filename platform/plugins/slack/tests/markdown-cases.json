@@ -423,5 +423,20 @@
     "name": "a code block in a list item in a quote",
     "text": "> - 項目\n>   ```\n>   code\n>   ```",
     "found": [2]
+  },
+  {
+    "name": "a closing run indented less than its item closes the code block",
+    "text": "- a\n  ```\n  code\n```\n後：https://out.example",
+    "found": [2, 5]
+  },
+  {
+    "name": "a blank line ends a quote and its list items",
+    "text": "> - a\n\n>   ```\n>   x\n> 後：https://in.example",
+    "found": []
+  },
+  {
+    "name": "a blank line ends a quote and its ordered list",
+    "text": "> 1. 一\n>    - 子\n\n> 2. 二",
+    "found": []
   }
 ]

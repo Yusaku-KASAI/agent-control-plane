@@ -67,6 +67,7 @@ var fixedMarkdown = map[string]string{
 	"a tab indents code in a list item as far as the item's content":    "- a\n  ```\n\tcurl https://in.example\n  ```\n後：<https://out.example>",
 	"a code block in a quote in a nested list item":                     "- a\n  - b\n    > ```\n    > https://in.example\n    > ```\n後：<https://out.example>",
 	"a code block in a quote in an item past the ninth":                 "10. a\n    > ```\n    > PR：https://in.example\n    > ```\n後：<https://out.example>",
+	"a closing run indented less than its item closes the code block":   "- a\n  ```\n  code\n```\n後：<https://out.example>",
 }
 
 // formsFixed are check-markdown's findings of the forms slackMarkdown fixes, told by how their
