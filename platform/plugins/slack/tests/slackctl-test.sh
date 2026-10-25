@@ -45,9 +45,11 @@ check "a message without text does not stop the thread" "next" "$got"
 # check: the forms Slack reads differently are found, line by line; the forms that read well pass.
 found() { "$cmd" check 2>&1 >/dev/null <<<"$1" | grep -c '^line' || true; }
 lines() { "$cmd" check 2>&1 >/dev/null <<<"$1" | sed -n 's/^line \([0-9]*\):.*/\1/p' | paste -sd, -; }
+cases=$(jq -c '.[]' "$(dirname "$cmd")/../tests/markdown-cases.json")
+test -n "$cases"
 while IFS= read -r c; do
   check "$(jq -r .name <<<"$c")" "$(jq -r '.found | join(",")' <<<"$c")" "$(lines "$(jq -r .text <<<"$c")")"
-done < <(jq -c '.[]' "$(dirname "$cmd")/../tests/markdown-cases.json")
+done <<<"$cases"
 
 got=$("$cmd" check <<<'PR：https://x.example' 2>/dev/null && echo passed || echo failed)
 check "check fails on the forms Slack reads differently" failed "$got"

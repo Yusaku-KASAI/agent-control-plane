@@ -403,5 +403,25 @@
     "name": "a tab indents code in a list item as far as the item's content",
     "text": "- a\n  ```\n\tcurl https://in.example\n  ```\n後：https://out.example",
     "found": [2, 5]
+  },
+  {
+    "name": "a code block in a quote in a nested list item",
+    "text": "- a\n  - b\n    > ```\n    > https://in.example\n    > ```\n後：https://out.example",
+    "found": [6]
+  },
+  {
+    "name": "a code block in a quote in an item past the ninth",
+    "text": "10. a\n    > ```\n    > PR：https://in.example\n    > ```\n後：https://out.example",
+    "found": [5]
+  },
+  {
+    "name": "an ordered item after a nested list and a code block in a quote",
+    "text": "> 1. 一\n>    - 子\n>    ```\n>    x\n>    ```\n> 2. 二",
+    "found": [3, 6]
+  },
+  {
+    "name": "a code block in a list item in a quote",
+    "text": "> - 項目\n>   ```\n>   code\n>   ```",
+    "found": [2]
   }
 ]

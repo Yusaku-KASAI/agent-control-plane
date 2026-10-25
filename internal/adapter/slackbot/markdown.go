@@ -53,7 +53,7 @@ type fence struct {
 }
 
 var (
-	quoteMark   = regexp.MustCompile(`^ {0,3}> ?`)
+	quoteMark   = regexp.MustCompile(`^[ \t]*> ?`)
 	listMarkers = regexp.MustCompile(`^(?:(?:[-*+]|\d+[.)])[ \t]+)*`)
 )
 

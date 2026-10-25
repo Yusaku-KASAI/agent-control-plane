@@ -13,7 +13,7 @@ ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+[.)])\s+")
 ORDERED_ITEM = re.compile(r"^(\s*)\d+[.)]\s+")
 DELIMITER_ROW = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
-QUOTE_MARK = re.compile(r" {0,3}> ?")
+QUOTE_MARK = re.compile(r"[ \t]*> ?")
 LIST_MARKERS = re.compile(r"(?:(?:[-*+]|\d+[.)])[ \t]+)*")
 RUN = re.compile(r"`{3,}|~{3,}")
 HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
@@ -180,17 +180,6 @@ def check(lines):
                 continue
             # The quote or list item of the code block has ended, and the block with it.
             fence = None
-        opened = open_fence(line, items)
-        items.see(line)
-        if opened:
-            fence, on_marker, indented = opened
-            if on_marker or (indented and in_list and not fence.quotes):
-                note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
-            elif not indented or fence.quotes:
-                in_list = False
-                ordered.clear()
-            continue
-
         if not line.strip():
             continue
         quotes, rest = unquote(line)
@@ -198,6 +187,16 @@ def check(lines):
             depth = quotes
             in_list = False
             ordered.clear()
+        opened = open_fence(line, items)
+        items.see(line)
+        if opened:
+            fence, on_marker, indented = opened
+            if on_marker or (indented and in_list):
+                note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
+            elif not indented:
+                in_list = False
+                ordered.clear()
+            continue
         if not rest.strip():
             continue
         item = LIST_ITEM.match(rest)

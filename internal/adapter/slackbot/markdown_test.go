@@ -65,10 +65,17 @@ var fixedMarkdown = map[string]string{
 	"a code block indented deeper than its item holds the item's lines": "- 項目\n    ```\n  curl https://in.example/a\n    ```\n  続き：<https://out.example>",
 	"a code block of an outer item ends with that item":                 "- a\n  - b\n  ```\n  https://in.example\n- c：<https://out.example>",
 	"a tab indents code in a list item as far as the item's content":    "- a\n  ```\n\tcurl https://in.example\n  ```\n後：<https://out.example>",
+	"a code block in a quote in a nested list item":                     "- a\n  - b\n    > ```\n    > https://in.example\n    > ```\n後：<https://out.example>",
+	"a code block in a quote in an item past the ninth":                 "10. a\n    > ```\n    > PR：https://in.example\n    > ```\n後：<https://out.example>",
 }
 
-// formsFixed are check-markdown's findings of the forms slackMarkdown fixes.
-var formsFixed = regexp.MustCompile(`(?m)^line \d+: (URL を|表の前に).*$`)
+// formsFixed are check-markdown's findings of the forms slackMarkdown fixes, told by how their
+// messages start. Each start must be found in some case before fixing, or the check would pass on
+// messages it no longer tells apart.
+var (
+	formsFixed      = regexp.MustCompile(`(?m)^line \d+: (URL を|表の前に).*$`)
+	formsFixedStart = []string{"URL を", "表の前に"}
+)
 
 func TestSlackMarkdown(t *testing.T) {
 	b, err := os.ReadFile(markdownCases)
@@ -83,8 +90,10 @@ func TestSlackMarkdown(t *testing.T) {
 		t.Fatal(err)
 	}
 	named := map[string]bool{}
+	before := ""
 	for _, tt := range cases {
 		named[tt.Name] = true
+		before += runCheckMarkdown(t, tt.Text)
 		t.Run(tt.Name, func(t *testing.T) {
 			want, ok := fixedMarkdown[tt.Name]
 			if !ok {
@@ -98,6 +107,11 @@ func TestSlackMarkdown(t *testing.T) {
 				t.Errorf("check-markdown still finds in %q:\n%s", got, strings.Join(left, "\n"))
 			}
 		})
+	}
+	for _, start := range formsFixedStart {
+		if !strings.Contains(before, ": "+start) {
+			t.Errorf("check-markdown finds no %q in any case; formsFixed is out of date", start)
+		}
 	}
 	for name := range fixedMarkdown {
 		if !named[name] {
