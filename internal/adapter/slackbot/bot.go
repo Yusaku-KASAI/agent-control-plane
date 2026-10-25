@@ -63,10 +63,10 @@ type TokenSource interface {
 func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns usecase.TurnExecutor, cleanup usecase.SessionCleanup, policy usecase.AccessPolicy, suggestClosingAt int64, log *slog.Logger) *Bot {
 	b := &Bot{
 		agent:            agent,
-		suggestClosingAt: suggestClosingAt,
 		appToken:         appToken,
 		botTokens:        botTokens,
 		log:              log.With("agent", agent),
+		suggestClosingAt: suggestClosingAt,
 
 		status:    make(map[domain.SessionID]*statusMessage),
 		limited:   make(map[domain.SessionID]bool),
