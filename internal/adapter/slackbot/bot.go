@@ -305,8 +305,10 @@ const (
 	maxFallback = 3_000
 )
 
+// markdownText fits text to the markdown block: it rewrites the forms Slack reads differently,
+// then truncates.
 func markdownText(text string) string {
-	return truncate(text, maxMarkdown, "\n\n…（長いため省略しました。全文は作業領域や PR を確認してください）")
+	return truncate(slackMarkdown(text), maxMarkdown, "\n\n…（長いため省略しました。全文は作業領域や PR を確認してください）")
 }
 
 func fallbackText(text string) string {
