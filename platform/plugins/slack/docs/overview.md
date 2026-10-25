@@ -62,7 +62,7 @@ slack/
   - リンクの表示の文（`[…](…)`、参照形式の `[…][…]`）の中の URL は、リンクの中なので見つけない。
   - 標準入力の Markdown を読み、見つけた形を `line N: …` で出して終了コード 3 で終わる。なければ 0。ほかの終了コード
     （捕まえていない例外の 1 など）は検知の失敗で、`slackctl` は崩れる形とは分けて落とす。
-- **関係**：`python3` を使い、`slackctl` の `check` と `post` から呼ばれる。振る舞いは `tests/slackctl-test.sh` が
+- **関係**：`python3` を使い、`slackctl` の `check` と `post`、`scripts/check-answer-at-stop` から呼ばれる。振る舞いは `tests/slackctl-test.sh` が
   `tests/markdown-cases.json` の例で確かめる。
 
 ### `scripts/check-answer-at-stop`
@@ -75,7 +75,8 @@ slack/
     からかは渡されておらず、崩れない形はどちらでも読める標準の Markdown なので、分けない。
   - 回答は、Stop hook の入力の `last_assistant_message` から読む。見つけた形を行ごとに理由に書き、ターンを止める
     （`decision: block`）。直しも投稿もしない。
-  - 同じ見つけた形では、セッションの中で一度だけ止める（わざとその形にする回答と、ほかの hook で続いたターンのため）。
+  - 同じ見つけた形では、ターンの中で一度だけ止める（わざとその形にする回答のため）。覚えと比べるのは、Stop hook で
+    ターンが続いたとき（入力の `stop_hook_active`）だけで、ほかの hook で続いたターンも、次の依頼の回答も確かめる。
     見つけた形は、行ではなく形の種類と数で覚える。
     崩れる形のない回答で覚えを消すので、あとのターンで同じ形が出ればまた止める。覚えは `TMPDIR` に置く。
   - hook 自身の失敗（`python3` や `jq` がない、入力に回答がない、検知が失敗する、覚えを書けない）では止めない。

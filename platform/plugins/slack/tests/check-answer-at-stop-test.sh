@@ -20,13 +20,16 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export TMPDIR=$tmp ACP_SESSION_BRANCH=acp/s1
 
-# stop <session> <answer>: what the hook decides at the end of a turn that gave the answer.
-stop() { jq -n --arg s "$1" --arg a "$2" '{session_id: $s, last_assistant_message: $a}' | "$hook" | jq -r '.decision // empty'; }
+# stop <session> <answer>: what the hook decides at the end of a turn that gave the answer, once a
+# Stop hook has kept it going; first <session> <answer>: at its first end.
+ask() { jq -n --arg s "$1" --arg a "$2" --argjson c "$3" '{session_id: $s, last_assistant_message: $a, stop_hook_active: $c}' | "$hook" | jq -r '.decision // empty'; }
+stop() { ask "$1" "$2" true; }
+first() { ask "$1" "$2" false; }
 broken='PR：https://x.example'
 fine='PR：<https://x.example>'
 
 check "an answer Slack reads alike lets the turn end" "" "$(stop s1 "$fine")"
-check "an answer with a form Slack reads differently holds the turn" block "$(stop s1 "$broken")"
+check "an answer with a form Slack reads differently holds the turn" block "$(first s1 "$broken")"
 reason=$(jq -n --arg a "$broken" '{session_id: "s9", last_assistant_message: $a}' | "$hook" | jq -r .reason)
 check "the reason names the line and the form" yes "$([[ $reason == *"line 1: URL"* ]] && echo yes || echo no)"
 check "the same findings hold the turn once" "" "$(stop s1 "$broken")"
@@ -35,6 +38,7 @@ check "other findings hold the turn again" block "$(stop s1 $'| a |\n| --- |\n�
 check "another session is held for the same findings" block "$(stop s2 "$broken")"
 stop s2 "$fine" >/dev/null
 check "after an answer that passes, the same findings hold the turn again" block "$(stop s2 "$broken")"
+check "the next turn is held for the same findings" block "$(first s2 "$broken")"
 check "a turn without its last message is not held" "" "$(jq -n '{session_id: "s3"}' | "$hook" | jq -r '.decision // empty')"
 check "outside control-plane, the answer is not checked" "" "$(ACP_SESSION_BRANCH='' stop s4 "$broken")"
 
