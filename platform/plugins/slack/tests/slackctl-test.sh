@@ -90,5 +90,9 @@ got=$("$cmd" post C1 1.0 --force <<<'PR：https://x.example')
 check "post takes --force after the channel and thread" "posted C1/9.0" "$got"
 got=$("$cmd" post C1 1.0 <<<'PR：<https://x.example>')
 check "post posts text that reads well" "posted C1/9.0" "$got"
+got=$(PATH=$tmp/broken:$PATH "$cmd" post C1 <<<'text' 2>&1 || true)
+check "post stops on a failing check-markdown" "slackctl: check-markdown failed (exit 1)" "$got"
+got=$(PATH=$tmp/broken:$PATH "$cmd" post --force C1 <<<'text')
+check "post --force posts without a working check-markdown" "posted C1/9.0" "$got"
 
 ((failures == 0))

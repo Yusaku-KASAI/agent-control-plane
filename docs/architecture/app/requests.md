@@ -60,7 +60,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - メンションのスレッド（スレッドの外のメンションなら、そのメッセージ自身）を依頼のスレッドにする。スレッドからセッション ID が
     決まる（[セッション ID](sessions.md#session-id "在りか")）。
   - プロンプトには本文を入れず、依頼したユーザー、依頼のメッセージとスレッドの場所と、最後の回答は control-plane が
-    投稿するので自分で投稿しないこと（ほかの投稿は頼まれればしてよい。[platform の ADR 0027](../../../platform/docs/adr/0027-agents-post-to-slack-when-asked.md)）と、
+    投稿するので同じ回答をそのスレッドに投稿しないこと（ほかの投稿は頼まれればしてよい。[platform の ADR 0027](../../../platform/docs/adr/0027-agents-post-to-slack-when-asked.md)）と、
     回答を slack スキルの書き方で書くこと（回答は Slack で表示されるため）だけを書く。本文は、
     `:zap:` で始まるか（流し込み）を見るためだけに使う（[ADR 0020](../../adr/app/0020-slack-requests-by-reference.md)）。
   - Bot が書いたメッセージは依頼にしない。Slack が送り直した同じメッセージ（チャンネルと ts が同じ）は、
