@@ -24,7 +24,7 @@
 | 観点 | 探すもの | 拠り所 |
 | --- | --- | --- |
 | 別の形 | そもそも別の形の方がよくないか。目的に立ち返った別の手段、より単純な形、一つ上の層や大きな枠組みでの別の解き方。渡された「検討した別の形」の選ばなかった理由が成り立つか、挙がっていない形がないか | [前提を問い直す](../../../principles/docs/reference/principles.md#double-loop) |
-| 依頼との一致 | 依頼や Issue の目的と[依頼の範囲](issues.md#scope)の中を満たしているか。範囲の外の変更が混ざっていないか | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
+| 依頼との一致 | 依頼や Issue の目的と[依頼の範囲](issues.md#scope)の中（`Refs` で一部を扱う PR では、本文に書いたその一部）を満たしているか。範囲の外の変更が混ざっていないか | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 正しさ | 壊れる場面（状態の組み合わせ、失敗や再起動の途中、同時に動くとき、すでにあるデータや設定） | [変更とパターン](changes.md#patterns) |
 | 設計 | 今の形の中での、構成要素の責務の分け方、依存の向き | [設計の原則](../../../principles/docs/reference/principles.md)と[設計のパターン](../../../principles/docs/reference/patterns.md) |
 | セキュリティ | 秘密の扱い、渡す権限の広さ、許可の既定、守りの重ね方、外から入る値（エージェントが読む内容を含む）の確かめ方 | [守り方の原則](../../../principles/docs/reference/principles.md#security)と、そのリポジトリの契約と ADR |
