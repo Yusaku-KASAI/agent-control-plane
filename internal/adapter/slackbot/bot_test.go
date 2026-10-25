@@ -86,6 +86,9 @@ func TestMarkdownText(t *testing.T) {
 	if got := markdownText("short"); got != "short" {
 		t.Errorf("markdownText(short) = %q", got)
 	}
+	if got := markdownText("PR：https://example.com/pull/1"); got != "PR：<https://example.com/pull/1>" {
+		t.Errorf("markdownText did not fit the text to Slack: %q", got)
+	}
 	long := strings.Repeat("あ", maxMarkdown+10)
 	got := markdownText(long)
 	if !strings.HasPrefix(got, strings.Repeat("あ", maxMarkdown)) || !strings.Contains(got, "省略") {
