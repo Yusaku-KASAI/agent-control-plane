@@ -249,6 +249,10 @@ def check(lines):
 
         if n <= code_to:
             continue
+        # Whether a list was open before the line: an indented code block under it is in the list,
+        # even if indented less than the item's content.
+        quotes = unquote(line)[0]
+        in_list = quotes < len(items.levels) and bool(items.levels[quotes].items)
         level = items.see(line)
         if not line.strip():
             continue
@@ -256,7 +260,7 @@ def check(lines):
         if opened:
             fence, on_marker, indented = opened
             code_to = fence.end(lines, n - 1) + 1
-            if on_marker or (indented and level.items):
+            if on_marker or (indented and in_list):
                 note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
             elif not indented:
                 level.ordered.clear()

@@ -518,5 +518,20 @@
     "name": "a code block after a number and a quote mark",
     "text": "1. > ```\n   > PR：https://in.example\n   > ```\n後：https://out.example",
     "found": [1, 4]
+  },
+  {
+    "name": "a code block indented less than its item's content is in the list",
+    "text": "1. 手順\n  ```bash\n  make check\n  ```",
+    "found": [2]
+  },
+  {
+    "name": "a code block indented less than the content of an item past the ninth is in the list",
+    "text": "10. 手順\n   ```bash\n   make check\n   ```",
+    "found": [2]
+  },
+  {
+    "name": "a reference link holds no bare URL",
+    "text": "[注：https://x.example][1] と書く",
+    "found": []
   }
 ]
