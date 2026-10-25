@@ -65,7 +65,12 @@ check "a code block in a quote is not read" 0 "$(found $'> ```\n> PR：https://x
 check "an unindented code block splits an ordered list" 0 "$(found $'1. 一\n   - 子\n\n```\ncode\n```\n\n2. 二')"
 check "a code block in a quote after a list passes" 0 "$(found $'- a\n\n> ```\n> x\n> ```')"
 check "a list ends at an unindented line" 0 "$(found $'- a\n\n文\n  ```\n  x\n  ```')"
+check "inline code at the start of a line is no code block" 1 "$(found $'```x``` は先頭\nPR：https://x.example')"
 check "the inside of a code block is not read" 0 "$(found $'```\nPR：https://x.example\n## **x**\n```')"
+
+got=$("$cmd" check <<<'PR：https://x.example' 2>/dev/null && echo passed || echo failed)
+check "check fails on the forms Slack reads differently" failed "$got"
+check "check passes text that reads well" ok "$("$cmd" check <<<'PR：<https://x.example>')"
 
 # A failure of the check is not taken for the forms Slack reads differently.
 mkdir -p "$tmp/broken"

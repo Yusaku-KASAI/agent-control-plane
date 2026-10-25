@@ -84,6 +84,9 @@ def check(lines):
                 fence = None
             continue
         m = FENCE.match(line)
+        # A backtick fence holds no backtick in its info string; ```x``` is inline code.
+        if m and m.group(4)[0] == "`" and "`" in line[m.end():]:
+            m = None
         if m:
             fence = m.group(4)
             # Within a quote the space after > is not a list's indent.
