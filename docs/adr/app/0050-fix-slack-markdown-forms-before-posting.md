@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-25
+amended_by: [51]
 ---
 
 # 0050. Slack に投稿する前に、意味を変えずに直せる Markdown の形を直す

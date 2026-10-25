@@ -67,7 +67,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   control-plane のイメージはルートの `Dockerfile` の版でビルドする。片方だけを上げても気づけるよう、版の比較を
   ここに置く。キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
   キャッシュを使わずにビルドする。テストは作業領域の git のフック（Go の文字列として持つシェル）を shellcheck に
-  かけるので、base が入れる shellcheck を使う。
+  かけ、Slack に投稿する前の Markdown の直しを slack プラグインの `check-markdown` で確かめるので、base が入れる
+  shellcheck と python3 を使う。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
   先に置き、コードを変えても依存の取得はやり直さない。
 

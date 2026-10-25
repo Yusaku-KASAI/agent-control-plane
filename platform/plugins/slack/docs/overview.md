@@ -8,6 +8,7 @@ slack/
   scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post が使う）
   skills/slack/    読み方と書き方の手順
   tests/slackctl-test.sh  slackctl の振る舞いの検査（make check-platform が回す）
+  tests/markdown-cases.json  Slack で崩れる形と崩れない形の例と、check-markdown が知らせる行
 ```
 
 - `slackctl` は、渡された認証情報の組み合わせで、できること（読む、どこへ投稿するか）を決める。エージェントは
@@ -50,9 +51,26 @@ slack/
     リストの項目の中の段落、`_…_` の斜体、引用の後の空行、`*…*` の斜体と `~~…~~` の打ち消しの内側の記号
     （確かめるのは `**` だけ）。
   - 行ごとに読む。太字の `**` は行の中で順に開きと閉じとして組にするので、組がずれると知らせることも見逃すこともある。
+  - コードブロックは、閉じの行まで続く（間の行の引用とリストの項目は見ない）。閉じの行がどこにもないものだけ、
+    CommonMark に倣い、引用の中のものは引用が終わると、リストの項目の中のものはその項目の兄弟（項目の内容より浅く
+    字下げした、同じ桁の同じ種類の印）の行で閉じる。閉じを書き忘れても、そのあとの本文を読む。リストの項目は、字下げの
+    ない続きの行（遅延の続き）でも終わるとみなす。引用の印と項目の印は順を問わずに読み、字下げのタブは次の 4 の倍数の
+    桁まで進める。引用の中のリストは、引用ごとに読み、項目の中の引用が終わると項目の読みに戻る（[ADR 0029](../../../docs/adr/0029-check-markdown-follows-commonmark-on-shared-cases.md)）。
+  - リンクの表示の文（`[…](…)`、参照形式の `[…][…]`）の中の URL は、リンクの中なので見つけない。
   - 標準入力の Markdown を読み、見つけた形を `line N: …` で出して終了コード 3 で終わる。なければ 0。ほかの終了コード
     （捕まえていない例外の 1 など）は検知の失敗で、`slackctl` は崩れる形とは分けて落とす。
-- **関係**：`python3` を使い、`slackctl` の `check` と `post` から呼ばれる。振る舞いは `tests/slackctl-test.sh` で確かめる。
+- **関係**：`python3` を使い、`slackctl` の `check` と `post` から呼ばれる。振る舞いは `tests/slackctl-test.sh` が
+  `tests/markdown-cases.json` の例で確かめる。
+
+### `tests/markdown-cases.json`
+
+- **責務**：Slack で崩れる形と崩れない形の例を、一か所に並べる。`check-markdown` の振る舞いの例で、Slack に投稿する前に
+  Markdown を読むほかの道具も、同じ例で試して読み分けをそろえられる。
+- **置くもの / 置かないもの**：例ごとに、名前（`name`）、文（`text`）、`check-markdown` が知らせる行（`found`）。ほかの道具が
+  その文をどうするかは置かない（その道具が持つ）。
+- **関係**：`tests/slackctl-test.sh` が `found` を確かめる。
+- **当てはめた原則・パターン**：[契約の試験](../../principles/docs/reference/patterns.md#contract-test)：読み分けを、使う側が同じ例で
+  確かめられるようにする。
 
 ### `skills/slack/`
 

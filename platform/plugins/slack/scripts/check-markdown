@@ -13,7 +13,10 @@ ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+[.)])\s+")
 ORDERED_ITEM = re.compile(r"^(\s*)\d+[.)]\s+")
 DELIMITER_ROW = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
-FENCE = re.compile(r"^((?:\s*>)*)(\s*)((?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
+QUOTE_MARK = re.compile(r"[ \t]*> ?")
+LIST_MARKER = re.compile(r"(?:[-*+]|\d+([.)]))[ \t]+")
+RUN = re.compile(r"`{3,}|~{3,}")
+BLOCK_MARKS = re.compile(r"(?:[ \t>]|[-*+][ \t]|\d+[.)][ \t])*")
 HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
 URL = re.compile(r"https?://[^\s<>`\"]+")
 
@@ -69,53 +72,224 @@ def bold_findings(text):
             yield f"太字の内側が ASCII の記号（{before}）で終わるので、** の後に空白を置く"
 
 
+def unquote(line, most=None):
+    """Drops up to most quote marks (all, if None) from the start of a line, and tells how many."""
+    n = 0
+    while most is None or n < most:
+        m = QUOTE_MARK.match(line)
+        if not m:
+            break
+        line = line[m.end():]
+        n += 1
+    return n, line
+
+
+class Fence:
+    """A code block: its run of backticks or tildes, and, for when it is left open, how many quote
+    marks hold it, the column where the content of the list item holding it starts, and the items
+    holding it. A code block runs to its closing run, whatever quotes and list items the lines
+    between are in, so that a line such as a here-document's EOF, or a line without the quote
+    mark, stays code. Only a code block that has no closing run ends with its quote or its list
+    item, as in CommonMark: at a line with fewer quote marks, or at an item that follows one
+    holding the block (a sibling)."""
+
+    def __init__(self, run, quotes, items):
+        self.run, self.quotes, self.items = run, quotes, items
+        self.indent = items[-1].content if items else 0
+
+    def end(self, lines, i):
+        """Gives the last line of the code block opening at lines[i]: its closing run, or, if it
+        has none, the last line before its quote or list item ends."""
+        for j in range(i + 1, len(lines)):
+            if self.closed_by(lines[j]):
+                return j
+        for j in range(i + 1, len(lines)):
+            if not self.holds(lines[j]):
+                return j - 1
+        return len(lines) - 1
+
+    def holds(self, line):
+        """Tells whether a line is still within the quote and the list item of a code block left
+        open. A line indented less than the item ends it only if it starts a sibling of an item
+        holding the block; any other line, such as one carrying on the item without the indent, is
+        taken as code."""
+        n, rest = unquote(line, self.quotes)
+        if n < self.quotes:
+            return False
+        if indent_of(rest) >= self.indent:
+            return True
+        item = starts_item(rest, lead_length(rest))
+        return not item or not any(
+            (h.marker, h.kind) == (item[0].marker, item[0].kind) for h in self.items)
+
+    def closed_by(self, line):
+        # A closing run carries no list marker, so a line like "- ```" in a code block is code; it
+        # may follow quote marks, whichever quotes hold it.
+        s = line.lstrip(" \t>").strip()
+        return s.startswith(self.run) and not s.strip(self.run[0])
+
+
+def width(s):
+    """Gives the columns s takes, a tab going on to the next multiple of 4 as in CommonMark."""
+    w = 0
+    for c in s:
+        w += 4 - w % 4 if c == "\t" else 1
+    return w
+
+
+def lead_length(s):
+    return len(s) - len(s.lstrip(" \t"))
+
+
+def indent_of(s):
+    return width(s[:lead_length(s)])
+
+
+class Item:
+    """An open item of a list: the column of its marker, the kind of the marker (the bullet, or the
+    delimiter after the number), and the column where its content starts."""
+
+    def __init__(self, marker, kind, content):
+        self.marker, self.kind, self.content = marker, kind, content
+
+
+def starts_item(rest, at):
+    """Gives the item rest starts at at, and where its content starts in rest, or None. The
+    columns count from the start of rest."""
+    m = LIST_MARKER.match(rest, at)
+    if not m:
+        return None
+    kind = m.group(1) or m.group(0)[0]
+    return Item(width(rest[:at]), kind, width(rest[:m.end()])), m.end()
+
+
+class Level:
+    """The lists of one quote (or of the text outside quotes): the open items, innermost last, by
+    indent whether a nested list came under the last ordered item there, and whether a list goes
+    on."""
+
+    def __init__(self):
+        self.items, self.ordered = [], {}
+        # Whether a list goes on, for telling a code block in it: set at an item, and cleared only
+        # at a line of text, a quote mark or a code block at the margin, so that a code block
+        # indented less than the item's content, and those after it, are in the list.
+        self.in_list = False
+
+
+class ListItems:
+    """The list items open at a line, for each quote it is in, outermost first. A line of text, or
+    a quote mark, indented less than an item's content ends the item; a line of text that carries
+    on an item without the indent (a lazy continuation) is taken to end it too. A quote within an
+    item has lists of its own, and once it ends, the item's go on."""
+
+    def __init__(self):
+        self.levels = [Level()]
+
+    def see(self, line):
+        """Takes in a line outside code blocks, and gives the level of its quote."""
+        rest, depth = line, 0
+        while True:
+            if len(self.levels) <= depth:
+                self.levels.append(Level())
+            if not rest.strip():
+                # A blank line ends the quotes deeper than it.
+                del self.levels[depth + 1:]
+                return self.levels[depth]
+            level = self.levels[depth]
+            indent = indent_of(rest)
+            while level.items and level.items[-1].content > indent:
+                level.items.pop()
+            m = QUOTE_MARK.match(rest)
+            if not m:
+                break
+            # A quote mark ends the ordered lists it is not indented into, as a paragraph would,
+            # and at the margin, the list.
+            for k in [k for k in level.ordered if k >= indent]:
+                del level.ordered[k]
+            if indent == 0:
+                level.in_list = False
+            rest, depth = rest[m.end():], depth + 1
+        del self.levels[depth + 1:]
+        at = lead_length(rest)
+        while started := starts_item(rest, at):
+            item, at = started
+            self.levels[depth].items.append(item)
+        return self.levels[depth]
+
+    def holding(self, quotes, col):
+        """Gives the open items of a quote that hold a block at col, innermost last."""
+        if quotes >= len(self.levels):
+            return []
+        items = self.levels[quotes].items
+        n = len(items)
+        while n and items[n - 1].content > col:
+            n -= 1
+        return items[:n]
+
+
+def open_fence(line, items):
+    """Gives the code block a line opens, after items has taken in the line, and whether its run
+    follows a list marker or an indent, or None. The run may follow quote marks, an indent and list
+    markers in any order. A backtick run with a backtick after it is inline code (```x```), not a
+    fence."""
+    prefix = line[:BLOCK_MARKS.match(line).end()]
+    m = RUN.match(line, len(prefix))
+    if not m or (m.group(0)[0] == "`" and "`" in line[m.end():]):
+        return None
+    # The column counts from after the last quote mark and the space that may follow it.
+    quotes = prefix.count(">")
+    inner = prefix
+    if quotes:
+        inner = prefix[prefix.rindex(">") + 1:]
+        inner = inner[1:] if inner.startswith(" ") else inner
+    held = items.holding(quotes, width(inner))
+    on_marker = bool(re.sub(r"[ \t>]", "", prefix))
+    return Fence(m.group(0), quotes, held), on_marker, bool(lead_length(inner))
+
+
 def check(lines):
     findings = []
-    fence = None
-    in_list = False
-    ordered = {}  # indent -> whether a nested list came under the last ordered item at that indent
+    items = ListItems()
+    code_to = 0  # the last line of the code block read last
     for n, line in enumerate(lines, 1):
         def note(message):
             findings.append(f"line {n}: {message}")
 
-        if fence:
-            content = line.strip().lstrip(">").strip()
-            if content.startswith(fence) and not content.strip(fence[0]):
-                fence = None
+        if n <= code_to:
             continue
-        m = FENCE.match(line)
-        # A backtick fence holds no backtick in its info string; ```x``` is inline code.
-        if m and m.group(4)[0] == "`" and "`" in line[m.end():]:
-            m = None
-        if m:
-            fence = m.group(4)
-            # Within a quote the space after > is not a list's indent.
-            if m.group(3) or (m.group(2) and in_list and not m.group(1)):
-                note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
-            elif not m.group(2) or m.group(1):
-                in_list = False
-                ordered.clear()
-            continue
-
+        level = items.see(line)
         if not line.strip():
             continue
-        item = LIST_ITEM.match(line)
-        indent = len(line) - len(line.lstrip())
-        if item:
-            in_list = True
+        opened = open_fence(line, items)
+        if opened:
+            fence, on_marker, indented = opened
+            code_to = fence.end(lines, n - 1) + 1
+            if on_marker or (indented and level.in_list):
+                note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
+            elif not indented:
+                level.in_list = False
+                level.ordered.clear()
+            continue
+        rest = unquote(line)[1]
+        if not rest.strip():
+            continue
+        ordered = level.ordered
+        indent = len(rest) - len(rest.lstrip())
+        if LIST_ITEM.match(rest):
+            level.in_list = True
             for k in list(ordered):
                 if k < indent:
                     ordered[k] = True
                 elif k > indent:
                     del ordered[k]
-            if ORDERED_ITEM.match(line):
+            if ORDERED_ITEM.match(rest):
                 if ordered.get(indent):
                     note("番号付きのリストの項目の下に入れ子があると、ここから番号が 1 から振り直しになる")
                 ordered[indent] = False
             else:
                 ordered.pop(indent, None)
         elif indent == 0:
-            in_list = False
+            level.in_list = False
             ordered.clear()
 
         text = outside_code(line)

@@ -44,29 +44,12 @@ check "a message without text does not stop the thread" "next" "$got"
 
 # check: the forms Slack reads differently are found, line by line; the forms that read well pass.
 found() { "$cmd" check 2>&1 >/dev/null <<<"$1" | grep -c '^line' || true; }
-check "a bare URL after Japanese is found" 1 "$(found 'PR：https://x.example/pull/1')"
-check "a URL in angle brackets passes" 0 "$(found 'PR：<https://x.example/pull/1> と [PR](https://x.example)')"
-check "code in the middle of a line is not read" 0 "$(found '例：`a**(b)**c` です')"
-check "bold closing on code after other code is found" 1 "$(found '`x` と **`code`**：後')"
-check "a URL in code passes" 0 "$(found '`https://x.example`、後')"
-check "bold opening on ASCII punctuation after Japanese is found" 1 "$(found '、**#21 見出し**：後')"
-check "bold closing on code before Japanese is found" 1 "$(found '**`code`**：後')"
-check "bold with spaces outside, or without punctuation inside, passes" 0 "$(found '前 **`code`** 後、前**太字**後、**太字**(注)')"
-check "a table right under text is found" 1 "$(found $'表です\n| a | b |\n| --- | --- |')"
-check "a table after a blank line passes" 0 "$(found $'表です\n\n| a | b |\n| --- | --- |')"
-check "an ordered item after a nested list is found" 1 "$(found $'1. 一\n   - 子\n2. 二')"
-check "an ordered list split by a paragraph passes" 0 "$(found $'1. 一\n\n段落\n\n2. 二')"
-check "formatting in a heading is found" 1 "$(found '## **見出し**')"
-check "an entity reference, which may be meant, passes" 0 "$(found '`&amp;` の件')"
-check "a code block in a list item is found" 1 "$(found $'- 項目\n  ```\n  code\n  ```')"
-check "the text after a code block is read" 1 "$(found $'```\ncode\n```\nPR：https://x.example')"
-check "a URL in a link text passes" 0 "$(found '[https://x.example/a](https://x.example/a)、後 [PR：https://x.example](https://y.example)')"
-check "a code block in a quote is not read" 0 "$(found $'> ```\n> PR：https://x.example\n> ```')"
-check "an unindented code block splits an ordered list" 0 "$(found $'1. 一\n   - 子\n\n```\ncode\n```\n\n2. 二')"
-check "a code block in a quote after a list passes" 0 "$(found $'- a\n\n> ```\n> x\n> ```')"
-check "a list ends at an unindented line" 0 "$(found $'- a\n\n文\n  ```\n  x\n  ```')"
-check "inline code at the start of a line is no code block" 1 "$(found $'```x``` は先頭\nPR：https://x.example')"
-check "the inside of a code block is not read" 0 "$(found $'```\nPR：https://x.example\n## **x**\n```')"
+lines() { "$cmd" check 2>&1 >/dev/null <<<"$1" | sed -n 's/^line \([0-9]*\):.*/\1/p' | paste -sd, -; }
+cases=$(jq -c '.[]' "$(dirname "$cmd")/../tests/markdown-cases.json")
+test -n "$cases"
+while IFS= read -r c; do
+  check "$(jq -r .name <<<"$c")" "$(jq -r '.found | join(",")' <<<"$c")" "$(lines "$(jq -r .text <<<"$c")")"
+done <<<"$cases"
 
 got=$("$cmd" check <<<'PR：https://x.example' 2>/dev/null && echo passed || echo failed)
 check "check fails on the forms Slack reads differently" failed "$got"
