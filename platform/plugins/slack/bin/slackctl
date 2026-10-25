@@ -9,13 +9,17 @@ usage:
   slackctl message <channel> <ts>        print one message
   slackctl thread <channel> <thread_ts>  print every message of a thread
   slackctl link <permalink>              print the message a permalink points at, with its thread
-  slackctl post [<channel> [<thread_ts>]] < text
+  slackctl post [--force] [<channel> [<thread_ts>]] < text
                                          post standard markdown from stdin; without a bot token,
-                                         post to SLACK_WEBHOOK_URL (no channel or thread)
-  slackctl check < text                  check text before posting
+                                         post to SLACK_WEBHOOK_URL (no channel or thread). --force
+                                         posts even with forms Slack reads differently
+  slackctl check < text                  check text before posting, and the forms Slack reads
+                                         differently
 USAGE
   exit 2
 }
+
+plugin=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 
 # Slack caps a markdown block at 12,000 characters.
 readonly max_markdown=12000
@@ -102,15 +106,28 @@ check_text() {
   ((n <= max_markdown)) || die "text is $n characters; Slack allows $max_markdown in one message. Shorten it or split it"
 }
 
+# check_forms <text>: lists the forms Slack's markdown block reads differently, failing if any.
+check_forms() {
+  local found
+  found=$(printf '%s' "$1" | python3 -I "$plugin/scripts/check-markdown") && return
+  printf '%s\n' "$found" >&2
+  return 1
+}
+
 cmd_check() {
-  check_text "$(cat)"
+  local text
+  text=$(cat)
+  check_text "$text"
+  check_forms "$text" || die "Slack reads these forms differently (docs/reference/markdown.md); rewrite them"
   echo ok
 }
 
 cmd_post() {
-  local text payload
+  local text payload force=false
+  if [[ ${1:-} == --force ]]; then force=true; shift; fi
   text=$(cat)
   check_text "$text"
+  $force || check_forms "$text" || die "Slack reads these forms differently (docs/reference/markdown.md); rewrite them, or post with --force"
   payload=$(jq -n --arg text "$text" --arg channel "${1:-}" --arg thread "${2:-}" '
     {text: ($text | .[0:3000]), blocks: [{type: "markdown", text: $text}]}
     + (if $channel != "" then {channel: $channel} else {} end)

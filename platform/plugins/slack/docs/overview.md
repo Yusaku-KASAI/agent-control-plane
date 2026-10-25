@@ -5,6 +5,7 @@
 ```
 slack/
   bin/slackctl     Slack の Web API と incoming webhook のクライアント
+  scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post が使う）
   skills/slack/    読み方と書き方の手順
   tests/slackctl-test.sh  slackctl の振る舞いの検査（make check-platform が回す）
 ```
@@ -31,9 +32,15 @@ slack/
     `SLACK_WEBHOOK_URL` は、人が対話で使うときに自分で用意する代わりの手段。
   - 投稿の前に、空でないことと、Slack の 1 件の上限（12,000 文字）に収まることを確かめる（`slackctl check`、`post` も
     同じ検査をする）。
-- **関係**：`curl`、`jq` を使う。振る舞いは `tests/slackctl-test.sh`（偽の `curl`）で確かめる。
+  - あわせて、Slack の markdown ブロックが標準の Markdown と違って読む形（[Slack の markdown ブロックが読む形](reference/markdown.md)）を
+    `scripts/check-markdown` で見つけ、行ごとに知らせる。裸の URL、太字の内側の ASCII の記号、すぐ上が文字の行の表、
+    番号付きのリストの項目の下の入れ子、見出しの中の書式、リストの中のコードブロック。コードの中は読まない。実体参照は、わざと見せることがあり、写す元は
+    読むときに戻して断つので、見つけない。
+    `check` は見つかれば失敗し、`post` は見つかれば投稿せず、`--force` を付けたときだけそのまま投稿する。直しはせず、
+    書き直すのはエージェント（[ADR 0028](../../../docs/adr/0028-slackctl-finds-forms-slack-reads-differently.md)）。
+- **関係**：`curl`、`jq`、`python3` を使う。振る舞いは `tests/slackctl-test.sh`（偽の `curl`）で確かめる。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../principles/docs/reference/patterns.md#published-language)：control-plane からの渡され方は
-  契約に合わせる。[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：上限を超える投稿は送る前に止める。
+  契約に合わせる。[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：上限を超える投稿と、崩れる形の投稿は送る前に止める。
 
 ### `skills/slack/`
 
