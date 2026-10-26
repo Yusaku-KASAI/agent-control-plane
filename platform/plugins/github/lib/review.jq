@@ -1,5 +1,6 @@
 # The form of a review and of the answers to it: what prctl accepts as JSON, and the Markdown it
-# posts. The severities and perspectives are those of the conventions (reviews.md: 指摘, 観点).
+# posts. The severities, perspectives and answers are those of the conventions (reviews.md: 指摘, 観点,
+# 結果の形).
 
 def severities: ["必須", "提案", "質問", "細部"];
 def perspectives: ["別の形", "依頼との一致", "正しさ", "設計", "セキュリティ", "文書とコメント", "検査"];

@@ -46,8 +46,9 @@ github/
 ### `lib/review.jq`
 
 - **責務**：レビューの結果と答えの JSON の形の検査と、PR のレビューとコメントにする Markdown の作り方。
-- **置くもの / 置かないもの**：重さと観点の名前は、conventions の[指摘](../../conventions/docs/reference/reviews.md#findings)と
-  [観点](../../conventions/docs/reference/reviews.md#perspectives)の写しで、そこを変えたらここも直す。どの範囲をレビュー
+- **置くもの / 置かないもの**：重さ、観点、答えの名前は、conventions の[指摘](../../conventions/docs/reference/reviews.md#findings)、
+  [観点](../../conventions/docs/reference/reviews.md#perspectives)、[結果の形](../../conventions/docs/reference/reviews.md#record)の写しで、
+  そこを変えたらここも直す（試験が照らす）。どの範囲をレビュー
   するか、いつ答えるかの判定は置かず、`bin/prctl` に任せる。
 - **関係**：`bin/prctl` が `jq -L` で読み込む。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：形が足りなければ

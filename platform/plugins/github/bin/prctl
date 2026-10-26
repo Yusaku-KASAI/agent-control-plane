@@ -143,7 +143,7 @@ range_start() {
 }
 
 # How many reviews of the whole PR may not settle it before it goes back to the requester, either
-# way of reviewing.
+# way of reviewing: the number in reviews.md (ways of reviewing, "依頼者に返すとき").
 readonly final_cap=${PRCTL_FINAL_CAP:-10}
 
 # review_facts <pr> <head> <list>: the facts of the PR's reviews (review_list) in the head's history,
@@ -419,10 +419,11 @@ pr_head() {
 
 read_input() { if [[ $1 == - ]]; then cat; else cat -- "$1"; fi; }
 
+# without_marker <text>: the text without the marker of the head a body describes.
+without_marker() { sed -E 's/<!-- prctl: head=[0-9a-f]{40} -->//' <<<"$1"; }
+
 with_marker() {
-  local text=$1 head=$2
-  text=$(sed -E 's/<!-- prctl: head=[0-9a-f]{40} -->//' <<<"$text")
-  printf '%s\n\n<!-- prctl: head=%s -->\n' "$text" "$head"
+  printf '%s\n\n<!-- prctl: head=%s -->\n' "$(without_marker "$1")" "$2"
 }
 
 # pushed_head <branch>: HEAD, provided it is what origin has.
@@ -646,8 +647,9 @@ cmd_answer() {
 readonly body_sections=(何を変えるか 検討した別の形 当てはめた決まり どう確かめたか 確かめていないこと)
 
 # body_check <body>: die unless the body has the sections, in order, once each, none of them empty.
-# Lines in code blocks are not headings. Lines that only close or refer to an issue, and the
-# attribution line, do not count as what is written under a section.
+# Lines in code blocks are not headings. Lines that only close or refer to an issue (by any of
+# GitHub's keywords, in any case), the attribution line and the old marker of the head, which the
+# body loses when it is written, do not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs --args '
@@ -663,13 +665,13 @@ body_check() {
             elif ($hs | length) > 1 then "the section ## \($w) appears \($hs | length) times"
             else ($heads | map(select(.at > $hs[0].at)) | first | .at // ($lines | length)) as $end
               | if [$lines[$hs[0].at + 1:$end][] | .line
-                    | select(test("\\S") and (test("^\\s*((Closes|Fixes|Resolves|Refs) #[0-9]+|🤖 )") | not))] | length == 0
+                    | select(test("\\S") and (test("^\\s*((close[sd]?|fix(e[sd])?|resolve[sd]?|refs) #[0-9]+|🤖 )"; "i") | not))] | length == 0
                 then "the section ## \($w) is empty" else empty end
             end),
         ([$heads[] | .name | select(IN($want[]))] as $got
          | if ($got | length) == ($want | length) and ($got | unique | length) == ($want | length) and $got != $want
          then "the sections are not in the order: \($want | join(", "))" else empty end) ]
-    | .[]' "${body_sections[@]}" <<<"$1")
+    | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }
 
@@ -799,7 +801,7 @@ review_message() {
 }
 
 ci_message() {
-  jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it (see the github skill)."' <<<"$1"
+  jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it if the PR can; a failure the PR cannot fix (such as the protection check unable to read the settings) is reported to the requester instead (see the github skill)."' <<<"$1"
 }
 
 # pending_message <pr> <head> [<ci> [<review list>]]: what the PR still needs for this head, or nothing. Of the CI,
