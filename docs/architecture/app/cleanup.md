@@ -13,7 +13,8 @@ serve（起動時と 1 時間ごと）／ HandleMessage（スレッドの最初�
             │
             ▼
 SessionCleaner ──SessionWorkspace──▶ 作業領域を読むコンテナ（acp workspace-state）
-   │  reasons  ──SessionBranches───▶ GitHub のブランチと PR
+   │           ──SessionBranches───▶ GitHub のブランチと PR
+   │  readFacts で事実を集め、reasons で判定する
    │
    ├─ 残す理由がない：ブランチ、会話の履歴と認証情報、記録と作業領域を消す
    └─ 残す理由がある：残して、スレッドに理由を知らせる

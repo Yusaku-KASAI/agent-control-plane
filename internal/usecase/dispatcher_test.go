@@ -892,7 +892,8 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 	}
 }
 
-// A request still in the inbox channel, as while the worker starts a process, is withdrawn too.
+// A request not injected still in the inbox channel, as while the worker starts a process, is
+// withdrawn too.
 // The worker may take the stop before the request, so the test repeats.
 func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 	for range 20 {
@@ -950,6 +951,30 @@ func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
 			if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) {
 				t.Errorf("%s request = %+v, %v; want ErrStopped", name, o.out, o.err)
 			}
+		}
+	}
+}
+
+// An injected request still in the inbox channel while the worker starts the agent is sent once
+// the turn of the request before runs, so stopping it stops that turn's work too.
+func TestDispatcher_StopInjectedRequestWhileStarting(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	gate := make(chan struct{})
+	e.runner.gate = gate
+	release := sync.OnceFunc(func() { close(gate) })
+	t.Cleanup(release)
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+	stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
+	eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+		t.Fatalf("StopRequest() error = %v", err)
+	}
+	release()
+	e.runner.next(t)
+	for name, ch := range map[string]<-chan outcome{"first": first, "stopped": stopped} {
+		if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) && !o.out.Interrupted {
+			t.Errorf("%s request = %+v, %v; want it stopped", name, o.out, o.err)
 		}
 	}
 }
