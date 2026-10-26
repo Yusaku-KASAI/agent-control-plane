@@ -138,6 +138,11 @@ prctl worktree remove default
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
 - 履歴を書き換えて force push したら、`prctl update` で本文を書き換え、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
+- `.github/workflows/` を変えるコミットは、GitHub App に Workflows の権限がないので push できない
+  （[ハーネスの契約の認証情報](../../../../docs/reference/harness.md#credentials "在りか")）。コミットは作り、push を依頼者に
+  頼む。push するとその workflow が CI で動くので、依頼者が確かめられるよう、変える workflow と、その `permissions`、
+  使う secrets、使うアクション（`uses:` の足し引きと、何で版を固定するか）、動くきっかけ（`on:`）の変化を添える。
+  依頼者が push するまで、そのブランチにほかのコミットを積んで push しない。
 
 ## レビューと CI
 
