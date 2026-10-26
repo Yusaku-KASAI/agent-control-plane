@@ -49,7 +49,8 @@ GitHub のブランチと PR
      （[ADR 0013](../../adr/app/0013-session-branch-from-remote-default.md)）。
   5. [commit-msg フック](#commit-msg)と[pre-push フック](#pre-push)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
-  （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。
+  （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。3 段で残す
+  `refs/acp/target` と reflog は、[作業領域の状態](cleanup.md#state "在りか")が読む。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
   ここに閉じ、usecase は作業領域のパスだけを受け取る。
 
