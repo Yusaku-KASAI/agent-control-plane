@@ -166,7 +166,9 @@ func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
-// would resume after, and the prompts waiting behind them. It does nothing to an idle session.
+// would resume after, and the prompts waiting in the queue. A request still in the inbox channel,
+// as while the worker starts the agent, may stay and be sent later. It does nothing to an idle
+// session.
 func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
 	s, err := d.sessions.Find(ctx, id)
 	if err != nil {

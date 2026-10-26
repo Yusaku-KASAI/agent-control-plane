@@ -901,8 +901,8 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
 		eventually(t, func() bool { return len(e.runner.starts()) == 1 })
 		withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
-		// No event tells that the request reached the inbox channel; the worker is held in Start.
-		time.Sleep(20 * time.Millisecond)
+		// The worker is held in Start, so the request stays in the inbox channel.
+		eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
 		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
 			t.Fatal(err)
 		}
@@ -937,8 +937,8 @@ func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
 		held := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
 		eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 1 })
 		stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", Inject: true, RequestID: "3.0"})
-		// No event tells that the request reached the inbox channel; the worker is held in Send.
-		time.Sleep(20 * time.Millisecond)
+		// The worker is held in Send, so the request stays in the inbox channel.
+		eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
 		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "3.0"); err != nil {
 			t.Fatalf("StopRequest() error = %v", err)
 		}
