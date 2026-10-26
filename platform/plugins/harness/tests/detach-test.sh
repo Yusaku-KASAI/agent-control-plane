@@ -43,6 +43,13 @@ allow|(( x = y & 1 )) && echo odd
 allow|echo ${a//&/and}
 deny|echo $((1 + 1)) &
 deny|echo ${a} & echo started
+deny|echo ${a} & echo ${b}
+deny|((sleep 9) &)
+deny|((true) ); sleep 9 &
+deny|x=$((sleep 1) ); sleep 9 &
+deny|echo ${x:-$(sleep 9 >/dev/null &)}
+deny|echo $(( $(sleep 9 >/dev/null &) + 1 ))
+deny|echo $(( (a & b) + 1 ))
 deny|echo "it's"; prctl ci --wait & echo 'done'
 deny|echo "don't" & echo 'ok'
 deny|wait; prctl ci --wait &

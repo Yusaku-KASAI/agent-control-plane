@@ -39,6 +39,8 @@ two=$'本文\n| a |\n| --- |\n'"$broken"
 check "two forms hold the turn" block "$(first s8 "$two")"
 check "one of them rewritten, the other kept, holds the turn once" "" "$(stop s8 "$broken")"
 check "a form added to those that held the turn holds it again" block "$(stop s8 "$two"$'\n\n# **見出し**')"
+first s10 "$broken" >/dev/null
+check "a form found more often than when it held the turn holds it again" block "$(stop s10 "$broken"$'\n\n'"$broken")"
 check "another session is held for the same findings" block "$(stop s2 "$broken")"
 stop s2 "$fine" >/dev/null
 check "after an answer that passes, the same findings hold the turn again" block "$(stop s2 "$broken")"

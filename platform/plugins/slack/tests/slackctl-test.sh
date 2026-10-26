@@ -51,15 +51,18 @@ while IFS= read -r c; do
   check "$(jq -r .name <<<"$c")" "$(jq -r '.found | join(",")' <<<"$c")" "$(lines "$(jq -r .text <<<"$c")")"
 done <<<"$cases"
 
-# Each finding starts as the overview says, for others to tell the forms by; each start is found.
-overview=$(dirname "$cmd")/../docs/overview.md
-starts=("URL を" "太字の内側が" "表の前に" "番号付きのリスト" "見出しに" "コードブロックは")
-messages=$(while IFS= read -r c; do "$cmd" check 2>&1 >/dev/null <<<"$(jq -r .text <<<"$c")" | sed -n 's/^line [0-9]*: //p'; done <<<"$cases")
+# Each finding starts as the reference says, for others to tell the forms by; each start is found.
+reference=$(dirname "$cmd")/../docs/reference/check-markdown.md
+# shellcheck disable=SC2016 # backquotes of Markdown
+mapfile -t starts < <(sed -n '/^## 文の書き出し/,/^## /p' "$reference" | sed -n 's/^| `\([^`]*\)` |.*/\1/p')
+check "the reference tells the starts" 6 "${#starts[@]}"
+messages=$(while IFS= read -r c; do "$cmd" check 2>&1 >/dev/null <<<"$(jq -r .text <<<"$c")" | sed -n 's/^line [0-9]*: //p' || true; done <<<"$cases")
 for s in "${starts[@]}"; do
-  check "the overview tells findings start with \"$s\"" yes "$(grep -qF "\`$s\`" "$overview" && echo yes || echo no)"
   check "a case finds what starts with \"$s\"" yes "$(grep -q "^$s" <<<"$messages" && echo yes || echo no)"
 done
-check "every finding starts as the overview says" "" "$(grep -v -e "^${starts[0]}" -e "^${starts[1]}" -e "^${starts[2]}" -e "^${starts[3]}" -e "^${starts[4]}" -e "^${starts[5]}" <<<"$messages")"
+unknown=$messages
+for s in "${starts[@]}"; do unknown=$(grep -v "^$s" <<<"$unknown" || true); done
+check "every finding starts as the reference says" "" "$unknown"
 
 got=$("$cmd" check <<<'PR：https://x.example' 2>/dev/null && echo passed || echo failed)
 check "check fails on the forms Slack reads differently" failed "$got"
@@ -116,6 +119,7 @@ check "a webhook tells what it can post" "post: incoming webhook: its fixed chan
 check "a webhook posts" "posted to the webhook" "$(hook post <<<'text')"
 check "a webhook refuses a channel" "slackctl: an incoming webhook posts to its own channel; give no channel or thread" "$(hook post C1 <<<'text')"
 check "a webhook refuses a thread" "slackctl: an incoming webhook posts to its own channel; give no channel or thread" "$(hook post C1 1.0 <<<'text')"
+check "a webhook refuses a thread without a channel" "slackctl: an incoming webhook posts to its own channel; give no channel or thread" "$(hook post '' 1.0 <<<'text')"
 check "nothing to post with is told" "slackctl: no bot token or webhook to post with" "$(env -u SLACK_BOT_TOKEN "$cmd" post C1 <<<'text' 2>&1 || true)"
 
 ((failures == 0))

@@ -23,7 +23,7 @@ shell_words() {
   printf '%s' "$1" | awk 'BEGIN {
     s = ""; k = 0
     while ((getline l) > 0) s = s (k++ ? "\n" : "") l
-    n = length(s); st = "plain"; out = ""; pend = ""; arith = 0
+    n = length(s); st = "plain"; out = ""; pend = ""
     for (i = 1; i <= n; i++) {
       c = substr(s, i, 1)
       if (st == "single") { if (c == "\047") st = "plain"; continue }
@@ -35,12 +35,27 @@ shell_words() {
       if (c == "\"") { st = "double"; out = out " "; continue }
       if (c == "\\") { i++; out = out " "; continue }
       if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n;&|(]/)) { st = "comment"; continue }
-      # In arithmetic, (( ... )), << is a shift, not a here-document.
-      if (substr(s, i, 2) == "((") { arith++; out = out "(("; i++; continue }
-      if (substr(s, i, 2) == "))" && arith > 0) { arith--; out = out "))"; i++; continue }
-      # In arithmetic, & is a bitwise and.
-      if (c == "&" && arith > 0) { out = out " "; continue }
-      if (substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<" && arith == 0) {
+      # (( is arithmetic only when it closes with )), its parentheses balanced, as bash reads it;
+      # otherwise, as in ((cmd) &), it is a subshell in a subshell, read on as such. In arithmetic,
+      # << is a shift and & a bitwise and; an & within parentheses in it (a command substitution,
+      # say) is kept.
+      if (substr(s, i, 2) == "((") {
+        d = 0; e = 0
+        for (j = i + 2; j <= n; j++) {
+          x = substr(s, j, 1)
+          if (x == "(") d++
+          else if (x == ")") { if (d > 0) d--; else { if (substr(s, j + 1, 1) == ")") e = j + 1; break } }
+        }
+        if (!e) { out = out "(("; i++; continue }
+        d = 0; t = ""
+        for (j = i + 2; j < e - 1; j++) {
+          x = substr(s, j, 1)
+          if (x == "(") d++; else if (x == ")") d--
+          t = t ((x == "&" && d == 0) ? " " : x)
+        }
+        out = out "((" t "))"; i = e; continue
+      }
+      if (substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<") {
         rest = substr(s, i + 2); strip = 0
         if (substr(rest, 1, 1) == "-") { strip = 1; rest = substr(rest, 2) }
         if (match(rest, /^[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
@@ -67,11 +82,10 @@ shell_words() {
 
 # waits <after the last &>: whether a wait there, as a command in this shell, waits for the jobs.
 # Groups in ( ) run in a subshell and are left out first, and a wait in a pipe runs in one too.
-# Parameter expansions, ${...}, are one word, so that their braces are not taken for a group.
+# The caller gives it with parameter expansions, ${...}, made one word, so that their braces are not
+# taken for a group.
 waits() {
-  local rest prev=""
-  # shellcheck disable=SC2016 # a sed expression
-  rest=$(sed -E 's/\$\{[^}]*\}/$v/g' <<<"$1")
+  local rest=$1 prev=""
   while [[ $rest != "$prev" ]]; do
     prev=$rest
     rest=$(sed -E 's/\([^()]*\)/ /g' <<<"$rest")
@@ -85,9 +99,10 @@ case $(jq -r .tool_name <<<"$input") in
     # & as an operator, not in &&, |&, or a redirection (>&, &>, <&).
     # && and || stay as separators, so that a wait after them still reads as a command; |& becomes
     # a pipe. A wait in a pipe or in ( ) runs in a subshell and waits for nothing of this one.
-    # A parameter expansion, ${...}, is one word: an & in it (${a//&/x}) is no operator.
+    # A parameter expansion, ${...}, is one word: an & in it (${a//&/x}) is no operator, unless it
+    # holds a command substitution.
     # shellcheck disable=SC2016 # a sed expression
-    ops=$(sed -E 's/\$\{[^}]*\}/$v/g; s/&&/;/g; s/\|\|/;/g; s/\|&/|/g; s/[0-9]*>&[0-9-]*//g; s/&>>?//g; s/[0-9]*<&[0-9-]*//g' <<<"$words")
+    ops=$(sed -E 's/\$\{[^}$`]*\}/$v/g; s/&&/;/g; s/\|\|/;/g; s/\|&/|/g; s/[0-9]*>&[0-9-]*//g; s/&>>?//g; s/[0-9]*<&[0-9-]*//g' <<<"$words")
     let_go=""
     if grep -qE '(^|[^[:alnum:]_-])(nohup|disown|setsid)([^[:alnum:]_-]|$)' <<<"$words"; then
       let_go=yes
