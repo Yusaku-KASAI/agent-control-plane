@@ -71,7 +71,7 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 - **関係**：すべてのパッケージに依存してよい。起動は、自分のバイナリを `tools.dir` に置き（失敗したら起動しない。
   [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付け、Slack のトークンの
-  更新を動かす。止めるときは、Bot が依頼を受けるのをやめ、`Dispatcher` を閉じて動いていた処理を中断し
+  確かめ（要れば更新）を動かす。止めるときは、Bot が依頼を受けるのをやめ、`Dispatcher` を閉じて動いていた処理を中断し
   （[停止と再起動の知らせ](requests.md#shutdown "在りか")）、HTTP サーバーを 10 秒の期限で止め、片付けと Bot の
   書き込みが終わるのを待つ。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
