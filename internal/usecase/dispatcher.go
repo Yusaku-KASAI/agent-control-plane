@@ -16,7 +16,7 @@ import (
 
 var (
 	ErrEmptyPrompt   = errors.New("prompt is empty")
-	ErrInboxFull     = errors.New("too many requests are waiting for this session")
+	ErrInboxFull     = errors.New("too many requests arrived before the session could take them in")
 	ErrShuttingDown  = errors.New("control plane is shutting down")
 	ErrStopped       = errors.New("the session was stopped")
 	errProcessExited = errors.New("agent process exited")
