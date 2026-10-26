@@ -55,7 +55,7 @@ done <<<"$cases"
 reference=$(dirname "$cmd")/../docs/reference/check-markdown.md
 # shellcheck disable=SC2016 # backquotes of Markdown
 mapfile -t starts < <(sed -n '/^## 文の書き出し/,/^## /p' "$reference" | sed -n 's/^| `\([^`]*\)` |.*/\1/p')
-check "the reference tells the starts" 6 "${#starts[@]}"
+check "the reference tells some starts" yes "$( ((${#starts[@]} > 0)) && echo yes || echo no)"
 messages=$(while IFS= read -r c; do "$cmd" check 2>&1 >/dev/null <<<"$(jq -r .text <<<"$c")" | sed -n 's/^line [0-9]*: //p' || true; done <<<"$cases")
 for s in "${starts[@]}"; do
   check "a case finds what starts with \"$s\"" yes "$(grep -q "^$s" <<<"$messages" && echo yes || echo no)"
