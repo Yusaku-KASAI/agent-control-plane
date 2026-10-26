@@ -11,4 +11,4 @@ platform（エージェントの能力：ロール、スキル、hook）の文�
 | [reference/harness.md](reference/harness.md) | 参照 | ハーネスの契約：エージェントが動く環境と渡されるもの |
 | [reference/target.md](reference/target.md) | 参照 | ターゲットの契約：ターゲットが用意するもの |
 | [reference/glossary.md](reference/glossary.md) | 参照 | エージェントの用語集：エージェントとハーネスの言葉 |
-| [adr/](adr/) | 判断 | プラグインの判断 |
+| [adr/](adr/) | 判断 | プラグインと契約の判断 |
