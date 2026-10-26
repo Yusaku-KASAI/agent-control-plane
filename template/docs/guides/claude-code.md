@@ -8,7 +8,7 @@ devcontainer の中で、人が Claude Code を対話で使うときの手順。
 ## 権限の確認
 
 対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。ホストのファイルのうち
-コンテナから書けるのは、マウントしたリポジトリと、Claude Code と gh の状態のディレクトリ（`compose.yaml`）だけなので、
+コンテナから書けるのは、マウントしたリポジトリと、Claude Code と gh の状態とコマンドの履歴のディレクトリ（`compose.yaml`）だけなので、
 確認を省いて使ってもよい。リポジトリの `.git/hooks` や `.git/config` を書き換えられると、ホストで git を使ったときに
 動くことは残る。
 
