@@ -181,23 +181,23 @@ type configReader struct {
 }
 
 // catalog reads the marketplace at dir/marketplace, once for one container.
-func (b *configReader) catalog(dir, marketplace string) (catalog, error) {
+func (r *configReader) catalog(dir, marketplace string) (catalog, error) {
 	key := filepath.Join(dir, marketplace)
-	if c, ok := b.catalogs[key]; ok {
+	if c, ok := r.catalogs[key]; ok {
 		return c, nil
 	}
 	var c catalog
-	if err := b.readJSON(dir, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &c); err != nil {
+	if err := r.readJSON(dir, filepath.Join(marketplace, ".claude-plugin", "marketplace.json"), &c); err != nil {
 		return c, err
 	}
-	b.catalogs[key] = c
+	r.catalogs[key] = c
 	return c, nil
 }
 
-func (b *configReader) readJSON(dir, name string, v any) error {
-	limit := min(maxConfigFile, b.left)
+func (r *configReader) readJSON(dir, name string, v any) error {
+	limit := min(maxConfigFile, r.left)
 	data, err := readUntrusted(dir, name, limit)
-	b.left -= int64(len(data))
+	r.left -= int64(len(data))
 	if errors.Is(err, errTooLarge) {
 		if limit < maxConfigFile {
 			err = fmt.Errorf("the read limit for one container (%d bytes) reached", maxConfigRead)

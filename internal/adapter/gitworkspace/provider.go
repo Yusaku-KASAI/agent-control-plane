@@ -176,9 +176,6 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 		return w, err
 	}
 	for _, wt := range linked {
-		if wt.dir == "" {
-			continue
-		}
 		if err := readWorkingTree(ctx, g, path, &w, "--git-dir="+wt.gitDir, "--work-tree="+wt.dir); err != nil {
 			return w, err
 		}
@@ -205,9 +202,7 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 	// others' commits on its detached HEAD; its files are gone with the container anyway.
 	heads := [][]string{nil}
 	for _, wt := range linked {
-		if wt.dir != "" {
-			heads = append(heads, []string{"--git-dir=" + wt.gitDir})
-		}
+		heads = append(heads, []string{"--git-dir=" + wt.gitDir})
 	}
 	for _, gitDir := range heads {
 		tip, err := detachedTip(ctx, g, path, gitDir...)
@@ -237,15 +232,16 @@ func detachedTip(ctx context.Context, g gitRunner, path string, gitDir ...string
 	return run("rev-parse", "HEAD")
 }
 
-// worktree is a linked worktree of the workspace: its administrative directory in the
-// repository's .git, and its files as seen here, or "" when they are not inside the workspace.
+// worktree is a linked worktree inside the workspace: its administrative directory in the
+// repository's .git, and its files as seen here.
 type worktree struct {
 	gitDir string
 	dir    string
 }
 
-// linkedWorktrees lists the linked worktrees. Their recorded paths are the agent's to write, so
-// each is located under path rather than taken as recorded (locateWorktree).
+// linkedWorktrees lists the linked worktrees whose files are inside the workspace. Their recorded
+// paths are the agent's to write, so each is located under path rather than taken as recorded
+// (locateWorktree).
 func linkedWorktrees(path string) ([]worktree, error) {
 	admin := filepath.Join(path, ".git", "worktrees")
 	entries, err := os.ReadDir(admin)
@@ -275,7 +271,9 @@ func linkedWorktrees(path string) ([]worktree, error) {
 		if err == nil {
 			wt.dir = locateWorktree(path, filepath.Dir(strings.TrimSpace(string(recorded))), e.Name())
 		}
-		wts = append(wts, wt)
+		if wt.dir != "" {
+			wts = append(wts, wt)
+		}
 	}
 	return wts, nil
 }
