@@ -236,7 +236,7 @@ def check_components(path, errors):
 
 
 def check_procedure(path, errors):
-    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither."""
+    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither, and points to no other procedure in the same guides/."""
     text = without_fences(read(path))
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
     # The opening is what comes before the first section or step.
