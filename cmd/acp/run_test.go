@@ -31,6 +31,7 @@ func TestRun_ExitCodes(t *testing.T) {
 		{"stopped at the usage limit", answer(http.StatusOK, httpapi.TurnResponse{Error: true, UsageLimited: true}), 1},
 		{"refused", answer(http.StatusTooManyRequests, httpapi.ErrorResponse{Code: httpapi.CodeInboxFull, Message: "full"}), 2},
 		{"failed in the server", answer(http.StatusInternalServerError, httpapi.ErrorResponse{Code: httpapi.CodeInternal, Message: "boom"}), 1},
+		{"shutting down", answer(http.StatusServiceUnavailable, httpapi.ErrorResponse{Code: httpapi.CodeUnavailable, Message: "restart"}), 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
