@@ -36,6 +36,7 @@ amends: [10]
 
 ## Consequences
 
-- 共通のルールの、リンクの行き先を除いても長かった二行を折り返した。
-- 上限は frontmatter の `description` には当てない（Claude Code が一行で読む）。
+- 共通のルールの、リンクの括弧の中を除いても長かった二行を折り返した。
+- 上限は frontmatter の `description` には当てない（Claude Code が一行で読む）。`description` もロールとスキルの一覧として
+  毎回読み込まれるので、別の上限を当てるかは依頼の Issue（#284）に積んで別に決める。
 - conventions を使うほかのターゲットの、いつも読み込まれる文書も、この検査に掛かる。

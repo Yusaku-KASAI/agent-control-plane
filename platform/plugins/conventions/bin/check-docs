@@ -2,7 +2,8 @@
 """Checks the Markdown files of the repository holding the working directory against this plugin's
 docs/reference/formats.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, the size of the documents read at every start (lines, and the display
+width of each line), and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
 where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""
 
 import os
@@ -296,7 +297,7 @@ ALWAYS_READ = [
 
 # Lines are measured as they read, without what a link's parentheses hold (where it points and its title).
 WIDTH_LIMIT = 130
-LINK_TARGET = re.compile(r"\]\([^)]*\)")
+CODE_SPAN = re.compile(r"(`[^`\n]*`)")
 
 
 def width(text):
@@ -305,7 +306,9 @@ def width(text):
 
 
 def display_width(line):
-    return width(LINK_TARGET.sub("]", line))
+    """The width of a line, with the parentheses of the inline links outside code read as links() reads them."""
+    return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
+                         for part in CODE_SPAN.split(line)))
 
 
 def body(path):
