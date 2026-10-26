@@ -11,7 +11,7 @@
 | 何を検査にし、検査をどこに置くか | [検査の扱い方](../reference/checks.md "在りか") |
 | 文書を書く順 | [文書を書く](../guides/write-docs.md "在りか") |
 
-判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0041](../adr/0041-reasons-by-kind.md) にある。
+判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0041](../adr/0041-reasons-by-kind.md)、[0047](../adr/0047-principles-listed-by-name-and-source.md) にある。
 原則とパターンは[設計の原則](../../../principles/docs/reference/principles.md "在りか")と[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")にある。
 
 ## 構成
@@ -83,7 +83,8 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 ### 今の姿と理由の置き場所
 
 文書とコードのコメントには今の姿を書き、理由、道筋、経緯は種類ごとに次の所に置く。今の姿を知りたい人が、
-経緯や予定を読み分けずに済むようにするため。
+経緯や予定を読み分けずに済むようにするため。今の姿の説明を直すときは、追記せず書き換え、「以前は」「今後は」を
+混ぜない。
 
 | 書くもの | 置き場所 |
 | --- | --- |
