@@ -48,5 +48,5 @@ principles が conventions の言葉（前提のリンク、在りかのリン�
 ## Consequences
 
 - principles の各項目は、文献から元の考え方をたどれる。
-- conventions の文書から、移した項目のアンカー（`#present-state`、`#relation-kinds`、`#verify-procedures`、
+- conventions の文書から、移したか外した項目のアンカー（`#present-state`、`#relation-kinds`、`#verify-procedures`、
   `#single-index`）へのリンクは、conventions の持ち主の節を指すか、その場に決まりを書く形に変わる。
