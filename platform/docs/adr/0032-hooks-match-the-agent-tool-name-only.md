@@ -28,6 +28,7 @@ Claude Code 2.1.292 の本体では、PreToolUse、PostToolUse、PostToolUseFail
 
 ## Consequences
 
-- Claude Code が別名で hook を呼ぶ版に変わると、hook が働かなくなる。版を上げるときは、サブエージェントの呼び出しに
-  hook が働くことを確かめる。
+- Claude Code が hook に渡すツールの名前を変える版（別名で呼ぶ版、新しい名前にする版）では、hook が働かなくなる。
+  `Task` を当てたままにしても新しい名前には当たらないので、版を上げるときに、サブエージェントの呼び出しに hook が
+  働くことを確かめて拾う。
 - 確かめたのは Claude Code 2.1.292 の本体を読んだことによる。hook の入力を実際に記録しては確かめていない。

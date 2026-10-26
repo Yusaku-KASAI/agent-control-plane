@@ -33,7 +33,7 @@
     {
       "name": "harness",
       "source": "./plugins/harness",
-      "description": "Tell agents how they are run and where the harness contract is, and hold them to its limits under the control plane"
+      "description": "Tell agents how they are run and where the harness contract is; under the control plane, hold them to its limits and tell them when a subagent changed the work area"
     },
     {
       "name": "bell",
