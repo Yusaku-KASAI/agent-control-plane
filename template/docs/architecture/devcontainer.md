@@ -167,8 +167,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 - **責務**：コンテナに attach していない VS Code のウィンドウのエディタ設定を持つ。
 - **置くもの / 置かないもの**：devcontainer.json の `customizations.vscode.settings`（attach したウィンドウ）と同じ内容。
-  ベル設定のように、片方だけだと効いたり効かなかったりするものがあるため。ツールはイメージで固定するので、拡張機能が
-  自分でツールを入れないようにする。
+  ベル設定のように、片方だけだと効いたり効かなかったりするものがあるため。ツールチェーンの拡張機能の設定は埋める
+  部分で、ツールはイメージで固定するので、拡張機能が自分でツールを入れる設定があれば切る。
 - **関係**：同じであることは `make check-target`（`check-vscode-settings.py`）で確かめる。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：二か所に置く同じ設定を
   検査でそろえる。

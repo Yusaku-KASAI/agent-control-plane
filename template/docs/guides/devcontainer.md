@@ -28,17 +28,6 @@ docker compose -f .devcontainer/compose.yaml down            # 止める
 コンテナは root を使わないが、人が一時的に root で作業したいとき（apt でのインストールなど）は
 `docker exec -u root -it <コンテナ> bash` で入る。
 
-<a id="permissions"></a>
-
-## Claude Code の権限の確認
-
-対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。コンテナで
-隔離しているので、確認を省いて使ってもよい。
-
-```bash
-claude --dangerously-skip-permissions
-```
-
 <a id="copy"></a>
 
 ## Claude Code の画面のコピー
