@@ -155,7 +155,7 @@ type fileFormat struct {
 const (
 	defaultIdleTimeout = 15 * time.Minute
 	defaultRetention   = 30 * 24 * time.Hour
-	// defaultSuggestClosingAt: docs/adr/app/0049 and 0052.
+	// defaultSuggestClosingAt is chosen in docs/adr/app/0049 and 0052.
 	defaultSuggestClosingAt = 400_000
 )
 

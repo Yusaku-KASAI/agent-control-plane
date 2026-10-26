@@ -940,7 +940,7 @@ func TestDispatcher_InboxOverflowsWhileTheWorkerIsHeld(t *testing.T) {
 	t.Cleanup(release)
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
 	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
-	const inbox, over = 32, 8
+	const inbox, over = usecase.InboxSize, 8
 	var rest []<-chan outcome
 	for i := range inbox + over {
 		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
