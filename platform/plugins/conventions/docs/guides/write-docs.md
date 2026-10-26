@@ -2,7 +2,7 @@
 
 文書（README、CLAUDE.md、`docs/` の下、ADR）を足したり書き換えたりするときの手順。共通の手順で、目的の手順の段の中で
 使う（[目的の手順と共通の手順](../reference/delivery.md#procedures)）。分け方の全体は
-[文書の体系](../architecture/documentation.md "在りか")に、決まりは[形式](../reference/formats.md "在りか")と[届け方](../reference/delivery.md "在りか")にある。
+[文書の体系](../architecture/documentation.md "在りか")に、決まりは[形式](../reference/formats.md "在りか")と[届け方の決まり](../reference/delivery.md "在りか")にある。
 
 1. **区切りを決める**：誰が読む必要があるか。読む必要がある人すべてに届く区切りに置く。どの区切りにも要るなら
    共有の核に置き、特定の区切りの間で要るなら契約にする（[区切りと依存の向き](../architecture/documentation.md#contexts)）。
@@ -20,7 +20,7 @@
    案内にする（[SSOT](../../../principles/docs/reference/principles.md#ssot)）。そのうえでリンクの種類を決める。リンク先の中身が
    変わったときに、リンクを含む文を見直す要があれば前提のリンク、なければ在りかのリンクにし、在りかのリンクには
    タイトル「在りか」を付ける（[形式](../reference/formats.md#links)）。全体（`overview.md`、索引）から子へのリンクは在りかの
-   リンクにする。前提のリンクは、地図の前提の向きに沿わせる。
+   リンクにし、前提のリンクは、地図の前提の向きに沿わせる（[形式：地図](../reference/formats.md#map)）。
 6. **地図を直す**：項目を足す、移す、消すとき、または項目が前提にするものが変わるときは、その親の地図（親の
    `overview.md`）を直す（[形式](../reference/formats.md#map)）。
 7. **量を整える**：要らないもの、重複（ほかに持ち主があるもの）、経緯、置き場所違いのもの、古くなったものは、消すか

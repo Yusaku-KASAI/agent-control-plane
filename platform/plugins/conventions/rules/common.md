@@ -21,7 +21,7 @@
 - ほかは、括弧の中のスキルを使い、その目的の手順に沿う：頼まれて差分や全体をレビューする（review、[レビューする](../docs/guides/review.md "在りか")）、
   セッションを締める（「締めて」など。close-session、[セッションを締める](../docs/guides/close-session.md "在りか")）、相談や壁打ち（consult、
   [相談に乗る](../docs/guides/consult.md "在りか")）、Issue やロードマップの整理（organize-issues、[課題を整える](../docs/guides/organize-issues.md "在りか")）。
-- どれにも当たらない（事実を聞く質問など）：目的の手順のない依頼は、依頼に沿って進める。
+- どれにも当たらない（事実を聞く質問など）：依頼に沿って進める。
 
 ## 決めるとき
 

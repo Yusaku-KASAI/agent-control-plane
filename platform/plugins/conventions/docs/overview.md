@@ -4,12 +4,13 @@
 
 conventions は principles を前提にする。conventions を有効にするリポジトリは、principles も有効にする。
 
-conventions は、決まりの**定義**と、それをエージェントに**届ける形**に分かれる。届ける形は定義を前提にし、
-定義は届ける形を前提にしない。定義と届け方の仕組みは[文書の体系](architecture/documentation.md#delivery "在りか")にある。
+conventions は、決まりの**定義**と、それをエージェントに届ける**届け方**に分かれる。届け方は定義を前提にし、
+定義は届け方を前提にしない。定義と届け方の仕組みは[文書の体系](architecture/documentation.md#delivery "在りか")にある。
 
 ```
 conventions/
-  docs/            定義：用語集、決まり（文書、検査、変更と課題、レビュー）、手順（guides/）。一覧は docs/README.md
+  docs/            定義：用語集、決まり（検査、文書、変更と課題、レビュー）、手順（guides/）と、全体の解説（文書の体系）。
+                   一覧は docs/README.md
   rules/           届け方：いつも守ること（共通のルール）。定義を要約か案内で載せる
   hooks/、scripts/ 届け方：共通のルールを始めに読み込ませる hook と、Markdown を変えたターンの終わりに文書の検査を回す hook
   skills/          届け方：docs/guides/ の手順への入口
@@ -37,22 +38,23 @@ conventions/
 
 - **責務**：このプロジェクト群で、文書をどう置き、決まりをどう定義して届けるかの仕組みを解説する。
 - **置くもの / 置かないもの**：仕組み（3 つの層、区切りと依存の向き、項目の階層と地図、文書の根と種類、定義と届け方、
-  手順と役割）と、届ける形の構成要素の説明。どの作業でも始めに全体まで読まれるので、決まりの細部は参照の文書に置く。
-- **関係**：用語集を前提にする。原則とパターンを指す。
+  手順と役割）と、届け方の構成要素の説明。どの作業でも始めに全体まで読まれるので、決まりの細部は参照の文書に置く。
+- **関係**：地図ではどの項目にも入らない conventions の全体で、conventions の中のどの文書からも前提にされ、それらを
+  在りかで指す。原則とパターンを前提にする。
 - **当てはめた原則・パターン**：[文書の種類で分ける](../../principles/docs/reference/patterns.md#diataxis)の解説。
   [段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)。
 
 ### 文書の決まり（`docs/reference/formats.md`、`delivery.md`）
 
-- **責務**：形式は、文書の根と器、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、リンク、量の上限、
-  地図の形を決める。届け方は、要約と案内、起点に何をどう載せるか、目的の手順と共通の手順を決める。
-- **関係**：`check-docs` が形式の形を確かめる。
+- **責務**：形式は、文書の検査の範囲と、文書の根と器、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、
+  リンク、量の上限、地図の形を決める。届け方の決まりは、要約と案内、起点に何をどう載せるか、目的の手順と共通の手順を決める。
+- **関係**：検査の扱い方を前提にする。`check-docs` が形式の形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
   [一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)。
 
 ### 検査の扱い方（`docs/reference/checks.md`）
 
-- **責務**：何を検査にし、検査をどこに置くかを決める。文書の検査が構造に限ることもここにある。
+- **責務**：何を検査にし、検査をどこに置くかを、文書にもコードにも当てはまる形で決める。
 - **関係**：区切りと依存の向き（文書の体系）を前提にする。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)。
 
@@ -130,7 +132,7 @@ conventions/
   前提がありうることを示すため、前提と在りかの末尾に `?` を付ける。属性は文書に手で書かず、導く
   （[ADR 0026](adr/0026-derive-document-catalog.md)）。
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や、文書が
-  述べること（中身。[検査の扱い方：文書の検査](reference/checks.md#documents "在りか")）は確かめない（レビューの観点に任せる）。
+  述べること（中身。[形式：検査の範囲](reference/formats.md#check-scope "在りか")）は確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
   `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。一覧の試験は
   `tests/check-docs-catalog-test.sh`。CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの
@@ -157,8 +159,8 @@ conventions の中の項目と前提の向き（[形式](reference/formats.md#ma
 | 定義 | conventions | | |
 | 用語集 | 定義 | `reference/glossary.md` | |
 | 決まり | 定義 | | 用語集 |
-| 文書 | 決まり | `architecture/documentation.md`, `reference/formats.md`, `reference/delivery.md` | |
-| 検査 | 決まり | `reference/checks.md` | 文書 |
+| 検査 | 決まり | `reference/checks.md` | |
+| 文書 | 決まり | `reference/formats.md`, `reference/delivery.md` | 検査 |
 | 変更と課題 | 決まり | `reference/writing.md`, `reference/changes.md`, `reference/issues.md` | 文書 |
 | レビュー | 決まり | `reference/reviews.md` | 文書, 検査, 変更と課題 |
 | 手順 | 定義 | `guides/` | 用語集, 決まり |
