@@ -1,7 +1,7 @@
 # target-template
 
 ターゲットに共通の環境のファイルと、その説明。このリポジトリがひな形を兼ね、環境のファイルはルートにある。
-ターゲットの契約は、target-template ではなく契約の項目で、文書だけをここに置く。文書の分け方は conventions の
+ターゲットが用意するものは[ターゲットの契約](../../platform/docs/reference/target.md "在りか")にある。文書の分け方は conventions の
 [文書の体系](../../platform/plugins/conventions/docs/architecture/documentation.md "在りか")にある。
 
 | 文書 | 種類 | 何があるか |
@@ -12,5 +12,4 @@
 | [architecture/ci.md](architecture/ci.md) | 解説 | CI の構成 |
 | [guides/devcontainer.md](guides/devcontainer.md) | 手順 | ホストの準備、devcontainer のビルド、起動、停止、root での作業、Claude Code の権限の確認と画面のコピー |
 | [guides/github.md](guides/github.md) | 手順 | 既定のブランチの守りの用意（CODEOWNERS か team、ルールセット、確かめ方） |
-| [reference/contract.md](reference/contract.md) | 参照 | ターゲットの契約（イメージ、ホストでの配置、プラグイン、ロール、Claude Code の設定、検査、devcontainer と control-plane、既定のブランチの守り、CLAUDE.md の節） |
 | [adr/](adr) | 判断 | |

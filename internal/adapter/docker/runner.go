@@ -181,7 +181,7 @@ func containerSpec(req usecase.StartRequest, resume bool, plugins []pluginDir, o
 	return client.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: agent.Target.Image,
-			// Relies on the target image contract in template/docs/reference/contract.md.
+			// Relies on the target image contract in platform/docs/reference/target.md.
 			Cmd: claudeCommand(agent, s.ID, resume, pluginPaths),
 			Env: append([]string{
 				"CLAUDE_CONFIG_DIR=" + claudeConfigDir,

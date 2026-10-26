@@ -1,7 +1,7 @@
 # ターゲットの環境の全体像
 
 [ターゲット](../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
-ものは[ターゲットの契約](reference/contract.md)が定め、ここにあるファイルはそれを満たす。
+ものは[ターゲットの契約](../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
@@ -35,7 +35,7 @@
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` は共通 |
 | `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
 | `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
-| `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](reference/contract.md#claudemd)にある） |
+| `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
 共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。

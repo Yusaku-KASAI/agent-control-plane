@@ -123,7 +123,7 @@ GitHub のブランチと PR
   断る。Makefile がなければ、名前の注意と上書きの確かめのほかは何も確かめない。検査の前に、`ACP_PUSH_OVERWRITE` と、git がフックに渡すリポジトリの場所の
   変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、コミット
   されない。
-- **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。
+- **関係**：検査のコマンドは[ターゲットの契約の検査](../../../platform/docs/reference/target.md#checks "在りか")。
   エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
   通すこと、新しいブランチの名前に気づかせること、取り込んでいないリモートの先頭の上書きに気づかせることを、決まりだけで

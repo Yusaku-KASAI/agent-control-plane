@@ -13,7 +13,7 @@
 | 考え方 | 内容 | 判断 |
 | --- | --- | --- |
 | リポジトリが宣言する | エージェントの実行環境（devcontainer）、有効にするプラグイン、CLAUDE.md は、ターゲットのリポジトリが宣言する。control-plane はそれを読んで動かすだけで、汎用のエージェント像を押し付けない。人間の開発環境とエージェントの実行環境は同じもの | [app 0001](adr/app/0001-repository-centric-agents.md) |
-| エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの定義（振る舞い）は platform の roles プラグインで共有し、ターゲット固有の事実はターゲットの CLAUDE.md に置く。ターゲットは、同じ名前のロールを `.claude/agents/<ロール>.md` に定義して上書きできる（[プラグインとロール](../template/docs/reference/contract.md#plugins "在りか")） | [app 0002](adr/app/0002-agent-is-target-times-role.md)、[target-template 0003](../template/docs/adr/0003-roles-as-claude-code-agents.md) |
+| エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの定義（振る舞い）は platform の roles プラグインで共有し、ターゲット固有の事実はターゲットの CLAUDE.md に置く。ターゲットは、同じ名前のロールを `.claude/agents/<ロール>.md` に定義して上書きできる（[プラグインとロール](../platform/docs/reference/target.md#plugins "在りか")） | [app 0002](adr/app/0002-agent-is-target-times-role.md)、[target-template 0003](../template/docs/adr/0003-roles-as-claude-code-agents.md) |
 | 共通の能力は platform に | ターゲットをまたいで使う能力（ロール、スキル、hook、コマンド）は platform のプラグインに置く。共通のルール（principles、conventions）は platform に属さず、同じマーケットプレイスでプラグインとして配る。ターゲットは、使うプラグインを `.claude/settings.json` で有効にする | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](adr/app/0017-long-lived-session-process.md)、[app 0020](adr/app/0020-slack-requests-by-reference.md) |
 | 知識は届く先で区切る | 知識は、使う人と持ち主ごとの区切りに分け、区切りの間は共有の核（principles、conventions）と契約だけでつなぐ（[地図](#map)） | [conventions 0002](../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)、[0003](../platform/plugins/conventions/docs/adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../platform/plugins/conventions/docs/adr/0005-principles-and-conventions-plugins.md) |
@@ -73,16 +73,15 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 | 契約 | | | principles, conventions | 区切りの間の約束 | 契約の両側 |
 | エージェントの用語集 | 契約 | `../platform/docs/reference/glossary.md` | | エージェントとハーネスの言葉 | |
 | ハーネスの契約 | 契約 | `../platform/docs/reference/harness.md` | エージェントの用語集, ターゲットの契約 | control-plane がエージェントに渡すもの | |
-| ターゲットの契約 | 契約 | `../template/docs/reference/contract.md` | エージェントの用語集 | ターゲットが用意するもの | |
+| ターゲットの契約 | 契約 | `../platform/docs/reference/target.md` | エージェントの用語集 | ターゲットが用意するもの | |
 | platform | | `../platform/` | principles, conventions, 契約 | エージェントの能力（ロール、スキル、hook） | すべてのエージェント |
 | target-template | | `../template/` | principles, conventions, 契約, platform | ターゲットに共通の環境のファイルと、その説明 | すべてのターゲット（テンプレートから作る） |
 | control-plane | | `../README.md`, `../CLAUDE.md`, `./` | principles, conventions, 契約, platform, target-template | 全体の設計、アプリの仕組み、Go の書き方、運用の手順 | control-plane の開発者 |
 | 各ターゲット | | | principles, conventions, 契約, platform, target-template | プロダクトの前提、そのリポジトリの仕組みと判断 | そのターゲットのエージェント |
 
 - 契約と各ターゲットは、置き場所を持たない。契約は中の項目の集まりで、各ターゲットはこのリポジトリの外にある。
-- principles、conventions、ハーネスの契約、エージェントの用語集は、ほかのターゲットのエージェントに届くよう
-  マーケットプレイス（`platform/`）の中に置くが、platform には属さない。ターゲットの契約は `template/` の中に置くが、
-  target-template には属さない。
+- principles、conventions と契約（エージェントの用語集、ハーネスの契約、ターゲットの契約）は、ほかのターゲットの
+  エージェントに届くようマーケットプレイス（`platform/`）の中に置くが、platform には属さない。
 
 <a id="map-control-plane"></a>
 

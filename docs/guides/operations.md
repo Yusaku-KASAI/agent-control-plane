@@ -10,7 +10,7 @@ control-plane のサーバーを手元で準備して動かす手順。
 ### 1. 全体
 
 - ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを
-  `.env` の `ACP_HOST_ROOT` の下に置く（並べ方は[ホストでの配置](../../template/docs/reference/contract.md#host "在りか")と
+  `.env` の `ACP_HOST_ROOT` の下に置く（並べ方は[ホストでの配置](../../platform/docs/reference/target.md#host "在りか")と
   [ホストの準備](../../template/docs/guides/devcontainer.md#host "在りか")）。platform はこのリポジトリの `platform/` にあるので、
   親ディレクトリでシンボリックリンクを張って隣に置く。
 
