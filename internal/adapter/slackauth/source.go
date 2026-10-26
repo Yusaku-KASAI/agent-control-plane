@@ -60,29 +60,32 @@ type rotationState struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-// refreshBefore is how long before expiry the token is replaced.
+// refreshBefore is how long before expiry Run replaces the token.
 const refreshBefore = 2 * time.Hour
 
 func NewRotatingSource(cfg RotatingConfig, httpClient *http.Client) *RotatingSource {
 	return &RotatingSource{cfg: cfg, http: httpClient, now: time.Now}
 }
 
+// Token returns the current token. It redeems tokens only when there are none or the current one
+// has expired: refreshing ahead of expiry is Run's, so that while refreshing fails, the current
+// token stays in use until it expires.
 func (s *RotatingSource) Token(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensure(ctx); err != nil {
+	if err := s.ensure(ctx, 0); err != nil {
 		return "", err
 	}
 	return s.state.AccessToken, nil
 }
 
 // Run refreshes the token ahead of expiry until ctx is done. A failed refresh is reported and
-// retried at the next interval; the current token stays usable until it expires.
+// retried at the next interval.
 func (s *RotatingSource) Run(ctx context.Context, interval time.Duration, report func(error)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		if _, err := s.Token(ctx); err != nil && ctx.Err() == nil {
+		if err := s.refresh(ctx); err != nil && ctx.Err() == nil {
 			report(err)
 		}
 		select {
@@ -93,7 +96,14 @@ func (s *RotatingSource) Run(ctx context.Context, interval time.Duration, report
 	}
 }
 
-func (s *RotatingSource) ensure(ctx context.Context) error {
+func (s *RotatingSource) refresh(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ensure(ctx, refreshBefore)
+}
+
+// ensure gets tokens when there are none, and refreshes them when they expire within ahead.
+func (s *RotatingSource) ensure(ctx context.Context, ahead time.Duration) error {
 	if s.state.RefreshToken == "" {
 		if err := s.load(); err != nil {
 			return err
@@ -106,7 +116,7 @@ func (s *RotatingSource) ensure(ctx context.Context) error {
 		}
 		return s.redeem(ctx, "oauth.v2.exchange", url.Values{"token": {initial}})
 	}
-	if s.now().Add(refreshBefore).Before(s.state.ExpiresAt) {
+	if s.now().Add(ahead).Before(s.state.ExpiresAt) {
 		return nil
 	}
 	return s.redeem(ctx, "oauth.v2.access", url.Values{

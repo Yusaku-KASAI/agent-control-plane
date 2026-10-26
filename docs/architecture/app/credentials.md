@@ -101,10 +101,12 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   - `Source`：今の Bot トークンを返すインターフェース。`Issuer` はこれを `domain.Credentials` にする。
   - `FileSource`：ローテーションなし。ファイルを呼ばれるたびに読む。
   - `RotatingSource`：トークンローテーションあり（[ADR 0022](../../adr/app/0022-slack-bot-token-rotation.md)）。
-    状態がなければ `bot_token_path` の長期のトークンを `oauth.v2.exchange` で交換し、以降は失効の 2 時間前を過ぎたら
-    `oauth.v2.access` で更新する。更新用のトークンは一度しか使えないので、受け取ったら使う前に状態のファイル
+    状態がなければ `bot_token_path` の長期のトークンを `oauth.v2.exchange` で交換し、以降は `oauth.v2.access` で
+    更新する。更新用のトークンは一度しか使えないので、受け取ったら使う前に状態のファイル
     （`<state_dir>/slack/<エージェント名>.json`、`acp-state` ボリューム）へ一時ファイルと rename で保存する。
-    `Run` が 10 分ごとに確かめ、失敗はログに出して次の回にやり直す。
+    前もって更新するのは `Run` で、10 分ごとに確かめ、失効の 2 時間前を過ぎていれば更新する。失敗はログに出して
+    次の回にやり直す。`Token` は、トークンがないか失効したときだけ交換か更新をし、それまでは今のトークンを返す
+    ので、更新に失敗し続けても失効までは投稿できる。
 - **関係**：同じ `Source` を、control-plane の Slack Bot（`slackbot`）とエージェントへの発行の両方が使うので、
   更新したトークンはどちらにも届く。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：今のトークンを持つのは
