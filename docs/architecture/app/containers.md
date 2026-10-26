@@ -186,7 +186,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 ### `internal/adapter/docker`（`workspace.go`）
 
-- **責務**：usecase の `SessionWorkspace` を実装し、セッションの作業領域が持っているもの（[作業領域の状態](workspace.md#state "在りか")）を、
+- **責務**：usecase の `SessionWorkspace` を実装し、セッションの作業領域が持っているもの（[作業領域の状態](cleanup.md#state "在りか")）を、
   control-plane のプロセスの外で読む。作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド
   （`core.fsmonitor`、フィルタなど）を動かし、名前付きパイプなどで止まりもするため（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 - **置くもの / 置かないもの**：
@@ -207,7 +207,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
       ログは書かない（出力は attach で読み、読む量の上限は `State` にある。エージェントのコマンドが上限なく書きうるため）。
       プロセス数とメモリにも上限を付ける。エージェントが設定に書いたコマンドが、依頼と関係なく動くため。
     - ラベル `acp.workspace-state`。Docker Compose のラベルは、エージェントのコンテナと同じく空にする。
-- **関係**：片付け（[片付け](sessions.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
+- **関係**：片付け（[片付け](cleanup.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
   プロキシの許可は変わらない。
 - **当てはめた原則・パターン**：[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが書いたものを読む
   git には、作業領域を読む権限のほか何も渡さない。
@@ -219,7 +219,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   1〜2 段下にあるセッション ID で始まる名前のもの（`projects/<ディレクトリ>/<ID>.jsonl` など）。ID は UUID なので
   ほかのセッションのものと重ならず、Claude Code のファイルの配置を知らずに済む。記録と作業領域は消さない
   （`SessionRepository` が消す）。
-- **関係**：usecase の `SessionFiles` を実装し、[片付け](sessions.md#cleaner "在りか")から
+- **関係**：usecase の `SessionFiles` を実装し、[片付け](cleanup.md#cleaner "在りか")から
   呼ばれる。runner と同じ `Options` で場所を知る。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：runner が作るものと
   消すものを同じパッケージに置く。

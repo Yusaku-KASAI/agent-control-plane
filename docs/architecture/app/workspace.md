@@ -1,10 +1,11 @@
 # 作業領域とブランチ
 
-セッションごとの作業領域の作り方と、セッションのブランチ、片付けのために作業領域と GitHub から読む事実。
+セッションごとの作業領域の作り方と、セッションのブランチ、作業領域の git のフック。
 作業領域とセッションのブランチの意味は[用語集](../../../platform/docs/reference/glossary.md)、エージェントから
 見た作業領域とブランチ、コミットの決まりは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 セッション全体は[セッション](sessions.md "在りか")、作業領域をマウントするコンテナは[コンテナ](containers.md "在りか")、
-GitHub App のトークンは[認証情報](credentials.md "在りか")にある。
+GitHub App のトークンは[認証情報](credentials.md "在りか")に、片付けのために作業領域と GitHub から読む事実は
+[片付け](cleanup.md "在りか")にある。
 
 ## 構成
 
@@ -27,17 +28,8 @@ GitHub のブランチと PR
   コンテナにはこの作業領域だけをマウントする。
 - エージェントはセッションのブランチで作業し、push して PR を作る。作業するブランチの扱い（既存の PR を続ける、別の PR に分ける、ほかの PR に重ねる）は
   [ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
-- 片付けは、作業領域と GitHub から事実を読み、[片付け](sessions.md#cleaner "在りか")が判定する。作業領域を作るときに
-  残す `refs/acp/target` と reflog の設定は、その事実を読むためのもの
+- 作業領域を作るときに残す `refs/acp/target` と reflog の設定は、片付けが作業領域から事実を読むためのもの
   （[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）。
-
-<a id="facts"></a>
-
-### 事実と判定
-
-作業領域と GitHub を読むアダプターは、事実（どのブランチに push したか、どのコミットがどこに入っているか）だけを
-返す。残すか消すかは[片付け](sessions.md#cleaner "在りか")の 1 か所が決める。アダプターの側では、どのブランチが
-セッションが作ったかも、どのコミットが失われるかも決めない。
 
 ## 構成要素
 
@@ -81,7 +73,7 @@ GitHub のブランチと PR
 - **責務**：セッションのブランチの名前と、あるブランチをセッションが作ったかを決める。
 - **置くもの / 置かないもの**：名前は `acp/<ID の先頭8文字>`。セッションが作ったブランチは、その名前か、それに
   `-` で始まる名前を続けたもの。セッションはほかのブランチ（別のセッションの PR のブランチなど）にも push する
-  ことがあり、それは名前ではなく[作業領域の状態](#state)の push の記録で分かる。
+  ことがあり、それは名前ではなく[作業領域の状態](cleanup.md#state "在りか")の push の記録で分かる。
 - **関係**：名前は `ACP_SESSION_BRANCH` でエージェントに渡す（[コンテナ](containers.md "在りか")）。片付けは、セッションが
   作ったブランチだけをリモートから消す。[pre-push フック](#pre-push)は、セッションが作ったブランチでない名前の
   新しいブランチに注意を出す。
@@ -128,58 +120,3 @@ GitHub のブランチと PR
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
   通すこと、新しいブランチの名前に気づかせること、取り込んでいないリモートの先頭の上書きに気づかせることを、決まりだけで
   なく git のフックで守る。
-
-<a id="state"></a>
-
-### 作業領域の状態（`internal/adapter/gitworkspace/provider.go` の `State`）
-
-- **責務**：作業領域が、リモートにないものとして何を持っているかを読む。
-- **置くもの / 置かないもの**：次の事実を返す。作業領域がないか git のリポジトリでなければ、何も返さない。
-
-  | 事実 | 読み方 |
-  | --- | --- |
-  | 作業ツリーの変更 | 主の worktree か、作業領域の中のほかの worktree の `git status` に、コミットしていない変更か ignore されていない追跡していないファイルがある |
-  | stash | `refs/stash` がある |
-  | 途中の操作 | 主の worktree か、作業領域の中のほかの worktree で、rebase、merge、cherry-pick、revert、bisect のどれかが途中で止まっている |
-  | push したブランチ | `origin` の remote-tracking ブランチのうち、reflog に `update by push` があるもの。最後に push したコミットは、その最新の項目のコミット |
-  | ローカルのブランチ | 名前、先頭、ほかにないコミット（`origin` の remote-tracking ブランチにも `refs/acp/target` にもないもの）を持つか |
-  | detached HEAD | 主の worktree と、作業領域の中のほかの worktree のそれぞれで、ローカルのブランチにもないほかにないコミットを持てば、`HEAD` という名前のローカルのブランチとして加える |
-
-  ほかの worktree（サブエージェントのものなど）は、`.git/worktrees/<名前>` から見つける。記録されたパスは
-  エージェントが書けるので、そのまま信じず、その末尾を作業領域の下で探し（`..` やシンボリックリンクで外に出るものは
-  使わない）、`--git-dir` と `--work-tree` で読む（[ADR 0042](../../adr/app/0042-judge-linked-worktrees-in-cleanup.md)）。
-  末尾は作業領域の下に重ねて探すので、読むコンテナでも、記録のうち作業領域の下の部分（`.claude/worktrees/<名前>`
-  など）で見つかる（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
-
-- **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
-  それを、[作業領域を読むコンテナ](containers.md#workspace-reader "在りか")の中で動かし、
-  usecase の `SessionWorkspace` として[片付け](sessions.md#cleaner "在りか")に渡す。control-plane のプロセスでは回さない。
-  作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
-  `acp cleanup-check` は、エージェントのコンテナの中でこれをその場で回す（エージェント自身のコンテナなので、読む
-  コンテナは要らない。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）。
-  `acp cleanup-check` は、作業ディレクトリによらず、control-plane が渡した作業領域（`ACP_WORKSPACE`）を読む。
-  作業領域の外に clone したリポジトリ（`/tmp` など）の中で動かされても、そこを判定しない。
-- **当てはめた原則・パターン**：[事実と判定を分ける](../../../platform/plugins/principles/docs/reference/patterns.md#facts-and-judgement)：事実だけを返し、
-  判定しない（[事実と判定](#facts)）。
-
-<a id="github-branches"></a>
-
-### GitHub のブランチ（`internal/adapter/githubapp/branches.go` の `Branches`）
-
-- **責務**：GitHub のリポジトリで、ブランチの事実を読み、ブランチを消す。聞くリポジトリは、作るときに渡す origin の
-  読み方で決まる（片付けはターゲットの `origin`、`acp cleanup-check` は作業領域の `origin`）。
-- **置くもの / 置かないもの**：
-  - `List`：名前の前方一致（`matching-refs`）でリモートのブランチを探す。作業領域が知らないブランチも見つかる。
-  - `Inspect`：ブランチごとに、リモートにあるか、先頭、そのブランチを head ブランチとする PR（開いている、
-    マージした、マージせずに閉じたもののすべて。リポジトリの持ち主のブランチのもの）、リモートにあるときだけ
-    base ブランチとする開いている PR を読む。問い合わせたコミットと先頭について、既定のブランチ、そのブランチを
-    head ブランチとするマージした PR の head コミット、マージせずに閉じた PR の head コミット、そのブランチ自身の
-    それぞれに入っているかを compare で確かめる。PR は、head ブランチと base ブランチのそれぞれで 1 ページ
-    （100 件）だけ読む。
-  - `Remove`：名前を挙げたブランチを消し、消せたものを返す。もうないブランチと保護されたブランチは飛ばす。
-  - GitHub App のトークンがないか、`origin` が GitHub でなければ、`List` と `Inspect` は何も返さず、`Remove` は
-    何もしない。
-- **関係**：usecase の `SessionBranches` を実装する。トークンはエージェントの GitHub App のもの
-  （[認証情報](credentials.md "在りか")）。
-- **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：GitHub の API の
-  形はここに閉じ、usecase には `BranchFacts` だけを返す。どのブランチを消すかは決めない（[事実と判定](#facts)）。

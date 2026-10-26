@@ -80,7 +80,7 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 ### `cmd/acp`（`main.go`、`run.go`、`workspace_state.go`、`cleanup_check.go`、`slackauth.go`）
 
 - **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。`acp workspace-state` は、
-  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](workspace.md#state "在りか")。control-plane が
+  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](cleanup.md#state "在りか")。control-plane が
   作業領域を読むコンテナの中で動かす）。`acp cleanup-check`（`cleanup_check.go`）は、エージェントのコンテナの中で、
   そのセッションが片付けで残される理由を出す（usecase の `CheckCleanup`）。`acp slack-auth`（`slackauth.go`）は、
   Slack のトークンを取り直す（[認証情報](credentials.md#slack-auth "在りか")）。
