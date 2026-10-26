@@ -93,7 +93,7 @@ GitHub のブランチと PR
 
 <a id="commit-msg"></a>
 
-### co-author の commit-msg フック（`internal/adapter/gitworkspace/provider.go` の `commitMsgHook`）
+### co-author の commit-msg フック（`internal/adapter/gitworkspace/hooks/commit-msg.sh`）
 
 - **責務**：今のターンの依頼者を、エージェントのコミットの `Co-authored-by` に足す（[ADR 0021](../../adr/app/0021-credit-requesters-as-co-authors.md)）。
 - **置くもの / 置かないもの**：フックは `ACP_CO_AUTHORS_FILE` の一覧を 1 行ずつ読み、同じ行がなければトレーラーを
@@ -106,7 +106,7 @@ GitHub のブランチと PR
 
 <a id="pre-push"></a>
 
-### pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
+### pre-push フック（`internal/adapter/gitworkspace/hooks/pre-push.sh`）
 
 - **責務**：push の前に、リモートに新しく作るブランチの名前を確かめ
   （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、取り込んだことのないリモートの先頭を
