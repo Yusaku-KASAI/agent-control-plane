@@ -205,9 +205,9 @@ head コミットは、閉じたときの先頭）。
 
 - **関係**：`acp workspace-state` が、作業ディレクトリの作業領域についてこれを回し、JSON で出す。control-plane は
   それを、[作業領域を読むコンテナ](containers.md#workspace-reader "在りか")の中で動かし、
-  usecase の `SessionWorkspace` として[片付け](#cleaner)に渡す。control-plane のプロセスでは回さない。読む
-  `refs/acp/target` と remote-tracking ブランチの reflog は、[作業領域を作る](workspace.md#prepare "在りか")ときに残す。
+  usecase の `SessionWorkspace` として[片付け](#cleaner)に渡す。control-plane のプロセスでは回さない。
   作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド（`core.fsmonitor`、フィルタなど）を動かすため。
+  読む `refs/acp/target` と remote-tracking ブランチの reflog は、[作業領域を作る](workspace.md#prepare "在りか")ときに残す。
   `acp cleanup-check` は、エージェントのコンテナの中でこれをその場で回す（エージェント自身のコンテナなので、読む
   コンテナは要らない。[ADR 0045](../../adr/app/0045-agents-check-cleanup-with-the-control-planes-binary.md)）。
   `acp cleanup-check` は、作業ディレクトリによらず、control-plane が渡した作業領域（`ACP_WORKSPACE`）を読む。

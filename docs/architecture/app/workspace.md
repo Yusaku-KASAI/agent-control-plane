@@ -28,8 +28,6 @@ GitHub のブランチと PR
   コンテナにはこの作業領域だけをマウントする。
 - エージェントはセッションのブランチで作業し、push して PR を作る。作業するブランチの扱い（既存の PR を続ける、別の PR に分ける、ほかの PR に重ねる）は
   [ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある（[ADR 0012](../../adr/app/0012-agent-git-workflow.md)）。
-- 作業領域を作るときに残す `refs/acp/target` と reflog の設定は、片付けが作業領域から事実を読むためのもの
-  （[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）。
 
 ## 構成要素
 
@@ -50,7 +48,7 @@ GitHub のブランチと PR
   5. [commit-msg フック](#commit-msg)と[pre-push フック](#pre-push)を置く。
 - **関係**：usecase の `WorkspaceProvider` を実装する。呼ぶのは、セッションを作るときの `Dispatcher`
   （ロックを持ったまま）。トークンは[認証情報](credentials.md "在りか")の発行したもの。3 段で残す
-  `refs/acp/target` と reflog は、[作業領域の状態](cleanup.md#state "在りか")が読む。
+  `refs/acp/target` と reflog は、[作業領域の状態](cleanup.md#state "在りか")が読む（[ADR 0026](../../adr/app/0026-clean-up-unused-sessions.md)）。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：git の操作は
   ここに閉じ、usecase は作業領域のパスだけを受け取る。
 
