@@ -98,8 +98,8 @@ conventions/
   作業ツリーだけを見る。同じ出力で止めるのは一つのセッションで一度だけで、
   止めたことを覚えられなければ止めない。何を確かめるかは置かず、`check-docs` に任せる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
-  相対リンクは、読み込ませるときに絶対パスに書き換える。試験は、書き換えたパスがあることを `tests/context-test.sh`、
-  ターンの終わりの hook を `tests/check-docs-at-stop-test.sh` が確かめる。
+  相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/context-test.sh`（読み込ませる文のリンク先が
+  絶対パスになり、どれもあること）と `tests/check-docs-at-stop-test.sh`（ターンの終わりの hook）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
