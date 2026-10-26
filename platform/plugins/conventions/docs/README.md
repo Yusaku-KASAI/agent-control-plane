@@ -14,7 +14,7 @@
 | [reference/checks.md](reference/checks.md) | 参照 | 検査の扱い方：何を検査にし、どこに置くか |
 | [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR に何を書くか |
 | [reference/changes.md](reference/changes.md) | 参照 | 変更の扱い方：PR の流れ、変更とパターン、検査と履歴 |
-| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分け方と書き方、依頼の範囲、課題の整っている状態、締めで残すもの |
+| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分け方と書き方、依頼の範囲、課題の整っている状態、締め（持ち越すもの、残す理由の扱い） |
 | [reference/reviews.md](reference/reviews.md) | 参照 | レビューの扱い方：レビューの種類ごとに、何をどう見て、結果をどう残し、どう回すか |
 | [guides/deliver-change.md](guides/deliver-change.md) | 手順（目的） | 変更を届ける：依頼を受けてから、変更をマージできる PR にして終えるまで |
 | [guides/review.md](guides/review.md) | 手順（目的） | レビューする：頼まれてから、差分のレビューか全体のレビューの結果を返すか残すまで |

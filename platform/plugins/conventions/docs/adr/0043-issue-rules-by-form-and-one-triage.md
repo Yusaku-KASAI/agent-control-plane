@@ -59,7 +59,7 @@ amends: [31, 32, 34, 36, 38]
 
 ## Consequences
 
-- 課題の扱い方の節の名前とアンカーが増える（`#kinds`、`#forms`、`#theme`、`#roadmap`、`#scope-items`、`#leftovers`）。今ある
+- 課題の扱い方の節の名前とアンカーが増える（`#kinds`、`#general`、`#forms`、`#theme`、`#roadmap`、`#scope-items`、`#leftovers`）。今ある
   アンカー（`#body`、`#scope`、`#append`、`#tidy`、`#canvas`、`#carry-over`）は保つ。
 - ハーネスの契約の理由の種類ごとの扱いの表が指す先は、セッションを締めるの 2 段から課題の扱い方の「残す理由の扱い」に
   変わる。
