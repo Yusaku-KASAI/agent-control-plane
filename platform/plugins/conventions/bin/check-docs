@@ -294,23 +294,29 @@ ALWAYS_READ = [
 ]
 
 
-# Lines are measured as they read, without where links point: a wide character counts two columns.
+# Lines are measured as they read, without what a link's parentheses hold (where it points and its title).
 WIDTH_LIMIT = 130
 LINK_TARGET = re.compile(r"\]\([^)]*\)")
 
 
+def width(text):
+    """Columns the text takes: a wide character counts two."""
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
 def display_width(line):
-    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in LINK_TARGET.sub("]", line))
+    return width(LINK_TARGET.sub("]", line))
 
 
 def body(path):
+    """The text after the frontmatter, and the number of lines the frontmatter takes."""
     text = read(path)
     m = re.match(r"---\n.*?\n---\n", text, re.S)
-    return text[m.end():] if m else text
+    return (text[m.end():], text[:m.end()].count("\n")) if m else (text, 0)
 
 
 def content_lines(path):
-    return sum(1 for line in body(path).splitlines() if line.strip())
+    return sum(1 for line in body(path)[0].splitlines() if line.strip())
 
 
 def check_sizes(paths, errors):
@@ -325,9 +331,10 @@ def check_sizes(paths, errors):
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
     for path in paths:
         if any(matches(path) for matches, _, _ in ALWAYS_READ):
-            for number, line in enumerate(body(path).splitlines(), 1):
+            text, skipped = body(path)
+            for number, line in enumerate(text.splitlines(), skipped + 1):
                 if display_width(line) > WIDTH_LIMIT:
-                    errors.append(f"{path}: body line {number} is {display_width(line)} columns wide, more than the "
+                    errors.append(f"{path}:{number}: {display_width(line)} columns wide, more than the "
                                   f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
 
 
@@ -550,9 +557,6 @@ def check_reachable(paths, errors):
 
 
 def print_map(m):
-    def width(text):
-        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
-
     names = m.order
     label = {n: "  " * (len(m.ancestors(n)) - 1) + n for n in names}
     w = max(width(label[n]) for n in names)
