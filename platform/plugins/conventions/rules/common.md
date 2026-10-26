@@ -32,7 +32,7 @@
 
 ## 書くとき
 
-- コードは自己説明的に書き、コメントはコードで表しきれない制約や理由だけにする。構成、方針、使い方は文書に書く
+- コードは自己説明的に書き、コメントはコードで表しきれない制約と、その理由だけにする。構成、方針、使い方は文書に書く
   （[書き方：コメント](../docs/reference/writing.md#comments)）。
 - 変更の理由と経緯はコミットメッセージと PR に書き、コードと文書には今の姿だけを書く
   （[今の姿と理由の置き場所](../docs/architecture/documentation.md#reasons)、[原則：今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)）。
