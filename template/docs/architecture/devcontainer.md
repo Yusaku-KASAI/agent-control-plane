@@ -47,7 +47,9 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：外から取得するもの（ベースイメージ、Claude Code、ツール）とその版。版は ARG で
   固定するので、版を上げる変更は PR になり、CI がイメージのビルドと検査を通す。RUN は `pipefail` 付きの bash で動かし、
   パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。
-- **関係**：compose.yaml と CI がビルドする。ビルドの文脈は `Dockerfile.dockerignore` で決まる。
+- **関係**：compose.yaml と CI がビルドする。ビルドの文脈は `Dockerfile.dockerignore` で決まる。Claude Code の版を上げる
+  ときは、platform の hook が Claude Code の渡す入力に拠るので、サブエージェントの呼び出しに hook が働くことも確かめる
+  （[harness の全体像](../../../platform/plugins/harness/docs/overview.md "在りか")）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：版の固定と `pipefail`、
   入れた Claude Code の版の確認で、意図しない版や途中の失敗をビルドで止める。
 
