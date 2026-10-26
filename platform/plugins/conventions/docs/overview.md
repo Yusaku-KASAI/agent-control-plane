@@ -60,7 +60,7 @@ conventions/
 ### 変更と課題の決まり（`docs/reference/writing.md`、`changes.md`、`issues.md`）
 
 - **責務**：書き方は、コメント、コミットメッセージ、PR に何を書くかを決める。変更の扱い方と課題の扱い方は、変更（PR）と
-  課題（Issue）の扱い方を決める。
+  課題（Issue）の扱い方と、締めで Issue に残すものと作業領域を残す理由の扱いを決める。
 - **関係**：文書の決まりを前提にする。
 - **当てはめた原則・パターン**：[今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)。
 

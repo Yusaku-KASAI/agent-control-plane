@@ -44,5 +44,6 @@
 
 ## 変更と報告
 
-- 一つの変更は一つの目的にし、大きくなったら分ける（[変更とパターン](../docs/reference/changes.md#patterns)）。
+- 判断が要る点で依頼者に聞いて待てないときは、妥当な方を選んで進め、その判断を答えに含める
+  （[手順と役割](../docs/architecture/documentation.md#procedures)）。
 - 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更を届ける](../docs/guides/deliver-change.md)）。

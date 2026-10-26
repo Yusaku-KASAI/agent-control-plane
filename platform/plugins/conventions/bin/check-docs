@@ -259,8 +259,17 @@ def check_procedure(path, errors):
             errors.append(f"{path}: a purpose procedure starts with the step '1. **始めに読む**'")
         if "新しい依頼" not in intro:
             errors.append(f"{path}: a purpose procedure tells, before its steps, where a new request begins")
-    elif "始めに読む" in steps:
-        errors.append(f"{path}: a common procedure has no step '始めに読む'")
+    else:
+        if "始めに読む" in steps:
+            errors.append(f"{path}: a common procedure has no step '始めに読む'")
+        # A common procedure is used by purpose ones and points to none of the procedures beside it.
+        guides = os.path.dirname(os.path.normpath(path))
+        while os.path.basename(guides) != "guides" and os.sep in guides:
+            guides = os.path.dirname(guides)
+        for target, _, _ in links(read(path)):
+            resolved = resolve(path, target).rstrip("/") if target and not is_external(target) else ""
+            if resolved != os.path.normpath(path) and resolved.startswith(guides + os.sep) and resolved.endswith(".md"):
+                errors.append(f"{path}: a common procedure points to another procedure {target}")
     for line in re.findall(r"(?m)^\d+\. .*", text):
         if not re.match(r"\d+\. \*\*.+?\*\*", line):
             errors.append(f"{path}: a step is numbered and named in bold: {line[:40]}")
