@@ -19,7 +19,7 @@
 | 動かす | 依頼が来るとセッションのワーカーができ、ロックを取る。コンテナがなければ起動し、Claude Code を、会話の履歴があれば `--resume <ID>`、なければ `--session-id <ID>` で動かし続ける（[ADR 0017](../../adr/app/0017-long-lived-session-process.md)、[0048](../../adr/app/0048-resume-when-the-conversation-is-saved.md)）。ターンを終えるたびに記録の `turns` を増やして保存する |
 | 休む | ターンも待っている依頼もバックグラウンドの処理もない状態が `sessions.idle_timeout` 続くと、コンテナを止めて消し、ロックを放す。その状態で今すぐの片付けが消すことになったときは、その場で休んでから片付ける（`Dispatcher.Release`、[片付け](cleanup.md "在りか")）。記録、作業領域、会話の履歴は残り、次の依頼で `--resume` する |
 | 中断する | control-plane の再起動で、動いていた処理は中断され、コンテナは消され、スレッドにそう知らせる（[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。次の依頼で `--resume` する |
-| 片付ける | 使われないまま保持期間を過ぎたか、人が頼んだセッションを、残す理由がなければ丸ごと消す（[片付け](cleanup.md "在りか")） |
+| 片付ける | 使われないまま保持期間を過ぎたか、人が頼んだセッションを判定し、消すことになれば丸ごと消す（何を残すかは[片付け](cleanup.md "在りか")） |
 
 ### セッションが持つもの
 
@@ -166,9 +166,9 @@
     （[認証情報](credentials.md "在りか")の動いている間の更新）。コンテナの起動と Claude Code の動かし方は置かない
     （[コンテナ](containers.md "在りか")）。
   - **休む**：休める状態が `sessions.idle_timeout` 続くと、プロセスを閉じてロックを放し、なくなる。
-- **関係**：`Dispatcher` がセッションごとに一つ持ち、`Dispatcher` 自身はワーカーの一覧と受付だけを持つ。usecase の
-  ポート（`SessionRepository`、`Runner`、`CredentialIssuer` など）だけに依存する。エージェントが依頼を取り込んだ
-  ことと、流し込んだときに実行中だったターンに取り込まれたかを、依頼した側に `RunAgentInput.Taken` で伝える。
+- **関係**：`Dispatcher` がセッションごとに一つ持つ。`Dispatcher` 自身は、ワーカーの一覧と受付のほか、セッションを
+  作ること、停止の受け口（`Stop`、`StopRequest`）、`Release`、`Close`、`Recover` を持つ。usecase のポート
+  （`SessionRepository`、`Runner`、`CredentialIssuer` など）だけに依存する。エージェントが依頼を取り込んだことと、流し込んだときに実行中だったターンに取り込まれたかを、依頼した側に `RunAgentInput.Taken` で伝える。
   進み具合（ターンの始まりと終わり、今の作業、エージェントの発言、待っている依頼とバックグラウンドの処理の数の
   変化）を `SessionObserver` に順に伝える（[依頼と知らせ](requests.md "在りか")）。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：一つのセッションの
