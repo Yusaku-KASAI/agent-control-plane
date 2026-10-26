@@ -796,9 +796,9 @@ func (p *fakeProcess) stoppedTasks() []string {
 	return slices.Clone(p.stoppedTask)
 }
 
-// A request waiting in the inbox is withdrawn alone; the running turn and the other waiting
+// A request waiting in the queue is withdrawn alone; the running turn and the other waiting
 // requests go on.
-func TestDispatcher_StopRequestWaitingInInbox(t *testing.T) {
+func TestDispatcher_StopRequestWaitingInQueue(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
 	p := e.runner.next(t)
@@ -831,7 +831,7 @@ func TestDispatcher_StopRequestWaitingInInbox(t *testing.T) {
 }
 
 // A request the agent works on stops the agent's work: the running turn and the background
-// tasks. Requests waiting in the inbox stay and go on after it.
+// tasks. Requests waiting in the queue stay and go on after it.
 func TestDispatcher_StopRequestTheAgentWorksOn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
@@ -928,6 +928,9 @@ func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
 		eventually(t, func() bool { return len(p.sent()) == 1 })
 		p.hold()
 		gate := make(chan struct{})
+		// A failure must not leave the worker held in Send, or Close waits for it.
+		release := sync.OnceFunc(func() { close(gate) })
+		t.Cleanup(release)
 		p.mu.Lock()
 		p.sendGate = gate
 		p.mu.Unlock()
@@ -939,7 +942,7 @@ func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
 		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "3.0"); err != nil {
 			t.Fatalf("StopRequest() error = %v", err)
 		}
-		close(gate)
+		release()
 		if o := wait(t, running); o.err != nil || !o.out.Interrupted {
 			t.Errorf("running = %+v, %v; want its turn interrupted", o.out, o.err)
 		}
@@ -958,7 +961,7 @@ func TestDispatcher_QueueHasNoLimit(t *testing.T) {
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
 	p := e.runner.next(t)
 	eventually(t, func() bool { return len(p.sent()) == 1 })
-	const waiting = 40
+	const waiting = usecase.InboxSize + 8
 	var rest []<-chan outcome
 	for i := range waiting {
 		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
