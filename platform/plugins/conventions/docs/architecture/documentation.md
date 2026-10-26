@@ -6,11 +6,11 @@
 | 何の決まりか | 在りか |
 | --- | --- |
 | 文書の検査の範囲、文書の根と器、各文書の形（手順の層を含む）、リンク、量の上限、地図 | [文書の形式](../reference/formats.md "在りか") |
-| 要約と案内、起点に何をどう載せるか、目的の手順への入り方 | [届け方の決まり](../reference/delivery.md "在りか") |
+| 要約と案内、起点に何をどう載せるか、目的の手順の読ませ方 | [届け方の決まり](../reference/delivery.md "在りか") |
 | 何を検査にし、検査をどこに置くか | [検査の扱い方](../reference/checks.md "在りか") |
 | 文書を書く順 | [文書を書く](../guides/write-docs.md "在りか") |
 
-判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md) にある。
+判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0041](../adr/0041-reasons-by-kind.md) にある。
 原則とパターンは[設計の原則](../../../principles/docs/reference/principles.md "在りか")と[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")にある。
 
 ## 構成
@@ -74,7 +74,20 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 
 文書の外の書きもののうち、コメント、コミットメッセージ、PR は[書き方](../reference/writing.md "在りか")に、Issue は
 [課題の扱い方](../reference/issues.md "在りか")に、レビューの指摘と報告は[レビューの扱い方](../reference/reviews.md "在りか")に、
-依頼への答えはその目的の手順にある。道筋と予定は Issue に置き、文書には書かない。
+依頼への答えはその目的の手順にある。
+
+<a id="reasons"></a>
+
+### 今の姿と理由の置き場所
+
+文書とコードのコメントには今の姿を書き、理由、道筋、経緯は種類ごとに次の所に置く（[今と経緯を分ける](../../../principles/docs/reference/principles.md#present-state)）。
+
+| 書くもの | 置き場所 |
+| --- | --- |
+| 守らないと壊れる制約の理由（なぜその順か、なぜそれを避けるか） | 今の姿として、その制約のそばに一文で書く（コメント、解説、参照） |
+| 選んだ理由と、選ばなかった案 | ADR |
+| 道筋と予定 | Issue |
+| 変更の理由と経緯 | コミットメッセージと PR |
 
 <a id="delivery"></a>
 
@@ -103,10 +116,16 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 | 目的の手順 | 依頼者が何をしてほしいかの単位。依頼を受けてから終えるまでの全体で、いくつものターンやセッションにわたることがある | 変更を届ける、レビューするなど |
 | 共通の手順 | 目的の手順の段の中で使う、作業の一部分。いくつもの目的の手順から使いうる | 文書を書くなど |
 
+依頼を受けたら、まずどの目的の手順に当たるかを決める（振り分け）。目的の手順のない依頼（事実を聞く質問など）は、依頼に
+沿って進める。作業の途中で目的が変わったら（相談から変更へなど）、その目的の手順に入り直す。目的の手順は一つのターンで
+終わるとは限らず（追加の依頼、レビューの指摘への答え、CI の失敗）、どこからを新しい依頼として振り分けから入るかは各目的の
+手順に書く。続きのターンでは、今どの段にいるかを確かめてそこから進める。会話の記録がない新しいセッションで続きから
+入るときと、ほかの作業の途中からその目的の手順に入るときは、「始めに読む」から始める。
+
 手順は役割（ロール）では切らない。役割は、権限と隔離の境界（書けるもの、残せる所）で、使うモデルも持つ。手順と役割は
-多対多になり、どの目的の手順を受け持つかは役割ごとの指示に書く。手順の形は[形式：手順](../reference/formats.md#procedure "在りか")に、
-依頼を受けてどの目的の手順に当たるかを決めること（振り分け）と起点への並べ方は
-[届け方の決まり：目的の手順への入り方](../reference/delivery.md#procedures "在りか")にある。
+多対多になり、どの目的の手順を受け持つかは役割ごとの指示の「受け持つ手順」に書く。振り分けと役割ごとの指示が食い違う
+ときは、役割ごとの指示に従う。手順の形は[形式：手順](../reference/formats.md#procedure "在りか")に、「始めに読む」の段と
+起点への並べ方は[届け方の決まり：目的の手順の読ませ方](../reference/delivery.md#procedures "在りか")にある。
 
 ## 構成要素
 

@@ -51,7 +51,7 @@ conventions/
 ### 文書の決まり（`docs/reference/formats.md`、`delivery.md`）
 
 - **責務**：形式は、文書の検査の範囲と、文書の根と器、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、
-  リンク、量の上限、地図の形を決める。届け方の決まりは、要約と案内、起点に何をどう載せるか、目的の手順への入り方を決める。
+  リンク、量の上限、地図の形を決める。届け方の決まりは、要約と案内、起点に何をどう載せるか、目的の手順の読ませ方を決める。
 - **関係**：検査の扱い方を前提にする。`check-docs` が形式の形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
   [一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)。

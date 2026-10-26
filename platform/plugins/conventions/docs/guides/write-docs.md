@@ -8,7 +8,7 @@
    共有の核に置き、特定の区切りの間で要るなら契約にする（[区切りと依存の向き](../architecture/documentation.md#contexts)）。
 2. **種類を決める**：解説、手順、参照、判断のどれか。混ざるなら分ける（[文書の種類](../architecture/documentation.md#types)）。
    文書には今の姿だけを書き、理由は種類ごとの置き場所に、予定は Issue に置く
-   （[書き方：理由の置き場所](../reference/writing.md#reasons)、[課題の扱い方](../reference/issues.md)）。
+   （[文書の体系：今の姿と理由の置き場所](../architecture/documentation.md#reasons)、[課題の扱い方](../reference/issues.md)）。
 3. **持ち主を探す**：その事実を持つ文書がすでにあるか。あればそこを書き換え、ほかからはリンクする。なければ、
    区切りと種類に合う文書に書くか、新しく作って `docs/README.md` に足す（[形式：文書の根](../reference/formats.md#layout)、
    [SSOT](../../../principles/docs/reference/principles.md#ssot)）。
