@@ -18,8 +18,7 @@ harness/
 - 動き方の見分け方は契約にある。hook もスキルもそれに従う。
 - hook は、Claude Code が渡す入力に拠る：サブエージェントのツールの名前 `Agent`
   （[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）と、サブエージェント自身の呼び出しに付く `agent_id`
-  （[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。Claude Code の版を上げたら、サブエージェントの呼び出しに
-  hook が働くことを確かめる。
+  （[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。それを渡す版は、[ターゲットの契約のイメージ](../../../docs/reference/target.md#image)が求める。
 
 ## 構成要素
 

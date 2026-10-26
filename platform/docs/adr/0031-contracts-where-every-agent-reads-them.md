@@ -50,3 +50,5 @@ conventions の ADR 0002 は、ターゲットの契約を target-template に�
   届く。今の項目を決めた ADR と、人が行う用意の手順（target-template）へのリンクは、ほかのターゲットからはたどれない。
 - target-template の文書と control-plane の文書は、platform の文書の根の契約を指す。
 - 契約からは、エージェントが hook に断られる理由をたどれない。断る文と各プラグインの全体像が、それを持つ。
+- Workflows の権限を渡さないので、workflow を変える push は依頼者が行う。契約はその制約と、エージェントがコミットを作って
+  push を頼むことだけを持ち、頼むときに添えるものは github スキルが持つ。
