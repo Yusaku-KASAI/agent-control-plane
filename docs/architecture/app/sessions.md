@@ -3,8 +3,8 @@
 セッションが作られてから片付けられるまでと、セッションが持つもの。セッションと作業領域の意味は
 [用語集](../../../platform/docs/reference/glossary.md)のとおり。エージェントから見たセッション（渡されるもの、
 コンテナの寿命）は[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。作業領域とブランチの
-仕組みは[作業領域とブランチ](workspace.md "在りか")、コンテナは[コンテナ](containers.md "在りか")、認証情報は[認証情報](credentials.md "在りか")
-にある。
+仕組みは[作業領域とブランチ](workspace.md "在りか")、コンテナは[コンテナ](containers.md "在りか")、認証情報は[認証情報](credentials.md "在りか")、
+片付けは[片付け](cleanup.md "在りか")にある。
 
 ## 構成
 
@@ -163,7 +163,7 @@
     ときも）も、`last_used_at` を書いて保存する。作業が変わりうる時点をすべて記録に残し、強制の片付けが知らせた
     あとの作業を消さないようにするため（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
   - **プロセスと認証情報**：コンテナは要るときに起動し、動いている間は認証情報を一定間隔で発行し直す
-    （[動いている間の更新](credentials.md "在りか")）。コンテナの起動と Claude Code の動かし方は置かない
+    （[認証情報](credentials.md "在りか")の動いている間の更新）。コンテナの起動と Claude Code の動かし方は置かない
     （[コンテナ](containers.md "在りか")）。
   - **休む**：休める状態が `sessions.idle_timeout` 続くと、プロセスを閉じてロックを放し、なくなる。
 - **関係**：`Dispatcher` がセッションごとに一つ持ち、`Dispatcher` 自身はワーカーの一覧と受付だけを持つ。usecase の

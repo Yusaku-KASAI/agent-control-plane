@@ -17,6 +17,8 @@ SessionCleaner ──SessionWorkspace──▶ 作業領域を読むコンテナ
    │
    ├─ 残す理由がない：ブランチ、会話の履歴と認証情報、記録と作業領域を消す
    └─ 残す理由がある：残して、スレッドに理由を知らせる
+
+acp cleanup-check（エージェントのコンテナ）──▶ CheckCleanup ──▶ 同じ事実と reasons で、残す理由を返す
 ```
 
 - 保持期間（`sessions.retention`、既定値は [acp.example.yaml](../../../acp.example.yaml "在りか")）を過ぎたセッションを、
@@ -141,20 +143,15 @@ head コミットは、閉じたときの先頭）。
     ディレクトリは、ロックが取れれば消す。ロックが取れないセッションは、その回は飛ばす。
   - **知らせ**：消したら、何を消したかと、続けると新しいセッションになることを知らせる。残したら理由を挙げて
     促し、`kept_notified_at` が保持期間より前のときだけ知らせる。知らせはロックを持たずに投稿し、投稿できて
-    から `kept_notified_at` を書く。スレッドで始まっていないセッションには知らせない。
+    から `kept_notified_at` を書く。スレッドで始まっていないセッションへの知らせは、
+    [sessionObserver](requests.md#observer "在りか") が捨てる。
   - いつ動かすかは `cmd/acp/serve.go` が持つ。
   - **今すぐの片付け**：`CleanNow` は、スレッドの最初のメッセージへのリアクションで、そのセッションを保持期間に
-    よらず判定し、消したか、残した理由をスレッドに返す。強制（`:fire:`）では、作業ツリーの変更やどこにも入って
-    いないコミットなど、失われる理由があっても消す。開いている PR（head か base）の理由は、強制でも消さない
-    （`keeps`。消すと PR が閉じるか、レビューに応えるセッションがなくなるため）。消す手順は保持期間による片付けと
-    同じで、ロックの下で判定し直し、その間に使われていれば消さずにそう知らせる
+    よらず判定し、消したか、残した理由をスレッドに返す。通常と強制で何を残すかは上の[判定](#cleanup-rules)にあり、
+    強制で残す理由を選ぶのは `keeps`。消す手順は保持期間による片付けと同じ
     （[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
   - 残した知らせ（保持期間ごとの促しと、今すぐの片付けの返事）は、エージェントに「締めて」と頼むことと、
     `:wastebasket:` での片付けを案内する。
-  - **判定を外から見る**：`CheckCleanup`（`check_cleanup.go`）は、同じ事実の集め方（`readFacts`）と判定（`reasons`）で、
-    保持期間によらず残す理由を種類と文面で返す。種類は判定の表の理由ごとで、作業領域の理由は
-    変更、stash、途中の操作、detached HEAD に分ける（[ADR 0047](../../adr/app/0047-cleanup-check-reads-the-given-workspace-and-splits-lost-pushes.md)）。
-    エージェントが `acp cleanup-check` で使う（[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
 - **関係**：usecase のポート（`AgentRegistry`、`SessionRepository`、`CredentialIssuer`、`SessionWorkspace`、
   `SessionBranches`、`SessionFiles`、`SessionNotifier`、`SessionHolder`）だけに依存する。休んでいるワーカーを手放させるのは `SessionHolder`
   （`Dispatcher.Release`）。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
@@ -166,6 +163,17 @@ head コミットは、閉じたときの先頭）。
   [失われうるものを先に挙げる](../../../platform/plugins/principles/docs/reference/patterns.md#loss-first)：消すと失われるものがあれば残す。
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：記録、会話の履歴、ブランチは一緒に
   変わるものとして一緒に消す（[セッションの前提](sessions.md#invariants)）。
+
+### 判定を外から見る（`internal/usecase/check_cleanup.go` の `CheckCleanup`）
+
+- **責務**：一つの作業領域について、保持期間によらず残す理由を種類と文面で返す。種類は判定の表の理由ごとで、
+  作業領域の理由は変更、stash、途中の操作、detached HEAD に分ける
+  （[ADR 0047](../../adr/app/0047-cleanup-check-reads-the-given-workspace-and-splits-lost-pushes.md)）。
+- **関係**：`SessionCleaner` と同じ事実の集め方（`readFacts`）と判定（`reasons`）を使い、ポートは `SessionWorkspace` と
+  `SessionBranches` だけに依存する。呼ぶのは、エージェントのコンテナの中で動く `acp cleanup-check`
+  （`cmd/acp/cleanup_check.go`。[ハーネスの契約](../../../platform/docs/reference/harness.md#lifetime "在りか")）。
+- **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：
+  エージェントが見る理由と片付けが残す理由は、同じ `reasons` から作る。
 
 <a id="state"></a>
 
