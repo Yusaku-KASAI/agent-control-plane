@@ -37,13 +37,14 @@
 - 変更の理由と経緯はコミットメッセージと PR に書き、コードと文書には今の姿だけを書く
   （[今の姿と理由の置き場所](../docs/architecture/documentation.md#reasons)）。
 - 同じ事実は一か所にだけ書き、ほかはリンクする（[原則：SSOT](../../principles/docs/reference/principles.md#ssot)）。決まりは
-  conventions の `docs/` で定義し、ルール、ロール、スキルには、決まりを出典付きの要約か、在りかを示す案内として書く（[定義と届け方](../docs/architecture/documentation.md#delivery)、[要約と案内](../docs/reference/delivery.md#summaries-and-guides)）。
+  conventions の `docs/` で定義し、ルール、ロール、スキルには、決まりを出典付きの要約か、在りかを示す案内として書く
+  （[定義と届け方](../docs/architecture/documentation.md#delivery)、[要約と案内](../docs/reference/delivery.md#summaries-and-guides)）。
 - 一つの言葉は一つの意味で使い、その言葉を定める用語集に従う
   （[原則：ユビキタス言語と用語集](../../principles/docs/reference/principles.md#glossary)）。
 - 文書を書くときは write-docs スキルに従う。
 
 ## 変更と報告
 
-- 判断が要る点で依頼者に聞いて待てないときは、妥当な方（迷うなら、取り消せる方、公開や権限を広げない方）を選んで進め、その判断を答えに含める
-  （[手順と役割](../docs/architecture/documentation.md#procedures)）。
+- 判断が要る点で依頼者に聞いて待てないときは、妥当な方（迷うなら、取り消せる方、公開や権限を広げない方）を選んで
+  進め、その判断を答えに含める（[手順と役割](../docs/architecture/documentation.md#procedures)）。
 - 確かめられなかったことは、PR や依頼への答えに、確かめていないと書く（[変更を届ける](../docs/guides/deliver-change.md)）。

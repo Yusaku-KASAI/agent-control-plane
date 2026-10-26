@@ -294,11 +294,23 @@ ALWAYS_READ = [
 ]
 
 
-def content_lines(path):
+# Lines are measured as they read, without where links point: a wide character counts two columns.
+WIDTH_LIMIT = 130
+LINK_TARGET = re.compile(r"\]\([^)]*\)")
+
+
+def display_width(line):
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in LINK_TARGET.sub("]", line))
+
+
+def body(path):
     text = read(path)
     m = re.match(r"---\n.*?\n---\n", text, re.S)
-    body = text[m.end():] if m else text
-    return sum(1 for line in body.splitlines() if line.strip())
+    return text[m.end():] if m else text
+
+
+def content_lines(path):
+    return sum(1 for line in body(path).splitlines() if line.strip())
 
 
 def check_sizes(paths, errors):
@@ -311,6 +323,12 @@ def check_sizes(paths, errors):
         for key, lines in sorted(groups.items()):
             if lines > limit:
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+    for path in paths:
+        if any(matches(path) for matches, _, _ in ALWAYS_READ):
+            for number, line in enumerate(body(path).splitlines(), 1):
+                if display_width(line) > WIDTH_LIMIT:
+                    errors.append(f"{path}: body line {number} is {display_width(line)} columns wide, more than the "
+                                  f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
 
 
 def is_role(path):
