@@ -142,12 +142,30 @@ func TestRotatingSource_RefreshFails(t *testing.T) {
 	if tok, err := s.Token(ctx); err != nil || tok != "xoxe.xoxb-1" {
 		t.Errorf("Token() after a failed refresh = %q, %v; want the current token", tok, err)
 	}
+	s.now = func() time.Time { return start.Add(12*time.Hour - 2*time.Minute) }
+	if tok, err := s.Token(ctx); err != nil || tok != "xoxe.xoxb-1" {
+		t.Errorf("Token() shortly before expiry = %q, %v; want the current token", tok, err)
+	}
 
 	// Once the token has expired, there is none to return; Slack counts its expiry from earlier
 	// than the recorded one.
 	s.now = func() time.Time { return start.Add(12*time.Hour - 30*time.Second) }
 	if tok, err := s.Token(ctx); err == nil {
 		t.Errorf("Token() after expiry with a failed refresh = %q, want an error", tok)
+	}
+}
+
+func TestRotatingSource_ExpiryOnWallClock(t *testing.T) {
+	srv := httptest.NewServer(&fakeSlack{valid: map[string]bool{}})
+	defer srv.Close()
+	s := newSource(t, srv, t.TempDir())
+	start := time.Now() // carries a monotonic reading, which stops while the host sleeps
+	s.now = func() time.Time { return start }
+	if _, err := s.Token(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.state.ExpiresAt; got != got.Round(0) {
+		t.Errorf("ExpiresAt = %v, want a wall-clock time", got)
 	}
 }
 
