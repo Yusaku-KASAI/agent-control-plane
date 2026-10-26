@@ -47,11 +47,12 @@
   （バックグラウンドの処理の知らせで始まるターンなど）の回答は、返す相手がいないので control-plane のログに残るだけで、
   依頼者に届かない。伝えたいことは、次の依頼に答えるターンの回答に書く。
 - ほかの投稿は、依頼者に頼まれれば[Slack への投稿](#slack-posts)のとおりにする。
-- Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示される。依頼の
-  プロンプトは、slack スキルの書き方で書くよう指す。
-- サブエージェント（Agent）は、フォアグラウンドで動かす（[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。
-  バックグラウンドで動く形（`run_in_background`、`isolation: remote`、frontmatter に `background: true` か
-  `isolation: remote` を持つ定義）と `SendMessage` は使わず、サブエージェントの続きは Agent で新しく頼む。
+- Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示されるので、
+  slack スキルの「書く」の書き方で書く（Slack からの依頼のプロンプトもそう指す）。
+- サブエージェント（Agent）は、フォアグラウンドで動かす（Agent の `run_in_background` は `false`。
+  [ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。必ずバックグラウンドで動く形（`isolation: remote`、
+  frontmatter に `background: true` か `isolation: remote` を持つ定義）と `SendMessage` は使わず、サブエージェントの続きは
+  Agent で新しく頼む。
 - バックグラウンドの処理が終わると、知らせが届く（動いているターンに入るか、自分で始めるターンになる）。終わりを
   待つために、Monitor、ScheduleWakeup、CronCreate、`sleep` の繰り返し、同じ処理のフォアグラウンドでの実行で
   見張らない。見張りもターンやバックグラウンドの処理を増やし、そのぶん回答が増える（[ADR 0010](../adr/0010-one-ci-wait-per-branch.md)）。
@@ -162,7 +163,9 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 - `/run/acp/credentials` は読み取り専用。トークンは control-plane が失効する前に書き換えるので、毎回ファイルから
   読む。`gh auth login` や `gh config set` のように設定を書き換えるコマンドは失敗する。
 - できることは、エージェントの GitHub App と Slack アプリの権限で決まる。GitHub App の権限は、ロールごとに次の
-  とおり（Metadata の読み取りはどれも持つ）。
+  とおりで、control-plane を動かす人がこの権限で App を用意する（Metadata の読み取りはどれも持つ）。表のほかの権限
+  （Administration、Workflows、Secrets など）は渡さない。[既定のブランチの守り](target.md#protection)は、エージェントが
+  ルールセットを変えられないことに拠る。
 
   | ロール | GitHub App の権限 |
   | --- | --- |

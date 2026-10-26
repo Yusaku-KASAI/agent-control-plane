@@ -13,13 +13,13 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 - イメージのユーザーは root でない `node` で、ホームは `/home/node`。作業ディレクトリ（リポジトリのマウント先）に書き込める。
   管理者の権限（sudo）を持たない。
 - 次の道具が `PATH` にある。`claude`、`git`、`gh`（エージェントが使う）と、`bash`、`jq`、`python3`、`curl`、`make`、
-  coreutils、util-linux の `flock`（platform のプラグインのコマンドと hook、検査が使う）。
+  coreutils、`grep`、`sed`、`awk`、findutils、util-linux の `flock`（platform のプラグインのコマンドと hook、検査が使う）。
 - 引数に渡したコマンド（`claude ...`）をそのまま実行できる。entrypoint があれば、準備を済ませたあと引数のコマンドを
   `exec` する。
 - entrypoint は標準入力をそのまま渡し、自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
 - control-plane は、セッションの片付けで作業領域を読むときにも、同じイメージでコンテナを起こす。そのコンテナでは
   entrypoint を control-plane のバイナリに上書きし、読み取り専用のルート、ネットワークなし、イメージのユーザーで
-  `git` を動かす。その形でも `git` が動く（[control-plane の作業領域を読むコンテナ](../../../docs/architecture/app/containers.md#workspace-reader "在りか")）。
+  `git` を動かす。その形でも `git` が動く。
 
 <a id="host"></a>
 
@@ -49,8 +49,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
   定義が見つからないロールで起動すると、エージェントはエラーで終了する。
 - ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は CLAUDE.md に書く。定義の形は conventions の
-  [形式：役割ごとの指示](../../plugins/conventions/docs/reference/formats.md#role "在りか")に沿う。冒頭で「ロールとして」と名乗る
-  定義は、文書の検査（`check-docs`）が確かめる。
+  [形式：役割ごとの指示](../../plugins/conventions/docs/reference/formats.md#role "在りか")に沿う。
 - `.claude/settings.json` の `worktree.baseRef` を `head` にし、`.gitignore` で `/.claude/worktrees/` を ignore する
   （[ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
 
@@ -77,8 +76,8 @@ control-plane の API を指さない（[target-template の ADR 0013](../../../
 
 ターゲットのリポジトリは、既定のブランチをルールセットで守る（[app ADR 0025](../../../docs/adr/app/0025-pr-review-as-the-last-line.md)、
 [app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。エージェントの認証情報だけでは既定の
-ブランチに入れないことを、ロールと control-plane は前提にする。用意の仕方は
-target-template の[既定のブランチの守りの用意](../../../template/docs/guides/github.md "在りか")にある。
+ブランチに入れないことを、ロールと control-plane は前提にする。守りはリポジトリの管理者が用意する（手順は
+target-template の[既定のブランチの守りの用意](../../../template/docs/guides/github.md "在りか")）。
 
 - 既定のブランチは消せず、force push できない。
 - 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に

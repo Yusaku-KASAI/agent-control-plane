@@ -27,6 +27,8 @@ conventions の ADR 0002 は、ターゲットの契約を target-template に�
 - 契約には、渡すもの（ハーネスの契約）か求めるもの（ターゲットの契約）、その見分け方、制約、それに応じてエージェントが
   すること（責務）だけを書く。プラグインが hook やコマンドで守らせることと、その仕組みは、そのプラグインの文書に置く。
   契約は、守らせる側があることに触れなくてよい。
+- 契約（エージェントの用語集、ハーネスの契約、ターゲットの契約）を変える判断は、platform の `docs/adr/` に置く。
+  今の項目を決めた target-template と control-plane の ADR は、元の場所のまま在りかとして指す。
 - 契約は、それを使う側が要る事実を持つ。ロールごとの GitHub App の権限はハーネスの契約の認証情報に、platform が
   使う道具はターゲットの契約のイメージに置く。
 
@@ -41,6 +43,7 @@ conventions の ADR 0002 は、ターゲットの契約を target-template に�
 
 ## Consequences
 
-- リポジトリを control-plane、platform、target-template に分けても、契約は platform と一緒にすべてのエージェントに届く。
+- リポジトリを control-plane、platform、target-template に分けても、契約の本文は platform と一緒にすべてのエージェントに
+  届く。今の項目を決めた ADR と、人が行う用意の手順（target-template）へのリンクは、ほかのターゲットからはたどれない。
 - target-template の文書と control-plane の文書は、platform の文書の根の契約を指す。
 - 契約からは、エージェントが hook に断られる理由をたどれない。断る文と各プラグインの全体像が、それを持つ。
