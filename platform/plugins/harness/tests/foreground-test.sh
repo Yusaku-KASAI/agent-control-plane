@@ -21,8 +21,6 @@ bash='{"tool_name":"Bash","tool_input":{"command":"sleep 1","run_in_background":
 out=$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"$agent")
 check "agent runs in the foreground" false "$(jq -c .hookSpecificOutput.updatedInput.run_in_background <<<"$out")"
 check "agent keeps its other input" '"p"' "$(jq -c .hookSpecificOutput.updatedInput.prompt <<<"$out")"
-out=$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"${agent/Agent/Task}")
-check "task runs in the foreground" false "$(jq -c .hookSpecificOutput.updatedInput.run_in_background <<<"$out")"
 out=$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"${agent/,\"run_in_background\":true/}")
 check "agent without the flag runs in the foreground" false "$(jq -c .hookSpecificOutput.updatedInput.run_in_background <<<"$out")"
 out=$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"${agent/\"prompt\"/\"isolation\":\"remote\",\"prompt\"}")
@@ -33,6 +31,5 @@ out=$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"$send")
 check "send message is denied" '"deny"' "$(jq -c .hookSpecificOutput.permissionDecision <<<"$out")"
 check "bash is left alone" "" "$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"$bash")"
 check "agent is left alone outside the control plane" "" "$(env -u ACP_SESSION_BRANCH "$hook" <<<"$agent")"
-check "task is left alone outside the control plane" "" "$(env -u ACP_SESSION_BRANCH "$hook" <<<"${agent/Agent/Task}")"
 check "send message is left alone outside the control plane" "" "$(env -u ACP_SESSION_BRANCH "$hook" <<<"$send")"
 exit $failed

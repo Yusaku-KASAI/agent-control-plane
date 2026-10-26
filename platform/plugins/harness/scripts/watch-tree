@@ -42,12 +42,12 @@ snapshot() { git -C "$top" rev-parse --path-format=absolute --git-path "acp-suba
 
 event=$(field .hook_event_name)
 case $event:$(field .tool_name) in
-  PreToolUse:Agent | PreToolUse:Task)
+  PreToolUse:Agent)
     # A snapshot whose Agent call never ended (denied by another hook, say) is left behind.
     find "$common" -maxdepth 1 -name 'acp-subagent-*' -mmin +1440 -delete 2>/dev/null || true
     state >"$(snapshot)"
     ;;
-  PostToolUse:Agent | PostToolUse:Task | PostToolUseFailure:Agent | PostToolUseFailure:Task)
+  PostToolUse:Agent | PostToolUseFailure:Agent)
     file=$(snapshot)
     [[ -f $file ]] || exit 0
     before=$(cat "$file")

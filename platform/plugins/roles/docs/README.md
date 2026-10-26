@@ -1,7 +1,7 @@
 # roles
 
 roles プラグインの文書の一覧。責務とほかのプラグインとの関係は、
-platform の[プラグイン](../../../docs/architecture/plugins.md)にある。
+platform の全体像の[構成要素](../../../docs/overview.md#components)にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |

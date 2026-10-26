@@ -1,7 +1,7 @@
 {
   "name": "harness",
   "version": "0.4.0",
-  "description": "Tell agents how they are run and where the harness contract is",
+  "description": "Tell agents how they are run and where the harness contract is, and hold them to its limits under the control plane",
   "author": {
     "name": "Yusaku KASAI"
   }

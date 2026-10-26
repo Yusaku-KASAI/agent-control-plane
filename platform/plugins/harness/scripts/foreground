@@ -7,7 +7,7 @@ set -euo pipefail
 input=$(cat)
 [[ -n ${ACP_SESSION_BRANCH:-} ]] || exit 0
 case $(jq -r .tool_name <<<"$input") in
-  Agent | Task)
+  Agent)
     if [[ $(jq -r '.tool_input.isolation // ""' <<<"$input") == remote ]]; then
       # A remote subagent always runs in the background.
       jq -n '{hookSpecificOutput: {

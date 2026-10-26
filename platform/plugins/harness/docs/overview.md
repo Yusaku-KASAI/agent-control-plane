@@ -54,10 +54,9 @@ harness/
   断る。シェルの文法をすべては解かないので、
   まれに通すべきものを断る（断る文で `run_in_background` か `wait` を案内する）。devcontainer で直接動くときは
   何もしない。
-- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。CI の待ちは github プラグインの
-  `prctl ci --wait` を `run_in_background` で始める。
-- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：決まりだけでは二度破られたので、
-  hook で断る。
+- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：契約の制約を、エージェントへの
+  指示ではなく hook で守らせる。
 
 ### `scripts/watch-tree`
 
@@ -73,7 +72,7 @@ harness/
 - **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。ファイルを
   変えないロールの隔離は roles の定義にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：サブエージェントの変更が
-  コミットに紛れないよう、依頼文の念押しではなく hook で気づかせる。[多層防御](../../principles/docs/reference/principles.md#defense-in-depth)：
+  コミットに紛れないよう、依頼文の念押しではなく hook で気づかせる。[多層の防御](../../principles/docs/reference/principles.md#defense-in-depth)：
   ロールの隔離で防ぎ、すり抜けたものと任せた変更を、比べて拾う。
 
 ### `skills/harness/`

@@ -1,4 +1,4 @@
-# 用語集
+# エージェントの用語集
 
 エージェントとハーネスの言葉。エージェントとハーネスに関わる文書では、この意味で使う。文書の体系と作業の言葉は
 [conventions の用語集](../../plugins/conventions/docs/reference/glossary.md)にある。
