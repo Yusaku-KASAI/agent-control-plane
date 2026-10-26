@@ -46,9 +46,9 @@ docs/                 （区切りのディレクトリの中なら <区切り>/
 | `CLAUDE.md`（エージェントの入口。常に読み込まれる） | エージェントがいつも知っておくべき前提（プロダクトの前提、完了条件、言語など）と、索引と全体の解説（あれば）への道。どの節を持つかは、リポジトリが従う契約で決める | 詳細（文書へのリンクにする） |
 | `docs/README.md`（索引） | その文書の根の唯一の一覧。文書ごとに、種類と一行の要旨 | 中身 |
 | `docs/overview.md`（全体の解説） | 狙い、全体の構成と部分の間の関係、地図、目指す姿（今の方針として） | 部分の細部（`architecture/` へリンクする）、目指す姿への道筋（Issue に置く） |
-| `architecture/` | 部分ごとに一つの文書で、その部分の構成と関係と、[構成要素の説明](#component) | 選ばなかった案 |
+| `architecture/` | 部分ごとに一つの文書で、その部分の構成と関係と、[構成要素の説明](#component) | 手順と決まり（`guides/` と `reference/` へリンクする） |
 | `guides/` | 手順（決まりとして守る順序を含む）と、その場で要る最小の説明。エージェントに届ける手順もここに定義する（スキルは、そのプラグインの道具を使う手順だけを自分で持つ） | 仕組みの説明（`architecture/` へリンクする）、決まり（条件、表、形。`reference/` へリンクする） |
-| `reference/` | 引くための事実と決まり：契約、設定、コマンド、形式、用語、条件、表 | 手順と守る順序、選んだ理由、設定の既定値（例の設定ファイルを正にする） |
+| `reference/` | 引くための事実と決まり：契約、設定、コマンド、形式、用語、条件、表 | 手順と守る順序、設定の既定値（例の設定ファイルを正にする） |
 | `adr/` | [ADR](#adr) | 今の姿のまとめ |
 
 - 理由をどこに置くかは[書き方：理由の置き場所](writing.md#reasons "在りか")にある。
@@ -148,7 +148,7 @@ Markdown（プラグインのルール、スキル、役割ごとの指示を含
 ## 役割ごとの指示
 
 役割ごとの指示（プラグインの `agents/` と、リポジトリの `.claude/agents/` の文書）の形。何を載せるかは
-[起点](delivery.md#starting-points)、手順と役割の関係は[手順と役割](../architecture/documentation.md#procedures)にある
+[起点](delivery.md#starting-points "在りか")、手順と役割の関係は[手順と役割](../architecture/documentation.md#procedures)にある
 （[ADR 0018](../adr/0018-role-instructions-split-and-changing-definitions.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)）。
 
 ```markdown
@@ -208,7 +208,7 @@ description: <受け持つ目的の手順と書ける範囲を一文で>
 ## スキル
 
 プラグインのスキル（`skills/<名前>/SKILL.md`）の形。スキルが何を持ってよいかは[定義と届け方](../architecture/documentation.md#delivery)に、
-何を載せるかは[起点](delivery.md#starting-points)にある。
+何を載せるかは[起点](delivery.md#starting-points "在りか")にある。
 
 ```markdown
 ---

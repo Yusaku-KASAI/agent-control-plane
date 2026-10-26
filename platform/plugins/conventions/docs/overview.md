@@ -20,7 +20,7 @@ conventions/
 
 - 拠り所は principles プラグインの原則とパターン。conventions はそれを前提にし、principles は conventions を前提にしない。
 - 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。何をどう確かめるかは、
-  ターゲットの契約や共通のファイルに置かない（ターゲットの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
+  使うリポジトリの契約や共通のファイルに置かない（使うリポジトリの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 
 ## 構成要素
 
@@ -42,6 +42,12 @@ conventions/
 - **当てはめた原則・パターン**：[文書の種類で分ける](../../principles/docs/reference/patterns.md#diataxis)の解説。
   [段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)。
 
+### 検査の扱い方（`docs/reference/checks.md`）
+
+- **責務**：何を検査にし、検査をどこに置くかを、文書にもコードにも当てはまる形で決める。
+- **関係**：区切りと依存の向き（文書の体系）を前提にする。
+- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)。
+
 ### 文書の決まり（`docs/reference/formats.md`、`delivery.md`）
 
 - **責務**：形式は、文書の検査の範囲と、文書の根と器、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、
@@ -49,12 +55,6 @@ conventions/
 - **関係**：検査の扱い方を前提にする。`check-docs` が形式の形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
   [一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)。
-
-### 検査の扱い方（`docs/reference/checks.md`）
-
-- **責務**：何を検査にし、検査をどこに置くかを、文書にもコードにも当てはまる形で決める。
-- **関係**：区切りと依存の向き（文書の体系）を前提にする。
-- **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)。
 
 ### 変更と課題の決まり（`docs/reference/writing.md`、`changes.md`、`issues.md`）
 
@@ -109,7 +109,7 @@ conventions/
 ### スキル（[`skills/`](../skills/ "在りか")）
 
 - **責務**：使うと決めたときに、手順を全体まで読ませ、破られやすいことを要約で示す。
-- **置くもの / 置かないもの**：手順への案内と、その要約だけ。手順そのものと決まりは置かない。
+- **置くもの / 置かないもの**：手順への案内と、その要約。手順そのものと決まりは置かない。
 
   | スキル | 届ける手順 |
   | --- | --- |
