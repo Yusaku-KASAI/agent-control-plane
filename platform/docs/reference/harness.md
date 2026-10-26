@@ -165,7 +165,8 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 - できることは、エージェントの GitHub App と Slack アプリの権限で決まる。GitHub App の権限は、ロールごとに次の
   とおりで、control-plane を動かす人がこの権限で App を用意する（Metadata の読み取りはどれも持つ）。表のほかの権限
   （Administration、Workflows、Secrets など）は渡さない。[既定のブランチの守り](target.md#protection)は、エージェントが
-  ルールセットを変えられないことに拠る。
+  ルールセットを変えられないことに拠る。Workflows がないので、`.github/workflows/` を変えるコミットは GitHub が push を
+  断る。そのコミットはエージェントが作り、push を依頼者に頼む。
 
   | ロール | GitHub App の権限 |
   | --- | --- |

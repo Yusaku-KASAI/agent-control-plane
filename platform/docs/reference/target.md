@@ -13,7 +13,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 - イメージのユーザーは root でない `node` で、ホームは `/home/node`。作業ディレクトリ（リポジトリのマウント先）に書き込める。
   管理者の権限（sudo）を持たない。
 - 次の道具が `PATH` にある。`claude`、`git`、`gh`（エージェントが使う）と、`bash`、`jq`、`python3`、`curl`、`make`、
-  coreutils、`grep`、`sed`、`awk`、findutils、util-linux の `flock`（platform のプラグインのコマンドと hook、検査が使う）。
+  coreutils、`grep`、`sed`、`awk`、findutils、procps の `ps`、util-linux の `flock`（platform のプラグインのコマンドと hook、検査が使う）。
 - 引数に渡したコマンド（`claude ...`）をそのまま実行できる。entrypoint があれば、準備を済ませたあと引数のコマンドを
   `exec` する。
 - entrypoint は標準入力をそのまま渡し、自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。
