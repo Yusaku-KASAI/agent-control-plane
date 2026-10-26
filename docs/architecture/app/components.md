@@ -14,7 +14,7 @@ Slack ──Socket Mode──▶ slackbot.Bot ──▶ usecase.HandleMessage �
 acp run / stop ──HTTP──▶ httpapi ───────────────────────────────┤
                                                                 ▼
                                                       usecase.Dispatcher
-                                                        └ worker（セッションごと、受信箱）
+                                                        └ worker（セッションごと、受信箱と待ち行列）
                                                               │ Runner
                                                               ▼
                                        docker.Runner ──▶ docker-proxy ──▶ エージェントのコンテナ

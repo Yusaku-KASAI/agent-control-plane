@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/adapter/httpapi"
 )
@@ -42,6 +44,9 @@ func TestRun_ExitCodes(t *testing.T) {
 			if code := dispatch(context.Background(), []string{"run", "--agent", "a", "hello"}, func(k string) string { return env[k] }, &stdout, &stderr); code != tt.want {
 				t.Errorf("acp run = %d, want %d (stderr: %s)", code, tt.want, stderr.String())
 			}
+			if tt.name == "interrupted" && !strings.Contains(stderr.String(), "interrupted") {
+				t.Errorf("stderr = %q, want it to tell the turn was interrupted", stderr.String())
+			}
 		})
 	}
 
@@ -51,6 +56,28 @@ func TestRun_ExitCodes(t *testing.T) {
 		env := map[string]string{"ACP_SERVER": srv.URL, "ACP_API_TOKEN": "token"}
 		var stdout, stderr bytes.Buffer
 		if code := dispatch(context.Background(), []string{"run", "--agent", "a", "hello"}, func(k string) string { return env[k] }, &stdout, &stderr); code != 1 {
+			t.Errorf("acp run = %d, want 1 (stderr: %s)", code, stderr.String())
+		}
+	})
+
+	t.Run("flag error", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := dispatch(context.Background(), []string{"run", "hello"}, func(string) string { return "" }, &stdout, &stderr); code != 2 {
+			t.Errorf("acp run without --agent = %d, want 2", code)
+		}
+	})
+
+	t.Run("stopped by a signal", func(t *testing.T) {
+		release := make(chan struct{})
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+		defer srv.Close()
+		defer close(release)
+		env := map[string]string{"ACP_SERVER": srv.URL, "ACP_API_TOKEN": "token"}
+		// The signal handler of main cancels the context.
+		ctx, cancel := context.WithCancel(context.Background())
+		time.AfterFunc(50*time.Millisecond, cancel)
+		var stdout, stderr bytes.Buffer
+		if code := dispatch(ctx, []string{"run", "--agent", "a", "hello"}, func(k string) string { return env[k] }, &stdout, &stderr); code != 1 {
 			t.Errorf("acp run = %d, want 1 (stderr: %s)", code, stderr.String())
 		}
 	})

@@ -34,7 +34,9 @@ type fakeSessions struct {
 	locks   map[domain.SessionID]int
 	removed []domain.SessionID
 	saves   int
-	saveErr error
+	// unlockedSaves counts the saves made without holding the session's lock.
+	unlockedSaves int
+	saveErr       error
 	// onRemove runs when Remove removes a session.
 	onRemove func(id domain.SessionID)
 	// onLock runs before Lock takes the lock.
@@ -61,6 +63,9 @@ func (f *fakeSessions) Save(_ context.Context, s domain.Session) error {
 	}
 	f.saved[s.ID] = s
 	f.saves++
+	if f.locks[s.ID] == 0 {
+		f.unlockedSaves++
+	}
 	return nil
 }
 
@@ -1749,6 +1754,9 @@ func TestDispatcher_RecoverForgetsTotal(t *testing.T) {
 	}
 	if s, _ := e.sessions.Find(context.Background(), existingID); s.ReportedUsage != nil || s.Turns != 1 {
 		t.Errorf("session = %+v, want its total unknown", s)
+	}
+	if e.sessions.unlockedSaves != 0 {
+		t.Errorf("Recover saved %d times without the lock", e.sessions.unlockedSaves)
 	}
 	if e.sessions.isLocked(existingID) {
 		t.Error("Recover kept the session locked")
