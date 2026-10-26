@@ -105,8 +105,10 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
     更新する。更新用のトークンは一度しか使えないので、受け取ったら使う前に状態のファイル
     （`<state_dir>/slack/<エージェント名>.json`、`acp-state` ボリューム）へ一時ファイルと rename で保存する。
     前もって更新するのは `Run` で、10 分ごとに確かめ、失効の 2 時間前を過ぎていれば更新する。失敗はログに出して
-    次の回にやり直す。`Token` は、トークンがないか失効したときだけ交換か更新をし、それまでは今のトークンを返す
-    ので、更新に失敗し続けても失効までは投稿できる。
+    次の回にやり直す。`Token` は、トークンがないか失効したとき（記録した失効の 1 分前から）だけ交換か更新をし、
+    それまでは今のトークンを返すので、更新に失敗し続けても、失効までは control-plane とエージェントが今の
+    トークンを使える。エージェントのファイルは[動いている間の更新](#refresh)の間隔ごとにしか書き換わらないので、
+    失効したあと次の書き換えまでは、エージェントの Slack の操作が失敗する。
 - **関係**：同じ `Source` を、control-plane の Slack Bot（`slackbot`）とエージェントへの発行の両方が使うので、
   更新したトークンはどちらにも届く。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：今のトークンを持つのは
@@ -138,6 +140,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   - runner がコンテナを起動する前に書き、動いている間は `Process.UpdateCredentials` で書き換える。
   - `sessions.root` は devcontainer から読めるので、そこには置かない（[ADR 0018](../../adr/app/0018-refreshable-credentials.md)）。
   - セッションを片付けるとき、`SessionFiles` がディレクトリごと消す（[コンテナ](containers.md "在りか")）。
+
+<a id="refresh"></a>
 
 ### 動いている間の更新（`internal/usecase/dispatcher.go`）
 

@@ -83,6 +83,9 @@ func TestRotatingSource(t *testing.T) {
 	if tok, _ := s.Token(ctx); tok != "xoxe.xoxb-1" || len(slack.calls) != 1 {
 		t.Errorf("Token() before expiry = %q after %d calls, want no refresh", tok, len(slack.calls))
 	}
+	if err := s.refresh(ctx); err != nil || len(slack.calls) != 1 {
+		t.Errorf("refresh() long before expiry = %v after %d calls, want no refresh", err, len(slack.calls))
+	}
 
 	// Within two hours of expiry, Token still returns the current token; Run's refresh replaces it
 	// with the saved refresh token.
@@ -125,7 +128,9 @@ func TestRotatingSource_RefreshFails(t *testing.T) {
 
 	// A failed refresh ahead of expiry is Run's to report; posting goes on with the current token.
 	s.now = func() time.Time { return start.Add(11 * time.Hour) }
-	runCtx, cancel := context.WithCancel(ctx)
+	// Run returns on the report, or after the timeout when it reports nothing.
+	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	var reported error
 	s.Run(runCtx, time.Hour, func(err error) {
 		reported = err
@@ -138,8 +143,9 @@ func TestRotatingSource_RefreshFails(t *testing.T) {
 		t.Errorf("Token() after a failed refresh = %q, %v; want the current token", tok, err)
 	}
 
-	// Once the token has expired, there is none to return.
-	s.now = func() time.Time { return start.Add(12 * time.Hour) }
+	// Once the token has expired, there is none to return; Slack counts its expiry from earlier
+	// than the recorded one.
+	s.now = func() time.Time { return start.Add(12*time.Hour - 30*time.Second) }
 	if tok, err := s.Token(ctx); err == nil {
 		t.Errorf("Token() after expiry with a failed refresh = %q, want an error", tok)
 	}

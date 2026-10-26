@@ -60,8 +60,13 @@ type rotationState struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-// refreshBefore is how long before expiry Run replaces the token.
-const refreshBefore = 2 * time.Hour
+const (
+	// refreshBefore is how long before expiry Run replaces the token.
+	refreshBefore = 2 * time.Hour
+	// expiryMargin is how long before the recorded expiry a token counts as expired. The expiry is
+	// counted from when the response arrived, which is later than when Slack counts it from.
+	expiryMargin = time.Minute
+)
 
 func NewRotatingSource(cfg RotatingConfig, httpClient *http.Client) *RotatingSource {
 	return &RotatingSource{cfg: cfg, http: httpClient, now: time.Now}
@@ -73,7 +78,7 @@ func NewRotatingSource(cfg RotatingConfig, httpClient *http.Client) *RotatingSou
 func (s *RotatingSource) Token(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensure(ctx, 0); err != nil {
+	if err := s.ensure(ctx, expiryMargin); err != nil {
 		return "", err
 	}
 	return s.state.AccessToken, nil
