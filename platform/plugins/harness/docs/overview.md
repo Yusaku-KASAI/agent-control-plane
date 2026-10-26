@@ -16,6 +16,10 @@ harness/
 - 始めに渡すのは、動き方の短い要約と行き先だけ。渡されるものとその制約は[ハーネスの契約](../../../docs/reference/harness.md)に、
   道具を使う切り分けの手順はスキルに置き、要るときに読ませる。
 - 動き方の見分け方は契約にある。hook もスキルもそれに従う。
+- hook は、Claude Code が渡す入力に拠る：サブエージェントのツールの名前 `Agent`
+  （[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）と、サブエージェント自身の呼び出しに付く `agent_id`
+  （[ADR 0016](../../../docs/adr/0016-subagents-leave-the-work-area.md)）。Claude Code の版を上げたら、サブエージェントの呼び出しに
+  hook が働くことを確かめる。
 
 ## 構成要素
 
@@ -39,9 +43,7 @@ harness/
   `SendMessage`（宛先によらない）を断る。devcontainer で直接動くときと、ほかのツール（バックグラウンドの Bash など）には
   何もしない。エージェントの定義の frontmatter の `background: true` と `isolation: remote` は、呼び出しに現れないので
   変えられない。
-- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。Agent の呼び出しは、Claude Code が hook に渡すツールの名前 `Agent` で
-  見分ける（[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）。Claude Code の版を上げたら、サブエージェントの
-  呼び出しにこの hook が働くことを確かめる。
+- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：依頼への回答が一度で済むことを、
   エージェントへの指示ではなく hook で守る。
 
@@ -71,9 +73,7 @@ harness/
   足し、写しを消す。何が変わったかは並べない（git で見られ、数によらず短く済む）。サブエージェント自身の Agent の呼び出し（hook の入力に `agent_id` がある）、devcontainer で直接動くときは
   何もしない。どのサブエージェントが作業領域を変えてよいかは決めず、ツールの呼び出しも断らない。それはエージェントの
   定義の `isolation` に任せる。
-- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。Agent の呼び出しは、Claude Code が hook に渡すツールの名前 `Agent` で
-  見分ける（[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）。Claude Code の版を上げたら、サブエージェントの
-  呼び出しにこの hook が働くことを確かめる。
+- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：サブエージェントの変更が
   コミットに紛れないよう、依頼文の念押しではなく hook で気づかせる。[多層の防御](../../principles/docs/reference/principles.md#defense-in-depth)：
   サブエージェントの隔離（`isolation: worktree`）で防ぎ、すり抜けたものと任せた変更を、比べて拾う。
