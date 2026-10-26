@@ -70,7 +70,7 @@ func (p *Provider) Prepare(ctx context.Context, agent domain.Agent, id domain.Se
 	return domain.Workspace{Path: dest}, nil
 }
 
-// The hooks, installed only in the workspace's .git; what each does is in its file.
+// The hooks; what each does is in its file.
 var (
 	//go:embed hooks/commit-msg.sh
 	commitMsgHook string
@@ -198,8 +198,6 @@ func (p *Provider) State(ctx context.Context, path string) (usecase.WorkspaceSta
 		}
 		w.Local = append(w.Local, usecase.LocalBranch{BranchTip: usecase.BranchTip{Name: name, Tip: tip}, Unpushed: unpushed})
 	}
-	// A worktree outside the workspace, such as one prctl makes to read a pull request, holds
-	// others' commits on its detached HEAD; its files are gone with the container anyway.
 	heads := [][]string{nil}
 	for _, wt := range linked {
 		heads = append(heads, []string{"--git-dir=" + wt.gitDir})
@@ -239,9 +237,10 @@ type worktree struct {
 	dir    string
 }
 
-// linkedWorktrees lists the linked worktrees whose files are inside the workspace. Their recorded
-// paths are the agent's to write, so each is located under path rather than taken as recorded
-// (locateWorktree).
+// linkedWorktrees lists the linked worktrees whose files are inside the workspace. One outside,
+// such as one prctl makes to read a pull request, holds others' commits on its detached HEAD, and
+// its files are gone with the container anyway. The recorded paths are the agent's to write, so
+// each is located under path rather than taken as recorded (locateWorktree).
 func linkedWorktrees(path string) ([]worktree, error) {
 	admin := filepath.Join(path, ".git", "worktrees")
 	entries, err := os.ReadDir(admin)

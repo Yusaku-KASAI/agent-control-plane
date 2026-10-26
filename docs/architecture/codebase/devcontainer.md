@@ -66,16 +66,16 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - **関係**：govulncheck が調べるのは、このステージの Go（`.devcontainer/Dockerfile` の版）の標準ライブラリで、
   control-plane のイメージはルートの `Dockerfile` の版でビルドする。片方だけを上げても気づけるよう、版の比較を
   ここに置く。キャッシュが当たると新しく公開された脆弱性を拾えないので、CI は週に 1 回、`check-go` のステージだけ
-  キャッシュを使わずにビルドする。テストは作業領域の git のフック（`internal/adapter/gitworkspace/hooks/` のシェルに
-  セッションのブランチを埋めたもの）を shellcheck にかけ、Slack に投稿する前の Markdown の直しを slack プラグインの `check-markdown` で確かめるので、base が入れる
-  shellcheck と python3 を使う。
+  キャッシュを使わずにビルドする。テストは作業領域の git のフック（`internal/adapter/gitworkspace/hooks/` の
+  シェルにセッションのブランチを埋めたもの）を shellcheck にかけ、Slack に投稿する前の Markdown の直しを slack
+  プラグインの `check-markdown` で確かめるので、base が入れる shellcheck と python3 を使う。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくい依存の層を
   先に置き、コードを変えても依存の取得はやり直さない。
 
 ### `check-platform`（ルール、ステージ、CI のジョブ）
 
 - **責務**：`platform/` のプラグインを検証し、そのシェルのスクリプトを shellcheck にかけ、プラグインの試験
-  （`platform/plugins/*/tests/*-test.sh`）をすべて回す。試験は名前で見つけるので、足した試験はここに並べなくても回る。
+  （`platform/plugins/*/tests/*-test.sh`）をすべて回す。試験は名前で見つけるので、足した試験は Makefile に並べなくても回る。
 
 ### CI の `check-image`
 

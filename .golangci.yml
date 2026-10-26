@@ -30,12 +30,12 @@ linters:
           deny:
             - pkg: github.com/Yusaku-KASAI/agent-control-plane/cmd
               desc: adapters must not depend on the composition root
-        # A package's external tests import the package itself, so they are left out.
+        # Test files are left out: a package's external tests import the package itself.
         adapter-siblings:
           files: ["**/internal/adapter/**", "!$test"]
           deny:
             - pkg: github.com/Yusaku-KASAI/agent-control-plane/internal/adapter
-              desc: an adapter must not depend on another; cmd/acp joins them
+              desc: an adapter is one package and depends on no other; cmd/acp joins them
 
 formatters:
   enable:
