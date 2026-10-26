@@ -38,8 +38,8 @@ acp stop --agent <name> --session <id> [--server <url>]
 - サーバーの URL は `--server`、`ACP_SERVER`、`http://127.0.0.1:8787` の順で決まる。API トークンは
   `ACP_API_TOKEN` から読む。
 - `--session` を省くと新しいセッションを始め、`--session <id>` を付けるとそのセッションの続きを依頼する。
-  結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。ターンが中断されたときは、そう stderr に
-  書く。
+  結果を stdout に、セッション ID と作業領域のパスを stderr に表示する。ターンが中断されたとき、エージェントが
+  エラー（使用上限を含む）でターンを終えたときは、そう stderr に書く。
 - `acp run` と `acp stop` の終了コードは次のとおり。
 
   | 終了コード | とき |
