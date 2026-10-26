@@ -7,7 +7,7 @@ control-plane の Go のコードは、[層に分けた構成](../../../platform
 
 ```
 cmd/acp ──▶ internal/adapter/<アダプター> ──▶ internal/usecase ──▶ internal/domain
-（組み立て）  （ポートの実装）                （ユースケースとポート）  （エンティティ）
+（組み立て）  （外部とのつなぎ）              （ユースケースとポート）  （エンティティ）
 ```
 
 依存の向きと、アダプターどうしが依存しないことは、golangci-lint の depguard で検査する（`.golangci.yml`、
@@ -35,8 +35,8 @@ cmd/acp ──▶ internal/adapter/<アダプター> ──▶ internal/usecase 
 
 ### `internal/adapter/<アダプター>`
 
-- **責務**：usecase のポートを、一つの技術で実装する。一つの技術を、関心ごとに複数のアダプターに分けてよい
-  （Slack の `slackauth` と `slackbot` など）。
+- **責務**：一つの技術で、usecase のポートを実装するか、usecase を呼ぶ入口になる（`httpapi` など）。一つの
+  技術を、関心ごとに複数のアダプターに分けてよい（Slack の `slackauth` と `slackbot` など）。
 - **置くもの / 置かないもの**：外部（ファイル、git、Docker、GitHub、Slack など）を読み書きし、事実を返すこと。判定は置かない。
   一つのアダプターは一つのパッケージにし、下にパッケージを作らない。
 - **関係**：上記に加えて外部ライブラリに依存する。ほかのアダプターには依存せず、アダプターどうしをつなぐのは

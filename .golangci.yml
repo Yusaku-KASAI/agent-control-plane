@@ -10,8 +10,8 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
     depguard:
-      # Dependency direction: adapter → usecase → domain (docs/adr/codebase/0001); adapters apart
-      # from one another (docs/adr/codebase/0005).
+      # Dependency direction: adapter → usecase → domain (docs/adr/codebase/0001); no adapter depends
+      # on another (docs/adr/codebase/0005).
       rules:
         domain:
           list-mode: strict
