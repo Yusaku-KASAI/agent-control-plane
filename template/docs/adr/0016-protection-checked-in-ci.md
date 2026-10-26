@@ -25,7 +25,7 @@ CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-a
   （`platform/plugins/github/actions/check-protection`）を置く（ADR 0014 と同じ形。ただしアクションはリポジトリを
   チェックアウトせず、GitHub の API だけを読む）。ターゲットの `ci.yml` は
   `check-protection` ジョブでそれを呼び、`check` ジョブはそのジョブも待つ。権限は `contents: read` だけにする。
-- 確かめる値は target-template の手順（`guides/protection.md`）の設定で、コマンドはその API の側の写しを持つ。
+- 確かめる値は target-template の手順（`guides/github.md`）の設定で、コマンドはその API の側の写しを持つ。
 - CODEOWNERS は、CI が確かめるコミット（PR では、マージしたときの版）のものを確かめる。コードオーナーの承認で人に
   限るときは、誤りがないこと、最初の規則が `*` であること、持ち主のない規則がないこと。team で人に限るときは、
   CODEOWNERS はなくてよく、あってもその問題は知らせるだけにする。

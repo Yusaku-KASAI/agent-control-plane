@@ -15,7 +15,7 @@ amended_by: [28]
 依頼者は、検査の仕組みそのものが、依存してはいけない区切りに依存する形になってほしくないと考えている（例：
 conventions が platform に依存してよいか）。調べると、`check-docs`（conventions）は platform も target-template も
 知らず、conventions の形式が定めた形だけを見ていた。一方、`check-protection`（platform の github プラグイン）は、
-target-template の用意の手順（`guides/protection.md`）の写しと名乗っていて、最上位の地図にない platform から
+target-template の用意の手順（`guides/github.md`）の写しと名乗っていて、最上位の地図にない platform から
 target-template への向きになっていた。また、conventions の用語集の「役割」は、意味を契約のエージェントの用語集に任せていた
 （conventions は契約を前提にしない）。
 

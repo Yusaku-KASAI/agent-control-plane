@@ -22,7 +22,7 @@ target-template にもターゲットの契約にもこの用意がなく、新�
   部分は持ち主のユーザー名。
 - organization のターゲットでは、このファイルを消し、人だけの team を必須のレビュアーにする。消すことも、
   ファイルの分類での「埋める」の埋め方として扱う。
-- ルールセットの設定と確かめ方は target-template の手順（`guides/protection.md`）に書き、ターゲットの契約では、守りを
+- ルールセットの設定と確かめ方は target-template の手順（`guides/github.md`）に書き、ターゲットの契約では、守りを
   用意することだけを求める。
 
 ## Alternatives

@@ -27,12 +27,3 @@ docker compose -f .devcontainer/compose.yaml down            # 止める
 
 コンテナは root を使わないが、人が一時的に root で作業したいとき（apt でのインストールなど）は
 `docker exec -u root -it <コンテナ> bash` で入る。
-
-<a id="copy"></a>
-
-## Claude Code の画面のコピー
-
-Claude Code のフルスクリーン表示は、マウスで選択して離すと自動でコピーする。止めるには `/config` の Copy on select を
-オフにする（設定は Claude Code の設定ディレクトリに残る）。そのあとは選択中に `Ctrl+C` か `Ctrl+Shift+C` でコピーする。
-
-仕組みは [architecture/devcontainer.md](../architecture/devcontainer.md "在りか") にある。

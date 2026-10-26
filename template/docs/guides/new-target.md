@@ -1,45 +1,42 @@
 # 新しいターゲットを作る
 
 target-template のファイルから、新しいターゲットのリポジトリを作り、control-plane から動かせるようにするまでの手順。
-ターゲットが用意するものは[ターゲットの契約](../../../platform/docs/reference/target.md "在りか")に、ファイルごとの共通の範囲と
-埋める部分は[ファイルの分類](../overview.md#files "在りか")にある。
+何をどの順で行い、どの文書に沿うかだけをここに書く。ターゲットが用意するものは
+[ターゲットの契約](../../../platform/docs/reference/target.md "在りか")に、ファイルごとの共通の範囲と埋める部分は
+[ファイルの分類](../overview.md#files "在りか")にある。
 
 ## 1. ファイルを写す
 
-ひな形は agent-control-plane のリポジトリのルートにある。[ファイルの分類](../overview.md#files "在りか")の共通と埋めるファイルを、
-新しいリポジトリの同じパスに写す。固有のファイル（アプリのコード、文書、ADR）は写さない。
+[ファイルの分類](../overview.md#files "在りか")の共通と埋めるファイルを、agent-control-plane のリポジトリのルートから、新しい
+リポジトリの同じパスに写す。ルートのファイルは agent-control-plane が自分のために埋めた版で、共通の部分にも
+そのリポジトリだけの形がある（どこかは control-plane の
+[devcontainer](../../../docs/architecture/codebase/devcontainer.md "在りか") にある）。写したら、共通の部分を、それぞれの部分の
+文書（[devcontainer](../architecture/devcontainer.md "在りか")、[Claude Code の設定](../architecture/claude-code.md "在りか")、
+[CI](../architecture/ci.md "在りか")）の形に合わせる。
 
-ルートのファイルは、agent-control-plane が自分のために埋めた版で、共通の部分にも、このリポジトリだけの形が二つある
-（理由は control-plane の [devcontainer](../../../docs/architecture/codebase/devcontainer.md "在りか")）。写したあと、ひな形の形に戻す。
+## 2. 入口と文書の根を置く
 
-- `.github/workflows/ci.yml` の `check-docs` と `check-protection` のジョブは、platform のアクションをリポジトリの中の
-  パス（`./platform/...`）で呼んでいる。ターゲットでは `@main` で呼ぶ（[CI](../architecture/ci.md "在りか")）。
-- `Makefile` の `check` は `check-docs` を含んでいる。ターゲットでは含めない（同じく CI）。
+`README.md`、`CLAUDE.md`、`docs/README.md` を置く。器は conventions の
+[文書の根と器](../../../platform/plugins/conventions/docs/architecture/documentation.md#roots "在りか")に、`CLAUDE.md` の節は
+[ターゲットの契約の CLAUDE.md](../../../platform/docs/reference/target.md#claudemd "在りか")にある。
 
-## 2. 埋める
+## 3. 埋める
 
-[ファイルの分類](../overview.md#files "在りか")の表の「ターゲットごとの部分」を、ターゲットのツールチェーンと関心に合わせて
-埋める。
+[ファイルの分類](../overview.md#files "在りか")の表の「ターゲットごとの部分」を、ターゲットのツールチェーンと関心に合わせて、
+それぞれの部分の文書に沿って埋める。
 
-- `.devcontainer/Dockerfile` のツールチェーンのステージと `check-<関心>` のステージ、`Makefile` の `check-<関心>`、
-  `ci.yml` の行列のジョブを、関心ごとに同じ名前でそろえる（[CI](../architecture/ci.md "在りか")）。
-- `.claude/settings.json` に、使うプラグインと回答の言語を書く（[Claude Code の設定](../architecture/claude-code.md "在りか")）。
-- `CLAUDE.md` は、ターゲットの契約の節をこの順に持たせて書く。
-- 個人のリポジトリなら `.github/CODEOWNERS` に持ち主を書き、organization のリポジトリなら消す
-  （[既定のブランチの守りの用意](protection.md "在りか")）。
+## 4. 手元で確かめる
 
-## 3. 動かして確かめる
+[devcontainer の使い方](devcontainer.md "在りか")のとおりにホストに並べ、ビルドして起動し、devcontainer の中で `make check` を
+通す。
 
-1. [devcontainer の使い方](devcontainer.md "在りか")のとおりにホストに並べ、ビルドして起動する。
-2. devcontainer の中で `make check` を通す。
-3. GitHub にリポジトリを作って push し、CI が通ることを見る。
+## 5. 守りを用意し、CI を確かめる
 
-## 4. 守りを用意する
+GitHub にリポジトリを作って push し、[既定のブランチの守りの用意](protection.md "在りか")のとおりに守りを用意して確かめる
+（CI で確かめられないものも、その手順の「確かめる」のとおりに確かめる）。守りを用意するまで、CI の守りの検査と、それを
+待つ必須のチェックは落ちる。用意したら、CI を回し直してすべて通ることを見る。
 
-[既定のブランチの守りの用意](protection.md "在りか")のとおりに、承認する人とルールセットを用意し、CI の `check-protection`
-が通ることを見る。
+## 6. control-plane から動かす
 
-## 5. control-plane から動かす
-
-control-plane の設定にエージェント（ターゲットとロールの組）を足す。足し方は control-plane の
+守りを確かめてから、control-plane の設定にエージェント（ターゲットとロールの組）を足す。足し方は control-plane の
 [運用の手順](../../../docs/guides/operations.md "在りか")の「サーバーを準備して起動する」にある。

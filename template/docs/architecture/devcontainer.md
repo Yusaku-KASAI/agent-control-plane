@@ -143,7 +143,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   - コピーモードは普段の端末の選択に近づけている。マウスでの選択（ドラッグ、ダブルクリック、トリプルクリック）は
     選択するだけで自動ではコピーせず、`y`、`Enter`、`Ctrl+C` でコピーする。`Esc` かクリックで抜ける。
   - Claude Code のフルスクリーン表示では、マウスでの選択を Claude Code が扱い、離したときに自動でコピーする。
-    止め方は[手順](../guides/devcontainer.md#copy "在りか")にある。
+    止め方は[手順](../guides/claude-code.md#copy "在りか")にある。
   - ペインのベルは外の端末に届け、tmux にも表示する。Claude Code が対話で止まったときは、platform の bell プラグインが
     ベルを鳴らす（[bell](../../../platform/plugins/bell/docs/overview.md "在りか")）。
 - **関係**：base が `~/.tmux.conf` にコピーする。VS Code のターミナルのプロファイルが tmux を起動する。
