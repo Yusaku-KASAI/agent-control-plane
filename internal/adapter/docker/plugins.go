@@ -115,8 +115,8 @@ func marketplaceDir(p, repoName, hostRoot, workspaceDir string) (inTree string, 
 }
 
 // linkedIntoRepository reports where in the repository at repoRoot the host path leads, when a
-// symbolic link makes it stand for a part of that repository, such as a marketplace not yet
-// split out of it.
+// symbolic link makes it stand for a part of that repository, such as a marketplace the repository
+// holds and links beside itself.
 func linkedIntoRepository(host, repoRoot string) (string, bool) {
 	resolved, err := filepath.EvalSymlinks(host)
 	if err != nil {

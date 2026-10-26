@@ -155,8 +155,7 @@ type fileFormat struct {
 const (
 	defaultIdleTimeout = 15 * time.Minute
 	defaultRetention   = 30 * 24 * time.Hour
-	// defaultSuggestClosingAt is well below the size at which Claude Code compacted the 1M-token
-	// context of a long thread (Issue #240), and above that of a session doing one piece of work.
+	// defaultSuggestClosingAt: docs/adr/app/0049 and 0052.
 	defaultSuggestClosingAt = 400_000
 )
 

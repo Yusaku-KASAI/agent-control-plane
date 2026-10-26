@@ -167,9 +167,9 @@ func installHooks(repo string, id domain.SessionID) error {
 	return nil
 }
 
-// gitRunner ignores the host user's git configuration, credential helpers and SSH keys, so the
-// result does not depend on whose machine or container runs the control plane. Bind-mounted
-// repositories may show a foreign owner inside a container, hence safe.directory.
+// gitRunner ignores the host user's git configuration and credential helpers, and reads github.com's
+// SSH URLs as HTTPS, so the result does not depend on whose machine or container runs the control
+// plane. Bind-mounted repositories may show a foreign owner inside a container, hence safe.directory.
 type gitRunner struct {
 	token string
 }
