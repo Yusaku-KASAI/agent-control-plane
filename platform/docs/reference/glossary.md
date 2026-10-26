@@ -8,7 +8,7 @@
 | control-plane | エージェントのコンテナを起動し、依頼を届け、認証情報を渡して更新するアプリケーション（agent-control-plane） |
 | platform | エージェントの能力（ロール、スキル、hook）を持つ区切り。Claude Code のプラグインのマーケットプレイス `acp-platform` に入れて配る |
 | マーケットプレイス | プラグインをまとめて配る単位。`acp-platform` は、platform のプラグインに加えて principles と conventions も配り、契約の文書も運ぶ |
-| ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。何を用意するかはターゲットの契約が定める |
+| ターゲット | エージェントが作業する環境と、その定義を持つリポジトリ。何を用意するかは[ターゲットの契約](target.md "在りか")が定める |
 | target-template | ターゲットに共通の環境のファイルと、その説明を持つひな形 |
 | ハーネス | エージェントを動かす仕組みの全体：ターゲットのイメージ、プラグイン、それを起動する control-plane か devcontainer。何が渡されるかは[ハーネスの契約](harness.md "在りか")が定める |
 | ロール | conventions の[用語集](../../plugins/conventions/docs/reference/glossary.md)の「役割」（developer、guide、reviewer、pm など）。Claude Code のカスタムエージェントとして定義される。何で分け、手順とどう関わるかは conventions の[目的の手順と共通の手順](../../plugins/conventions/docs/architecture/documentation.md#procedures "在りか")にある |
