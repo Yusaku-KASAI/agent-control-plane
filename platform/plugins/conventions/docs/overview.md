@@ -62,7 +62,8 @@ conventions/
 - **責務**：書き方は、コメント、コミットメッセージ、PR に何を書くかと、どの書きものにも書かないものを決める。変更の扱い方と課題の扱い方は、変更（PR）と
   課題（Issue）の扱い方と、締めで Issue に残すものと作業領域を残す理由の扱いを決める。
 - **関係**：文書の決まりを前提にする。
-- **当てはめた原則・パターン**：[関心の分離](../../principles/docs/reference/principles.md#soc)（今の姿と理由の置き場所は[文書の体系](architecture/documentation.md#reasons "在りか")）。
+- **当てはめた原則・パターン**：[関心の分離](../../principles/docs/reference/principles.md#soc)：今の姿、理由、道筋、経緯を、書きものの
+  種類ごとの置き場所に分ける。
 
 ### レビューの扱い方（`docs/reference/reviews.md`）
 
