@@ -75,7 +75,7 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 
 文書の外の書きもののうち、コメント、コミットメッセージ、PR は[書き方](../reference/writing.md "在りか")に、Issue は
 [課題の扱い方](../reference/issues.md "在りか")に、レビューの指摘と報告は[レビューの扱い方](../reference/reviews.md "在りか")に、
-依頼への答えはその目的の手順にある。
+依頼への答えはその目的の手順にある。文書を含むどの書きものにも書かないものは、[書き方](../reference/writing.md#not-to-write "在りか")にある。
 
 <a id="reasons"></a>
 
