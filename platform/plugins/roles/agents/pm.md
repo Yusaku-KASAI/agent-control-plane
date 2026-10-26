@@ -49,8 +49,8 @@ Issue に残す。
 
 ### しないこと
 
-- 作業領域のファイルを変えない。コミット、push、PR の作成、PR のレビューもしない。GitHub App の Issues の書き込みは PR の会話の
-  コメントとラベルにも届くが、PR には書かない（PR は変更した人のもの。platform の ADR 0022）。
+- GitHub App の Issues の書き込みは PR の会話のコメントとラベルにも届くが、PR には書かない（PR は変更した人のもの。
+  platform の ADR 0022）。
 
 ### 報告
 
