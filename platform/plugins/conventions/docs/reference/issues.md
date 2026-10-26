@@ -75,7 +75,7 @@
 - 決める Issue と確かめる Issue で PR で済ませない項目は、答えか結果を `## 今の姿` に書いたらチェックを付ける（PR の番号は
   添えない）。すべての項目が済み、続く作業をほかの Issue に移したら（続く作業がなければそのまま）閉じる。
 - 本文はいつも今を表すようにする。範囲の中の済んだ項目のほかの経緯（どう進んだか、前の案）は、コメントに書く
-  （[今と経緯を分ける](../../../principles/docs/reference/principles.md#present-state)）。
+  （[今の姿と理由の置き場所](../architecture/documentation.md#reasons)）。
 
 <a id="theme"></a>
 

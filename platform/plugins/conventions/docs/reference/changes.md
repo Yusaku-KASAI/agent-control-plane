@@ -36,7 +36,7 @@
 | 目的の手順を足す、ロールの受け持ちを変える | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（並べた所の一覧は[目的の手順の読ませ方](delivery.md#procedures "在りか")） |
 | 検査や試験を足す、変える | [壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing)（何を検査にし、どこに置くかは[検査の扱い方](checks.md "在りか")） |
 | テストダブル（試験で本物の代わりに使うもの）を足す、変える | [契約の試験](../../../principles/docs/reference/patterns.md#contract-test) |
-| 人が実行する移行や運用の手順を含む | [手順を実装と突き合わせる](../../../principles/docs/reference/patterns.md#verify-procedures) |
+| 人が実行する移行や運用の手順を含む | 手順を実装と突き合わせるか、実際に実行して確かめる（パスの深さ、名前の付け方、権限など、食い違いやすい所を特に見る）。確かめていなければ、そう書く |
 | 後から理由を知りたくなるか、間違えそうな判断を含む（例：構成、決まりの方針、契約、形式、データの形を選ぶか変える。言い回しや置き場所の直しは含まない） | [判断の記録](../../../principles/docs/reference/patterns.md#adr)（置き場所と形は[形式](formats.md#adr "在りか")） |
 | 決まり（定義）を足す、変える、消す | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（直すものは[定義と届け方](../architecture/documentation.md#delivery "在りか")） |
 
