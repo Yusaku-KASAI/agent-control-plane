@@ -621,6 +621,11 @@ for word in close Closes closed fix Fixes FIXED resolve resolves Resolved refs; 
   check "an issue closed by \"$word\" does not fill the last section" \
     "$("$prctl" create t - <<<"$(sed "s/^なし$//; s/^Closes #1$/$word #1/" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
 done
+for ref in 'Fixes owner/repo#1' 'Closes: #1'; do
+  # shellcheck disable=SC2001 # a line-wise edit of a sample body
+  check "an issue closed by \"$ref\" does not fill the last section" \
+    "$("$prctl" create t - <<<"$(sed "s|^なし$||; s|^Closes #1$|$ref|" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+done
 # shellcheck disable=SC2001 # a line-wise edit of a sample body
 check "the old marker of the head does not fill the last section" \
   "$("$prctl" update - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n<!-- prctl: head='"$(printf '%040d' 0)"' -->' 2>&1 || true)" "the section ## 確かめていないこと is empty"
