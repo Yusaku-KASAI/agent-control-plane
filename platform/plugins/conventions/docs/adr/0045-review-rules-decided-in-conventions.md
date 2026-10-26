@@ -30,8 +30,9 @@ conventions の文書からはこれらをたどれず、決まりを変える�
 ## Alternatives
 
 - **今のまま（判断 6 の (b)）**：決まりの持ち主と判断の置き場所が違う区切りに分かれたままになる。
-- **platform の ADR を conventions に移す**：ADR は書き換えない決まりで、移すとリンクと番号が変わる。この ADR から指せば
-  たどれる。
+- **platform の ADR を conventions に移す**：どれも、決まりの判断と `prctl` や hook の振る舞いの判断を一つに持つ。丸ごと
+  移すと道具の判断が conventions に入り、この ADR の決定（道具の判断はその道具を持つ区切りに置く）に反する。分けて
+  移すと、一つの判断が二つの ADR に割れる。この ADR から指せばたどれる。
 
 ## Consequences
 

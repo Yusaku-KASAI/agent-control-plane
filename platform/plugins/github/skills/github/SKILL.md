@@ -186,8 +186,8 @@ check-issues [<owner>/<repo>]   # NG の行がずれ。終了コードは 0 が�
 - 確かめるのは、テーマの Issue とロードマップのほかの開いている Issue に、どこを変えるかのラベルと `theme:<名前>` が
   あること、ロードマップの `## 今の焦点` に開いている Issue だけがあること（閉じた Issue、PR、このリポジトリにない番号は
   ずれ）、開いている Issue が閉じた Issue に blocked by されていないこと。ラベルの決まりや当たるテーマの Issue がない
-  リポジトリでは、ラベルの `NG` は整っている状態のずれとは限らない（[課題の扱い方](../../../conventions/docs/reference/issues.md)の
-  分類の下の箇条）。
+  リポジトリでは、ラベルの `NG` は整っている状態のずれとは限らない（[課題の扱い方：分類](../../../conventions/docs/reference/issues.md#kinds)の
+  箇条）。
 - 課題を整えるときは、ほかの「整っている状態」（本文、重なり、順番、テーマ）と、`NG` の行をどう直すか（人が決めるもの
   か）を、[課題を整える](../../../conventions/docs/guides/organize-issues.md "在りか")手順で判断する。
 - セッションを締めるときは、`NG` の行のうち、[セッションを締める](../../../conventions/docs/guides/close-session.md)手順の
