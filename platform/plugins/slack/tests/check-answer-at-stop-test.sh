@@ -35,8 +35,10 @@ check "the reason names the line and the form" yes "$([[ $reason == *"line 1: UR
 check "the same findings hold the turn once" "" "$(stop s1 "$broken")"
 check "the same findings on other lines hold the turn once" "" "$(stop s1 $'書き直しました。\n\n'"$broken")"
 check "other findings hold the turn again" block "$(stop s1 $'| a |\n| --- |\n文\n本文\n| b |\n| --- |')"
-check "some of the same findings rewritten, the rest kept, hold the turn once" "" "$(stop s1 $'| a |\n| --- |\n文')"
-check "a finding added to those kept holds the turn again" block "$(stop s1 $'| a |\n| --- |\n文\n'"$broken")"
+two=$'本文\n| a |\n| --- |\n'"$broken"
+check "two forms hold the turn" block "$(first s8 "$two")"
+check "one of them rewritten, the other kept, holds the turn once" "" "$(stop s8 "$broken")"
+check "a form added to those that held the turn holds it again" block "$(stop s8 "$two"$'\n\n# **見出し**')"
 check "another session is held for the same findings" block "$(stop s2 "$broken")"
 stop s2 "$fine" >/dev/null
 check "after an answer that passes, the same findings hold the turn again" block "$(stop s2 "$broken")"
