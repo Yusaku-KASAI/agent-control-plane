@@ -1,7 +1,7 @@
 # 文書を書く
 
 文書（README、CLAUDE.md、`docs/` の下、ADR）を足したり書き換えたりするときの手順。共通の手順で、目的の手順の段の中で
-使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。分け方の全体は
+使う（[手順と役割](../architecture/documentation.md#procedures)）。分け方の全体は
 [文書の体系](../architecture/documentation.md "在りか")に、決まりは[形式](../reference/formats.md "在りか")と[届け方の決まり](../reference/delivery.md "在りか")にある。
 
 1. **区切りを決める**：誰が読む必要があるか。読む必要がある人すべてに届く区切りに置く。どの区切りにも要るなら

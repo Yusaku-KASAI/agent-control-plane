@@ -1,15 +1,15 @@
 # 検査の扱い方
 
 どのリポジトリでも同じにする、何を検査（コマンド、試験、CI のジョブ、hook など、機械で確かめて落とすもの）にし、
-検査をどこに置くかの決まり。文書でもコードでも同じに従う。検査は最も強い届け方だが、保つ手間がかかり、誤って
-落ちると作業を止める（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)、[ADR 0027](../adr/0027-checks-by-rule-and-reader.md)）。
+検査をどこに置くかの決まり。文書でもコードでも同じに従う（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)、
+[ADR 0027](../adr/0027-checks-by-rule-and-reader.md)）。
 
 <a id="conditions"></a>
 
 ## 検査にするもの
 
-静的解析の道具の経験（直せる指摘だけを出し、誤検知を少なく保たないと使われなくなる。Sadowski ほか「Lessons from
-Building Static Analysis Tools at Google」）に倣い、次の三つを満たす決まりを検査にし、ほかはレビューの観点に任せる。
+静的解析の道具の経験（Sadowski ほか「Lessons from Building Static Analysis Tools at Google」）に倣い、次の三つを
+満たす決まりを検査にし、ほかはレビューの観点に任せる。
 
 - 判断が要らない：リポジトリや、外の道具（GitHub など）の状態だけから機械で決まる。意味の食い違い（要約と出典など）は
   検査にせず、検査はその手がかり（出典へのリンクがあるか）までにする。

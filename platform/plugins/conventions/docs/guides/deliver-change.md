@@ -1,7 +1,7 @@
 # 変更を届ける
 
 変更する人（人でもエージェントでも）が、依頼を受けてから、変更をマージできる PR にして終えるまでの手順。目的の手順で、
-段の中で共通の手順を使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
+段の中で共通の手順を使う（[手順と役割](../architecture/documentation.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
 [レビューの扱い方](../reference/reviews.md "在りか")、[書き方](../reference/writing.md "在りか")にある。
 
 マージされたあとの依頼（既定のブランチでの確かめなど）は、新しい依頼として振り分けから入る。マージの前の同じ PR への

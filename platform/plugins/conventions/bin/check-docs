@@ -537,7 +537,7 @@ def print_map(m):
 
 
 # What a document is follows from where it is: an entry, an index, an overview, a type of document, or a form
-# of delivery (documentation.md).
+# of delivery (documentation.md, and the containers of formats.md).
 SKILL = "スキル"
 KINDS = [("adr", "判断"), ("architecture", "解説"), ("guides", "手順"), ("reference", "参照"), ("rules", "共通のルール"),
          ("skills", SKILL)]
