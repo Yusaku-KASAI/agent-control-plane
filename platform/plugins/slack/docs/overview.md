@@ -90,8 +90,8 @@ slack/
 
 - **責務**：Slack で崩れる形と崩れない形の例を、一か所に並べる。`check-markdown` の振る舞いの例で、Slack に投稿する前に
   Markdown を読むほかの道具も、同じ例で試して読み分けをそろえられる。
-- **置くもの / 置かないもの**：例ごとに、名前（`name`）、文（`text`）、`check-markdown` が知らせる行（`found`）。ほかの道具が
-  その文をどうするかは置かない（その道具が持つ）。使う側との約束は[参照](reference/check-markdown.md)にある。
+- **置くもの / 置かないもの**：例の欄と、使う側との約束は[参照](reference/check-markdown.md)にある。ほかの道具がその文を
+  どうするかは置かない（その道具が持つ）。
 - **関係**：`tests/slackctl-test.sh` が `found` と、知らせる文の書き出しが参照のとおりかを確かめる。
 - **当てはめた原則・パターン**：[契約の試験](../../principles/docs/reference/patterns.md#contract-test)：読み分けを、使う側が同じ例で
   確かめられるようにする。

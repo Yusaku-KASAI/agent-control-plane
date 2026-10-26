@@ -375,6 +375,20 @@ check "reviews without a body and dismissed reviews do not count" "$("$prctl" un
 out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)
 check "post-tool-use reminds of the review" "$out" "not reviewed up to ${c3:0:12}"
 check "post-tool-use points to minor fixes after a review" "$out" "prctl review --minor"
+check "post-tool-use reminds once per push" "[$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)]" "[]"
+# post: the post-tool-use hook, the reminder of the last push forgotten.
+post() { rm -f "$(git rev-parse --git-path prctl-notified)"; jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use; }
+check "post-tool-use reminds again once the reminder is forgotten" "$(post)" "not reviewed up to ${c3:0:12}"
+commit unpushed-post >/dev/null
+check "post-tool-use leaves a head not pushed alone" "[$(post)]" "[]"
+git reset -q --hard "$c3"
+git checkout -q --detach
+check "post-tool-use leaves a detached head alone" "[$(post)]" "[]"
+git checkout -q feature
+touch "$state/nopr-feature"
+check "post-tool-use leaves a branch without a PR alone" "[$(post)]" "[]"
+check "stop leaves a branch without a PR alone" "[$(stop_hook)]" "[]"
+rm -f "$state/nopr-feature"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
 check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"$nothing" 2>&1 || true)" "is not in the PR"
 
@@ -700,8 +714,9 @@ rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
 count_from_here() { git rev-parse HEAD >"$handback"; }
-check "the cap is that of the conventions, either way" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" \
-  "PRCTL_FINAL_CAP:-$(grep '^| 依頼者に返すとき |' "$reviews" | grep -o '[0-9]\+ 回' | grep -o '[0-9]\+')"
+cap=$(grep '^| 依頼者に返すとき |' "$reviews" | grep -o '[0-9]\+ 回' | grep -o '[0-9]\+' || true)
+check "the cap is read from the conventions" yes "$([[ -n $cap ]] && echo yes || echo no)"
+check "the cap is that of the conventions, either way" "[$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")]" "[PRCTL_FINAL_CAP:-$cap]"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
 ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null

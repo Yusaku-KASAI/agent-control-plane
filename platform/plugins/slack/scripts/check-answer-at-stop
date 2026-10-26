@@ -29,8 +29,8 @@ fi
 # that a turn that went on for another Stop hook is still checked, and the next request's answer is
 # checked afresh. The findings are kept by their forms and how many, not their lines, so that an
 # answer reworded around a kept form is not held again; an answer that keeps some of them and
-# rewrites the rest is not held again either. Findings that cannot be remembered do not hold the turn, as they would
-# hold every end of it.
+# rewrites the rest is not held again either. Findings that cannot be remembered do not hold the
+# turn, as they would hold every end of it.
 forms=$(cut -d: -f2- <<<"$found" | sort)
 if [[ $continued == true && -f $state ]] \
   && [[ -z $(comm -23 <(printf '%s\n' "$forms") <(sort "$state" 2>/dev/null)) ]]; then
