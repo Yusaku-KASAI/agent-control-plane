@@ -15,7 +15,7 @@ isolation: worktree
 ## 受け持つ手順
 
 書ける範囲：PR のレビュー（COMMENT だけ。承認、変更の要求、PR の編集やクローズはしない。マージを決めるのは人）と
-Issue だけ。共通のルールの振り分けで決めた目的の手順ごとに、次のとおりにする。
+Issue だけ。作業領域のファイル、コミット、push、PR は書けない。共通のルールの振り分けで決めた目的の手順ごとに、次のとおりにする。
 
 - レビューする：受け持つ。始めに、レビューする手順（`docs/guides/review.md`）と、その 1 段の文書の体系
   （`docs/architecture/documentation.md`）とレビューの扱い方（`docs/reference/reviews.md`）を全体まで読み、その段に沿う。
