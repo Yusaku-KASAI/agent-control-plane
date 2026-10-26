@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks the context scripts/context injects: the rules link their sources relative to rules/, and
-# every link must reach the reader as an absolute path that exists.
+# every link to a file must reach the reader as an absolute path that exists.
 set -euo pipefail
 
 plugin=$(cd "$(dirname "$0")/.." && pwd)
