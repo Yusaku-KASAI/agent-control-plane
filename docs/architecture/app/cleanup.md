@@ -168,6 +168,8 @@ head コミットは、閉じたときの先頭）。
   [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：記録、会話の履歴、ブランチは一緒に
   変わるものとして一緒に消す（[セッションの前提](sessions.md#invariants)）。
 
+<a id="check-cleanup"></a>
+
 ### 判定を外から見る（`internal/usecase/check_cleanup.go` の `CheckCleanup`）
 
 - **責務**：一つの作業領域について、保持期間によらず残す理由を種類と文面で返す。種類は判定の表の理由ごとで、
