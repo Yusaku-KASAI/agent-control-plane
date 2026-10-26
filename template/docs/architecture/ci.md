@@ -60,9 +60,6 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 
 - **責務**：`check-<関心>` ごとのジョブでステージをビルドし、文書の検査のジョブとあわせて、結果を `check` ジョブにまとめる。
 - **置くもの / 置かないもの**：
-  - ワークフローの先頭の `permissions: contents: read`。ジョブに渡すトークンの権限を、既定ではリポジトリを読むことだけに
-    する（[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)）。それより要るジョブは、ジョブの
-    `permissions` に、`contents: read` を含めて要る権限をすべて書く（ジョブの `permissions` はワークフローのものを置き換える）。
   - 行列のジョブ（`check-<関心>` と、ほかのイメージのビルド）。一つが失敗してもほかは最後まで動かす。
   - `check-docs` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main`
     の一つのステップだけを持つ（チェックアウトもアクションが行う）。中身は platform に置き、ターゲットには書かない。
