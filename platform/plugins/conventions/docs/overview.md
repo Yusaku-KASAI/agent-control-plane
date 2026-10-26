@@ -18,7 +18,7 @@ conventions/
                    読ませる（write-docs、design、review、close-session、consult、organize-issues）
   bin/check-docs   文書の検査：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
   actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
-  tests/           ターンの終わりの hook と、文書の一覧の試験
+  tests/           読み込ませる hook、ターンの終わりの hook、文書の一覧の試験
 ```
 
 - 届け方が定義とどう関わるか（要約と案内、出典、例外）は[文書の体系](architecture/documentation.md#delivery "在りか")にある。
@@ -98,7 +98,8 @@ conventions/
   作業ツリーだけを見る。同じ出力で止めるのは一つのセッションで一度だけで、
   止めたことを覚えられなければ止めない。何を確かめるかは置かず、`check-docs` に任せる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通のルールの
-  相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/check-docs-at-stop-test.sh`。
+  相対リンクは、読み込ませるときに絶対パスに書き換える。試験は、書き換えたパスがあることを `tests/context-test.sh`、
+  ターンの終わりの hook を `tests/check-docs-at-stop-test.sh` が確かめる。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### 文書を書く（[`skills/write-docs/`](../skills/write-docs/SKILL.md "在りか")）
