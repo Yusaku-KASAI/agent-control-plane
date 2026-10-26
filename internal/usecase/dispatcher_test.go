@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -899,6 +900,81 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		eventually(t, func() bool { return len(p.sent()) == 1 })
 		p.finish("one")
 		wait(t, first)
+	}
+}
+
+// The worker moves requests from the inbox channel to its queue as they come, so the requests
+// waiting behind a turn have no limit.
+func TestDispatcher_QueueHasNoLimit(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	const waiting = 40
+	var rest []<-chan outcome
+	for i := range waiting {
+		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
+		eventually(t, func() bool {
+			updates := e.observer.of(usecase.SessionTurnUpdated)
+			return len(updates) > 0 && updates[len(updates)-1].Status.Queued == i+1
+		})
+	}
+	p.finish("one")
+	wait(t, first)
+	for i, ch := range rest {
+		eventually(t, func() bool { return len(p.sent()) == i+2 })
+		p.finish(fmt.Sprint(i))
+		if o := wait(t, ch); o.err != nil {
+			t.Fatalf("request %d waiting behind a turn: %v", i, o.err)
+		}
+	}
+}
+
+// Only the requests that come while the worker cannot take them, as while it starts the agent,
+// fill the inbox channel, and those past its size are refused.
+func TestDispatcher_InboxOverflowsWhileTheWorkerIsHeld(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.runner.gate = make(chan struct{})
+	release := sync.OnceFunc(func() { close(e.runner.gate) })
+	// A failure must not leave the worker held, or closing the dispatcher would wait for it.
+	t.Cleanup(release)
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+	const inbox, over = 32, 8
+	var rest []<-chan outcome
+	for i := range inbox + over {
+		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
+	}
+	var refused []<-chan outcome
+	eventually(t, func() bool {
+		for i := 0; i < len(rest); i++ {
+			select {
+			case o := <-rest[i]:
+				if !errors.Is(o.err, usecase.ErrInboxFull) {
+					t.Fatalf("a request answered while the worker was held: %+v, %v", o.out, o.err)
+				}
+				refused = append(refused, rest[i])
+				rest = slices.Delete(rest, i, i+1)
+				i--
+			default:
+			}
+		}
+		return len(refused) == over
+	})
+	release()
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+	// The held requests went in while the worker was held, in no set order.
+	for i := range rest {
+		eventually(t, func() bool { return len(p.sent()) == i+2 })
+		p.finish(fmt.Sprint(i))
+	}
+	for _, ch := range rest {
+		if o := wait(t, ch); o.err != nil {
+			t.Fatalf("request held in the inbox channel: %v", o.err)
+		}
 	}
 }
 

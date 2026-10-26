@@ -100,6 +100,9 @@ func TestReasons(t *testing.T) {
 			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: BranchTip{Name: "HEAD", Tip: "c-x"}, Unpushed: true}}},
 			branches:  map[string]BranchFacts{"x": remote("x", true, nowhere)},
 		}, want: []reason{{kind: reasonLostPush, branch: "x"}}},
+		{name: "detached HEAD at a pushed commit, remote unreadable", facts: sessionFacts{
+			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: BranchTip{Name: "HEAD", Tip: "c-x"}, Unpushed: true}}},
+		}, want: []reason{{kind: reasonLostCommits, branch: "HEAD"}}},
 		// Without the remote, the lost push is unseen; the commit stays the workspace's to keep.
 		{name: "pushed commit pushed away, fetched, remote unreadable", facts: sessionFacts{
 			workspace: WorkspaceState{Pushed: []BranchTip{pushed("x")}, Local: []LocalBranch{{BranchTip: pushed("x"), Unpushed: true}}},
