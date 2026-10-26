@@ -176,15 +176,24 @@ type fakeProcess struct {
 	closeErr error
 	// sendErr is what Send returns, without recording the prompt.
 	sendErr error
-	events  chan usecase.ProcessEvent
-	err     error
+	// sendGate, when set, holds Send until it is closed; blockedSends counts the Sends held by it.
+	sendGate     chan struct{}
+	blockedSends int
+	events       chan usecase.ProcessEvent
+	err          error
 }
 
 // Send records the prompt last, so a test that has seen it may close the events channel.
 func (p *fakeProcess) Send(_ context.Context, id, prompt string) error {
 	p.mu.Lock()
-	hold, sendErr := p.holdPrompts, p.sendErr
+	hold, sendErr, gate := p.holdPrompts, p.sendErr, p.sendGate
+	if gate != nil {
+		p.blockedSends++
+	}
 	p.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	if sendErr != nil {
 		return sendErr
 	}
@@ -905,6 +914,40 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		eventually(t, func() bool { return len(p.sent()) == 1 })
 		p.finish("one")
 		wait(t, first)
+	}
+}
+
+// An injected request still in the inbox channel while a turn runs is sent to the agent before
+// it is looked for, so stopping it stops the agent's work, as for a request the agent has.
+func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
+	// The worker takes the request from the inbox channel or the stop first, as select picks.
+	for range 20 {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+		p := e.runner.next(t)
+		eventually(t, func() bool { return len(p.sent()) == 1 })
+		p.hold()
+		gate := make(chan struct{})
+		p.mu.Lock()
+		p.sendGate = gate
+		p.mu.Unlock()
+		held := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
+		eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 1 })
+		stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", Inject: true, RequestID: "3.0"})
+		// No event tells that the request reached the inbox channel; the worker is held in Send.
+		time.Sleep(20 * time.Millisecond)
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "3.0"); err != nil {
+			t.Fatalf("StopRequest() error = %v", err)
+		}
+		close(gate)
+		if o := wait(t, running); o.err != nil || !o.out.Interrupted {
+			t.Errorf("running = %+v, %v; want its turn interrupted", o.out, o.err)
+		}
+		for name, ch := range map[string]<-chan outcome{"stopped": stopped, "held": held} {
+			if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) {
+				t.Errorf("%s request = %+v, %v; want ErrStopped", name, o.out, o.err)
+			}
+		}
 	}
 }
 
