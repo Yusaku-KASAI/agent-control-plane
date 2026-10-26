@@ -187,9 +187,9 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 }
 
 // StopRequest stops one request of the session, by how far it has come. A request waiting in the
-// inbox is withdrawn. While the agent has the request (sent to it, or taken into the running
-// turn), the agent's work is stopped: the running turn, the background tasks, and the prompts sent
-// but not yet taken in; requests waiting in the inbox stay. A request that has ended stops the work
+// inbox channel or the queue is withdrawn. While the agent has the request (sent to it, or taken
+// into the running turn), the agent's work is stopped: the running turn, the background tasks, and
+// the prompts sent but not yet taken in; requests waiting in the inbox channel or the queue stay. A request that has ended stops the work
 // the agent does on its own, if any (a turn it started or background tasks, with no request in a
 // turn), and withdraws the prompts sent but not yet taken in.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
@@ -808,7 +808,7 @@ func (w *worker) workingOnItsOwn() bool {
 	return len(w.background) > 0
 }
 
-// stopWork stops what the agent is doing, leaving the requests waiting in the inbox.
+// stopWork stops what the agent is doing, leaving the requests waiting in the inbox channel or the queue.
 func (w *worker) stopWork() {
 	for _, r := range w.sent {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
