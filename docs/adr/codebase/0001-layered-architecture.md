@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-09-30
+amended_by: [5]
 ---
 
 # 0001. domain / usecase / adapter の 3 層に分け、依存の向きを機械的に検査する
