@@ -295,7 +295,7 @@ ALWAYS_READ = [
 ]
 
 
-# Lines are measured as they read, without what a link's parentheses hold (where it points and its title).
+# What a line's width counts is defined in formats.md, 量の上限.
 WIDTH_LIMIT = 130
 CODE_SPAN = re.compile(r"(`[^`\n]*`)")
 
@@ -306,7 +306,7 @@ def width(text):
 
 
 def display_width(line):
-    """The width of a line, with the parentheses of the inline links outside code read as links() reads them."""
+    """The width of a line outside fenced code, without the parentheses of the inline links outside code spans."""
     return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
                          for part in CODE_SPAN.split(line)))
 
@@ -335,9 +335,14 @@ def check_sizes(paths, errors):
     for path in paths:
         if any(matches(path) for matches, _, _ in ALWAYS_READ):
             text, skipped = body(path)
-            for number, line in enumerate(text.splitlines(), skipped + 1):
-                if display_width(line) > WIDTH_LIMIT:
-                    errors.append(f"{path}:{number}: {display_width(line)} columns wide, more than the "
+            fenced = set()
+            for m in FENCE.finditer(text):
+                first = text.count("\n", 0, m.start())
+                fenced.update(range(first, first + m.group(0).count("\n") + 1))
+            for index, line in enumerate(text.splitlines()):
+                columns = width(line) if index in fenced else display_width(line)
+                if columns > WIDTH_LIMIT:
+                    errors.append(f"{path}:{index + skipped + 1}: {columns} columns wide, more than the "
                                   f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
 
 

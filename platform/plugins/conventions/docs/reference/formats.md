@@ -293,8 +293,8 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 ## 量の上限
 
 いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする。frontmatter のほかの行は、どの行も
-表示幅（Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、リンクの括弧の中（行き先とタイトル）は数えない）を 130 までにする
-（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。
+表示幅（Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、リンクの括弧の中（行き先とタイトル）は
+数えない）を 130 までにする（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。
 
 | 文書 | 上限 |
 | --- | --- |
