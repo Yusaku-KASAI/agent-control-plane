@@ -36,12 +36,14 @@ cmd/acp ──▶ internal/adapter/<技術> ──▶ internal/usecase ──▶
 
 - **責務**：usecase のポートを、一つの技術で実装する。
 - **置くもの / 置かないもの**：外部（ファイル、git、Docker、GitHub、Slack など）を読み書きし、事実を返すこと。判定は置かない。
-  一つの技術は一つのパッケージにし、下にパッケージを作らない。
+  一つのアダプターは一つのパッケージにし、下にパッケージを作らない。
 - **関係**：上記に加えて外部ライブラリに依存する。ほかのアダプターには依存せず、アダプターどうしをつなぐのは
   `cmd/acp`。depguard は、試験のファイルを除いて、`internal/adapter` の下のほかのパッケージ（自分の下に
   作ったものも）への依存を断る。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：
   外側の層。[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：技術ごとにパッケージを分ける。
+  [仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：アダプターとパッケージの境界をそろえ、
+  アダプターどうしの依存を、パッケージの名前の接頭辞だけで見分けて一つの規則で断れるようにする。
 
 ### `cmd/acp`
 
