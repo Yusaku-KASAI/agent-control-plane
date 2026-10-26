@@ -2,7 +2,8 @@
 
 ## 構成
 
-conventions は principles を前提にする。conventions を有効にするリポジトリは、principles も有効にする。
+conventions は principles を前提にし、principles は conventions を前提にしない。conventions を有効にするリポジトリは、
+principles も有効にする。
 
 conventions は、決まりの**定義**と、それをエージェントに届ける**届け方**に分かれる。届け方は定義を前提にし、
 定義は届け方を前提にしない。定義と届け方の仕組みは[文書の体系](architecture/documentation.md#delivery "在りか")にある。
@@ -18,12 +19,6 @@ conventions/
   tests/           hook と文書の一覧の試験
 ```
 
->>>
-<<<
-conventions は principles を前提にする。conventions を有効にするリポジトリは、principles も有効にする。
-===
-conventions は principles を前提にし、principles は conventions を前提にしない。conventions を有効にするリポジトリは、
-principles も有効にする。
 - 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。何をどう確かめるかは、
   使うリポジトリの契約や共通のファイルに置かない（使うリポジトリの CI は複合アクションを呼ぶだけ）（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 
