@@ -50,12 +50,11 @@ harness/
 - **責務**：control-plane 経由のとき、終わりの知らせが届かない形でバックグラウンドの処理を始めることと、終わりを
   見張ることを断る（[ADR 0015](../../../docs/adr/0015-refuse-let-go-processes-under-control-plane.md)）。
 - **置くもの / 置かないもの**：Bash のコマンドを左から一度だけ読み、ヒアドキュメントの中身、引用符の中、コメントを
-  除いた残りを見て、演算子の `&`（`&&`、`|&`、リダイレクトの `&` は除く）か、`nohup`、`disown`、`setsid` があれば
-  断る。最後の `&` より後ろに、今のシェルで動くコマンドとしての `wait`（パイプや `( )` の中は除く）があるものは
-  通す。Monitor、ScheduleWakeup、CronCreate は
-  断る。シェルの文法をすべては解かないので、
-  まれに通すべきものを断る（断る文で `run_in_background` か `wait` を案内する）。devcontainer で直接動くときは
-  何もしない。
+  除いた残りを見て、演算子の `&`（`&&`、`|&`、リダイレクトの `&`、算術の `(( ))` とパラメータ展開の `${…}` の中は
+  除く）か、`nohup`、`disown`、`setsid` があれば断る。最後の `&` より後ろに、今のシェルで動くコマンドとしての `wait`
+  （パイプや `( )` の中は除く）があるものは通す。Monitor、ScheduleWakeup、CronCreate は断る。シェルの文法をすべては
+  解かないので、まれに通すべきものを断る（断る文で `run_in_background` か `wait` を案内する）。devcontainer で直接
+  動くときは何もしない。
 - **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：契約の制約を、エージェントへの
   指示ではなく hook で守らせる。

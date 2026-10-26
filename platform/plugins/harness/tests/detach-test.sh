@@ -38,6 +38,11 @@ allow|echo 'nohup here'
 allow|git commit -m "fix &"
 allow|ls # sleep & comment
 allow|echo disowned-thing
+allow|echo $((a & b))
+allow|(( x = y & 1 )) && echo odd
+allow|echo ${a//&/and}
+deny|echo $((1 + 1)) &
+deny|echo ${a} & echo started
 deny|echo "it's"; prctl ci --wait & echo 'done'
 deny|echo "don't" & echo 'ok'
 deny|wait; prctl ci --wait &

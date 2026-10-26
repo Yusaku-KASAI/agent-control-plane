@@ -38,6 +38,8 @@ shell_words() {
       # In arithmetic, (( ... )), << is a shift, not a here-document.
       if (substr(s, i, 2) == "((") { arith++; out = out "(("; i++; continue }
       if (substr(s, i, 2) == "))" && arith > 0) { arith--; out = out "))"; i++; continue }
+      # In arithmetic, & is a bitwise and.
+      if (c == "&" && arith > 0) { out = out " "; continue }
       if (substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<" && arith == 0) {
         rest = substr(s, i + 2); strip = 0
         if (substr(rest, 1, 1) == "-") { strip = 1; rest = substr(rest, 2) }
@@ -83,7 +85,9 @@ case $(jq -r .tool_name <<<"$input") in
     # & as an operator, not in &&, |&, or a redirection (>&, &>, <&).
     # && and || stay as separators, so that a wait after them still reads as a command; |& becomes
     # a pipe. A wait in a pipe or in ( ) runs in a subshell and waits for nothing of this one.
-    ops=$(sed -E 's/&&/;/g; s/\|\|/;/g; s/\|&/|/g; s/[0-9]*>&[0-9-]*//g; s/&>>?//g; s/[0-9]*<&[0-9-]*//g' <<<"$words")
+    # A parameter expansion, ${...}, is one word: an & in it (${a//&/x}) is no operator.
+    # shellcheck disable=SC2016 # a sed expression
+    ops=$(sed -E 's/\$\{[^}]*\}/$v/g; s/&&/;/g; s/\|\|/;/g; s/\|&/|/g; s/[0-9]*>&[0-9-]*//g; s/&>>?//g; s/[0-9]*<&[0-9-]*//g' <<<"$words")
     let_go=""
     if grep -qE '(^|[^[:alnum:]_-])(nohup|disown|setsid)([^[:alnum:]_-]|$)' <<<"$words"; then
       let_go=yes

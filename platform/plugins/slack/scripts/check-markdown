@@ -97,12 +97,16 @@ class Fence:
         self.run, self.quotes, self.items = run, quotes, items
         self.indent = items[-1].content if items else 0
 
-    def end(self, lines, i):
+    def end(self, lines, i, unclosed):
         """Gives the last line of the code block opening at lines[i]: its closing run, or, if it
-        has none, the last line before its quote or list item ends."""
-        for j in range(i + 1, len(lines)):
-            if self.closed_by(lines[j]):
-                return j
+        has none, the last line before its quote or list item ends. unclosed keeps, for each run,
+        the first line after which no line closes it, so that many code blocks left open do not
+        each read the rest of the text again."""
+        if i < unclosed.get(self.run, len(lines)):
+            for j in range(i + 1, len(lines)):
+                if self.closed_by(lines[j]):
+                    return j
+            unclosed[self.run] = i
         for j in range(i + 1, len(lines)):
             if not self.holds(lines[j]):
                 return j - 1
@@ -251,6 +255,7 @@ def check(lines):
     findings = []
     items = ListItems()
     code_to = 0  # the last line of the code block read last
+    unclosed = {}  # for Fence.end
     for n, line in enumerate(lines, 1):
         def note(message):
             findings.append(f"line {n}: {message}")
@@ -263,7 +268,7 @@ def check(lines):
         opened = open_fence(line, items)
         if opened:
             fence, on_marker, indented = opened
-            code_to = fence.end(lines, n - 1) + 1
+            code_to = fence.end(lines, n - 1, unclosed) + 1
             if on_marker or (indented and level.in_list):
                 note("コードブロックはリストの外に置く（リストの中では、コードブロックにならない）")
             elif not indented:

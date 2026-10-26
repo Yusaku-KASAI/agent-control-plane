@@ -141,7 +141,7 @@ cmd_post() {
     [[ -n "${1:-}" ]] || die "post needs a channel"
     api chat.postMessage -H 'Content-Type: application/json; charset=utf-8' --data "$payload" | jq -r '"posted \(.channel)/\(.ts)"'
   elif [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
-    [[ -z "${2:-}" ]] || die "an incoming webhook cannot post into a thread"
+    [[ -z "${1:-}" ]] || die "an incoming webhook posts to its own channel; give no channel or thread"
     curl -sSf -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
     echo "posted to the webhook"
   else

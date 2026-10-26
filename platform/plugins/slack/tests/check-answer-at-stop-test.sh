@@ -35,11 +35,16 @@ check "the reason names the line and the form" yes "$([[ $reason == *"line 1: UR
 check "the same findings hold the turn once" "" "$(stop s1 "$broken")"
 check "the same findings on other lines hold the turn once" "" "$(stop s1 $'書き直しました。\n\n'"$broken")"
 check "other findings hold the turn again" block "$(stop s1 $'| a |\n| --- |\n文\n本文\n| b |\n| --- |')"
+check "some of the same findings rewritten, the rest kept, hold the turn once" "" "$(stop s1 $'| a |\n| --- |\n文')"
+check "a finding added to those kept holds the turn again" block "$(stop s1 $'| a |\n| --- |\n文\n'"$broken")"
 check "another session is held for the same findings" block "$(stop s2 "$broken")"
 stop s2 "$fine" >/dev/null
 check "after an answer that passes, the same findings hold the turn again" block "$(stop s2 "$broken")"
 check "the next turn is held for the same findings" block "$(first s2 "$broken")"
 check "a turn without its last message is not held" "" "$(jq -n '{session_id: "s3"}' | "$hook" | jq -r '.decision // empty')"
+first s7 "$broken" >/dev/null
+jq -n '{session_id: "s7", last_assistant_message: "", stop_hook_active: true}' | "$hook" >/dev/null
+check "after an empty answer, the same findings hold the turn again" block "$(stop s7 "$broken")"
 check "outside control-plane, the answer is not checked" "" "$(ACP_SESSION_BRANCH='' stop s4 "$broken")"
 
 mkdir -p "$tmp/broken"
