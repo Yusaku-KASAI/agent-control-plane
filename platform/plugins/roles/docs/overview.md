@@ -37,8 +37,9 @@ roles/
   control-plane がそのロールを自分の GitHub App で起動するときに、App の権限で分けられる粒度（Contents、Pull requests、
   Issues の読み書き）までだけ。それより細かい範囲（reviewer のレビューを COMMENT だけにすること、PR を書き換えないこと）と、
   サブエージェントとして動くとき（頼んだ側の認証情報を使う）は、ロールの指示（と、COMMENT だけを付ける `prctl review`）が守る。
-  書ける範囲は作業領域と GitHub についてのもので、Slack への投稿はどのロールも[ハーネスの契約](../../../docs/reference/harness.md "在りか")の
-  決まりによる（[ADR 0027](../../../docs/adr/0027-agents-post-to-slack-when-asked.md)）。
+  書ける範囲の外の書き先（Slack への投稿など）の扱いは、conventions の
+  [手順と役割](../../conventions/docs/architecture/documentation.md#procedures "在りか")にある（Slack への投稿の判断は
+  [ADR 0027](../../../docs/adr/0027-agents-post-to-slack-when-asked.md)）。
 
 ## 構成要素
 
@@ -68,7 +69,7 @@ roles/
   頼んだ人に返すか、PR のレビューと Issue に残す（[ADR 0018](../../../docs/adr/0018-reviewer-reviews-own-changes-too.md)）。
 - **置くもの / 置かないもの**：「受け持つ手順」の節に、書ける範囲と目的の手順ごとの扱い（どれを受け持つかは指示の節に
   ある）を、「使う決まり」の節に、レビューの
-  決まり（PR 全体を見る、残し方、観点、指摘、developer との分担、作業領域を変えないこと）の要約と案内を置き、要約には
+  決まり（PR 全体を見る、残し方、観点、指摘、作業領域を変えないこと）の要約と案内を置き、要約には
   出典（conventions のレビューする手順とレビューの扱い方）を付ける。「固有の振る舞い」の節には reviewer だけの定義
   （何も指さなければリポジトリ全体を範囲にすること、HEAD を確かめて読む読み方、報告）だけを置く。
 - **関係**：conventions のレビューする手順とレビューの扱い方と変更の扱い方の変更とパターン、principles スキル、github スキルの
