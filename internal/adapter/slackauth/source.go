@@ -44,7 +44,9 @@ type RotatingConfig struct {
 }
 
 // RotatingSource keeps a token from Slack's token rotation fresh: access tokens live 12 hours,
-// and each refresh returns a new refresh token while invalidating the one redeemed.
+// and each refresh returns a new refresh token while invalidating the one redeemed. Refreshing
+// ahead of expiry needs Run: without it, Token keeps returning the current token until it expires,
+// so the tokens issued to agents would have little time left.
 type RotatingSource struct {
 	cfg  RotatingConfig
 	http *http.Client
@@ -186,7 +188,8 @@ func (s *RotatingSource) redeem(ctx context.Context, method string, form url.Val
 	next := rotationState{
 		AccessToken:  r.AccessToken,
 		RefreshToken: r.RefreshToken,
-		ExpiresAt:    s.now().Add(time.Duration(r.ExpiresIn) * time.Second),
+		// On the wall clock, as a saved state is: the monotonic one stops while the host sleeps.
+		ExpiresAt: s.now().Add(time.Duration(r.ExpiresIn) * time.Second).Round(0),
 	}
 	// The redeemed refresh token no longer works, so the new one is saved before it is used.
 	if err := save(s.cfg.StatePath, next); err != nil {

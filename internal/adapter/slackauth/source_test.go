@@ -126,7 +126,7 @@ func TestRotatingSource_RefreshFails(t *testing.T) {
 	}
 	clear(slack.valid)
 
-	// A failed refresh ahead of expiry is Run's to report; posting goes on with the current token.
+	// A failed refresh ahead of expiry is Run's to report; Token keeps returning the current token.
 	s.now = func() time.Time { return start.Add(11 * time.Hour) }
 	// Run returns on the report, or after the timeout when it reports nothing.
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
