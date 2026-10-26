@@ -32,4 +32,12 @@ check "send message is denied" '"deny"' "$(jq -c .hookSpecificOutput.permissionD
 check "bash is left alone" "" "$(ACP_SESSION_BRANCH=acp/x "$hook" <<<"$bash")"
 check "agent is left alone outside the control plane" "" "$(env -u ACP_SESSION_BRANCH "$hook" <<<"$agent")"
 check "send message is left alone outside the control plane" "" "$(env -u ACP_SESSION_BRANCH "$hook" <<<"$send")"
+# The hook is wired to the calls it changes or refuses, before them.
+hooks=$(cd "$(dirname "$0")/.." && pwd)/hooks/hooks.json
+for tool in Agent SendMessage; do
+  wired=$(jq -r --arg t "$tool" '[.hooks.PreToolUse[]? | . as $h
+    | select(any($h.hooks[]; .command | test("foreground"))) | select($t | test("^(" + $h.matcher + ")$"))]
+    | length' "$hooks")
+  check "foreground runs before $tool" 1 "$wired"
+done
 exit $failed

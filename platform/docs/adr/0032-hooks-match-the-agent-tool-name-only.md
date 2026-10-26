@@ -13,7 +13,7 @@ matcher をどちらの名前にも当てると決めた。harness の `foregrou
 両方の名前を見ていた。全体のレビュー #283（判断 17）は、今の Claude Code が hook に `Task` を渡すかを確かめ、渡さなければ
 外すとした。
 
-Claude Code 2.1.292 の本体では、PreToolUse の hook を呼ぶ所が、ツールの定義の名前（`Agent`）を `tool_name` と matcher の
+Claude Code 2.1.292 の本体では、PreToolUse、PostToolUse、PostToolUseFailure の hook を呼ぶ所が、ツールの定義の名前（`Agent`）を `tool_name` と matcher の
 照らす値に使う。別名の `Task` はツールを探すときにだけ使われ、hook には渡らない。
 
 ## Decision

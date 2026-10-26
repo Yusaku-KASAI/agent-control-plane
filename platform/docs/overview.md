@@ -45,12 +45,13 @@ platform/
 
 ### `harness`
 
-- **責務**：エージェントに、どう動かされているかと、ハーネスの契約と platform の文書の一覧の在りかを伝え、詰まったときの
-  切り分けを助ける。control-plane 経由のときは、ハーネスの契約の制約を hook で守らせる：サブエージェントを
+- **責務**：エージェントに、どう動かされているかと、ハーネスの契約と platform の文書の一覧の在りかを伝え、契約の制約を
+  守らせ、詰まったときの切り分けを助ける。
+- **置くもの / 置かないもの**：短い案内、hook、切り分けの手順。control-plane 経由のときの hook は、サブエージェントを
   フォアグラウンドで動かし（[ADR 0008](adr/0008-subagents-in-foreground-under-control-plane.md)）、終わりの知らせが届かない
-  バックグラウンドの処理と見張りを断り（[ADR 0015](adr/0015-refuse-let-go-processes-under-control-plane.md)）、サブエージェントの
-  間に作業領域が変われば知らせる（[ADR 0016](adr/0016-subagents-leave-the-work-area.md)）。
-- **置くもの / 置かないもの**：短い案内、hook、切り分けの手順。契約の中身は[ハーネスの契約](reference/harness.md)に置く。
+  バックグラウンドの処理と見張りを断る（[ADR 0015](adr/0015-refuse-let-go-processes-under-control-plane.md)）。あわせて、
+  サブエージェントの間に作業領域が変われば知らせる（[ADR 0016](adr/0016-subagents-leave-the-work-area.md)）。契約の中身は
+  [ハーネスの契約](reference/harness.md)に置く。
 - **関係**：中の構成は [harness の文書](../plugins/harness/docs/README.md "在りか")。
 - **当てはめた原則・パターン**：[使う側に届く契約](../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
   エージェントにも、契約を届ける。[仕組みで守る](../plugins/principles/docs/reference/principles.md#mechanisms)：契約の制約を hook で守らせる。
@@ -58,21 +59,19 @@ platform/
 ### `roles`
 
 - **責務**：共通のロール（Claude Code のカスタムエージェント）を定義する。
-- **置くもの / 置かないもの**：受け持つ手順（書ける範囲と、振り分けの目的の手順ごとの扱い。考え方は conventions の
-  [目的の手順と共通の手順](../plugins/conventions/docs/architecture/documentation.md#procedures)、定義の形は
-  [形式：役割ごとの指示](../plugins/conventions/docs/reference/formats.md#role)）と、ロールに固有の振る舞いと、そのロールが使う決まりの選び出し（conventions の定義を要約か案内で載せる）、使うモデル（[ADR 0003](adr/0003-roles-choose-their-model.md)）。
-  ターゲット固有の事実や、ハーネスの事実は置かない。
+- **置くもの / 置かないもの**：ロールの振る舞いだけを置き、ターゲット固有の事実や、ハーネスの事実は置かない。
 - **関係**：中の構成は [roles の文書](../plugins/roles/docs/README.md "在りか")。
 - **当てはめた原則・パターン**：[関心の分離](../plugins/principles/docs/reference/principles.md#soc)：振る舞いだけを持ち、事実は契約とターゲットの
   CLAUDE.md に任せる。
 
 ### `github`
 
-- **責務**：PR の本文と差分のレビューを今のブランチに追いつかせ続け、GitHub での作業（PR、レビュー、CI）の手順を届ける
-  （[ADR 0002](adr/0002-pr-body-tracks-head.md)、[ADR 0005](adr/0005-self-review-tracks-head.md)、
-  [ADR 0006](adr/0006-ci-failures-stop-the-turn.md)）。ターゲットの既定のブランチの守りが外れていないことを確かめる
-  コマンドと、それを CI で回す複合アクションを配る（[target-template の ADR 0016](../../template/docs/adr/0016-protection-checked-in-ci.md)）。
-  開いている Issue とロードマップのずれのうち判断の要らないものを挙げるコマンドも配る（[ADR 0023](adr/0023-check-issues-on-demand.md)）。
+- **責務**：PR の本文と差分のレビューと CI を今のブランチに追いつかせ続け、GitHub での作業（PR、レビュー、CI）の手順を
+  届ける。
+- **置くもの / 置かないもの**：PR を扱うコマンドと hook とスキル（[ADR 0002](adr/0002-pr-body-tracks-head.md)、
+  [ADR 0005](adr/0005-self-review-tracks-head.md)、[ADR 0006](adr/0006-ci-failures-stop-the-turn.md)）。ターゲットの既定のブランチの守りが
+  外れていないことを確かめるコマンドと、それを CI で回す複合アクション（[target-template の ADR 0016](../../template/docs/adr/0016-protection-checked-in-ci.md)）。
+  開いている Issue とロードマップのずれのうち判断の要らないものを挙げるコマンド（[ADR 0023](adr/0023-check-issues-on-demand.md)）。
 - **関係**：ハーネスの契約で渡される `gh` の認証を使う。中の構成は [github の文書](../plugins/github/docs/README.md "在りか")。
 - **当てはめた原則・パターン**：[仕組みで守る](../plugins/principles/docs/reference/principles.md#mechanisms)：本文が古いことを hook が見つけ、
   書き換えを促す。

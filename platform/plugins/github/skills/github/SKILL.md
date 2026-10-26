@@ -58,7 +58,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
   残す。指摘への答えは、`review.json` の `answers` に書く。
-- 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md "在りか")の「答える」）。
+- 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の「答える」）。
 - push で head が進んだら、通常なら PR 全体を、念入りなら `prctl unreviewed` の範囲（終える前の PR 全体のレビューの
   指摘への直しなら、PR 全体）をレビューさせて残す。通常の PR に
   `"scope": "since"` のレビューを残そうとすると、`prctl` が断る。ただし、範囲が細部の指摘への、意味の
@@ -150,8 +150,8 @@ gh pr checks <番号>                                              # CI のジ�
 gh run view <run ID> --log-failed                               # 失敗したジョブのログ
 ```
 
-- ほかの人が PR に付けた指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する。自分が頼んだ
-  レビューの指摘には、上の「差分のレビュー」のとおり `prctl answer` で答える（答える場所は[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+- ほかの人が PR に付けた指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する。PR を作った
+  あとに自分が頼んだレビューの指摘には、上の「差分のレビュー」のとおり `prctl answer` で答える（答える場所は[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 - push の前に手元で CI と同じ検査を通し、push のあとは CI を待たずに進む（[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
   どのコマンドかは、ターゲットなら[ターゲットの契約の検査](../../../../docs/reference/target.md#checks "在りか")にある。
   - control-plane 経由で動くとき（[ハーネスの契約の動き方](../../../../docs/reference/harness.md "在りか")）は、push のあと
@@ -161,7 +161,7 @@ gh run view <run ID> --log-failed                               # 失敗した�
     `origin/<ブランチ>` が指す head（ふつうは最後に push した head）を追うので、ほかの待ちが動いていれば
     「already waiting」ですぐ終わる。前の待ちが終わった知らせがまだ届いていないこともあるので、動いていると思っても
     始める。同じ CI をフォアグラウンドでも待たず、終わりを Monitor や ScheduleWakeup で見張らない
-    （[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md#requests "在りか")）。
+    （[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md#requests)）。
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。

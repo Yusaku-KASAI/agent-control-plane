@@ -9,8 +9,8 @@ slack/
   scripts/check-markdown  Slack の markdown ブロックが違って読む形を見つける（slackctl check と post、check-answer-at-stop が使う）
   scripts/check-answer-at-stop  control-plane 経由で、ターンの最後の回答に崩れる形がないかを確かめる（Stop hook）
   skills/slack/    読み方と書き方の手順
-  tests/slackctl-test.sh  slackctl の振る舞いの検査（リポジトリの検査が回す）
-  tests/check-answer-at-stop-test.sh  Stop hook の振る舞いの検査（リポジトリの検査が回す）
+  tests/slackctl-test.sh  slackctl の振る舞いの検査
+  tests/check-answer-at-stop-test.sh  Stop hook の振る舞いの検査
   tests/markdown-cases.json  Slack で崩れる形と崩れない形の例と、check-markdown が知らせる行
 ```
 

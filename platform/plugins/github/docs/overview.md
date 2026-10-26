@@ -1,38 +1,29 @@
 # github の全体像
 
-GitHub での作業を、PR が今のブランチの姿を表し続け、差分のレビューと CI がその head に追いつくように支える。PR の本文と
-差分のレビューと CI を `prctl` と hook で守らせ、その手順をスキルで届ける。あわせて、ターゲットの既定のブランチの守りが
-外れていないことを確かめる `check-protection` と、それを CI で回す複合アクションと、開いている Issue とロードマップの
-ずれのうち判断の要らないものを挙げる `check-issues` を配る。
-
 ## 構成
 
 ```
 github/
-  bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体
-  docs/reference/prctl.md  prctl のサブコマンドと判定
+  bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体（判定は docs/reference/prctl.md）
   lib/review.jq        レビューの結果と答えの形の検査と、Markdown の表の作り方
-  tests/prctl-test.sh  prctl の振る舞いの検査（リポジトリの検査が回す）
+  tests/prctl-test.sh  prctl の振る舞いの検査
   bin/check-protection 既定のブランチの守り（ルールセットと CODEOWNERS）が外れていないかの検査
   actions/check-protection/  check-protection を CI で回す GitHub Actions の複合アクション
-  tests/check-protection-test.sh  check-protection の振る舞いの検査（リポジトリの検査が回す）
+  tests/check-protection-test.sh  check-protection の振る舞いの検査
   bin/check-issues     開いている Issue とロードマップが、課題の扱い方の整っている状態のうち判断の要らないものを満たすかの検査
-  tests/check-issues-test.sh  check-issues の振る舞いの検査（リポジトリの検査が回す）
+  tests/check-issues-test.sh  check-issues の振る舞いの検査
   hooks/hooks.json     Bash のあと（PostToolUse）とターンの終わり（Stop）に prctl hook を呼ぶ
   skills/github/       PR の本文とコメントの書き方、差分のレビューの残し方、レビューと CI への対応、Issue のずれの挙げ方
 ```
-
-- hook は push のあとに、本文が古いことや、レビューが追いついていないことを見つけて促し、ターンの終わりには CI の
-  失敗も見つける。スキルはどう書くかを教える。
 
 ## 構成要素
 
 ### `bin/prctl`
 
 - **責務**：今のブランチの PR を作って本文を印付きで書き換え、差分のレビューと答えを PR に残し、本文とレビューが head に
-  追いついているか、PR を終えてよいか、head の CI の状態を判定する。ほかの人の PR と既定のブランチを一時的な worktree に
+  追いついているか、PR を終えてよいか、head の CI の状態を判定し、ほかの人の PR と既定のブランチを一時的な worktree に
   取り出す。
-- **置くもの / 置かないもの**：サブコマンドと判定の決まりは[参照](reference/prctl.md)に置く。本文の書き方と、指摘の
+- **置くもの / 置かないもの**：判定の決まりは[参照](reference/prctl.md "在りか")に、サブコマンドの一覧は `prctl` の usage に置く。本文の書き方と、指摘の
   中身は置かず、スキルと conventions に任せる。判断は次の ADR にある。
   - 本文は今のブランチの姿に合わせて書き換え、push ごとの変更はコメントにする（[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。
     本文は決まった節を持つ（[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。まだマージされていない PR に重ねて作れる
@@ -66,7 +57,7 @@ github/
 ### `hooks/hooks.json`
 
 - **責務**：push のあと（Bash の PostToolUse）と、ターンの終わり（Stop）に、`prctl hook` を呼ぶ。
-- **置くもの / 置かないもの**：呼び出しだけ。何を確かめて促すか、止めるかは[参照の hook](reference/prctl.md#hooks)にある。
+- **置くもの / 置かないもの**：呼び出しだけ。何を確かめて促すか、止めるかは[参照の hook](reference/prctl.md#hooks "在りか")にある。
 - **関係**：`bin/prctl` を呼ぶ。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：本文を書き換えること、差分を
   レビューさせること、CI の失敗を直すことをプロンプトに頼らず、hook で見つけて促す。[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)。
@@ -130,6 +121,6 @@ github/
 ### `skills/github/`
 
 - **責務**：PR の本文とコメントの書き方、差分のレビューの残し方、レビューと CI への対応、Issue のずれの挙げ方の手順。
-- **置くもの / 置かないもの**：エージェントが従う手順とコマンド。`prctl` と hook の仕組みの説明はこの文書に置く。
-- **関係**：roles の developer が PR を作る・更新するときに、reviewer がほかの人の PR を読んでレビューを残すときに使う。
-  Issue のずれの挙げ方は、課題を整えるときとセッションを締めるときに、どのロールも使う（pm の指示は直に案内する）。
+- **置くもの / 置かないもの**：エージェントが従う手順とコマンド。`prctl` と hook の仕組みの説明はこの文書と[参照](reference/prctl.md "在りか")に置く。
+- **関係**：エージェントが PR を作る・更新するとき、ほかの人の PR を読んでレビューを残すとき、課題を整えるときと
+  セッションを締めるときに Issue のずれを挙げるときに使う。

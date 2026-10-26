@@ -39,7 +39,9 @@ harness/
   `SendMessage`（宛先によらない）を断る。devcontainer で直接動くときと、ほかのツール（バックグラウンドの Bash など）には
   何もしない。エージェントの定義の frontmatter の `background: true` と `isolation: remote` は、呼び出しに現れないので
   変えられない。
-- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。
+- **関係**：動き方は契約の見分け方（`ACP_SESSION_BRANCH`）で決める。Agent の呼び出しは、Claude Code が hook に渡すツールの名前 `Agent` で
+  見分ける（[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）。Claude Code の版を上げたら、サブエージェントの
+  呼び出しにこの hook が働くことを確かめる。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：依頼への回答が一度で済むことを、
   エージェントへの指示ではなく hook で守る。
 
@@ -67,20 +69,21 @@ harness/
   `git add -A` して作る tree。ignore されたもの（隔離したエージェントの worktree を含む）は除く）の写しを `.git` に
   置く。Agent のあと（失敗したときも）に今の状態と比べ、違えば、変わったことと git で確かめることを文脈として
   足し、写しを消す。何が変わったかは並べない（git で見られ、数によらず短く済む）。サブエージェント自身の Agent の呼び出し（hook の入力に `agent_id` がある）、devcontainer で直接動くときは
-  何もしない。どのサブエージェントが作業領域を変えてよいかは決めず、ツールの呼び出しも断らない。それはロールの
-  定義（`isolation`）に任せる。
-- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。ファイルを
-  変えないロールの隔離は roles の定義にある。
+  何もしない。どのサブエージェントが作業領域を変えてよいかは決めず、ツールの呼び出しも断らない。それはエージェントの
+  定義の `isolation` に任せる。
+- **関係**：作業領域は、`CLAUDE_PROJECT_DIR`（なければ hook の入力の `cwd`）の共通の `.git` から決める。Agent の呼び出しは、Claude Code が hook に渡すツールの名前 `Agent` で
+  見分ける（[ADR 0032](../../../docs/adr/0032-hooks-match-the-agent-tool-name-only.md)）。Claude Code の版を上げたら、サブエージェントの
+  呼び出しにこの hook が働くことを確かめる。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：サブエージェントの変更が
   コミットに紛れないよう、依頼文の念押しではなく hook で気づかせる。[多層の防御](../../principles/docs/reference/principles.md#defense-in-depth)：
-  ロールの隔離で防ぎ、すり抜けたものと任せた変更を、比べて拾う。
+  サブエージェントの隔離（`isolation: worktree`）で防ぎ、すり抜けたものと任せた変更を、比べて拾う。
 
 ### `skills/harness/`
 
 - **責務**：認証、push、マウント、環境変数、ディスクの空きなどで詰まったときに、ハーネスの問題か、権限の問題か、
   ターゲットの問題か、資源の問題（動かしている手元の資源が足りない）かを切り分けて報告させる。
 - **置くもの / 置かないもの**：確かめる順と、報告の仕方。渡されるものの一覧と条件は置かず、契約を指す。
-- **関係**：roles の developer が、push や PR の作成ができないときに使う。どのエージェントも、詰まったときや、道具が
-  エラーの文面と合わない失敗をしたときに、始めの案内（`scripts/context`）からたどる。
+- **関係**：エージェントが、詰まったときや、道具がエラーの文面と合わない失敗をしたときに、始めの案内
+  （`scripts/context`）からたどる。
 - **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：渡されるものは契約にだけ書き、スキルは
   それと突き合わせる。
