@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Checks that the context scripts/context injects links to paths that exist: the rules link their
-# sources relative to rules/, and scripts/context turns those links into absolute paths.
+# Checks the context scripts/context injects: the rules link their sources relative to rules/, and
+# every link must reach the reader as an absolute path that exists.
 set -euo pipefail
 
 plugin=$(cd "$(dirname "$0")/.." && pwd)
@@ -15,44 +15,46 @@ check() {
   fi
 }
 
-# The context a plugin at $1 injects; stops the test when scripts/context fails.
+# The context a plugin at $1 injects. Called in an assignment, so that set -e stops the test when it fails.
 context() {
   local out
   if ! out=$("$1/scripts/context" SessionStart | jq -r .hookSpecificOutput.additionalContext); then
-    echo "FAIL scripts/context of $1 failed"
-    exit 1
+    echo "FAIL scripts/context of $1 failed" >&2
+    return 1
   fi
   printf '%s\n' "$out"
 }
 
-# The absolute paths a context links to, one per line.
-paths() { grep -o '](/[^)#"]*' <<<"$1" | cut -c3- | sed 's/ *$//'; }
+# The targets of the links in a context, one per line.
+targets() { grep -o '](\([^)#"]*\)' <<<"$1" | cut -c3- | sed 's/ *$//' || true; }
 
-# Of those paths, the ones that do not exist.
-missing() { paths "$1" | while read -r f; do [[ -e $f ]] || echo "$f"; done; }
+# The targets left relative: neither an absolute path nor a URL nor an anchor in the same document.
+relative() { targets "$1" | grep -vE '^(/|[a-z]+:|$)' || true; }
+
+# The absolute targets that do not exist.
+missing() { targets "$1" | grep '^/' | while read -r f; do [[ -e $f ]] || echo "$f"; done; }
 
 ctx=$(context "$plugin")
+check "no link is left relative" "" "$(relative "$ctx")"
 check "every path the context links to exists" "" "$(missing "$ctx")"
-# The rules link to the documentation system relative to rules/; it shows only once turned into a path.
-check "a link of the rules is turned into a path" "yes" \
-  "$(paths "$ctx" | grep -qxF "$plugin/docs/architecture/documentation.md" && echo yes || echo no)"
 
+# Copies whose rules are broken in one way each must have that reported.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/plugins"
-cp -R "$plugin" "$tmp/plugins/conventions"
-cp -R "$(dirname "$plugin")/principles" "$tmp/plugins/principles"
-copy=$tmp/plugins/conventions
+copy() {
+  rm -rf "$tmp/plugins"
+  mkdir -p "$tmp/plugins"
+  cp -R "$plugin" "$tmp/plugins/conventions"
+  cp -R "$(dirname "$plugin")/principles" "$tmp/plugins/principles"
+  printf '\n%s\n' "$1" >>"$tmp/plugins/conventions/rules/common.md"
+}
 
-# A copy whose rules link to a missing document must have that path reported.
-printf '\n- [ない文書](../docs/missing.md)\n' >>"$copy/rules/common.md"
-check "a link to a missing document is reported" "$copy/docs/missing.md" "$(missing "$(context "$copy")")"
+copy '- [ない文書](../docs/missing.md)'
+broken=$(context "$tmp/plugins/conventions")
+check "a link to a missing document is reported" "$tmp/plugins/conventions/docs/missing.md" "$(missing "$broken")"
 
-# A copy that injects the rules without turning their links into paths must fail the check above.
-# The sed script is the text to put in place, not an expansion.
-# shellcheck disable=SC2016
-sed -i.orig 's/^ctx="\$(sed .*/ctx="$(cat "$root"\/rules\/*.md)/' "$copy/scripts/context"
-check "a context that does not turn the links into paths is caught" "no" \
-  "$(paths "$(context "$copy")" | grep -qxF "$copy/docs/architecture/documentation.md" && echo yes || echo no)"
+copy '- [書き換えられない](other.md)'
+broken=$(context "$tmp/plugins/conventions")
+check "a link not turned into a path is reported" "other.md" "$(relative "$broken")"
 
 exit "$failed"
