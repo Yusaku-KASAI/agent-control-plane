@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: superseded
 date: 2026-09-30
+superseded_by: [53]
 ---
 
 # 0006. 外部サービスの認証は、必要な機能ごとに提供方式を差し替えられるようにする
