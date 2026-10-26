@@ -237,7 +237,8 @@ description: <使う場面>ときに使う。<何の手順か、何の道具か>
 
 ## ADR
 
-判断の記録は、文書の根の `adr/NNNN-<slug>.md` に置く。番号は `adr/` ごとに 1 から振る連番。ADR をほかの `adr/` に
+判断の記録は、文書の根の `adr/NNNN-<slug>.md` に置く。決まりを変える判断は、その決まりを持つ区切りの `adr/` に置く
+（[ADR 0045](../adr/0045-review-rules-decided-in-conventions.md)）。番号は `adr/` ごとに 1 から振る連番。ADR をほかの `adr/` に
 移したときは、移した先で次の番号を振り、元の番号は空きのまま使わない。文書の根に関心の違う
 ADR があるときは、`adr/<関心>/NNNN-<slug>.md` に分ける。
 

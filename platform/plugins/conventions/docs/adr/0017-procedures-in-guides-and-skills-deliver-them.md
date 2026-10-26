@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-15
+amends: [13]
 amended_by: [20, 40, 42]
 ---
 
