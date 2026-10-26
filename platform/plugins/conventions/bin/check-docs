@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks the Markdown files of the repository holding the working directory against this plugin's
-docs/reference/formats.md and docs/architecture/documentation.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
+docs/reference/formats.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
 in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
 where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""

@@ -8,26 +8,20 @@
 
 - どの作業でも、始めに[文書の体系](../docs/architecture/documentation.md "在りか")を全体まで読む。このプロジェクト群の
   文書と決まりがどこにあり、この共通のルール、ロール、スキルが自分に何をどう届けているかを知るため
-  （[起点](../docs/architecture/documentation.md#starting-points)）。
+  （[起点](../docs/reference/delivery.md#starting-points)）。
 
 ## 振り分け
 
 依頼を受けたら、どの目的の手順に当たるかを決める。作業の途中で目的が変わったら（相談から変更へなど）、その手順に
 入り直す。ロールの指示に「受け持つ手順」の節があれば、その扱いに従う
-（[目的の手順と共通の手順](../docs/architecture/documentation.md#procedures)）。
+（[目的の手順と共通の手順](../docs/reference/delivery.md#procedures)）。
 
 - 変更（PR）にする：その前に[変更を届ける](../docs/guides/deliver-change.md "在りか")と[変更の扱い方](../docs/reference/changes.md "在りか")を
   全体まで読み、変更を届けるの段の順に進める（[変更を届ける](../docs/guides/deliver-change.md)の 1 段）。
 - ほかは、括弧の中のスキルを使い、その目的の手順に沿う：頼まれて差分や全体をレビューする（review、[レビューする](../docs/guides/review.md "在りか")）、
   セッションを締める（「締めて」など。close-session、[セッションを締める](../docs/guides/close-session.md "在りか")）、相談や壁打ち（consult、
   [相談に乗る](../docs/guides/consult.md "在りか")）、Issue やロードマップの整理（organize-issues、[課題を整える](../docs/guides/organize-issues.md "在りか")）。
-- どれにも当たらない（事実を聞く質問など）：目的の手順はまだないので、依頼に沿って進める。
-
-## 読む範囲
-
-- 特定の作業（文書を書く、変更を届ける）にだけ要る決まりは、その作業の手順（目的の手順か、共通の手順のスキル）にある。
-- リンクの直後に「（全体を読む）」があれば、その場面ではリンク先を全体まで読む。読んだ文書や節の中に、場面が
-  当てはまる「（全体を読む）」があれば、それもたどる（[読む範囲](../docs/architecture/documentation.md#reading-scope)）。
+- どれにも当たらない（事実を聞く質問など）：目的の手順のない依頼は、依頼に沿って進める。
 
 ## 決めるとき
 
