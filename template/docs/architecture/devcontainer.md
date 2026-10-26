@@ -48,8 +48,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   固定するので、版を上げる変更は PR になり、CI がイメージのビルドと検査を通す。RUN は `pipefail` 付きの bash で動かし、
   パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。
 - **関係**：compose.yaml と CI がビルドする。ビルドの文脈は `Dockerfile.dockerignore` で決まる。Claude Code の版は
-  [ターゲットの契約のイメージ](../../../platform/docs/reference/target.md#image "在りか")が求めるものに合わせ、版を上げたら
-  サブエージェントの呼び出しに platform の hook が働くことを確かめる。
+  [ターゲットの契約のイメージ](../../../platform/docs/reference/target.md#image "在りか")が求めるものに合わせる。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：版の固定と `pipefail`、
   入れた Claude Code の版の確認で、意図しない版や途中の失敗をビルドで止める。
 
