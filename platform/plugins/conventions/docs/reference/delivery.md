@@ -3,7 +3,7 @@
 決まり（定義）を、共通のルール、役割ごとの指示、スキルに載せてエージェントと人に届けるときの決まりと、それらが案内する
 手順の層の決まり。定義と届け方の仕組みは[文書の体系](../architecture/documentation.md#delivery "在りか")に、各文書の形は
 [形式](formats.md "在りか")に、
-判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0040](../adr/0040-no-read-whole-mark.md) にある。
+判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0040](../adr/0040-no-read-whole-mark.md) にある。
 
 <a id="summaries-and-guides"></a>
 
@@ -50,30 +50,19 @@
 | 読ませる場面 | 示し方 |
 | --- | --- |
 | どの作業でも（文書の体系） | 共通のルールの「始めに読む」の節に、条件を付けずに直に並べる。「変更するときは」のような前置きを付けると、読み手が自分の作業は当てはまらないと読み、飛ばしうる |
-| 目的の手順に入ったとき | その手順の「始めに読む」の段に並べ、起点にはその段の文書を直に並べる（[目的の手順と共通の手順](#procedures)） |
+| 目的の手順に入ったとき | その手順の「始めに読む」の段に並べ、起点にはその段の文書を直に並べる（[目的の手順への入り方](#procedures)） |
 | スキルを使うとき | スキルに、届ける手順を全体まで読んで沿うと書く |
 
 <a id="procedures"></a>
 
-## 目的の手順と共通の手順
+## 目的の手順への入り方
 
-手順（`guides/`）は、最大 2 層の階層にし、3 層目は作らない（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
-プラグインの `docs/guides/`（エージェントに届ける手順）に置く
-手順は、どれもどちらかの層に入る。人が読む運用や準備の手順（リポジトリの `docs/guides/` など）は、この層の外に置いてよい。
-それぞれの形は[形式：手順](formats.md#procedure "在りか")にある。
+手順の 2 層（目的の手順と共通の手順）と、役割（ロール）との関係は[文書の体系：手順と役割](../architecture/documentation.md#procedures)に、
+手順の形は[形式：手順](formats.md#procedure "在りか")にある。
 
-| 層 | 何の手順か | 例 |
-| --- | --- | --- |
-| 目的の手順 | 依頼者が何をしてほしいかの単位。依頼を受けてから終えるまでの全体で、いくつものターンやセッションにわたることがある | 変更を届ける、レビューするなど |
-| 共通の手順 | 目的の手順の段の中で使う、作業の一部分。いくつもの目的の手順から使いうる | 文書を書くなど |
-
-- 手順は依頼の目的で切り、ロール（役割）では切らない。ロールは、権限と隔離の境界（書けるもの、残せる所）で、使うモデルも
-  持つ。手順とロールは多対多になり、どの目的の手順を受け持つかは役割ごとの指示の「受け持つ手順」の節に書く
-  （[形式：役割ごとの指示](formats.md#role "在りか")）。振り分けとロールの指示が食い違うときは、ロールの指示に従う。
-- 目的の手順は、段の中で、その段で使う共通の手順を案内する。共通の手順は、目的の手順を前提にせず、ほかの手順を案内しない。
-- 決まりとして守る順序も手順に置く。参照の文書は、手順の段が使う決まり（条件、表、形）を持ち、順序は持たない。
 - 依頼を受けたら、まずどの目的の手順に当たるかを決める（振り分け）。目的の手順のない依頼（事実を聞く質問など）は、
-  依頼に沿って進める。作業の途中で目的が変わったら（相談から変更へなど）、その目的の手順に入り直す。
+  依頼に沿って進める。作業の途中で目的が変わったら（相談から変更へなど）、その目的の手順に入り直す。振り分けと
+  ロールの指示が食い違うときは、ロールの指示の「受け持つ手順」に従う。
 - 目的の手順は一つのターンで終わるとは限らない（追加の依頼、レビューの指摘への答え、CI の失敗）。
   どこからを新しい依頼として振り分けから入るかは、各目的の手順に書く。
   続きのターンでは、今どの段にいるかを確かめてそこから進める。会話の記録がない新しいセッションで続きから入るときと、

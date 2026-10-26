@@ -18,7 +18,7 @@ Building Static Analysis Tools at Google」）に倣い、次の三つを満た�
 - 誤って落ちにくい：誤検知が少なく、保つ手間が、見逃したときの手戻りより安い。
 
 [仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)の「検査できる決まりを、文書に書くだけで済ませる」は、
-このプロジェクト群では、この三つを満たす決まりについて言う。
+このプロジェクト群では、この三つを満たす決まりについて言う。文書の検査をどこまでにするかは[形式：検査の範囲](formats.md#check-scope "在りか")にある。
 
 <a id="placement"></a>
 

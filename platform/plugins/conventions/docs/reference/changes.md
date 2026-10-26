@@ -33,7 +33,7 @@
 | どの変更も | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 状態によって振る舞いが変わる | [状態を軸で洗い出す](../../../principles/docs/reference/patterns.md#state-axes)、[事実と判定を分ける](../../../principles/docs/reference/patterns.md#facts-and-judgement) |
 | 消す、上書きする、作り直す | [失われうるものを先に挙げる](../../../principles/docs/reference/patterns.md#loss-first) |
-| 目的の手順を足す、ロールの受け持ちを変える | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（並べた所の一覧は[目的の手順と共通の手順](delivery.md#procedures "在りか")） |
+| 目的の手順を足す、ロールの受け持ちを変える | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（並べた所の一覧は[目的の手順への入り方](delivery.md#procedures "在りか")） |
 | 検査や試験を足す、変える | [壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing)（何を検査にし、どこに置くかは[検査の扱い方](checks.md "在りか")） |
 | テストダブル（試験で本物の代わりに使うもの）を足す、変える | [契約の試験](../../../principles/docs/reference/patterns.md#contract-test) |
 | 人が実行する移行や運用の手順を含む | [手順を実装と突き合わせる](../../../principles/docs/reference/patterns.md#verify-procedures) |

@@ -9,8 +9,8 @@
 | [overview.md](overview.md) | 解説 | このプラグインの構成、構成要素、地図 |
 | [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：文書をどう置き、決まりをどう定義して届けるかの仕組み |
 | [reference/glossary.md](reference/glossary.md) | 参照 | 用語集：文書と作業の決まりで使う言葉 |
-| [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：文書の根と器、各文書の形、リンク、量の上限、地図 |
-| [reference/delivery.md](reference/delivery.md) | 参照 | 届け方の決まり：要約と案内、起点、目的の手順と共通の手順 |
+| [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：文書の検査の範囲、文書の根と器、各文書の形、リンク、量の上限、地図 |
+| [reference/delivery.md](reference/delivery.md) | 参照 | 届け方の決まり：要約と案内、起点、目的の手順への入り方 |
 | [reference/checks.md](reference/checks.md) | 参照 | 検査の扱い方：何を検査にし、どこに置くか |
 | [reference/writing.md](reference/writing.md) | 参照 | 書き方：理由の置き場所、コメント、コミット、PR |
 | [reference/changes.md](reference/changes.md) | 参照 | 変更の扱い方：PR の流れ、変更とパターン、検査と履歴 |

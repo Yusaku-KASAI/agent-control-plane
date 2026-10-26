@@ -5,12 +5,12 @@
 
 | 何の決まりか | 在りか |
 | --- | --- |
-| 文書の根と器、各文書の形、リンク、量の上限、地図 | [文書の形式](../reference/formats.md "在りか") |
-| 要約と案内、起点に何をどう載せるか、目的の手順と共通の手順 | [届け方の決まり](../reference/delivery.md "在りか") |
+| 文書の検査の範囲、文書の根と器、各文書の形（手順の層を含む）、リンク、量の上限、地図 | [文書の形式](../reference/formats.md "在りか") |
+| 要約と案内、起点に何をどう載せるか、目的の手順への入り方 | [届け方の決まり](../reference/delivery.md "在りか") |
 | 何を検査にし、検査をどこに置くか | [検査の扱い方](../reference/checks.md "在りか") |
 | 文書を書く順 | [文書を書く](../guides/write-docs.md "在りか") |
 
-判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0042](../adr/0042-no-design-procedure.md) にある。
+判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md) にある。
 原則とパターンは[設計の原則](../../../principles/docs/reference/principles.md "在りか")と[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")にある。
 
 ## 構成
@@ -87,9 +87,9 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 
 - **定義**：決まりそのもの。原則とパターン（principles）、このプロジェクト群の決まりと手順（conventions の `docs/`）、
   区切りの間の契約。同じ決まりを二か所で定義しない。
-- **届け方**：定義を、効く形にしたもの。新しい決まりを足さず、定義を要約か案内で載せる。定義を変えたら、それを
-  確かめる検査と、それを載せた届け方も直す。例外として、役割ごとの指示は役割に固有の振る舞いを、スキルはその
-  プラグインの道具の使い方を、自分で持ってよい。
+- **届け方**：定義を、効く形にしたもの。新しい決まりを足さない。検査は定義を確かめ、ほかの届け方（共通のルール、
+  役割ごとの指示、スキル）は定義を要約か案内で載せる。定義を変えたら、それを確かめる検査と、それを載せた届け方も
+  直す。例外として、役割ごとの指示は役割に固有の振る舞いを、スキルはそのプラグインの道具の使い方を、自分で持ってよい。
 - リポジトリの決まり（CLAUDE.md）が conventions の定義と食い違うときは、リポジトリの決まりに従う。
 
 守らせたいことは、できるだけ強い届け方で届ける（[仕組みで守る](../../../principles/docs/reference/principles.md#mechanisms)）。
@@ -99,10 +99,17 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 
 ### 手順と役割
 
-手順（`guides/`）は、依頼者が何をしてほしいかの単位の目的の手順（変更を届けるなど）と、その段の中で使う共通の手順
-（文書を書くなど）の 2 層からなる。依頼を受けたら、まずどの目的の手順に当たるかを決める（振り分け）。役割（ロール）は
-権限と隔離の境界で、手順とは多対多になり、どの目的の手順を受け持つかは役割ごとの指示に書く。層、振り分け、起点への
-並べ方の決まりは[届け方の決まり：目的の手順と共通の手順](../reference/delivery.md#procedures "在りか")にある。
+手順（`guides/`）は依頼の目的で切り、次の 2 層からなる（[階層的分解](../../../principles/docs/reference/principles.md#hierarchy)）。
+
+| 層 | 何の手順か | 例 |
+| --- | --- | --- |
+| 目的の手順 | 依頼者が何をしてほしいかの単位。依頼を受けてから終えるまでの全体で、いくつものターンやセッションにわたることがある | 変更を届ける、レビューするなど |
+| 共通の手順 | 目的の手順の段の中で使う、作業の一部分。いくつもの目的の手順から使いうる | 文書を書くなど |
+
+依頼を受けたら、まずどの目的の手順に当たるかを決める（振り分け）。役割（ロール）は、権限と隔離の境界（書けるもの、
+残せる所）で、使うモデルも持ち、手順では切らない。手順と役割は多対多になり、どの目的の手順を受け持つかは役割ごとの
+指示に書く。手順の形は[形式：手順](../reference/formats.md#procedure "在りか")に、振り分けと起点への並べ方は
+[届け方の決まり：目的の手順への入り方](../reference/delivery.md#procedures "在りか")にある。
 
 ## 構成要素
 

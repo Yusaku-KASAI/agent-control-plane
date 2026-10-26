@@ -9,13 +9,12 @@ conventions は、決まりの**定義**と、それをエージェントに届�
 
 ```
 conventions/
-  docs/            定義：用語集、決まり（検査、文書、変更と課題、レビュー）、手順（guides/）と、全体の解説（文書の体系）。
-                   一覧は docs/README.md
+  docs/            定義：用語集、文書の体系、決まり（検査、文書、変更と課題、レビュー）、手順（guides/）。一覧は docs/README.md
   rules/           届け方：いつも守ること（共通のルール）。定義を要約か案内で載せる
   hooks/、scripts/ 届け方：共通のルールを始めに読み込ませる hook と、Markdown を変えたターンの終わりに文書の検査を回す hook
   skills/          届け方：docs/guides/ の手順への入口
-  bin/check-docs   文書の検査：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
-  actions/         文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
+  bin/check-docs   届け方（検査）：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
+  actions/         届け方（検査）：文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
   tests/           hook と文書の一覧の試験
 ```
 
@@ -25,7 +24,7 @@ conventions/
 
 ## 構成要素
 
-定義、届け方、文書の検査の順に並べる。定義の文書の一覧は[索引](README.md "在りか")にある。
+定義、届け方（共通のルール、hook、スキル、文書の検査）の順に並べる。定義の文書の一覧は[索引](README.md "在りか")にある。
 
 ### 用語集（`docs/reference/glossary.md`）
 
@@ -39,15 +38,14 @@ conventions/
 - **責務**：このプロジェクト群で、文書をどう置き、決まりをどう定義して届けるかの仕組みを解説する。
 - **置くもの / 置かないもの**：仕組み（3 つの層、区切りと依存の向き、項目の階層と地図、文書の根と種類、定義と届け方、
   手順と役割）と、届け方の構成要素の説明。どの作業でも始めに全体まで読まれるので、決まりの細部は参照の文書に置く。
-- **関係**：地図ではどの項目にも入らない conventions の全体で、conventions の中のどの文書からも前提にされ、それらを
-  在りかで指す。原則とパターンを前提にする。
+- **関係**：用語集のほかを前提にせず、決まりと手順から前提にされる。参照の文書と手順は在りかで指す。
 - **当てはめた原則・パターン**：[文書の種類で分ける](../../principles/docs/reference/patterns.md#diataxis)の解説。
   [段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)。
 
 ### 文書の決まり（`docs/reference/formats.md`、`delivery.md`）
 
 - **責務**：形式は、文書の検査の範囲と、文書の根と器、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、
-  リンク、量の上限、地図の形を決める。届け方の決まりは、要約と案内、起点に何をどう載せるか、目的の手順と共通の手順を決める。
+  リンク、量の上限、地図の形を決める。届け方の決まりは、要約と案内、起点に何をどう載せるか、目的の手順への入り方を決める。
 - **関係**：検査の扱い方を前提にする。`check-docs` が形式の形を確かめる。
 - **当てはめた原則・パターン**：[スキーマを先に](../../principles/docs/reference/principles.md#schema-first)：形を先に決め、文書を合わせる。
   [一つの出典から届ける](../../principles/docs/reference/patterns.md#single-source)。
@@ -62,6 +60,7 @@ conventions/
 
 - **責務**：書き方は、理由の置き場所と、コメント、コミットメッセージ、PR に何を書くかを決める。変更の扱い方と課題の
   扱い方は、変更（PR）と課題（Issue）の扱い方と、文書に置かない道筋と予定の置き場所を決める。
+- **関係**：文書の決まりを前提にする。
 - **当てはめた原則・パターン**：[今と経緯を分ける](../../principles/docs/reference/principles.md#present-state)。
 
 ### レビューの扱い方（`docs/reference/reviews.md`）
@@ -158,12 +157,13 @@ conventions の中の項目と前提の向き（[形式](reference/formats.md#ma
 | --- | --- | --- | --- |
 | 定義 | conventions | | |
 | 用語集 | 定義 | `reference/glossary.md` | |
-| 決まり | 定義 | | 用語集 |
+| 体系 | 定義 | `architecture/documentation.md` | 用語集 |
+| 決まり | 定義 | | 用語集, 体系 |
 | 検査 | 決まり | `reference/checks.md` | |
 | 文書 | 決まり | `reference/formats.md`, `reference/delivery.md` | 検査 |
 | 変更と課題 | 決まり | `reference/writing.md`, `reference/changes.md`, `reference/issues.md` | 文書 |
 | レビュー | 決まり | `reference/reviews.md` | 文書, 検査, 変更と課題 |
-| 手順 | 定義 | `guides/` | 用語集, 決まり |
+| 手順 | 定義 | `guides/` | 用語集, 体系, 決まり |
 | 届け方 | conventions | | 定義 |
 | 共通のルール | 届け方 | `../rules/` | |
 | スキル | 届け方 | `../skills/` | |

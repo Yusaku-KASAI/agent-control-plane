@@ -32,7 +32,7 @@ roles/
   その手順の目的を書ける範囲で果たせるかで決め、別の目のために分けたロールがある部分は、そこに頼んだうえで決める
   （[ADR 0019](../../../docs/adr/0019-roles-by-write-scope.md)、[0026](../../../docs/adr/0026-guide-takes-consult-not-close-session.md)）。定義には、
   書ける範囲と振り分けの目的の手順ごとの扱いを並べる「受け持つ手順」の節を置く（考え方は conventions の
-  [目的の手順と共通の手順](../../conventions/docs/reference/delivery.md#procedures)、定義の形は
+  [手順と役割](../../conventions/docs/architecture/documentation.md#procedures)、定義の形は
   [形式：役割ごとの指示](../../conventions/docs/reference/formats.md#role)）。書ける範囲を認証情報で守れるのは、
   control-plane がそのロールを自分の GitHub App で起動するときに、App の権限で分けられる粒度（Contents、Pull requests、
   Issues の読み書き）までだけ。それより細かい範囲（reviewer のレビューを COMMENT だけにすること、PR を書き換えないこと）と、
@@ -72,7 +72,7 @@ roles/
   レビューの扱い方）を付ける。「固有の振る舞い」の節に、何をするか（差分と全体の見分け方と、developer との分担）、
   しないこと（変更、承認、変更の要求）、報告を置く。何をするかは、種類（差分か全体か）と残し方（返すか
   残すか）の二つで分ける。
-- **関係**：conventions のレビューする手順とレビューの扱い方、principles スキル、github スキルの
+- **関係**：conventions のレビューする手順とレビューの扱い方と変更の扱い方の変更とパターン、principles スキル、github スキルの
   「ほかの人の PR と既定のブランチを読む」を前提にする。guide と分け、書き込める権限（PR のレビューと Issue）を持つ（[ADR 0007](../../../docs/adr/0007-reviewer-role.md)）。
 - **当てはめた原則・パターン**：[別の目で見る](../../principles/docs/reference/patterns.md#four-eyes)：変更した
   エージェントとは別のエージェントがレビューする。[単一責任](../../principles/docs/reference/principles.md#srp)：答えることと

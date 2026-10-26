@@ -1,12 +1,12 @@
 # 変更を届ける
 
 変更する人（人でもエージェントでも）が、依頼を受けてから、変更をマージできる PR にして終えるまでの手順。目的の手順で、
-段の中で共通の手順を使う（[目的の手順と共通の手順](../reference/delivery.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
+段の中で共通の手順を使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
 [レビューの扱い方](../reference/reviews.md "在りか")、[書き方](../reference/writing.md "在りか")にある。
 
 マージされたあとの依頼（既定のブランチでの確かめなど）は、新しい依頼として振り分けから入る。マージの前の同じ PR への
 依頼（追加の依頼、レビューの指摘への答え、CI の失敗）は続きで、続きのターンの扱いは
-[目的の手順と共通の手順](../reference/delivery.md#procedures)にある。
+[届け方の決まり：目的の手順への入り方](../reference/delivery.md#procedures)にある。
 
 1. **始めに読む**：次の二つを全体まで読む。この段は省かない。このセッションですでに全体まで読んだ文書は、読み直さなくて
    よい。

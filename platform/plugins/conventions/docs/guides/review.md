@@ -1,7 +1,7 @@
 # レビューする
 
 レビューを頼まれた人（人でもエージェントでも）が、頼まれてから結果を返すか残す（PR のレビューか、報告の Issue）までの手順。目的の手順で、段の中で共通の
-手順を使う（[目的の手順と共通の手順](../reference/delivery.md#procedures)）。決まりは
+手順を使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。決まりは
 [レビューの扱い方](../reference/reviews.md "在りか")にある。自分の変更のレビューを頼んで答える手順は、
 [レビューを頼んで答える](request-review.md "在りか")にある。
 
