@@ -1,26 +1,26 @@
 # conventions
 
-このプロジェクト群のリポジトリが共通で従う決まり：文書をどう分けて書くか、変更と課題をどう扱うか、設計で何を
-当てはめるか。拠り所は principles プラグインの原則とパターンで、それ以外は前提にしない。
+このプロジェクト群のリポジトリが共通で従う決まり：文書をどう分けて書くか、何を検査にするか、変更と課題をどう扱うか、
+レビューをどう回すか。拠り所は principles プラグインの原則とパターンで、それ以外は前提にしない。決まりをエージェントに届ける
+届け方（共通のルール、スキル、文書の検査と、それらを回す hook）は[全体像](overview.md)にある。
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
-| [overview.md](overview.md) | 解説 | このプラグインの構成（定義と届け方）、構成要素、地図 |
-| [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：置き場所と関係（設計を記述する 3 層、区切り、項目の階層と地図、文書の根と器、種類）と、読み手への届け方（定義と届け方、検査にするものと置き場所、要約と案内、起点、読む範囲、目的の手順と共通の手順）、書き換えの方針 |
-| [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：文書の根、構成要素の説明、入口からの道、手順、役割ごとの指示、スキル、ADR、リンク、量の上限、地図 |
-| [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR |
+| [overview.md](overview.md) | 解説 | このプラグインの構成、構成要素、地図 |
+| [architecture/documentation.md](architecture/documentation.md) | 解説 | 文書の体系：文書をどう置き、決まりをどう定義して届けるかの仕組みと、どの決まりも前提にする横断の決まり |
+| [reference/glossary.md](reference/glossary.md) | 参照 | 用語集：文書と作業の決まりで使う言葉 |
+| [reference/formats.md](reference/formats.md) | 参照 | 文書の形式：文書の形と、文書の検査が確かめるもの |
+| [reference/delivery.md](reference/delivery.md) | 参照 | 届け方の決まり：ほかの文書への触れ方、起点への載せ方、目的の手順の読ませ方 |
+| [reference/checks.md](reference/checks.md) | 参照 | 検査の扱い方：何を検査にし、どこに置くか |
+| [reference/writing.md](reference/writing.md) | 参照 | 書き方：コメント、コミット、PR に何を書くか |
 | [reference/changes.md](reference/changes.md) | 参照 | 変更の扱い方：PR の流れ、変更とパターン、検査と履歴 |
-| [reference/reviews.md](reference/reviews.md) | 参照 | レビューの扱い方：種類（差分、全体）、観点、指摘の重さと書き方、結果の形、差分のレビューと全体のレビューの決まり |
-| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分類、ロードマップ、Issue の本文、依頼の範囲、Issue に書き足すとき、整っている状態、キャンバス、セッションを締めるときに持ち越すもの |
-| [reference/glossary.md](reference/glossary.md) | 参照 | 文書、変更と課題の決まりで使う言葉 |
-| [guides/deliver-change.md](guides/deliver-change.md) | 手順 | 変更を届ける（目的の手順）：始めに読む、依頼、今の姿、形と壊れうる場面、作る、レビュー、確かめていないこと |
-| [guides/write-docs.md](guides/write-docs.md) | 手順 | 文書を書く：区切り、種類、持ち主、形、触れ方とリンク、地図、量、確かめる |
-| [guides/design.md](guides/design.md) | 手順 | パターンを当てはめる：変更の種類からパターンを選び、設計とレビューに使う |
-| [guides/review.md](guides/review.md) | 手順 | レビューする（目的の手順）：始めに読む、種類、差分のレビュー、全体のレビュー |
-| [guides/request-review.md](guides/request-review.md) | 手順 | レビューを頼んで答える（共通の手順）：頼む、答える、終える |
-| [guides/close-session.md](guides/close-session.md) | 手順 | セッションを締める（目的の手順）：始めに読む、片付けを止めているもの、洗い出す、残す、課題の今の姿、片付けを止めているものを解く、締めのまとめ |
-| [guides/consult.md](guides/consult.md) | 手順 | 相談に乗る（目的の手順）：始めに読む、問い、調べる、広げて絞る、キャンバスに残す、答える |
-| [guides/organize-issues.md](guides/organize-issues.md) | 手順 | 課題を整える（目的の手順）：始めに読む、範囲、今の姿、ずれ、整える、まとめ |
-| [adr/](adr/) | 判断 | 文書、変更と課題の決まりの判断 |
-
-エージェントには、目的の手順は起点（共通のルールと役割ごとの指示。どの手順をどこに直に並べるかは[文書の体系](architecture/documentation.md#procedures)）が、共通の手順とロールの外から入る目的の手順はスキルが届ける：文書を書く（[skills/write-docs](../skills/write-docs/SKILL.md)）、設計のパターン（[skills/design](../skills/design/SKILL.md)）、レビュー（[skills/review](../skills/review/SKILL.md)）、セッションを締める（[skills/close-session](../skills/close-session/SKILL.md)）、相談に乗る（[skills/consult](../skills/consult/SKILL.md)）、課題を整える（[skills/organize-issues](../skills/organize-issues/SKILL.md)）。
+| [reference/issues.md](reference/issues.md) | 参照 | 課題の扱い方：Issue の分け方と書き方、依頼の範囲、課題の整っている状態 |
+| [reference/reviews.md](reference/reviews.md) | 参照 | レビューの扱い方：レビューの種類ごとに、何をどう見て、結果をどう残し、どう回すか |
+| [guides/deliver-change.md](guides/deliver-change.md) | 手順（目的） | 変更を届ける：依頼を受けてから、変更をマージできる PR にして終えるまで |
+| [guides/review.md](guides/review.md) | 手順（目的） | レビューする：頼まれてから、差分のレビューか全体のレビューの結果を返すか残すまで |
+| [guides/close-session.md](guides/close-session.md) | 手順（目的） | セッションを締める：持ち越すものを Issue に残し、締めのまとめを答えるまで |
+| [guides/consult.md](guides/consult.md) | 手順（目的） | 相談に乗る：考えを返し、残す考えを Issue に残すまで |
+| [guides/organize-issues.md](guides/organize-issues.md) | 手順（目的） | 課題を整える：Issue とロードマップを整っている状態に合わせるまで |
+| [guides/write-docs.md](guides/write-docs.md) | 手順（共通） | 文書を書く：どこに、どの種類で、どの形で書くか |
+| [guides/request-review.md](guides/request-review.md) | 手順（共通） | レビューを頼んで答える：自分の変更のレビューを頼み、指摘に答える |
+| [adr/](adr/) | 判断 | 文書、検査、変更と課題、レビューの決まりの判断 |

@@ -1,16 +1,16 @@
 # 変更を届ける
 
 変更する人（人でもエージェントでも）が、依頼を受けてから、変更をマージできる PR にして終えるまでの手順。目的の手順で、
-段の中で共通の手順を使う（[目的の手順と共通の手順](../architecture/documentation.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
+段の中で共通の手順を使う（[手順と役割](../architecture/documentation.md#procedures)）。決まりは[変更の扱い方](../reference/changes.md "在りか")、
 [レビューの扱い方](../reference/reviews.md "在りか")、[書き方](../reference/writing.md "在りか")にある。
 
 マージされたあとの依頼（既定のブランチでの確かめなど）は、新しい依頼として振り分けから入る。マージの前の同じ PR への
 依頼（追加の依頼、レビューの指摘への答え、CI の失敗）は続きで、続きのターンの扱いは
-[目的の手順と共通の手順](../architecture/documentation.md#procedures)にある。
+[手順と役割](../architecture/documentation.md#procedures)にある。
 
 1. **始めに読む**：次の二つを全体まで読む。この段は省かない。このセッションですでに全体まで読んだ文書は、読み直さなくて
    よい。
-   - [文書の体系](../architecture/documentation.md)：どこに何を書き、決まりをどう定義して届けるか。文書を変えない
+   - [文書の体系](../architecture/documentation.md)：どこに何を置き、決まりをどう定義して届けるか。文書を変えない
      変更でも、変更をどこに置き、変えたらほかに何を直すかを決めるのに使う。
    - [変更の扱い方](../reference/changes.md)：PR の流れ、変更とパターン、検査と履歴。
 2. **依頼を読む**：依頼が Issue を指していれば、本文とコメントを読む。依頼文が短くても、Issue とリポジトリから読み取れる
@@ -29,7 +29,7 @@
    判断の記録に当たるなら、ADR にも書き、本文からはそれを指す。
    そのうえで、選んだ形で壊れうる場面を挙げて確かめる。たとえば、同じものを作り直すとき、再起動や失敗の途中、同時に
    動くとき、すでにあるデータや設定との組み合わせ。変更の種類に応じて[変更とパターン](../reference/changes.md#patterns)の
-   パターンを当てはめる。選び方と使い方は、共通の手順の[パターンを当てはめる](design.md "在りか")にある。
+   表からパターンを選んで当てはめる。
 5. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、一つの目的ごとに分ける。依頼の範囲の中を何本かの PR に
    分けるときの依頼の Issue の扱いは[依頼の範囲](../reference/issues.md#scope)にある（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
    文書を足したり書き換えたりするときは、共通の手順の[文書を書く](write-docs.md "在りか")に沿う。コミットの前と
