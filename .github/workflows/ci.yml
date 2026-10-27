@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: "0 0 * * 1"
 
+# Every job only reads the repository; a job without its own permissions gets these.
+permissions:
+  contents: read
+
 jobs:
   check-concern:
     name: check-${{ matrix.check }}
