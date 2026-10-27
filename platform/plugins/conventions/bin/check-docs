@@ -2,7 +2,8 @@
 """Checks the Markdown files of the repository holding the working directory against this plugin's
 docs/reference/formats.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, the size of the documents read at every start (lines, and the display
+width of each line), and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
 where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""
 
 import os
@@ -294,11 +295,31 @@ ALWAYS_READ = [
 ]
 
 
-def content_lines(path):
+# What a line's width counts is defined in formats.md, 量の上限.
+WIDTH_LIMIT = 130
+CODE_SPAN = re.compile(r"(`[^`\n]*`)")
+
+
+def width(text):
+    """Columns the text takes: a wide character counts two."""
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def display_width(line):
+    """The width of a line outside fenced code, without the parentheses of the inline links outside code spans."""
+    return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
+                         for part in CODE_SPAN.split(line)))
+
+
+def body(path):
+    """The text after the frontmatter, and the number of lines the frontmatter takes."""
     text = read(path)
     m = re.match(r"---\n.*?\n---\n", text, re.S)
-    body = text[m.end():] if m else text
-    return sum(1 for line in body.splitlines() if line.strip())
+    return (text[m.end():], text[:m.end()].count("\n")) if m else (text, 0)
+
+
+def content_lines(path):
+    return sum(1 for line in body(path)[0].splitlines() if line.strip())
 
 
 def check_sizes(paths, errors):
@@ -311,6 +332,18 @@ def check_sizes(paths, errors):
         for key, lines in sorted(groups.items()):
             if lines > limit:
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+    for path in paths:
+        if any(matches(path) for matches, _, _ in ALWAYS_READ):
+            text, skipped = body(path)
+            fenced = set()
+            for m in FENCE.finditer(text):
+                first = text.count("\n", 0, m.start())
+                fenced.update(range(first, first + m.group(0).count("\n") + 1))
+            for index, line in enumerate(text.splitlines()):
+                columns = width(line) if index in fenced else display_width(line)
+                if columns > WIDTH_LIMIT:
+                    errors.append(f"{path}:{index + skipped + 1}: {columns} columns wide, more than the "
+                                  f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
 
 
 def is_role(path):
@@ -532,9 +565,6 @@ def check_reachable(paths, errors):
 
 
 def print_map(m):
-    def width(text):
-        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
-
     names = m.order
     label = {n: "  " * (len(m.ancestors(n)) - 1) + n for n in names}
     w = max(width(label[n]) for n in names)

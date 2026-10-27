@@ -292,7 +292,9 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 
 ## 量の上限
 
-いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする。
+いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする。frontmatter のほかの行は、どの行も
+表示幅（Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、リンクの括弧の中（行き先とタイトル）は
+数えない）を 130 までにする（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。
 
 | 文書 | 上限 |
 | --- | --- |
@@ -300,9 +302,9 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 | プラグインの `rules/` の文書（共通のルール。ディレクトリの合計） | 40 行 |
 | 役割ごとの指示（プラグインの `agents/` と、リポジトリの `.claude/agents/` の文書。一つずつ） | 50 行 |
 
-- 上限に当たったら、言い回しを詰めて収めるのではなく、載せるものを減らすか、ほかの場所へ移すか、要約を案内に下げる
-  （[起点](delivery.md#starting-points "在りか")）。
-- 検査：上の行数を超えていないこと。
+- 表示幅を超えた行は折り返す。そのうえで行数の上限に当たったら、行を伸ばしたり言い回しを詰めたりして収めるのでは
+  なく、載せるものを減らすか、ほかの場所へ移すか、要約を案内に下げる（[起点](delivery.md#starting-points "在りか")）。
+- 検査：上の行数と、frontmatter のほかの行の表示幅を超えていないこと。
 
 <a id="map"></a>
 
