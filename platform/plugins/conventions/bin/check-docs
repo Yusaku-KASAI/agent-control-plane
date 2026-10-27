@@ -36,7 +36,7 @@ def tracked_markdown():
                              capture_output=True, text=True, check=True).stdout
         return sorted(p for p in out.split("\0") if p and os.path.exists(p))
     except (OSError, subprocess.CalledProcessError):
-        # The CI build context has no .git; it holds only what the dockerignore lets in.
+        # Outside a git work tree, every Markdown file under the working directory is checked.
         paths = []
         for directory, dirs, files in os.walk("."):
             dirs[:] = [d for d in dirs if d not in {".git", "node_modules"}]
@@ -70,7 +70,7 @@ def repo_root():
         return subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                               check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
-        # Without .git (such as a CI build context), the working directory is taken as the top.
+        # Outside a git work tree, the working directory is taken as the top.
         return os.getcwd()
 
 
@@ -236,7 +236,7 @@ def check_components(path, errors):
 
 
 def check_procedure(path, errors):
-    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither."""
+    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither, and points to no other procedure in the same guides/."""
     text = without_fences(read(path))
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
     # The opening is what comes before the first section or step.
@@ -259,8 +259,17 @@ def check_procedure(path, errors):
             errors.append(f"{path}: a purpose procedure starts with the step '1. **始めに読む**'")
         if "新しい依頼" not in intro:
             errors.append(f"{path}: a purpose procedure tells, before its steps, where a new request begins")
-    elif "始めに読む" in steps:
-        errors.append(f"{path}: a common procedure has no step '始めに読む'")
+    else:
+        if "始めに読む" in steps:
+            errors.append(f"{path}: a common procedure has no step '始めに読む'")
+        # A common procedure is used by purpose ones and points to none of the procedures beside it.
+        guides = os.path.dirname(os.path.normpath(path))
+        while os.path.basename(guides) != "guides" and os.sep in guides:
+            guides = os.path.dirname(guides)
+        for target, _, _ in links(read(path)):
+            resolved = resolve(path, target).rstrip("/") if target and not is_external(target) else ""
+            if resolved != os.path.normpath(path) and resolved.startswith(guides + os.sep) and resolved.endswith(".md"):
+                errors.append(f"{path}: a common procedure points to another procedure {target}")
     for line in re.findall(r"(?m)^\d+\. .*", text):
         if not re.match(r"\d+\. \*\*.+?\*\*", line):
             errors.append(f"{path}: a step is numbered and named in bold: {line[:40]}")

@@ -3,7 +3,7 @@
 文書がほかの文書の中身に触れるときの書き方（要約と案内）と、決まり（定義）を起点（共通のルール、役割ごとの指示、
 スキル）に載せて届けるときの決まりと、起点から目的の手順に入るときの決まり。定義と届け方の仕組みは
 [文書の体系](../architecture/documentation.md#delivery "在りか")に、各文書の形は[形式](formats.md "在りか")に、
-判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0040](../adr/0040-no-read-whole-mark.md) にある。
+判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0040](../adr/0040-no-read-whole-mark.md)、[0046](../adr/0046-purpose-procedures-own-their-ending.md) にある。
 
 <a id="summaries-and-guides"></a>
 
