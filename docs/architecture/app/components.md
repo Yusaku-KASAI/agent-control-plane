@@ -26,12 +26,13 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
        SessionCleaner ──SessionNotifier──▶ sessionObserver ──▶ slackbot.Bot
 ```
 
-- **入口**は依頼を受け取って、ユースケースの入力に直すだけ。チャットからの依頼は受信方式に依存しない
+- **入口**（`slackbot`、`httpapi`。コードの層ではアダプター）は依頼を受け取って、ユースケースの入力に直すだけ。チャットからの依頼は受信方式に依存しない
   `HandleMessage` が受け、HTTP API は `Dispatcher` を直接呼ぶ。
 - **ユースケース**は判定と手順を持ち、外部とはポート（インターフェース）越しにだけ話す。`Dispatcher` は
   セッションごとにワーカーを一つ作り、ワーカーが Claude Code のプロセスと依頼の順番を持つ
-  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)）。
-- **アダプター**はポートを一つの技術で実装する。どのポートをどれで満たすかは `cmd/acp/serve.go` が決める。
+  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)、[セッションのワーカー](sessions.md#worker "在りか")）。
+  片付けは[片付け](cleanup.md "在りか")にある。
+- **ほかのアダプター**はポートを一つの技術で実装する。どのポートをどれで満たすかは `cmd/acp/serve.go` が決める。
 - **知らせ**は、依頼への返事なら入口が返し、依頼のないところで起きたことは `sessionObserver` が Bot に渡す
   （[依頼と知らせ](requests.md "在りか")）。
 
@@ -80,9 +81,9 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 ### `cmd/acp`（`main.go`、`run.go`、`workspace_state.go`、`cleanup_check.go`、`slackauth.go`）
 
 - **責務**：サブコマンドの振り分けと、HTTP API のクライアントとしての `acp run` と `acp stop`。`acp workspace-state` は、
-  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](workspace.md#state "在りか")。control-plane が
+  作業ディレクトリの作業領域の状態を JSON で出す（[作業領域の状態](cleanup.md#state "在りか")。control-plane が
   作業領域を読むコンテナの中で動かす）。`acp cleanup-check`（`cleanup_check.go`）は、エージェントのコンテナの中で、
-  そのセッションが片付けで残される理由を出す（usecase の `CheckCleanup`）。`acp slack-auth`（`slackauth.go`）は、
+  そのセッションが片付けで残される理由を出す（usecase の [CheckCleanup](cleanup.md#check-cleanup "在りか")）。`acp slack-auth`（`slackauth.go`）は、
   Slack のトークンを取り直す（[認証情報](credentials.md#slack-auth "在りか")）。
 - **関係**：`run` と `stop` は `httpapi.Client` を使う。使い方は[依頼の仕方](../../reference/usage.md "在りか")にある。
 

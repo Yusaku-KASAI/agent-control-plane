@@ -92,7 +92,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
   （[ADR 0011](../../adr/app/0011-github-access-via-per-agent-apps.md)）。同じパッケージの `branches.go` は、
-  片付けで発行したトークンを使ってリモートのブランチを調べる（[作業領域とブランチ](workspace.md#github-branches "在りか")）。
+  片付けで発行したトークンを使ってリモートのブランチを調べる（[片付け](cleanup.md#github-branches "在りか")）。
 
 ### `internal/adapter/slackauth`
 
@@ -156,4 +156,4 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   トークンの 1 時間より短い）。コンテナがなければ何もしない。発行か書き換えに失敗したら、そのプロセスを止め、
   実行中のターンを失敗にする。
 - **関係**：コンテナの中の `gh` と slack プラグインはファイルを毎回読むので、書き換えはそのまま効く。
-  セッションのライフサイクルは[セッション](sessions.md "在りか")にある。
+  タイマーは[セッションのワーカー](sessions.md#worker "在りか")が持つ。

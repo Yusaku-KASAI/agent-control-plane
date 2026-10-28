@@ -189,7 +189,7 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 }
 
 // StopRequest stops one request of the session, by how far it has come, as
-// docs/architecture/app/requests.md tells. The worker takes in the requests still in the inbox
+// docs/architecture/app/sessions.md#worker tells. The worker takes in the requests still in the inbox
 // channel before it looks for the request, so an injected one is sent to the agent if a turn runs.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
