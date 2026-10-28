@@ -93,11 +93,11 @@ GitHub のブランチと PR
 
 <a id="commit-msg"></a>
 
-### co-author の commit-msg フック（`internal/adapter/gitworkspace/provider.go` の `commitMsgHook`）
+### co-author の commit-msg フック（`internal/adapter/gitworkspace/hooks/commit-msg.sh`）
 
 - **責務**：今のターンの依頼者を、エージェントのコミットの `Co-authored-by` に足す（[ADR 0021](../../adr/app/0021-credit-requesters-as-co-authors.md)）。
 - **置くもの / 置かないもの**：フックは `ACP_CO_AUTHORS_FILE` の一覧を 1 行ずつ読み、同じ行がなければトレーラーを
-  足す。作業領域の `.git/hooks/` にだけ置くので、コミットされない。一覧を書くのは control-plane で、ターンに
+  足す。作業領域の `.git/hooks/` にだけ置くので、ターゲットにはコミットされない。一覧を書くのは control-plane で、ターンに
   取り込まれた依頼の依頼者を、設定にある git の名前とメールアドレスで書く。
 - **関係**：一覧のファイルは認証情報のディレクトリにある（[認証情報](credentials.md "在りか")）。書き換えるのは
   [ワーカー](sessions.md#worker "在りか")が依頼をターンに取り込んだとき。
@@ -106,7 +106,7 @@ GitHub のブランチと PR
 
 <a id="pre-push"></a>
 
-### pre-push フック（`internal/adapter/gitworkspace/provider.go` の `prePushHook`）
+### pre-push フック（`internal/adapter/gitworkspace/hooks/pre-push.sh`）
 
 - **責務**：push の前に、リモートに新しく作るブランチの名前を確かめ
   （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、取り込んだことのないリモートの先頭を
@@ -121,8 +121,8 @@ GitHub のブランチと PR
   コミットで、`git status` にコミットしていない変更も ignore されていない追跡していない
   ファイルもないときにだけ、作業ツリーの一番上で `make check` を回す。どれかを満たさないか、検査が落ちれば push を
   断る。Makefile がなければ、名前の注意と上書きの確かめのほかは何も確かめない。検査の前に、`ACP_PUSH_OVERWRITE` と、git がフックに渡すリポジトリの場所の
-  変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、コミット
-  されない。
+  変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、ターゲット
+  にはコミットされない。
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../template/docs/reference/contract.md#checks "在りか")。
   エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を

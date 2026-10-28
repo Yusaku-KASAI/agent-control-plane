@@ -18,19 +18,9 @@ check-platform:
 	claude plugin validate ./platform
 	# Only the shell scripts: a command may be written in another language (conventions' check-docs).
 	shellcheck $$(grep -lE '^#!.*[/ ](ba)?sh$$' $(wildcard platform/plugins/*/bin/* platform/plugins/*/scripts/* platform/plugins/*/tests/*))
-	platform/plugins/github/tests/prctl-test.sh
-	platform/plugins/github/tests/check-protection-test.sh
-	platform/plugins/github/tests/check-issues-test.sh
-	platform/plugins/slack/tests/slackctl-test.sh
-	platform/plugins/slack/tests/check-answer-at-stop-test.sh
-	platform/plugins/harness/tests/foreground-test.sh
-	platform/plugins/harness/tests/detach-test.sh
-	platform/plugins/harness/tests/watch-tree-test.sh
-	platform/plugins/conventions/tests/check-docs-at-stop-test.sh
-	platform/plugins/conventions/tests/check-docs-catalog-test.sh
-	# The injected rules link their sources by path; each must exist.
-	platform/plugins/conventions/scripts/context SessionStart | jq -r .hookSpecificOutput.additionalContext \
-		| grep -o '](/[^)#"]*' | cut -c3- | sed 's/ *$$//' | while read -r f; do test -e "$$f" || { echo "missing: $$f"; exit 1; }; done
+	# Every plugin's tests, found by name, so that a new one runs without being listed here.
+	failed=; for t in platform/plugins/*/tests/*-test.sh; do echo "$$t"; "$$t" || failed="$$failed $$t"; done; \
+		test -z "$$failed" || { echo "failed:$$failed"; exit 1; }
 
 check-target:
 	shellcheck .devcontainer/*.sh
