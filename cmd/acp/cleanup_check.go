@@ -21,8 +21,7 @@ func cleanupCheck(ctx context.Context, getenv func(string) string, stdout, stder
 	branch, dir := getenv("ACP_SESSION_BRANCH"), getenv("ACP_WORKSPACE")
 	for _, v := range [][2]string{{"ACP_SESSION_BRANCH", branch}, {"ACP_WORKSPACE", dir}} {
 		if v[1] == "" {
-			fmt.Fprintf(stderr, "acp: %s is not set; cleanup-check runs in an agent's container the control plane started"+
-				" (one started by an older control plane may lack it)\n", v[0])
+			fmt.Fprintf(stderr, "acp: %s is not set; cleanup-check runs in an agent's container the control plane started\n", v[0])
 			return 2
 		}
 	}
