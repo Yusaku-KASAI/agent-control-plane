@@ -97,7 +97,7 @@
   GitHub に聞くリポジトリは作業領域の `origin`（ターゲットのリモート。[作業領域とブランチ](#work-area)）。理由ごとに「種類（タブ）文面」を 1 行で出し、なければ「片付けを止める
   ものはありません。」と出す。終了コードは、判定できれば 0。種類は次のとおり。
   「push したブランチ」は[作業領域とブランチ](#work-area)の見分け方による。「締めでの扱い」は、conventions の
-  [セッションを締める](../../plugins/conventions/docs/guides/close-session.md)の 2 段の扱いのどれに当たるかと、作業領域にしかないものの
+  [残す理由の扱い](../../plugins/conventions/docs/reference/issues.md#leftovers)のどれに当たるかと、作業領域にしかないものの
   捨て方。
 
   | 種類 | 残す理由 | 締めでの扱い |

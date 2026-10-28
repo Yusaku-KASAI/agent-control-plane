@@ -17,7 +17,7 @@ target-template のファイルから、新しいターゲットのリポジト�
 ## 2. 入口と文書の根を置く
 
 `README.md` と `docs/README.md` を置き、1 で写した `CLAUDE.md` をそのリポジトリのものに書き換える。器は conventions の
-[文書の根と器](../../../platform/plugins/conventions/docs/architecture/documentation.md#roots "在りか")に、`CLAUDE.md` の節は
+[形式：文書の根](../../../platform/plugins/conventions/docs/reference/formats.md#layout "在りか")に、`CLAUDE.md` の節は
 [ターゲットの契約の CLAUDE.md](../../../platform/docs/reference/target.md#claudemd "在りか")にある。
 
 ## 3. 埋める

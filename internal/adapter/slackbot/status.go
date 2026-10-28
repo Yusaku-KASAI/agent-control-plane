@@ -15,7 +15,7 @@ import (
 
 const (
 	stopReaction = "no_entry_sign"
-	// refreshInterval keeps the elapsed time moving and batches bursts of tool calls into one edit.
+	// refreshInterval keeps the elapsed time moving while nothing else changes.
 	refreshInterval = 5 * time.Second
 	heldAnswerGrace = 15 * time.Second
 	// maxRemarks is how many of the agent's latest remarks a running status message shows, so that
@@ -553,6 +553,7 @@ func (b *Bot) updateStatus(m *statusMessage) {
 		}
 		select {
 		case <-m.wake:
+			// A burst of changes, such as tool calls, makes one edit.
 			time.Sleep(time.Second)
 		case <-ticker.C:
 		}

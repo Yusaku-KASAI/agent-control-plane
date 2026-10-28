@@ -14,7 +14,7 @@ sessions:
   # Default: 15m.
   idle_timeout: 15m
   # Remove a session unused for this long, unless it has a reason to be kept, and tell its thread.
-  # What is removed and what keeps a session: docs/architecture/app/sessions.md#cleaner.
+  # What is removed and what keeps a session: docs/architecture/app/cleanup.md#cleaner.
   # Default: 720h (30 days).
   retention: 720h
   # Suggest closing the session in a finished status message once the agent's context reaches this

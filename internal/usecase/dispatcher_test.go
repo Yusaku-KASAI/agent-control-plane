@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -33,7 +34,9 @@ type fakeSessions struct {
 	locks   map[domain.SessionID]int
 	removed []domain.SessionID
 	saves   int
-	saveErr error
+	// unlockedSaves counts the saves made without holding the session's lock.
+	unlockedSaves int
+	saveErr       error
 	// onRemove runs when Remove removes a session.
 	onRemove func(id domain.SessionID)
 	// onLock runs before Lock takes the lock.
@@ -60,6 +63,9 @@ func (f *fakeSessions) Save(_ context.Context, s domain.Session) error {
 	}
 	f.saved[s.ID] = s
 	f.saves++
+	if f.locks[s.ID] == 0 {
+		f.unlockedSaves++
+	}
 	return nil
 }
 
@@ -170,15 +176,24 @@ type fakeProcess struct {
 	closeErr error
 	// sendErr is what Send returns, without recording the prompt.
 	sendErr error
-	events  chan usecase.ProcessEvent
-	err     error
+	// sendGate, when set, holds Send until it is closed; blockedSends counts the Sends held by it.
+	sendGate     chan struct{}
+	blockedSends int
+	events       chan usecase.ProcessEvent
+	err          error
 }
 
 // Send records the prompt last, so a test that has seen it may close the events channel.
 func (p *fakeProcess) Send(_ context.Context, id, prompt string) error {
 	p.mu.Lock()
-	hold, sendErr := p.holdPrompts, p.sendErr
+	hold, sendErr, gate := p.holdPrompts, p.sendErr, p.sendGate
+	if gate != nil {
+		p.blockedSends++
+	}
 	p.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	if sendErr != nil {
 		return sendErr
 	}
@@ -781,9 +796,9 @@ func (p *fakeProcess) stoppedTasks() []string {
 	return slices.Clone(p.stoppedTask)
 }
 
-// A request waiting in the inbox is withdrawn alone; the running turn and the other waiting
+// A request waiting in the queue is withdrawn alone; the running turn and the other waiting
 // requests go on.
-func TestDispatcher_StopRequestWaitingInInbox(t *testing.T) {
+func TestDispatcher_StopRequestWaitingInQueue(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
 	p := e.runner.next(t)
@@ -816,7 +831,7 @@ func TestDispatcher_StopRequestWaitingInInbox(t *testing.T) {
 }
 
 // A request the agent works on stops the agent's work: the running turn and the background
-// tasks. Requests waiting in the inbox stay and go on after it.
+// tasks. Requests waiting in the queue stay and go on after it.
 func TestDispatcher_StopRequestTheAgentWorksOn(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
@@ -877,7 +892,8 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 	}
 }
 
-// A request still in the inbox channel, as while the worker starts a process, is withdrawn too.
+// A request not injected still in the inbox channel, as while the worker starts a process, is
+// withdrawn too.
 // The worker may take the stop before the request, so the test repeats.
 func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 	for range 20 {
@@ -886,8 +902,8 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
 		eventually(t, func() bool { return len(e.runner.starts()) == 1 })
 		withdrawn := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", RequestID: "2.0"})
-		// No event tells that the request reached the inbox channel; the worker is held in Start.
-		time.Sleep(20 * time.Millisecond)
+		// The worker is held in Start, so the request stays in the inbox channel.
+		eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
 		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
 			t.Fatal(err)
 		}
@@ -899,6 +915,146 @@ func TestDispatcher_StopRequestStillInInboxChannel(t *testing.T) {
 		eventually(t, func() bool { return len(p.sent()) == 1 })
 		p.finish("one")
 		wait(t, first)
+	}
+}
+
+// An injected request still in the inbox channel while a turn runs is sent to the agent before
+// it is looked for, so stopping it stops the agent's work, as for a request the agent has.
+func TestDispatcher_StopInjectedRequestStillInInboxChannel(t *testing.T) {
+	// The worker takes the request from the inbox channel or the stop first, as select picks.
+	for range 20 {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+		p := e.runner.next(t)
+		eventually(t, func() bool { return len(p.sent()) == 1 })
+		p.hold()
+		gate := make(chan struct{})
+		// A failure must not leave the worker held in Send, or Close waits for it.
+		release := sync.OnceFunc(func() { close(gate) })
+		t.Cleanup(release)
+		p.mu.Lock()
+		p.sendGate = gate
+		p.mu.Unlock()
+		held := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
+		eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 1 })
+		stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", Inject: true, RequestID: "3.0"})
+		// The worker is held in Send, so the request stays in the inbox channel.
+		eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "3.0"); err != nil {
+			t.Fatalf("StopRequest() error = %v", err)
+		}
+		release()
+		if o := wait(t, running); o.err != nil || !o.out.Interrupted {
+			t.Errorf("running = %+v, %v; want its turn interrupted", o.out, o.err)
+		}
+		for name, ch := range map[string]<-chan outcome{"stopped": stopped, "held": held} {
+			if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) {
+				t.Errorf("%s request = %+v, %v; want ErrStopped", name, o.out, o.err)
+			}
+		}
+	}
+}
+
+// An injected request still in the inbox channel while the worker starts the agent is sent once
+// the turn of the request before runs, so stopping it stops that turn's work too.
+func TestDispatcher_StopInjectedRequestWhileStarting(t *testing.T) {
+	// The worker takes the inbox channel, the events, or the stop first, as select picks.
+	for range 20 {
+		e := newEnv(t, usecase.DispatcherOptions{})
+		gate := make(chan struct{})
+		e.runner.gate = gate
+		release := sync.OnceFunc(func() { close(gate) })
+		t.Cleanup(release)
+		first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first", RequestID: "1.0"})
+		eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+		stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "2.0"})
+		eventually(t, func() bool { return e.d.InboxLen(existingID) == 1 })
+		if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "2.0"); err != nil {
+			t.Fatalf("StopRequest() error = %v", err)
+		}
+		release()
+		e.runner.next(t)
+		// Each is withdrawn or has its turn interrupted, by whether the agent took it in before the stop.
+		for name, ch := range map[string]<-chan outcome{"request before": first, "stopped request": stopped} {
+			if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) && !o.out.Interrupted {
+				t.Errorf("%s = %+v, %v; want it stopped", name, o.out, o.err)
+			}
+		}
+	}
+}
+
+// The worker moves requests from the inbox channel to its queue as they come, so the requests
+// waiting behind a turn have no limit.
+func TestDispatcher_QueueHasNoLimit(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	const waiting = usecase.InboxSize + 8
+	var rest []<-chan outcome
+	for i := range waiting {
+		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
+		eventually(t, func() bool {
+			updates := e.observer.of(usecase.SessionTurnUpdated)
+			return len(updates) > 0 && updates[len(updates)-1].Status.Queued == i+1
+		})
+	}
+	p.finish("one")
+	wait(t, first)
+	for i, ch := range rest {
+		eventually(t, func() bool { return len(p.sent()) == i+2 })
+		p.finish(fmt.Sprint(i))
+		if o := wait(t, ch); o.err != nil {
+			t.Fatalf("request %d waiting behind a turn: %v", i, o.err)
+		}
+	}
+}
+
+// Only the requests that come while the worker cannot take them, as while it starts the agent,
+// fill the inbox channel, and those past its size are refused.
+func TestDispatcher_InboxOverflowsWhileTheWorkerIsHeld(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.runner.gate = make(chan struct{})
+	release := sync.OnceFunc(func() { close(e.runner.gate) })
+	// A failure must not leave the worker held, or closing the dispatcher would wait for it.
+	t.Cleanup(release)
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+	const inbox, over = usecase.InboxSize, 8
+	var rest []<-chan outcome
+	for i := range inbox + over {
+		rest = append(rest, e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: fmt.Sprint(i)}))
+	}
+	var refused []<-chan outcome
+	eventually(t, func() bool {
+		for i := 0; i < len(rest); i++ {
+			select {
+			case o := <-rest[i]:
+				if !errors.Is(o.err, usecase.ErrInboxFull) {
+					t.Fatalf("a request answered while the worker was held: %+v, %v", o.out, o.err)
+				}
+				refused = append(refused, rest[i])
+				rest = slices.Delete(rest, i, i+1)
+				i--
+			default:
+			}
+		}
+		return len(refused) == over
+	})
+	release()
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.finish("one")
+	wait(t, first)
+	// The held requests went in while the worker was held, in no set order.
+	for i := range rest {
+		eventually(t, func() bool { return len(p.sent()) == i+2 })
+		p.finish(fmt.Sprint(i))
+	}
+	for _, ch := range rest {
+		if o := wait(t, ch); o.err != nil {
+			t.Fatalf("request held in the inbox channel: %v", o.err)
+		}
 	}
 }
 
@@ -1673,6 +1829,9 @@ func TestDispatcher_RecoverForgetsTotal(t *testing.T) {
 	}
 	if s, _ := e.sessions.Find(context.Background(), existingID); s.ReportedUsage != nil || s.Turns != 1 {
 		t.Errorf("session = %+v, want its total unknown", s)
+	}
+	if e.sessions.unlockedSaves != 0 {
+		t.Errorf("Recover saved %d times without the lock", e.sessions.unlockedSaves)
 	}
 	if e.sessions.isLocked(existingID) {
 		t.Error("Recover kept the session locked")
