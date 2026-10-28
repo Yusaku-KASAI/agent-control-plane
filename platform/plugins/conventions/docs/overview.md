@@ -16,7 +16,7 @@ conventions/
   skills/          届け方：docs/guides/ の手順への入口
   bin/check-docs   届け方（検査）：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
   actions/         届け方（検査）：文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
-  tests/           ターンの終わりの文書の検査と、文書の一覧の試験
+  tests/           読み込ませる hook、ターンの終わりの文書の検査、文書の一覧の試験
 ```
 
 - 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。何をどう確かめるかは、
@@ -94,7 +94,8 @@ conventions/
 - **責務**：セッションとサブエージェントの始めに、共通のルールと、その在りか（途中で立ち返るため）と、conventions と
   principles の文書の在りかを読み込ませる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通の
-  ルールの相対リンクは、読み込ませるときに絶対パスに書き換える。
+  ルールの相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/context-test.sh`（読み込ませる文のファイルへのリンク先が
+  絶対パスになり、どれもあること）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### ターンの終わりの文書の検査（`hooks/`、[`scripts/check-docs-at-stop`](../scripts/check-docs-at-stop "在りか")）
