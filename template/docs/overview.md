@@ -1,14 +1,18 @@
 # ターゲットの環境の全体像
 
 [ターゲット](../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
-ものは[ターゲットの契約](../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。
+ものは[ターゲットの契約](../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
+agent-control-plane のリポジトリのルートにあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
+とおりに作る。
+
+## 構成
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
-| 既定のブランチの守り | `.github/CODEOWNERS`（承認する人）と、リポジトリの設定のルールセット | [guides/github.md](guides/github.md "在りか") |
 | devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json` | [architecture/devcontainer.md](architecture/devcontainer.md "在りか")、[guides/devcontainer.md](guides/devcontainer.md "在りか") |
-| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "在りか") |
+| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、回答の言語、worktree の作り方、対話のときの権限） | [architecture/claude-code.md](architecture/claude-code.md "在りか")、[guides/claude-code.md](guides/claude-code.md "在りか") |
 | CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml` | [architecture/ci.md](architecture/ci.md "在りか") |
+| 既定のブランチの守り | `.github/CODEOWNERS`（承認する人）と、リポジトリの設定のルールセット | [guides/protection.md](guides/protection.md "在りか") |
 
 <a id="files"></a>
 
@@ -49,6 +53,6 @@ target-template の中の項目と前提の向き（[形式](../../platform/plug
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
 | devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
-| Claude Code の設定 | target-template | `architecture/claude-code.md` | |
+| Claude Code の設定 | target-template | `architecture/claude-code.md`, `guides/claude-code.md` | |
 | CI | target-template | `architecture/ci.md` | devcontainer |
-| 既定のブランチの守り | target-template | `guides/github.md` | CI |
+| 既定のブランチの守り | target-template | `guides/protection.md` | CI |

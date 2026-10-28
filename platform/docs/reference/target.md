@@ -80,7 +80,7 @@ control-plane の API を指さない（[target-template の ADR 0013](../../../
 ターゲットのリポジトリは、既定のブランチをルールセットで守る（[app ADR 0025](../../../docs/adr/app/0025-pr-review-as-the-last-line.md)、
 [app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。エージェントの認証情報だけでは既定の
 ブランチに入れないことを、ロールと control-plane は前提にする。守りはリポジトリの管理者が用意する（手順は
-target-template の[既定のブランチの守りの用意](../../../template/docs/guides/github.md "在りか")）。
+target-template の[既定のブランチの守りの用意](../../../template/docs/guides/protection.md "在りか")）。
 
 - 既定のブランチは消せず、force push できない。
 - 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に
