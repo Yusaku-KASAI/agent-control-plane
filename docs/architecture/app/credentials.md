@@ -30,10 +30,10 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   環境変数も設定されない。GitHub App と Slack アプリはエージェントごとに任意で、Claude Code の認証だけは必ずある。
 - Slack の Bot トークンは、control-plane の Bot とエージェントが同じものを使う。エージェントは Bot が招待された
   チャンネルを読み書きできる。
-- 外部サービス（GitHub、Slack）の認証情報は、それぞれ一つの方式で渡す。拡張（プラグイン）は、渡された認証情報の
-  有無を見て使える操作を決める（[ADR 0053](../../adr/app/0053-pass-credentials-as-they-are-and-let-extensions-adapt.md)）。
+- 拡張（プラグイン）は、渡された認証情報の組み合わせを見て動きを変える（[ADR 0006](../../adr/app/0006-external-auth-by-capability.md)）。
   たとえば slack プラグインは `SLACK_BOT_TOKEN_FILE` があるかで使える操作を決める
-  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。
+  （[slack プラグイン](../../../platform/plugins/slack/docs/overview.md "在りか")）。ADR 0006 が決めた、拡張が要る機能を
+  宣言して control-plane が方式を割り当てる仕組みはなく、拡張が使う外部サービス（GitHub、Slack）は提供方式が一つずつ。
 
 <a id="secrets"></a>
 
