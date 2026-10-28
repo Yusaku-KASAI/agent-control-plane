@@ -94,7 +94,7 @@ github/
 - **置くもの / 置かないもの**：
   - 確かめる値は、その契約を API の側から読んだもので、契約を変えたらここも直す。platform は target-template を
     前提にしないので、target-template の用意の手順（`guides/github.md`）ではなく契約に合わせる（conventions の
-    [検査にするものと置き場所](../../conventions/docs/architecture/documentation.md#checks "在りか")）。
+    [検査の扱い方](../../conventions/docs/reference/checks.md "在りか")）。
   - ルールは `rules/branches/<既定のブランチ>` から読む。リポジトリと organization のどのルールセットから来たものでも、
     効いているものだけを数える。効いているルールはどれも満たす必要があるので、求める値はどのルールから来てもよい。
   - 承認を人に限る仕組みは、コードオーナーの承認（CODEOWNERS が誤りなく、最初の規則が `*` で、持ち主のない規則が

@@ -40,11 +40,10 @@ control-plane のサーバーを手元で準備して動かす手順。
 - Bot トークン：
   - ローテーションあり（マニフェストの既定。control-plane が更新する仕組みは[認証情報](../architecture/app/credentials.md "在りか")）：
     Basic Information の Client ID と Client Secret（ファイル）を `slack.rotation` に書き、下の
-    「Slack のトークンを取り直す」で最初のトークンを取る。
+    「Slack のトークンを取り直す」で最初のトークンを取る。ローテーションありでも `bot_token_path` は
+    書く（何を置くかは [acp.example.yaml](../../acp.example.yaml "在りか")）。
   - ローテーションなし（マニフェストで `token_rotation_enabled: false`）：ワークスペースにインストールして得た
     Bot User OAuth Token を `bot_token_path` に置き、`slack.rotation` は書かない。
-  - ローテーションなしで使っていたアプリを後から切り替えるときは、それまでの Bot トークンを `bot_token_path` に
-    置いておけば初回に交換される。
 - 依頼を許可する人の Slack のメンバー ID を `allowed_users` に書き、Bot を使うチャンネルに招待する。招待した
   チャンネルはエージェントも読み書きできる（[認証情報](../architecture/app/credentials.md "在りか")）。
 

@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-11
 amends: [3]
-amended_by: [5]
+amended_by: [5, 47]
 ---
 
 # 0004. 設計の拠り所を、原則（何を大事にするか）とパターン（どう組むか）の二つの一覧に分ける

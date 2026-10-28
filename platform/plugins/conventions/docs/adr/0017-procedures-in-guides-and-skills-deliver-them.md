@@ -1,7 +1,8 @@
 ---
 status: accepted
 date: 2026-10-15
-amended_by: [20]
+amends: [13]
+amended_by: [20, 40, 42]
 ---
 
 # 0017. 手順はエージェントが使うものも `guides/` に定義し、スキルはそれを要約か案内で載せる

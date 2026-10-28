@@ -153,7 +153,7 @@ func TestHandleMessage_RepliesOnFailure(t *testing.T) {
 		err  error
 		want string
 	}{
-		{name: "inbox full", err: usecase.ErrInboxFull, want: "処理待ちの依頼が多すぎます"},
+		{name: "inbox full", err: usecase.ErrInboxFull, want: "受け取れていない依頼が多すぎます"},
 		{
 			name: "failed turn",
 			out:  usecase.RunAgentOutput{Session: domain.Session{ID: "0f8fad5b-d9cb-469f-a165-70867728950e"}},
