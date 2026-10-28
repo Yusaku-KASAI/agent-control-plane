@@ -73,8 +73,8 @@ agents:
       author_email: 7654321+control-plane-dev-agent[bot]@users.noreply.github.com
     # The agent's own GitHub App, installed on the target repository with webhooks off. Optional;
     # without it the agent cannot push and its branches start from the target's local HEAD.
-    # Permissions for a developer: Contents, Pull requests and Issues read and write; Actions, Checks
-    # and Commit statuses read-only (to read the pull request's CI results and logs).
+    # Permissions for a developer: see the credentials of the harness contract
+    # (platform/docs/reference/harness.md).
     github:
       app_id: 123456
       installation_id: 12345678
@@ -97,8 +97,8 @@ agents:
     target:
       path: /home/you/projects/agent-control-plane
       image: agent-control-plane-devcontainer
-    # Permissions for a guide: Contents, Pull requests and Issues read-only, so it reads the remote
-    # but cannot push.
+    # Permissions for a guide: see the credentials of the harness contract
+    # (platform/docs/reference/harness.md).
     github:
       app_id: 234567
       installation_id: 23456789
@@ -118,8 +118,8 @@ agents:
     target:
       path: /home/you/projects/agent-control-plane
       image: agent-control-plane-devcontainer
-    # Permissions for a reviewer: Contents read-only; Pull requests and Issues read and write (to leave
-    # reviews and file reports); Actions, Checks and Commit statuses read-only (to read CI results).
+    # Permissions for a reviewer: see the credentials of the harness contract
+    # (platform/docs/reference/harness.md).
     github:
       app_id: 345678
       installation_id: 34567890
@@ -136,9 +136,8 @@ agents:
     target:
       path: /home/you/projects/agent-control-plane
       image: agent-control-plane-devcontainer
-    # Permissions for a pm: Contents and Pull requests read-only; Issues read and write (to tidy issues
-    # and keep ideas in them). Issues write also reaches pull request comments and labels; the role's
-    # instructions keep the pm off pull requests.
+    # Permissions for a pm: see the credentials of the harness contract
+    # (platform/docs/reference/harness.md).
     github:
       app_id: 456789
       installation_id: 45678901

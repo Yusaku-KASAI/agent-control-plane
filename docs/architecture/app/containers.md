@@ -2,7 +2,7 @@
 
 control-plane がエージェントを Docker のコンテナで動かす仕組み。コンテナの中から見た環境（動き方、寿命、渡される
 もの）は[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")に、ターゲットのイメージが満たすことは
-[ターゲットの契約](../../../template/docs/reference/contract.md "在りか")にあり、ここでは control-plane の側を書く。
+[ターゲットの契約](../../../platform/docs/reference/target.md "在りか")にあり、ここでは control-plane の側を書く。
 起動の手順は[運用の手順](../../guides/operations.md "在りか")にある。
 
 ## 構成
@@ -55,7 +55,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     置き、作業領域を読むコンテナとエージェントのコンテナが使う）。名前は固定する（`acp-credentials`、`acp-claude`、`acp-tools` は、
     control-plane が作るコンテナから名前で指す）。
   - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
-    （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../template/docs/reference/contract.md#control-plane "在りか")）。
+    （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../platform/docs/reference/target.md#control-plane "在りか")）。
     リクエストには `ACP_API_TOKEN` を要求する。
   - 止めるときの猶予（`stop_grace_period`）は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。
     実行中のターンを中断してスレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
@@ -152,7 +152,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 - **責務**：ターゲットが宣言したプラグインのうち、control-plane が読み込ませるものと、その場所を決める。
 - **置くもの / 置かないもの**：どのプラグインをどこから読み込ませるかの決まりは、ターゲットの契約の
-  [プラグインとロール](../../../template/docs/reference/contract.md#plugins "在りか")にある。ここはそれを実装する。
+  [プラグインとロール](../../../platform/docs/reference/target.md#plugins "在りか")にある。ここはそれを実装する。
   - 作業領域とホストのターゲットの checkout の `.claude/settings.json` の `enabledPlugins` と `extraKnownMarketplaces` を
     読み、`directory` のマーケットプレイスのプラグインを選んで `--plugin-dir` で渡す。ヘッドレスの Claude Code は宣言されたプラグインを
     入れないため。

@@ -3,8 +3,9 @@
 platform は、ターゲットをまたいで使うエージェントの能力（ロール、スキル、hook）を、Claude Code のプラグインとして
 まとめたもの。プラグインはマーケットプレイス `acp-platform` に入れて配る（[ADR 0001](adr/0001-platform-as-plugin-marketplace.md)）。
 
-platform は principles、conventions と契約（[エージェントの用語集](reference/glossary.md)と[ハーネスの契約](reference/harness.md)）
-を前提にし、エージェントを動かす側（control-plane と devcontainer）とはハーネスの契約だけでつながる。区切りの分け方と
+platform は principles、conventions と契約（[エージェントの用語集](reference/glossary.md)、[ハーネスの契約](reference/harness.md)、
+[ターゲットの契約](reference/target.md)）を前提にし、エージェントを動かす側（control-plane と devcontainer）とターゲットとは、
+契約だけでつながる。区切りの分け方と
 依存の向きの決まりは、conventions の[文書の体系](../plugins/conventions/docs/architecture/documentation.md)にある。
 
 ## 構成
@@ -23,8 +24,8 @@ platform/
 入れ物を兼ねる（何を運ぶかは[用語集](reference/glossary.md "在りか")のマーケットプレイス）。運ばれるほかの区切りは
 platform に属さない。
 
-`docs/` には platform の文書を置く。置き場所として、契約という項目に属するエージェントの用語集とハーネスの契約も
-ここに置く。各プラグインの中の構成は、そのプラグインの `docs/` に書く。
+`docs/` には platform の文書を置く。置き場所として、契約という項目に属するエージェントの用語集、ハーネスの契約、
+ターゲットの契約もここに置く。各プラグインの中の構成は、そのプラグインの `docs/` に書く。
 
 ## 届き方
 

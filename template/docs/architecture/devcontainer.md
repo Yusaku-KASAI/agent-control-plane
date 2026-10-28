@@ -19,7 +19,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   使うもの、その次のツールチェーンのステージはターゲット固有のツールチェーンとホストに依存する値を持つ。ツールチェーンの
   ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
   置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
-  名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../reference/contract.md#image)）。
+  名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../../../platform/docs/reference/target.md#image)）。
   `check-*` のステージの説明は [ci.md](ci.md "在りか") にある。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
   `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
@@ -96,7 +96,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：名前とパスは `.env` の値から決め、値そのものは置かない。値がなければ `init-host.sh`
   を実行するよう言って止まる。
   - ネットワークは compose のプロジェクトの既定のものだけにし、control-plane のネットワークには入らない
-    （[ターゲットの契約](../reference/contract.md#control-plane)）。
+    （[ターゲットの契約](../../../platform/docs/reference/target.md#control-plane)）。
 - **関係**：`.env` を読み、Dockerfile のツールチェーンのステージをビルドする。devcontainer.json がこれを参照する。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。
   [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：コンテナの振る舞いを VS Code の配線から分ける。
@@ -131,7 +131,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 
 - **責務**：イメージのユーザーが作業ディレクトリに書き込めないときにそう知らせ、引数のコマンドを `exec` する。
 - **置くもの / 置かないもの**：知らせは stderr に出す。標準入力と stdout には触らない。
-- **関係**：[ターゲットの契約](../reference/contract.md#image)のイメージの entrypoint の決まりに沿う。
+- **関係**：[ターゲットの契約](../../../platform/docs/reference/target.md#image)のイメージの entrypoint の決まりに沿う。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：UID の食い違いを、ツールが
   後で権限で失敗する前に知らせる。
 

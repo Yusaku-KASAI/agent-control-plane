@@ -4,7 +4,7 @@
 
 roles は harness、github と conventions を前提にする。roles を有効にするリポジトリは、この三つも有効にする。
 ファイルを変えないロールの隔離は、ターゲットの `.claude/settings.json` の `worktree.baseRef: head` と、`.gitignore` の
-`/.claude/worktrees/` を前提にする（[ターゲットの契約](../../../../template/docs/reference/contract.md#plugins "在りか")）。
+`/.claude/worktrees/` を前提にする（[ターゲットの契約](../../../docs/reference/target.md#plugins "在りか")）。
 
 ```
 roles/

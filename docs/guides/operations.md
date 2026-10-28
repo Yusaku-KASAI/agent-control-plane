@@ -10,7 +10,7 @@ control-plane のサーバーを手元で準備して動かす手順。
 ### 1. 全体
 
 - ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを
-  `.env` の `ACP_HOST_ROOT` の下に置く（並べ方は[ホストでの配置](../../template/docs/reference/contract.md#host "在りか")と
+  `.env` の `ACP_HOST_ROOT` の下に置く（並べ方は[ホストでの配置](../../platform/docs/reference/target.md#host "在りか")と
   [ホストの準備](../../template/docs/guides/devcontainer.md#host "在りか")）。platform はこのリポジトリの `platform/` にあるので、
   親ディレクトリでシンボリックリンクを張って隣に置く。
 
@@ -27,7 +27,7 @@ control-plane のサーバーを手元で準備して動かす手順。
 ### 2. エージェントごとの GitHub App（任意）
 
 - エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。ロールごとに
-  要る権限は [acp.example.yaml](../../acp.example.yaml "在りか") の `github` にある。
+  要る権限は[ハーネスの契約の認証情報](../../platform/docs/reference/harness.md#credentials "在りか")にある。
 - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
 - コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は
   `gh api '/users/<App のスラッグ>[bot]' --jq .id` で調べる。

@@ -1,7 +1,9 @@
 # ハーネスの契約
 
-エージェントが動く環境と、そこで渡されるもの。control-plane と、ターゲットの devcontainer はこの契約に合わせて作り、エージェントとプラグインは
-これを前提にしてよい（[ADR 0002](../../plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)）。言葉は[用語集](glossary.md)のとおり。
+エージェントが動く環境で渡されるもの、その見分け方と制約、それに応じてエージェントがすること。control-plane と、
+ターゲットの devcontainer はこの契約に合わせて作り、エージェントとプラグインはこれを前提にしてよい
+（[ADR 0031](../adr/0031-contracts-where-every-agent-reads-them.md)）。プラグインが hook などで守らせることは、そのプラグインの
+文書にある。言葉は[用語集](glossary.md)のとおり。
 
 ## 動き方
 
@@ -10,15 +12,16 @@
 | control-plane 経由 | 環境変数 `ACP_SESSION_BRANCH` がある | 端末にいない。依頼は Slack か CLI から届き、ターンの最後の回答が依頼者に届く（CLI から始めたセッションでは、依頼に答えるターンの回答だけ。[依頼と回答](#requests)） |
 | devcontainer で直接 | `ACP_SESSION_BRANCH` がない | 端末にいて、対話できる |
 
-どちらもターゲットのイメージで、[ターゲットの契約](../../../template/docs/reference/contract.md#image)のユーザー（`node`）として動く。
-管理者の権限を前提にしないので、使える道具はイメージに
-入っているものだけ。
+## どちらの動き方でも
+
+- ターゲットのイメージで、[ターゲットの契約](target.md#image)のユーザー（`node`）として動く。管理者の権限を前提に
+  しないので、使える道具はイメージに入っているものだけ。
 
 <a id="slack-posts"></a>
 
-## Slack への投稿
+### Slack への投稿
 
-どちらの動き方でも同じ（[ADR 0027](../adr/0027-agents-post-to-slack-when-asked.md)）。最後の回答がどこに届くかは、動き方ごとの節にある。
+判断は [ADR 0027](../adr/0027-agents-post-to-slack-when-asked.md)。最後の回答がどこに届くかは、動き方ごとの節にある。
 
 - 依頼者に Slack への投稿を頼まれたとき（「このスレッドに投稿して」「あのチャンネルに知らせて」など）は、slack スキルの
   `slackctl post` で投稿してよい。頼まれていない投稿はしない。
@@ -44,26 +47,18 @@
   （バックグラウンドの処理の知らせで始まるターンなど）の回答は、返す相手がいないので control-plane のログに残るだけで、
   依頼者に届かない。伝えたいことは、次の依頼に答えるターンの回答に書く。
 - ほかの投稿は、依頼者に頼まれれば[Slack への投稿](#slack-posts)のとおりにする。
-- Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示されるので、slack スキルの
-  「書く」の書き方で書く。依頼のプロンプトもそう指す。slack プラグインの hook が、ターンの終わりに最後の回答を
-  確かめ、Slack で崩れる形があれば、書き直すようターンを一度止める（CLI からの依頼の回答も同じ。どちらでも読める
-  標準の Markdown の形に寄せる）。
-- サブエージェント（Agent）は、harness プラグインの hook がフォアグラウンドで動かす
-  （[ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。hook は、Agent の呼び出しの `run_in_background` を
-  `false` にし、必ずバックグラウンドで動く `isolation: remote` の Agent と `SendMessage`（宛先によらない）を断る。
-  サブエージェントの続きは Agent で新しく頼む。エージェントの定義の frontmatter に `background: true` か
-  `isolation: remote` があると、hook によらずバックグラウンドで動くので、そういう定義は使わない。
-- サブエージェントが動いている間に作業領域（主の worktree）が変わると、harness プラグインの hook が、変わったことを
-  セッションのエージェントに知らせる（比べるものは [ADR 0016](../adr/0016-subagents-leave-the-work-area.md)）。
-  作業を任せたサブエージェントの変更でも知らせるので、コミットの前に git で何が変わったかを確かめる。どのロールが自分の worktree で
-  動くかは roles の定義にある。
+- Slack に投稿される回答（自分で始めたターンの回答を含む）は、Slack の markdown ブロックで表示されるので、
+  slack スキルの「書く」の書き方で書く（Slack からの依頼のプロンプトもそう指す）。
+- サブエージェント（Agent）は、フォアグラウンドで動かす（Agent の `run_in_background` は `false`。
+  [ADR 0008](../adr/0008-subagents-in-foreground-under-control-plane.md)）。必ずバックグラウンドで動く形（`isolation: remote`、
+  frontmatter に `background: true` か `isolation: remote` を持つ定義）と `SendMessage` は使わず、サブエージェントの続きは
+  Agent で新しく頼む。
 - バックグラウンドの処理が終わると、知らせが届く（動いているターンに入るか、自分で始めるターンになる）。終わりを
-  待つために、Monitor、ScheduleWakeup、`sleep` の繰り返し、同じ処理のフォアグラウンドでの実行で見張らない。見張りも
-  ターンやバックグラウンドの処理を増やし、そのぶん回答が増える（[ADR 0010](../adr/0010-one-ci-wait-per-branch.md)）。
+  待つために、Monitor、ScheduleWakeup、CronCreate、`sleep` の繰り返し、同じ処理のフォアグラウンドでの実行で
+  見張らない。見張りもターンやバックグラウンドの処理を増やし、そのぶん回答が増える（[ADR 0010](../adr/0010-one-ci-wait-per-branch.md)）。
 - 処理をバックグラウンドで動かすときは、Bash の `run_in_background` を使う。`&`、`nohup`、`disown`、`setsid` で
-  手放した処理は、終わりの知らせが届かず、control-plane のバックグラウンドの処理にも数えられない。harness
-  プラグインの hook が、手放す Bash（`&` のあとに同じコマンドの中で `wait` するものは除く）と、Monitor、
-  ScheduleWakeup、CronCreate（待つための予約）を断る（[ADR 0015](../adr/0015-refuse-let-go-processes-under-control-plane.md)）。
+  手放した処理は、終わりの知らせが届かず、control-plane のバックグラウンドの処理にも数えられない
+  （[ADR 0015](../adr/0015-refuse-let-go-processes-under-control-plane.md)）。
 - バックグラウンドの処理が終わって自分で始めたターンの回答は、ターンの終わりにほかのバックグラウンドの処理が
   残っていれば、すぐには投稿されない。投稿されるのは次の場合。
   - 次のターンが始まらずに処理が尽きたとき。
@@ -101,22 +96,21 @@
   リポジトリの中で実行しても、作業領域を判定する。
   GitHub に聞くリポジトリは作業領域の `origin`（ターゲットのリモート。[作業領域とブランチ](#work-area)）。理由ごとに「種類（タブ）文面」を 1 行で出し、なければ「片付けを止める
   ものはありません。」と出す。終了コードは、判定できれば 0。種類は次のとおり。
-  ここで「セッションのブランチ」は `$ACP_SESSION_BRANCH` と `$ACP_SESSION_BRANCH-<内容>`、「push したブランチ」は
-  [作業領域とブランチ](#work-area)の見分け方による。「締めでの扱い」は、conventions の
+  「push したブランチ」は[作業領域とブランチ](#work-area)の見分け方による。「締めでの扱い」は、conventions の
   [残す理由の扱い](../../plugins/conventions/docs/reference/issues.md#leftovers)のどれに当たるかと、作業領域にしかないものの
   捨て方。
 
   | 種類 | 残す理由 | 締めでの扱い |
   | --- | --- | --- |
-  | `open-pull` | セッションのブランチか push したブランチを head ブランチとする開いている PR がある | 続く作業 |
-  | `open-base` | セッションのブランチ（リモート）を base ブランチとする開いている PR がある（消すと閉じる） | 続く作業 |
+  | `open-pull` | セッションが作ったブランチか push したブランチを head ブランチとする開いている PR がある | 続く作業 |
+  | `open-base` | セッションが作ったブランチ（リモート）を base ブランチとする開いている PR がある（消すと閉じる） | 続く作業 |
   | `changes` | 作業ツリーにコミットしていない変更か、ignore されていない追跡していないファイルがある | 作業領域にしかないもの。戻すか消す。サブエージェントなどの worktree のものは、その worktree ごと消してよい（`git worktree remove --force`。ロックされていれば `--force` を二つ付ける） |
   | `stash` | stash がある | 作業領域にしかないもの。`git stash drop` で消す |
   | `operation` | rebase や merge などの操作が途中で止まっている | 作業領域にしかないもの。その操作の `--abort` で止める |
   | `detached-commits` | detached HEAD に、どのブランチにもないコミットがある | 作業領域にしかないもの。その worktree をブランチに切り替えるか、サブエージェントなどの worktree なら worktree ごと消す（`changes` と同じ） |
   | `lost-commits` | ブランチに、push していないコミットがあり、その先頭が既定のブランチにも PR（マージしたか閉じたもの）の head コミットにもそのリモートのブランチにも入っていない（先頭が、`lost-push` に当たるブランチの最後に push したコミットのままのブランチは除く） | 作業領域にしかないもの。そのブランチを消すか、今いるブランチなら、最後に push したコミットか既定のブランチの先頭に戻す |
   | `lost-push` | push したブランチの最後に push したコミットが、既定のブランチにも PR（マージしたか閉じたもの）の head コミットにもそのリモートのブランチにも入っていない（ほかの書き手の force push など） | 人が解くもの |
-  | `unmerged-branch` | セッションのブランチ（リモート）を head とする開いている PR がなく、その先頭が既定のブランチにも PR の head コミットにも入っていない（消すと失われる。ほかの書き手が push した先頭でも当たる） | 人が解くもの。リモートのブランチはエージェントは消さない |
+  | `unmerged-branch` | セッションが作ったブランチ（リモート）を head とする開いている PR がなく、その先頭が既定のブランチにも PR の head コミットにも入っていない（消すと失われる。ほかの書き手が push した先頭でも当たる） | 人が解くもの。リモートのブランチはエージェントは消さない |
 
   - `changes`、`operation`、`detached-commits` は、作業領域の中のほかの worktree（サブエージェントのものなど）の
     ものも含む。作業領域の外の worktree（`/tmp` など）は見ないので、その detached HEAD にだけ作ったコミットは残す
@@ -141,17 +135,14 @@
   その PR のブランチから切る。
 - 既存の PR を続けるとき（ほかのセッションや人が作った PR も含む）は、新しいブランチを切らない。その PR の head
   ブランチを取ってきて作業し、push してその PR を更新する（[ADR 0020](../adr/0020-continue-a-pr-on-its-head-branch.md)）。
-  取ってくるときは `git fetch origin <ブランチ>` のあと `git switch <ブランチ>` する。手元に同じ名前のブランチが
-  もとからあったときは、そのブランチに switch したあと、続けて `git pull --rebase origin <ブランチ>` でリモートの
-  先頭に合わせる。リモートが rebase と force push で書き換えられていても、書き換え前に push したコミットは除かれ、
-  まだ push していない自分のコミットだけが載る。
+  手元に同じ名前のブランチがもとからあれば、`git pull --rebase origin <ブランチ>` でリモートの先頭に合わせてから
+  作業する（リモートが書き換えられていても、まだ push していない自分のコミットだけが載る）。
 - このセッションが push したブランチは、`origin` の remote-tracking ブランチのうち、reflog
   （`git reflog show origin/<ブランチ>`）に `update by push` があるもの。最後に push したコミットは、その reflog の
   新しい方から最初の `update by push` の項目のコミット。作業領域では、remote-tracking ブランチの reflog は期限で
   消えない設定にしてある。リモートのブランチを消すか `git fetch --prune` で remote-tracking ブランチが消えると、
   その reflog も消える。
-  片付けは、これと `$ACP_SESSION_BRANCH`、`$ACP_SESSION_BRANCH-<内容>` の名前のブランチを、このセッションのものと
-  して見る（[コンテナの寿命](#lifetime)）。
+  片付けは、これとセッションが作ったブランチを、このセッションのものとして見る（[コンテナの寿命](#lifetime)）。
 - `/workspace` のほかのリポジトリは見えない。例外はプラグインのマーケットプレイスで、ターゲットの隣にある
   マーケットプレイスは、ターゲットが宣言したパスに読み取り専用で見える。その宣言と、そこのプラグインを有効にするかの
   宣言は、作業領域のものではなく、ホストに置いたターゲットのリポジトリ（作業領域の clone 元）のものが使われるので、作業領域で変えても、その
@@ -171,7 +162,18 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 
 - `/run/acp/credentials` は読み取り専用。トークンは control-plane が失効する前に書き換えるので、毎回ファイルから
   読む。`gh auth login` や `gh config set` のように設定を書き換えるコマンドは失敗する。
-- できることは、エージェントの GitHub App と Slack アプリの権限で決まる。
+- できることは、エージェントの GitHub App と Slack アプリの権限で決まる。GitHub App の権限は、ロールごとに次の
+  とおりで、control-plane を動かす人がこの権限で App を用意する（Metadata の読み取りはどれも持つ）。表のほかの権限
+  （Administration、Workflows、Secrets など）は渡さない。[既定のブランチの守り](target.md#protection)は、エージェントが
+  ルールセットを変えられないことに拠る。Workflows がないので、push する範囲に `.github/workflows/` を変えるコミットが
+  入っていると、GitHub が push を断る。そのコミットはエージェントが作り、push を依頼者に頼む。
+
+  | ロール | GitHub App の権限 |
+  | --- | --- |
+  | developer | Contents、Pull requests、Issues の読み書き。Actions、Checks、Commit statuses の読み取り（PR の CI の結果とログ） |
+  | guide | Contents、Pull requests、Issues の読み取り |
+  | reviewer | Contents の読み取り。Pull requests、Issues の読み書き。Actions、Checks、Commit statuses の読み取り |
+  | pm | Contents、Pull requests の読み取り。Issues の読み書き（PR のコメントとラベルにも届く） |
 
 ### コミット
 
@@ -187,7 +189,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 
 ### push
 
-作業領域の `.git/hooks/pre-push` が、push の前に[ターゲットの検査](../../../template/docs/reference/contract.md#checks)（`make check`）を
+作業領域の `.git/hooks/pre-push` が、push の前に[ターゲットの検査](target.md#checks)（`make check`）を
 回し、落ちれば push を断る。push する ref（消すものは除く）が今の HEAD でないときと、作業ツリーにコミットしていない
 変更か ignore されていない追跡していないファイルがあるときも、検査を回さずに断る。取り込んだことのないリモートの
 先頭を上書きする push は、注意を出して止める（下）。
@@ -198,12 +200,12 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 - push に入れない作業用のファイル（PR の本文やコメント、レビューの JSON）は、作業ツリーの外（`mktemp -d` で
   作った場所）に置く。作業ツリーに置くと、ずれとして断られる。
 - 断られたら、出力で理由を確かめて直し、コミットしてから push し直す。`--no-verify` で避けない。
-- リモートにまだないブランチを作る push で、その名前が `$ACP_SESSION_BRANCH` か `$ACP_SESSION_BRANCH-<内容>` で
-  なければ、フックが `acp pre-push: 注意` で始まる注意を出す。名前のためには push を止めない。注意が出たら、
+- リモートにまだないブランチを作る push で、その名前がセッションが作ったブランチの名前（`$ACP_SESSION_BRANCH` か
+  `$ACP_SESSION_BRANCH-<内容>`）でなければ、フックが `acp pre-push: 注意` で始まる注意を出す。名前のためには push を止めない。注意が出たら、
   [作業領域とブランチ](#work-area)の扱いに合っているかを確かめる。依頼者が名前を指定したときなど、合っていれば
   続けてよい。合っていないのに push が通ったなら、正しいブランチで push し直し、作ってしまったリモートのブランチを
-  push した先（ふつうは `origin`）から `git push <push 先> --delete <名前>` で消す。片付けは `$ACP_SESSION_BRANCH` と
-  `$ACP_SESSION_BRANCH-<内容>` のブランチしか消さないので、消さないと残り続ける。
+  push した先（ふつうは `origin`）から `git push <push 先> --delete <名前>` で消す。片付けはセッションが作ったブランチしか
+  消さないので、消さないと残り続ける。
 - リモートにある ref（ブランチやタグ）を fast-forward でなく上書きする push で、そのリモートの先頭を push する
   手元の ref（`HEAD` ならそれが指すブランチ）に一度も取り込んでいなければ、フックが `acp pre-push: 注意` で始まる
   注意を出して止める（ほかの書き手のコミットが消えるため）。ふつうは取り込んでから（`git pull --rebase`）push し
@@ -222,7 +224,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 - 認証情報は、人が devcontainer の中で用意したもの（`gh auth login` など）。
 - 最後の回答は端末に出るだけで、Slack には投稿されない。Slack に届けるのは、[Slack への投稿](#slack-posts)のとおり
   頼まれたときだけ。
-- `/workspace` には、ホストで並べたリポジトリ（[ターゲットの契約のホストでの配置](../../../template/docs/reference/contract.md#host)）が見える。
+- `/workspace` には、ホストで並べたリポジトリ（[ターゲットの契約のホストでの配置](target.md#host)）が見える。
 - 作業するリポジトリも、ホストのディレクトリの bind mount。Docker Desktop では、[作業領域とブランチ](#work-area)にある
   ロックの制約が同じく当てはまる。
 - ブランチや PR の進め方は、ターゲットの決まり（CLAUDE.md）と人の指示に従う。

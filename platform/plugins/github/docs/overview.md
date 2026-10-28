@@ -156,7 +156,7 @@ github/
 
 ### `bin/check-protection`
 
-- **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、[ターゲットの契約](../../../../template/docs/reference/contract.md#protection)の
+- **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、[ターゲットの契約](../../../docs/reference/target.md#protection)の
   既定のブランチの守りを満たすかを確かめる。満たさない項目を
   `NG` の行で出し、終了コードは 0 が通過、1 が抜け、2 が GitHub を読めない。
 - **置くもの / 置かないもの**：

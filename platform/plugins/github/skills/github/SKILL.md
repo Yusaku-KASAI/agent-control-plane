@@ -138,6 +138,11 @@ prctl worktree remove default
 - コミットメッセージは、それだけで変更の理由が分かるように書く（[書き方：コミット](../../../conventions/docs/reference/writing.md#commits)）。
 - 履歴を書き換えて force push したら、`prctl update` で本文を書き換え、何をなぜ書き換えたかをコメントに書く
   （[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
+- `.github/workflows/` を変えるコミットは、GitHub App に Workflows の権限がないので push できない
+  （[ハーネスの契約の認証情報](../../../../docs/reference/harness.md#credentials "在りか")）。コミットは作り、push を依頼者に
+  頼む。push するとその workflow が CI で動くので、依頼者が確かめられるよう、変える workflow と、その `permissions`、
+  使う secrets、使うアクション（`uses:` の足し引きと、何で版を固定するか）、動くきっかけ（`on:`）の変化を添える。
+  依頼者が push するまで、そのブランチにほかのコミットを積んで push しない。
 
 ## レビューと CI
 
@@ -152,7 +157,7 @@ gh run view <run ID> --log-failed                               # 失敗した�
 
 - 指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 - push の前に手元で CI と同じ検査を通し、push のあとは CI を待たずに進む（[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
-  どのコマンドかは、ターゲットなら[ターゲットの契約の検査](../../../../../template/docs/reference/contract.md#checks "在りか")にある。
+  どのコマンドかは、ターゲットなら[ターゲットの契約の検査](../../../../docs/reference/target.md#checks "在りか")にある。
   - control-plane 経由で動くとき（[ハーネスの契約の動き方](../../../../docs/reference/harness.md "在りか")）は、push のあと
     `prctl ci --wait` をバックグラウンドで実行してから、ターンを終える。CI が終わると自分で始めるターンになるので、
     失敗していれば直し、結果を報告する。`timeout` や「no check run appeared」で終わったら、そのことを報告する。
@@ -164,11 +169,12 @@ gh run view <run ID> --log-failed                               # 失敗した�
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。
-- `check-protection` ジョブ（既定のブランチの守りの検査）が失敗したら、ログで分ける
-  （[既定のブランチの守りの用意](../../../../../template/docs/guides/github.md "在りか")）。
+- `check-protection` ジョブ（既定のブランチの守りの検査）が失敗したら、ログで分ける（確かめる守りは
+  [ターゲットの契約](../../../../docs/reference/target.md#protection "在りか")）。
   - PR が CODEOWNERS を変えていて、`NG` の行がその CODEOWNERS のことなら、PR の中で直す。
   - 読めない（`cannot read`、終了コード 2）こと自体は、守りの抜けではない。PR では直さず、そのことを添えて、
-    回し直しを依頼者に頼む（developer の App は Actions を読むだけで、回し直せない）。回し直しても読めなければ、CI の
+    回し直しを依頼者に頼む（GitHub App が Actions を読むだけの権限なら、回し直せない。ロールごとの権限は
+    [ハーネスの契約の認証情報](../../../../docs/reference/harness.md#credentials "在りか")）。回し直しても読めなければ、CI の
     トークンで読めないことでありうる（target-template の ADR 0016）ので、`cannot read` の行を添えて報告する。
     読めずに止まったログにも、それより前の `NG` の行があれば、それはほかの二つの分け方で扱う。
   - それ以外（PR が触れていないリポジトリの設定や、CODEOWNERS の持ち主）は PR の変更では直らない。PR では直さず

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks that the default branch of a repository is protected as the target contract requires
-# (template/docs/reference/contract.md, "既定のブランチの守り"): no deletion or force push, only pull
+# (platform/docs/reference/target.md, "既定のブランチの守り"): no deletion or force push, only pull
 # requests, approvals that count only from humans, approvals dismissed on push, the required check
 # `check` from GitHub Actions, and bypass only for pull requests. The expected values are an API-side
 # reading of that contract; change them when it changes.

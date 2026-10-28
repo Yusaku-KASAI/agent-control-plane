@@ -22,7 +22,7 @@ platform と target-template の文書は、それぞれ [platform/docs/README.m
 | [reference/usage.md](reference/usage.md) | 参照 | 依頼の仕方（Slack、CLI） |
 | [reference/coding.md](reference/coding.md) | 参照 | Go の書き方 |
 | [reference/issues.md](reference/issues.md) | 参照 | Issue のラベル |
-| [acp.example.yaml](../acp.example.yaml) | 参照 | 設定の項目と既定値、GitHub App の権限 |
+| [acp.example.yaml](../acp.example.yaml) | 参照 | 設定の項目と既定値 |
 | [.env.example](../.env.example) | 参照 | `docker compose` が読む値（API トークン、ホストのパス、UID と GID、Docker ソケットのグループ） |
 | [deploy/slack-app-manifest.yaml](../deploy/slack-app-manifest.yaml) | 参照 | エージェントの Slack アプリのマニフェスト |
 | [adr/app/](adr/app/)、[adr/codebase/](adr/codebase/) | 判断 | アプリとコードの判断 |

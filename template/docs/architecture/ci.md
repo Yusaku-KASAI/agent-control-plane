@@ -3,7 +3,7 @@
 PR と main への push のたびと、毎週の定期実行で、devcontainer のイメージの中で `make check` と同じ検査を行う
 （[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて、ターゲットに依存しない文書の検査を、platform の
 複合アクションで devcontainer の外で行う（[ADR 0014](../adr/0014-target-independent-checks-as-platform-actions.md)）。既定のブランチの守りが外れていないことも、同じ形で確かめる
-（[ADR 0016](../adr/0016-protection-checked-in-ci.md)、[0017](../adr/0017-protection-check-follows-contract.md)）。ターゲットが用意する検査は[ターゲットの契約](../reference/contract.md#checks)にある。
+（[ADR 0016](../adr/0016-protection-checked-in-ci.md)、[0017](../adr/0017-protection-check-follows-contract.md)）。ターゲットが用意する検査は[ターゲットの契約](../../../platform/docs/reference/target.md#checks)にある。
 Makefile の `check-<関心>` のように `make` で実行する単位を、make のルール（以下、ルール）と呼ぶ。
 
 ## 構成
@@ -69,7 +69,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
     ほかのリポジトリのコードを動かすので、ジョブの `permissions` は `contents: read` だけにする。
   - `check-protection` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/github/actions/check-protection@main`
     の一つのステップだけを持ち、`permissions` は `contents: read` だけにする。リポジトリの設定と、確かめるコミットの CODEOWNERS を API で
-    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[ターゲットの契約](../reference/contract.md#protection "在りか")の既定のブランチの守りで、手元での回し方は
+    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[ターゲットの契約](../../../platform/docs/reference/target.md#protection "在りか")の既定のブランチの守りで、手元での回し方は
     [既定のブランチの守りの用意](../guides/github.md#verify "在りか")にある。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
