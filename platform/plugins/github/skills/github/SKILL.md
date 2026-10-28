@@ -50,7 +50,7 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 ## 差分のレビュー
 
-自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、サブエージェント（reviewer ロールがあればそれ）にレビューさせる
+自分の変更は、コミットしてから、PR を作る前と push で head が進んだときに、ファイルを変えない別の文脈のサブエージェントにレビューさせる
 （review スキルの「レビューを頼んで答える」）。回し方は、既定は通常で、念入りに回す PR には、`prctl create` の
 すぐあとに `prctl mode thorough` でラベル `念入りのレビュー` を付ける（[回し方](../../../conventions/docs/reference/reviews.md#ways)）。
 ラベルがなければ通常として扱われる。今の回し方は `prctl status` の `reviewed:` の行で分かる。`prctl review` には、サブエージェントが見た最後のコミットと、その結果の JSON（下）を渡す。そのあとに
@@ -58,14 +58,14 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
   残す。指摘への答えは、`review.json` の `answers` に書く。
-- 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する。
+- 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の「答える」）。
 - push で head が進んだら、通常なら PR 全体を、念入りなら `prctl unreviewed` の範囲（終える前の PR 全体のレビューの
   指摘への直しなら、PR 全体）をレビューさせて残す。通常の PR に
   `"scope": "since"` のレビューを残そうとすると、`prctl` が断る。ただし、範囲が細部の指摘への、意味の
   変わらない直しだけなら、レビューさせずに `prctl review --minor` で残す。`note.md` には、どのレビューの細部の
   指摘への直しかを書く。範囲の始まりがレビューでないとき（PR にレビューが一つもない、どれも今の head の履歴にない、
   `--minor` の記録のあと）は、`prctl` が断る。
-- 念入りでは、観点ごとにサブエージェントを並べて頼み、返った結果を一つの JSON にまとめて残す。
+- 念入りでは、観点ごとにサブエージェントを並べて頼み、返った結果を一つの JSON にまとめて残す（[回し方](../../../conventions/docs/reference/reviews.md#ways)）。
 - 通常の打ち切り（必須のない PR 全体のレビューが 2 回続いた）は `prctl` が数えない。打ち切った提案には、`直さない` で、理由を「打ち切り」で
   始めて答える（あとの全体のレビューが、それで探す）。
 - 範囲の外の指摘を依頼の Issue に積んだときは、積むコメントを書いてから、`Issue にした` で依頼の Issue の番号を渡し、
@@ -131,7 +131,7 @@ prctl worktree remove default
   gh pr view <番号> --json title,body --jq '.title, (.body | split("\n")[] | select(test("^(Closes|Fixes|Resolves|Refs) #")))'
   ```
 - 検査は、取り出した worktree の中で回す。
-- レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける）。承認も変更の要求もしない。マージを決めるのは人。
+- レビューは COMMENT だけにする（`prctl review` は COMMENT だけを付ける。[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。承認も変更の要求もしない。マージを決めるのは人。
 
 ## コミットと履歴
 
@@ -155,7 +155,8 @@ gh pr checks <番号>                                              # CI のジ�
 gh run view <run ID> --log-failed                               # 失敗したジョブのログ
 ```
 
-- 指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する（[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
+- ほかの人が PR に付けた指摘には、上のコマンドでそのレビューコメントに返信して答え、直したら PR を更新する。PR を作った
+  あとに自分が頼んだレビューの指摘には、上の「差分のレビュー」のとおり `prctl answer` で答える（答える場所は[差分のレビュー](../../../conventions/docs/reference/reviews.md#diff)）。
 - push の前に手元で CI と同じ検査を通し、push のあとは CI を待たずに進む（[検査と履歴](../../../conventions/docs/reference/changes.md#checks)）。
   どのコマンドかは、ターゲットなら[ターゲットの契約の検査](../../../../docs/reference/target.md#checks "在りか")にある。
   - control-plane 経由で動くとき（[ハーネスの契約の動き方](../../../../docs/reference/harness.md "在りか")）は、push のあと
@@ -165,7 +166,7 @@ gh run view <run ID> --log-failed                               # 失敗した�
     `origin/<ブランチ>` が指す head（ふつうは最後に push した head）を追うので、ほかの待ちが動いていれば
     「already waiting」ですぐ終わる。前の待ちが終わった知らせがまだ届いていないこともあるので、動いていると思っても
     始める。同じ CI をフォアグラウンドでも待たず、終わりを Monitor や ScheduleWakeup で見張らない
-    （[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md "在りか")）。
+    （[ハーネスの契約の依頼と回答](../../../../docs/reference/harness.md#requests)）。
   - 今の head の CI が失敗していると、hook がターンの終わりに止める。実行中、人の操作待ち（`action_required`）、
     取り消し（`incomplete`）では止めないが、報告にはその状態を書く。
 - CI が失敗したら、上のコマンドでログを見て原因を確かめてから直す。
@@ -194,7 +195,7 @@ check-issues [<owner>/<repo>]   # NG の行がずれ。終了コードは 0 が�
   ずれ）、開いている Issue が閉じた Issue に blocked by されていないこと。ラベルの決まりや当たるテーマの Issue がない
   リポジトリでは、ラベルの `NG` は整っている状態のずれとは限らない（[課題の扱い方：分類](../../../conventions/docs/reference/issues.md#kinds)の
   箇条）。
-- 課題を整えるときは、ほかの「整っている状態」（本文、重なり、順番、テーマ）と、`NG` の行をどう直すか（人が決めるもの
+- 課題を整えるときは、上の三つのほかの「整っている状態」と、`NG` の行をどう直すか（人が決めるもの
   か）を、[課題を整える](../../../conventions/docs/guides/organize-issues.md "在りか")手順で判断する。
 - セッションを締めるときは、`NG` の行のうち、[セッションを締める](../../../conventions/docs/guides/close-session.md)手順の
   5 段で直すもの（5 段の条件に当たるとき、今の焦点に残る閉じた Issue を外すこと）だけを直し、ほかの `NG`（このセッションが扱った Issue の

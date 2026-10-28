@@ -5,8 +5,8 @@ platform は、ターゲットをまたいで使うエージェントの能力�
 
 platform は principles、conventions と契約（[エージェントの用語集](reference/glossary.md)、[ハーネスの契約](reference/harness.md)、
 [ターゲットの契約](reference/target.md)）を前提にし、エージェントを動かす側（control-plane と devcontainer）とターゲットとは、
-契約だけでつながる。区切りの分け方と
-依存の向きの決まりは、conventions の[文書の体系](../plugins/conventions/docs/architecture/documentation.md)にある。
+契約だけでつながる。区切りの分け方と依存の向きの決まりは、conventions の
+[文書の体系](../plugins/conventions/docs/architecture/documentation.md)にある。
 
 ## 構成
 
@@ -14,18 +14,24 @@ platform は principles、conventions と契約（[エージェントの用語�
 platform/
   .claude-plugin/marketplace.json   マーケットプレイス acp-platform
   plugins/
-    harness/ roles/ github/ …       エージェントの能力（platform の中の項目。architecture/plugins.md）
+    harness/ roles/ github/ …       エージェントの能力（platform の中の項目。下の構成要素）
     principles/                     どこでも通用する原則とパターン（別の区切り）
     conventions/                    このプロジェクト群の決まり（別の区切り）
   docs/                             platform の文書（README.md が一覧）と、契約の文書の置き場所
 ```
 
-`platform/` というディレクトリは、platform の置き場所であると同時に、マーケットプレイスとしてほかの区切りも運ぶ
-入れ物を兼ねる（何を運ぶかは[用語集](reference/glossary.md "在りか")のマーケットプレイス）。運ばれるほかの区切りは
-platform に属さない。
-
-`docs/` には platform の文書を置く。置き場所として、契約という項目に属するエージェントの用語集、ハーネスの契約、
-ターゲットの契約もここに置く。各プラグインの中の構成は、そのプラグインの `docs/` に書く。
+- `platform/` というディレクトリは、platform の置き場所であると同時に、マーケットプレイスとしてほかの区切りも運ぶ
+  入れ物を兼ねる（何を運ぶかは[用語集](reference/glossary.md "在りか")のマーケットプレイス）。運ばれるほかの区切りは
+  platform に属さない。
+- `docs/` には platform の文書を置く。置き場所として、契約という項目に属するエージェントの用語集、ハーネスの契約、
+  ターゲットの契約もここに置く。
+- 各プラグインは `plugins/<名前>/` にあり、hook、スキル、コマンド（`bin/`）、スクリプト、カスタムエージェント
+  （`agents/`）、CI のアクション（`actions/`）、試験（`tests/<名前>-test.sh`）のうち要るものを持つ。文書の根はそれぞれの
+  `docs/` で、中の構成はそこに書く。
+- プラグインには、どのターゲットでも通用する内容だけを書く。プラグインの形は `claude plugin validate` で、`bin/` と
+  `scripts/` のシェルスクリプトは `shellcheck` で確かめる。
+- どのプラグインも、platform の外では principles、conventions と契約を前提にしてよい。プラグインの間の前提は
+  [地図](#map-platform)にある。
 
 ## 届き方
 
@@ -34,11 +40,48 @@ platform に属さない。
   渡す認証情報や環境は、[ハーネスの契約](reference/harness.md)にある。
 - 人が対話で使うときは、[対話で使う準備](guides/use-interactively.md)のとおりに入れる。
 
-## プラグイン
+<a id="components"></a>
 
-各プラグインの責務と、プラグインの間の関係は [architecture/plugins.md](architecture/plugins.md) にある。
-プラグインには、どのターゲットでも通用する内容だけを書く。プラグインの形は `claude plugin validate` で、`bin/` と
-`scripts/` のシェルスクリプトは `shellcheck` で確かめる。
+## 構成要素
+
+### `harness`
+
+- **責務**：エージェントに、どう動かされているかと、ハーネスの契約と platform の文書の一覧の在りかを伝え、契約の制約を
+  守らせ、サブエージェントの間に作業領域が変われば知らせ、詰まったときの切り分けを助ける。
+- **置くもの / 置かないもの**：始めの短い案内、control-plane 経由で働く hook、切り分けの手順。契約の中身は
+  [ハーネスの契約](reference/harness.md)に置く。
+- **関係**：中の構成は [harness の文書](../plugins/harness/docs/README.md "在りか")。
+- **当てはめた原則・パターン**：[使う側に届く契約](../plugins/principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
+  エージェントにも、契約を届ける。[仕組みで守る](../plugins/principles/docs/reference/principles.md#mechanisms)：契約の制約を hook で守らせる。
+
+### `roles`
+
+- **責務**：共通のロール（Claude Code のカスタムエージェント）を定義する。
+- **置くもの / 置かないもの**：ロールの振る舞いだけを置き、ターゲット固有の事実や、ハーネスの事実は置かない。
+- **関係**：中の構成は [roles の文書](../plugins/roles/docs/README.md "在りか")。
+- **当てはめた原則・パターン**：[関心の分離](../plugins/principles/docs/reference/principles.md#soc)：振る舞いだけを持ち、事実は契約とターゲットの
+  CLAUDE.md に任せる。
+
+### `github`
+
+- **責務**：PR の本文と差分のレビューを今のブランチに追いつかせ続け、CI の失敗で止め、GitHub での作業（PR、レビュー、
+  CI、Issue）の手順と、既定のブランチの守りと Issue のずれを確かめるコマンドを届ける。
+- **置くもの / 置かないもの**：PR を扱うコマンドと hook、検査のコマンドと CI の複合アクション、スキル。
+- **関係**：ハーネスの契約で渡される `gh` の認証を使う。中の構成は [github の文書](../plugins/github/docs/README.md "在りか")。
+- **当てはめた原則・パターン**：[仕組みで守る](../plugins/principles/docs/reference/principles.md#mechanisms)：本文が古いことを hook が見つけ、
+  書き換えを促す。
+
+### `slack`
+
+- **責務**：Slack のメッセージとスレッドを読み、投稿する。control-plane 経由では、ターンの最後の回答に Slack で崩れる形が
+  ないかを、ターンの終わりの hook で確かめる。
+- **関係**：ハーネスの契約で渡される認証情報と動き方を使い、認証情報の組み合わせでできることが決まる。中の構成は
+  [slack の文書](../plugins/slack/docs/README.md "在りか")。
+
+### `bell`
+
+- **責務**：対話で使っている Claude Code が止まったら、端末のベルを鳴らす。
+- **関係**：hook だけを持つ。中の構成と、どの場面で何回鳴らすかは [bell の文書](../plugins/bell/docs/README.md "在りか")。
 
 <a id="map-platform"></a>
 

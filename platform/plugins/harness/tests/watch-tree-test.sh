@@ -98,14 +98,12 @@ check "without a snapshot, nothing to tell" "" "$(run "" PostToolUse Agent '{"pr
 check "nothing is watched outside the control plane" "" "$(ACP_SESSION_BRANCH='' run "" PreToolUse Agent '{"prompt":"p"}')"
 check "outside the control plane, no snapshot is taken" no \
   "$([[ -e $snapshot ]] && echo yes || echo no)"
-# The hook is wired to the Agent and Task calls, before and after them, failed or not.
+# The hook is wired to the Agent calls, before and after them, failed or not.
 hooks=$(cd "$(dirname "$0")/.." && pwd)/hooks/hooks.json
 for event in PreToolUse PostToolUse PostToolUseFailure; do
-  for tool in Agent Task; do
-    wired=$(jq -r --arg e "$event" --arg t "$tool" '[.hooks[$e][]? | . as $h
-      | select(any($h.hooks[]; .command | test("watch-tree"))) | select($t | test("^(" + $h.matcher + ")$"))]
-      | length' "$hooks")
-    check "watch-tree runs on $event of $tool" 1 "$wired"
-  done
+  wired=$(jq -r --arg e "$event" '[.hooks[$e][]? | . as $h
+    | select(any($h.hooks[]; .command | test("watch-tree"))) | select("Agent" | test("^(" + $h.matcher + ")$"))]
+    | length' "$hooks")
+  check "watch-tree runs on $event of Agent" 1 "$wired"
 done
 exit $failed

@@ -14,6 +14,9 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
   管理者の権限（sudo）を持たない。
 - 次の道具が `PATH` にある。`claude`、`git`、`gh`（エージェントが使う）と、`bash`、`jq`、`python3`、`curl`、`make`、
   coreutils、`grep`、`sed`、`awk`、findutils、procps の `ps`、util-linux の `flock`（platform のプラグインのコマンドと hook、検査が使う）。
+- `claude` は、platform の hook が拠る入力を渡す版にする：サブエージェントを呼ぶツールの名前が `Agent` で、サブエージェント
+  自身の呼び出しに `agent_id` が付く（[ADR 0032](../adr/0032-hooks-match-the-agent-tool-name-only.md)。2.1.292 で確かめた）。
+  版を上げたら、サブエージェントの呼び出しに hook が働くことを確かめる。
 - 引数に渡したコマンド（`claude ...`）をそのまま実行できる。entrypoint があれば、準備を済ませたあと引数のコマンドを
   `exec` する。
 - entrypoint は標準入力をそのまま渡し、自身の出力は stderr に出す。stdout はエージェントの回答として扱われる。

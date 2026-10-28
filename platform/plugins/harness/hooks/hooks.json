@@ -22,7 +22,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Agent|Task|SendMessage",
+        "matcher": "Agent|SendMessage",
         "hooks": [
           {
             "type": "command",
@@ -40,7 +40,7 @@
         ]
       },
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
@@ -51,7 +51,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
@@ -62,7 +62,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
