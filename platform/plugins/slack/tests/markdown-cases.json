@@ -553,5 +553,10 @@
     "name": "a code block at the margin of a quote ends the list in it",
     "text": "> - a\n>\n> ```\n> x\n> ```\n>   ```\n> y\n>   ```",
     "found": []
+  },
+  {
+    "name": "a code block left open does not hide the closing run of another kind",
+    "text": "> ````\n> code\n\n```\n# **in**\n```\n\n# **out**",
+    "found": [8]
   }
 ]

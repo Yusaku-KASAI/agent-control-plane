@@ -147,6 +147,14 @@ check "a PR without any review may not end" "$("$prctl" status)" "end:       PR 
 out=$(stop_hook)
 check "stop asks for a review" "$out" "not reviewed up to ${c2:0:12}"
 lacks "stop does not point to minor fixes before any review" "$out" "not reviewed up to" "prctl review --minor"
+# The stop hook stays out of a turn it already held, and of a head not pushed or not on a branch.
+check "a turn the hook held is let end" "[$(jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: true}' | "$prctl" hook stop)]" "[]"
+commit unpushed >/dev/null
+check "a head not pushed is left alone" "[$(stop_hook)]" "[]"
+git reset -q --hard "$c2"
+git checkout -q --detach
+check "a detached head is left alone" "[$(stop_hook)]" "[]"
+git checkout -q feature
 lacks "unreviewed does not point to minor fixes before any review" "$("$prctl" unreviewed)" "range:" "prctl review --minor"
 check "an empty review is refused" "$("$prctl" review "$c2" - </dev/null 2>&1 || true)" "the review is not JSON"
 check "a review not in the form is refused" \
@@ -367,6 +375,20 @@ check "reviews without a body and dismissed reviews do not count" "$("$prctl" un
 out=$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)
 check "post-tool-use reminds of the review" "$out" "not reviewed up to ${c3:0:12}"
 check "post-tool-use points to minor fixes after a review" "$out" "prctl review --minor"
+check "post-tool-use reminds once per push" "[$(jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use)]" "[]"
+# post: the post-tool-use hook, the reminder of the last push forgotten.
+post() { rm -f "$(git rev-parse --git-path prctl-notified)"; jq -n --arg cwd "$PWD" '{cwd: $cwd}' | "$prctl" hook post-tool-use; }
+check "post-tool-use reminds again once the reminder is forgotten" "$(post)" "not reviewed up to ${c3:0:12}"
+commit unpushed-post >/dev/null
+check "post-tool-use leaves a head not pushed alone" "[$(post)]" "[]"
+git reset -q --hard "$c3"
+git checkout -q --detach
+check "post-tool-use leaves a detached head alone" "[$(post)]" "[]"
+git checkout -q feature
+touch "$state/nopr-feature"
+check "post-tool-use leaves a branch without a PR alone" "[$(post)]" "[]"
+check "stop leaves a branch without a PR alone" "[$(stop_hook)]" "[]"
+rm -f "$state/nopr-feature"
 other=$(git commit-tree -m outside "$(git rev-parse "HEAD^{tree}")")
 check "a commit not in the PR is refused" "$("$prctl" review "$other" - <<<"$nothing" 2>&1 || true)" "is not in the PR"
 
@@ -533,6 +555,27 @@ check "an answer given twice is refused" \
 check "an answer to a fraction of a finding is refused" \
   "$("$prctl" answer "$c12" - <<<'[{"finding": 1.5, "action": "直さない", "reason": "r"}, {"finding": 1, "action": "直さない", "reason": "r"}, {"finding": 2, "action": "直さない", "reason": "r"}]' 2>&1 || true)" \
   "answer to 1.5: finding is the number of a finding"
+# Each rule of the form is told when broken.
+form() { "$prctl" review "$c12" - <<<"$(jq -c "$1" <<<"$found")" 2>&1 || true; }
+check "a review that is no object is refused" "$("$prctl" review "$c12" - <<<'[]' 2>&1 || true)" "the review is not a JSON object"
+check "a review of no known scope is refused" "$(form '.scope = "all"')" "scope is \"since\""
+check "a perspective not of the conventions is refused" "$(form '.perspectives += ["速さ"]')" "perspectives lists those looked at"
+check "a skipped perspective without a reason is refused" "$(form '.skipped[0].reason = " "')" "each of skipped has a perspective and a reason"
+check "a review without its findings is refused" "$(form 'del(.findings)')" "findings is a list"
+check "a finding of no known severity is refused" "$(form '.findings[0].severity = "重い"')" "finding 1: severity is one of"
+for part in location summary basis problem fix verified; do
+  check "a finding without its $part is refused" "$(form ".findings[0].$part = \" \"")" "finding 1: location, summary, basis, problem, fix and verified are all written"
+done
+check "a review that looked at no perspective is refused" "$(form '.perspectives = []')" "perspectives lists those looked at"
+check "a skipped perspective not of the conventions is refused" "$(form '.skipped[0].perspective = "速さ"')" "each of skipped has a perspective and a reason"
+answer() { "$prctl" answer "$c12" - <<<"$1" 2>&1 || true; }
+rest='{"finding": 2, "action": "直さない", "reason": "r"}'
+check "answers that are no list are refused" "$(answer '{}')" "the answers are a JSON list"
+check "an answer of no known action is refused" "$(answer '[{"finding": 1, "action": "済み"}, '"$rest"']')" "answer to 1: action is one of"
+check "an issue made of a finding is named" "$(answer '[{"finding": 1, "action": "Issue にした"}, '"$rest"']')" "answer to 1: names its issue"
+check "a finding left unfixed says why" "$(answer '[{"finding": 1, "action": "直さない"}, '"$rest"']')" "answer to 1: says why, or what the answer is"
+check "an issue made of a finding is named by its number" "$(answer '[{"finding": 1, "action": "Issue にした", "issue": "#3"}, '"$rest"']')" "answer to 1: names its issue"
+check "a question answered says what the answer is" "$(answer '[{"finding": 1, "action": "答えた", "reason": " "}, '"$rest"']')" "answer to 1: says why, or what the answer is"
 c13=$(commit thirteen)
 git push -q
 set_pr "$c13"
@@ -573,6 +616,19 @@ check "an issue to close does not fill the last section" \
 # shellcheck disable=SC2001,SC2016 # line-wise edits of a sample body, with Markdown backquotes
 check "an issue the PR only refers to does not fill the last section" \
   "$("$prctl" create t - <<<"$(sed 's/^なし$//; s/^Closes #1$/Refs #1/' <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+for word in close Closes closed fix Fixes FIXED resolve resolves Resolved refs; do
+  # shellcheck disable=SC2001 # a line-wise edit of a sample body
+  check "an issue closed by \"$word\" does not fill the last section" \
+    "$("$prctl" create t - <<<"$(sed "s/^なし$//; s/^Closes #1$/$word #1/" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+done
+for ref in 'Fixes owner/repo#1' 'Closes: #1'; do
+  # shellcheck disable=SC2001 # a line-wise edit of a sample body
+  check "an issue closed by \"$ref\" does not fill the last section" \
+    "$("$prctl" create t - <<<"$(sed "s|^なし$||; s|^Closes #1$|$ref|" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
+done
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "the old marker of the head does not fill the last section" \
+  "$("$prctl" update - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n<!-- prctl: head='"$(printf '%040d' 0)"' -->' 2>&1 || true)" "the section ## 確かめていないこと is empty"
 # shellcheck disable=SC2001,SC2016 # a line-wise edit of a sample body, with Markdown backquotes
 check "a heading in a code block is not a section" \
   "$("$prctl" create t - <<<"$(sed 's/^x$/```md\n## どう確かめたか\n```/' <<<"$good")" 2>&1 || true)" "already has an open PR"
@@ -663,7 +719,9 @@ rm -f "$(git rev-parse --git-path prctl-handback-1)"
 # The cap counts the reviews of the whole PR after the place last remembered: here, from this head.
 handback=$(git rev-parse --git-path prctl-handback-1)
 count_from_here() { git rev-parse HEAD >"$handback"; }
-check "the cap is ten reviews of the whole PR by default, either way" "$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")" "PRCTL_FINAL_CAP:-10"
+cap=$(grep '^| 依頼者に返すとき |' "$reviews" | grep -o '[0-9]\+ 回' | grep -o '[0-9]\+' || true)
+check "the cap is read from the conventions" yes "$([[ -n $cap ]] && echo yes || echo no)"
+check "the cap is that of the conventions, either way" "[$(grep -o 'PRCTL_FINAL_CAP:-[0-9]*' "$prctl")]" "[PRCTL_FINAL_CAP:-$cap]"
 count_from_here
 cap_stop() { rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=2 "$prctl" hook stop; }
 ca=$(commit cap-a) && git push -q && set_pr "$ca" && "$prctl" review "$ca" - <<<"$must" >/dev/null
@@ -756,6 +814,10 @@ PRCTL_FINAL_CAP=1 "$prctl" ready >/dev/null 2>&1 || true
 check "prctl ready tells a draft past the cap goes back, asked again" "$(PRCTL_FINAL_CAP=1 "$prctl" ready 2>&1 || true)" "hand it back"
 out=$(rm -f "$(git rev-parse --git-path prctl-settled)"; jq -n --arg cwd "$PWD" '{cwd: $cwd, stop_hook_active: false}' | PRCTL_FINAL_CAP=1 "$prctl" hook stop)
 check "the end of a draft's turn does not hold it" "[$out]" "[]"
+# A draft is not held for its end, but is for what its head lacks.
+cdx=$(commit draft-x) && git push -q && set_pr "$cdx"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "a draft's turn is held for a push not reviewed" "$(stop_hook)" "not reviewed up to ${cdx:0:12}"
 cd3=$(commit draft-c) && git push -q && set_pr "$cd3" && "$prctl" review "$cd3" - <<<"$must" >/dev/null
 jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 lacks "after the end of a draft's turn, the count goes on afresh" "$(PRCTL_FINAL_CAP=2 "$prctl" ready 2>&1 || true)" "must be fixed" "hand it back"
@@ -796,6 +858,7 @@ check "a push not recorded does not count afresh" "$(cat "$handback")" "$s1"
 checks completed/failure
 out=$(stop_hook)
 check "a turn held for CI is held" "$out" "CI failed on"
+check "a turn held for CI is told what the PR cannot fix goes to the requester" "$out" "reported to the requester"
 check "a turn held for CI does not count afresh" "$(cat "$handback")" "$s1"
 checks completed/success
 out=$(stop_hook)

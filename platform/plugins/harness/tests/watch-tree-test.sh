@@ -98,6 +98,17 @@ check "without a snapshot, nothing to tell" "" "$(run "" PostToolUse Agent '{"pr
 check "nothing is watched outside the control plane" "" "$(ACP_SESSION_BRANCH='' run "" PreToolUse Agent '{"prompt":"p"}')"
 check "outside the control plane, no snapshot is taken" no \
   "$([[ -e $snapshot ]] && echo yes || echo no)"
+# From a linked worktree, without CLAUDE_PROJECT_DIR, the work area is still the main worktree.
+from_linked() {
+  CLAUDE_PROJECT_DIR='' run "" PreToolUse Agent '{"prompt":"p"}' "$linked" >/dev/null
+  eval "$1"
+  CLAUDE_PROJECT_DIR='' run "" PostToolUse Agent '{"prompt":"p"}' "$linked" | jq -r '.hookSpecificOutput.additionalContext // ""'
+}
+# shellcheck disable=SC2016 # expanded by from_linked
+check "from a linked worktree, a change of the main worktree is told" yes "$(told "$(from_linked 'touch "$repo/main-change"')")"
+rm -f "$repo/main-change"
+# shellcheck disable=SC2016 # expanded by from_linked
+check "from a linked worktree, a change of its own is not told" "" "$(from_linked 'touch "$linked/own-change"')"
 # The hook is wired to the Agent calls, before and after them, failed or not.
 hooks=$(cd "$(dirname "$0")/.." && pwd)/hooks/hooks.json
 for event in PreToolUse PostToolUse PostToolUseFailure; do

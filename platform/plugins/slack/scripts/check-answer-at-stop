@@ -10,11 +10,12 @@ set -uo pipefail
 command -v python3 >/dev/null || exit 0
 input=$(cat)
 answer=$(jq -r '.last_assistant_message // empty' <<<"$input" 2>/dev/null)
-[[ -n ${answer//[[:space:]]/} ]] || exit 0
 session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
 continued=$(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null)
 
+# An answer without the forms (an empty one too) forgets those that held a turn.
 state=${TMPDIR:-/tmp}/slack-check-answer-${session:-none}
+[[ -n ${answer//[[:space:]]/} ]] || { rm -f "$state"; exit 0; }
 status=0
 found=$(printf '%s' "$answer" | python3 -I "$(dirname "$0")/check-markdown" 2>/dev/null) || status=$?
 if ((status == 0)); then
@@ -23,13 +24,17 @@ if ((status == 0)); then
 fi
 ((status == 3)) || exit 0
 
-# The same findings hold a turn once: the agent may keep a form on purpose. Only when a Stop hook
-# has kept the turn going are they compared with those that held it, so that a turn that went on
-# for another Stop hook is still checked, and the next request's answer is checked afresh. The
-# findings are kept by their forms and how many, not their lines, so that an answer reworded around
-# a kept form is not held again. Findings that cannot be remembered do not hold the turn, as they
-# would hold every end of it.
-held=$(cut -d: -f2- <<<"$found" | sort | cksum)
-[[ $continued == true && $(cat "$state" 2>/dev/null) == "$held" ]] && exit 0
-echo "$held" 2>/dev/null >"$state" || exit 0
+# The findings that held a turn do not hold it right again: the agent may keep a form on purpose.
+# Only when a Stop hook has kept the turn going are they compared with those that held it last, so
+# that a turn that went on for another Stop hook is still checked, and the next request's answer is
+# checked afresh. The findings are kept by their forms and how many, not their lines, so that an
+# answer reworded around a kept form is not held again; an answer that keeps some of them and
+# rewrites the rest is not held again either. Findings that cannot be remembered do not hold the
+# turn, as they would hold every end of it.
+forms=$(cut -d: -f2- <<<"$found" | sort)
+if [[ $continued == true && -f $state ]] \
+  && [[ -z $(comm -23 <(printf '%s\n' "$forms") <(sort "$state" 2>/dev/null)) ]]; then
+  exit 0
+fi
+printf '%s\n' "$forms" 2>/dev/null >"$state" || exit 0
 jq -n --arg found "$found" '{decision: "block", reason: ("Your last message is the answer the requester reads, which may be shown in Slack'"'"'s markdown block. It reads these forms of it differently (the slack plugin'"'"'s check-markdown; lines count from the start of the message). Rewrite them as the slack skill'"'"'s writing section tells, then end with your full answer to the request again, not only this update. If a form is meant, keep it: the same forms are checked once.\n" + $found)}'

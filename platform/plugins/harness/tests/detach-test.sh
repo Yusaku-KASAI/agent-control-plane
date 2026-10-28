@@ -38,6 +38,9 @@ allow|echo 'nohup here'
 allow|git commit -m "fix &"
 allow|ls # sleep & comment
 allow|echo disowned-thing
+deny|((sleep 9) &)
+deny|((true) ); sleep 9 &
+deny|echo ${x:-$(sleep 9 >/dev/null &)}
 deny|echo "it's"; prctl ci --wait & echo 'done'
 deny|echo "don't" & echo 'ok'
 deny|wait; prctl ci --wait &
