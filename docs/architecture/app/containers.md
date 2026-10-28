@@ -57,8 +57,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - API は、ホストの `127.0.0.1:8787` で届く。ネットワークは compose のプロジェクトの既定のもの
     （`agent-control-plane_default`）で、devcontainer もエージェントのコンテナも入らない（[ターゲットの契約](../../../platform/docs/reference/target.md#control-plane "在りか")）。
     リクエストには `ACP_API_TOKEN` を要求する。
-  - 止めるときの猶予は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。実行中のターンを中断して
-    スレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
+  - 止めるときの猶予（`stop_grace_period`）は 1 分で、プロセスを止める期限（`process.go` の `Close`）より長い。
+    実行中のターンを中断してスレッドに知らせ終えるまで待つ（[依頼と知らせ](requests.md#shutdown "在りか")、[ADR 0024](../../adr/app/0024-restart-abandons-running-work.md)）。
 - **関係**：プロキシにだけ、内部ネットワーク `docker-proxy` でつながる。秘密のファイルとボリュームの中身は
   [認証情報](credentials.md "在りか")にある。
 
@@ -143,7 +143,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - `UpdateCredentials` と `SetCoAuthors`：セッションの認証情報のディレクトリのファイルを書き換える。
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを
     強制的に消す。
-- **関係**：usecase の `Process` を実装する。出来事をどう扱うか（受信箱、状態の表示、休ませること）は dispatcher にある。
+- **関係**：usecase の `Process` を実装する。出来事をどう扱うか（依頼の順番、休ませること）は[セッションのワーカー](sessions.md#worker "在りか")に、どう見せるかは
+  [状態メッセージ](requests.md#status "在りか")にある。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Claude Code の出力の形を
   知るのはここだけで、usecase は `ProcessEvent` だけを見る。
 
@@ -158,10 +159,11 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - マーケットプレイスのパスは、契約の形（devcontainer でのパス）のほか、リポジトリからの相対パスも受け付ける。
     ターゲット自身の中か隣のリポジトリかの分け方と、それぞれをどう見せるかは契約のとおり。
   - プラグインの場所はマーケットプレイスの `.claude-plugin/marketplace.json` で引き、相対パスの source だけを扱う。
-  - 作業領域はエージェントが書けるので、これらのファイルは control-plane のプロセスで、読む元のディレクトリ（作業領域、
-    ホストのターゲットの checkout、隣のマーケットプレイス）の外を読まないように読む（`readUntrusted`）。シンボリックリンクは、相対パスでその中に留まるものだけを
-    たどる。待たずに開いて、開いたものが通常のファイルかを確かめ（名前付きパイプ、デバイスは断る）、1 ファイル 1 MiB
-    までしか読まない。一つのコンテナのためには、マーケットプレイスを一度ずつ読み、合計 4 MiB までにする。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
+  - 作業領域はエージェントが書けるので、これらのファイルは control-plane のプロセスで、ターゲットの契約のプラグインの節に
+    あるファイルの条件（通常のファイル、大きさ、シンボリックリンク）から外れたものを読まずに断る（`readUntrusted`）。読む元の
+    ディレクトリ（作業領域、ホストのターゲットの checkout、隣のマーケットプレイス）の外は読まず
+    （`os.Root`）、待たずに開く。一つのコンテナのためには、マーケットプレイスを一度ずつ読み、合計 4 MiB までに
+    する。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
   - どちらの設定の宣言を使うかは[ハーネスの契約](../../../platform/docs/reference/harness.md#work-area "在りか")のとおり。
 - **関係**：決まりの理由は [target-template ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
   [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
@@ -174,7 +176,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 ### エージェントの Claude Code の設定ディレクトリ
 
 - **責務**：エージェントごとに、会話の履歴と auto memory を置く Claude Code の設定ディレクトリを用意する。
-- **置くもの / 置かないもの**：`acp-claude` ボリューム（`claude.config_dir`）の `<エージェント名>/` を、コンテナの
+- **置くもの / 置かないもの**：`acp-claude` ボリューム（`claude.config_volume`）の `<エージェント名>/` を、コンテナの
   `/home/node/.claude` にマウントし、`CLAUDE_CONFIG_DIR` で指す。ボリュームを使わない設定は
   [acp.example.yaml](../../../acp.example.yaml "在りか") にある。同じエージェントのセッションは、同時に動くものも含めてこれを共有する。
   devcontainer の Claude Code の設定はエージェントに渡さず、エージェントの間と devcontainer とで会話の履歴と auto memory を分ける
@@ -185,7 +187,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
 
 ### `internal/adapter/docker`（`workspace.go`）
 
-- **責務**：usecase の `SessionWorkspace` を実装し、セッションの作業領域が持っているもの（[作業領域の状態](workspace.md#state "在りか")）を、
+- **責務**：usecase の `SessionWorkspace` を実装し、セッションの作業領域が持っているもの（[作業領域の状態](cleanup.md#state "在りか")）を、
   control-plane のプロセスの外で読む。作業領域はエージェントが書け、git はリポジトリの設定が名指すコマンド
   （`core.fsmonitor`、フィルタなど）を動かし、名前付きパイプなどで止まりもするため（[ADR 0043](../../adr/app/0043-read-workspaces-in-throwaway-containers.md)）。
 - **置くもの / 置かないもの**：
@@ -206,7 +208,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
       ログは書かない（出力は attach で読み、読む量の上限は `State` にある。エージェントのコマンドが上限なく書きうるため）。
       プロセス数とメモリにも上限を付ける。エージェントが設定に書いたコマンドが、依頼と関係なく動くため。
     - ラベル `acp.workspace-state`。Docker Compose のラベルは、エージェントのコンテナと同じく空にする。
-- **関係**：片付け（[片付け](sessions.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
+- **関係**：片付け（[片付け](cleanup.md#cleaner "在りか")）から呼ばれる。使う Docker の API はエージェントのコンテナと同じで、
   プロキシの許可は変わらない。
 - **当てはめた原則・パターン**：[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが書いたものを読む
   git には、作業領域を読む権限のほか何も渡さない。
@@ -218,7 +220,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   1〜2 段下にあるセッション ID で始まる名前のもの（`projects/<ディレクトリ>/<ID>.jsonl` など）。ID は UUID なので
   ほかのセッションのものと重ならず、Claude Code のファイルの配置を知らずに済む。記録と作業領域は消さない
   （`SessionRepository` が消す）。
-- **関係**：usecase の `SessionFiles` を実装し、[片付け](sessions.md#cleaner "在りか")から
+- **関係**：usecase の `SessionFiles` を実装し、[片付け](cleanup.md#cleaner "在りか")から
   呼ばれる。runner と同じ `Options` で場所を知る。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：runner が作るものと
   消すものを同じパッケージに置く。

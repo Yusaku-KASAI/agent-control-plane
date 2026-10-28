@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | リポジトリが宣言する | エージェントの実行環境（devcontainer）、有効にするプラグイン、CLAUDE.md は、ターゲットのリポジトリが宣言する。control-plane はそれを読んで動かすだけで、汎用のエージェント像を押し付けない。人間の開発環境とエージェントの実行環境は同じもの | [app 0001](adr/app/0001-repository-centric-agents.md) |
 | エージェントはターゲット × ロール | エージェントは「どのターゲットで、どのロールとして働くか」の組で、Slack では Bot 1つに当たる。ロールの定義（振る舞い）は platform の roles プラグインで共有し、ターゲット固有の事実はターゲットの CLAUDE.md に置く。ターゲットは、同じ名前のロールを `.claude/agents/<ロール>.md` に定義して上書きできる（[プラグインとロール](../platform/docs/reference/target.md#plugins "在りか")） | [app 0002](adr/app/0002-agent-is-target-times-role.md)、[target-template 0003](../template/docs/adr/0003-roles-as-claude-code-agents.md) |
-| 共通の能力は platform に | ターゲットをまたいで使う能力（ロール、スキル、hook、コマンド）は platform のプラグインに置く。共通のルール（principles、conventions）は platform に属さず、同じマーケットプレイスでプラグインとして配る。ターゲットは、使うプラグインを `.claude/settings.json` で有効にする | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
+| 共通の能力は platform に | ターゲットをまたいで使う能力（ロール、スキル、hook、コマンド）は platform のプラグインに置く。共有の核（principles、conventions）は platform に属さず、同じマーケットプレイスでプラグインとして配る。ターゲットは、使うプラグインを `.claude/settings.json` で有効にする | [platform 0001](../platform/docs/adr/0001-platform-as-plugin-marketplace.md) |
 | control-plane は場を用意し、進め方はエージェントに任せる | control-plane は環境、認証情報、依頼を届けることと、ターンを始めることを受け持つ。ターンをいつ終えるか、文脈（スレッドやリンク先）をどこまで読むかはエージェントが決める | [app 0017](adr/app/0017-long-lived-session-process.md)、[app 0020](adr/app/0020-slack-requests-by-reference.md) |
 | 知識は届く先で区切る | 知識は、使う人と持ち主ごとの区切りに分け、区切りの間は共有の核（principles、conventions）と契約だけでつなぐ（[地図](#map)） | [conventions 0002](../platform/plugins/conventions/docs/adr/0002-documents-by-distribution-context.md)、[0003](../platform/plugins/conventions/docs/adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../platform/plugins/conventions/docs/adr/0005-principles-and-conventions-plugins.md) |
 
@@ -60,7 +60,7 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 ### 地図
 
 このプロジェクト群の知識を、入れ子の項目に分ける。分け方は conventions の
-[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map "在りか")に、表の書き方と検査は
+[項目の階層と地図](../platform/plugins/conventions/docs/architecture/documentation.md#map "在りか")に、表の書き方と検査は
 [形式](../platform/plugins/conventions/docs/reference/formats.md#map "在りか")にある。ここは最上位の地図で、
 各項目の中の地図はその項目の文書にある。各ターゲットを除く項目は、このリポジトリに同居する。
 
@@ -98,11 +98,11 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 
 - このリポジトリに同居する control-plane、platform、target-template を、それぞれのリポジトリ（agent-control-plane、
   agent-platform、agent-target-template）に分ける。ターゲットはテンプレートから作り、platform のプラグイン、
-  同じマーケットプレイスで配る共通のルール（principles、conventions）、ベースイメージを使う。
+  同じマーケットプレイスで配る共有の核（principles、conventions）、ベースイメージを使う。
 - ターゲットは、エージェントが起動する環境（イメージ、設定、プラグインの宣言、CLAUDE.md）と、作業するリポジトリ
   （0 個以上）の組になる。このうちイメージとプラグインはハーネス（[用語集](../platform/docs/reference/glossary.md "在りか")）に入り、
   作業するリポジトリは入らない。コードを持たない雑務や壁打ちは、作業するリポジトリが 0 個のターゲットで受ける。
-- エージェントはロールで役割を分け（developer、guide、reviewer、pm など）、必要なら Bot 同士で依頼し合う。
+- エージェントどうしが、Bot として互いに依頼し合う。
 - Slack からでも手元の CLI からでも、同じセッションに依頼し、途中経過を見られる。
 
 そこへの道筋（何をどの順でやるか）は、ピン留めした

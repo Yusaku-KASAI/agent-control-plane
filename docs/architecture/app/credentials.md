@@ -16,7 +16,7 @@ control-plane が認証情報を発行し、エージェントのコンテナに
         ▼                                        ▼
 credentialIssuers ◀── claudeauth / githubapp / slackauth
         │ domain.Credentials
-        ├──▶ 作業領域の clone、片付けでのブランチの確認（その場で使う）
+        ├──▶ 作業領域を作るときの fetch、片付けでのブランチの確認（その場で使う）
         ▼
 runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher が一定間隔で発行し直す
         │ 読み取り専用でマウント（Claude Code の認証だけは環境変数）
@@ -24,8 +24,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 エージェントのコンテナ
 ```
 
-- 発行するのは、セッションを作るとき（clone に使う）、コンテナを起動するとき、コンテナが動いている間の
-  一定間隔ごと、片付けでセッションのブランチを調べるとき。どれも同じ `CredentialIssuer` を呼ぶ。
+- 発行するのは、セッションを作るとき（`origin` の fetch と、リモートの既定のブランチを調べる `remote set-head` に使う）、コンテナを起動するとき、コンテナが動いている間の
+  一定間隔ごと、片付けでセッションが作ったブランチと push したブランチを調べるとき。どれも同じ `CredentialIssuer` を呼ぶ。
 - 発行元ごとに、そのエージェントに設定がなければ空の値を返す。空の認証情報はコンテナに渡らず、対応する
   環境変数も設定されない。GitHub App と Slack アプリはエージェントごとに任意で、Claude Code の認証だけは必ずある。
 - Slack の Bot トークンは、control-plane の Bot とエージェントが同じものを使う。エージェントは Bot が招待された
@@ -87,12 +87,12 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 ### `internal/adapter/githubapp`（`issuer.go`）
 
 - **責務**：エージェントごとの GitHub App のインストールトークンを、発行のたびに新しく作る。
-- **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256、有効期間 10 分未満）で
+- **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256。時計のずれに備えて発行時刻を 1 分戻し、期限は 9 分後）で
   `POST /app/installations/<ID>/access_tokens` を呼ぶこと。トークンは 1 時間で失効し、手元には持ち続けない。
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
   （[ADR 0011](../../adr/app/0011-github-access-via-per-agent-apps.md)）。同じパッケージの `branches.go` は、
-  片付けで発行したトークンを使ってリモートのブランチを調べる（[作業領域とブランチ](workspace.md#github-branches "在りか")）。
+  片付けで発行したトークンを使ってリモートのブランチを調べる（[片付け](cleanup.md#github-branches "在りか")）。
 
 ### `internal/adapter/slackauth`
 
@@ -101,14 +101,24 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   - `Source`：今の Bot トークンを返すインターフェース。`Issuer` はこれを `domain.Credentials` にする。
   - `FileSource`：ローテーションなし。ファイルを呼ばれるたびに読む。
   - `RotatingSource`：トークンローテーションあり（[ADR 0022](../../adr/app/0022-slack-bot-token-rotation.md)）。
-    状態がなければ `bot_token_path` の長期のトークンを `oauth.v2.exchange` で交換し、以降は失効の 2 時間前を過ぎたら
-    `oauth.v2.access` で更新する。更新用のトークンは一度しか使えないので、受け取ったら使う前に状態のファイル
-    （`<state_dir>/slack/<エージェント名>.json`、`acp-state` ボリューム）へ一時ファイルと rename で保存する。
-    `Run` が 10 分ごとに確かめ、失敗はログに出して次の回にやり直す。
+    - 交換と保存：状態がなければ `bot_token_path` の長期のトークンを `oauth.v2.exchange` で交換し、以降は
+      `oauth.v2.access` で更新する。更新用のトークンは一度しか使えないので、受け取ったら使う前に状態のファイル
+      （`<state_dir>/slack/<エージェント名>.json`、`acp-state` ボリューム）へ一時ファイルと rename で保存する。
+    - `Run`（前もっての更新）：10 分ごとに確かめ、失効の 2 時間前を過ぎていれば更新する。失敗はログに出して
+      次の回にやり直す。
+    - `Token`（要るときの取得）：トークンがないか失効したとき（記録した失効の 1 分前から）だけ交換か更新をし、
+      それまでは今のトークンを返す。失効は壁時計で比べる（ホストのスリープのあいだも進む）。
+    - 更新に失敗し続けたとき：失効までは control-plane とエージェントが今のトークンを使える。失効までに
+      更新できなければ、`Token` がエラーを返すので control-plane の投稿と発行が止まり、動いているセッションは
+      次の書き換えでプロセスが止まる（[動いている間の更新](#refresh)）。エージェントのファイルは書き換えの
+      ときにしか変わらないので、失効の前の最後の書き換えまでに更新できなければ、そのファイルのトークンは
+      次の書き換えより先に失効し、その間はエージェントの Slack の操作が失敗する。
 - **関係**：同じ `Source` を、control-plane の Slack Bot（`slackbot`）とエージェントへの発行の両方が使うので、
   更新したトークンはどちらにも届く。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：今のトークンを持つのは
   エージェントごとに一つの `Source` だけ。
+
+<a id="slack-auth"></a>
 
 ### `acp slack-auth`（`cmd/acp/slackauth.go`）
 
@@ -137,6 +147,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   - `sessions.root` は devcontainer から読めるので、そこには置かない（[ADR 0018](../../adr/app/0018-refreshable-credentials.md)）。
   - セッションを片付けるとき、`SessionFiles` がディレクトリごと消す（[コンテナ](containers.md "在りか")）。
 
+<a id="refresh"></a>
+
 ### 動いている間の更新（`internal/usecase/dispatcher.go`）
 
 - **責務**：セッションのコンテナが動いている間、認証情報を一定間隔で発行し直して書き換えさせる。
@@ -144,4 +156,4 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   トークンの 1 時間より短い）。コンテナがなければ何もしない。発行か書き換えに失敗したら、そのプロセスを止め、
   実行中のターンを失敗にする。
 - **関係**：コンテナの中の `gh` と slack プラグインはファイルを毎回読むので、書き換えはそのまま効く。
-  セッションのライフサイクルは[セッション](sessions.md "在りか")にある。
+  タイマーは[セッションのワーカー](sessions.md#worker "在りか")が持つ。

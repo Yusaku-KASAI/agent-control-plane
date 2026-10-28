@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Checks the Markdown files of the repository holding the working directory against this plugin's
-docs/reference/formats.md and docs/architecture/documentation.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
+docs/reference/formats.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, the form of purpose and common procedures in guides and of role instructions, and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, the size of the documents read at every start (lines, and the display
+width of each line), and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
 where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""
 
 import os
@@ -36,7 +37,7 @@ def tracked_markdown():
                              capture_output=True, text=True, check=True).stdout
         return sorted(p for p in out.split("\0") if p and os.path.exists(p))
     except (OSError, subprocess.CalledProcessError):
-        # The CI build context has no .git; it holds only what the dockerignore lets in.
+        # Outside a git work tree, every Markdown file under the working directory is checked.
         paths = []
         for directory, dirs, files in os.walk("."):
             dirs[:] = [d for d in dirs if d not in {".git", "node_modules"}]
@@ -70,7 +71,7 @@ def repo_root():
         return subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                               check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
-        # Without .git (such as a CI build context), the working directory is taken as the top.
+        # Outside a git work tree, the working directory is taken as the top.
         return os.getcwd()
 
 
@@ -236,7 +237,7 @@ def check_components(path, errors):
 
 
 def check_procedure(path, errors):
-    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither."""
+    """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither, and points to no other procedure in the same guides/."""
     text = without_fences(read(path))
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
     # The opening is what comes before the first section or step.
@@ -259,8 +260,17 @@ def check_procedure(path, errors):
             errors.append(f"{path}: a purpose procedure starts with the step '1. **始めに読む**'")
         if "新しい依頼" not in intro:
             errors.append(f"{path}: a purpose procedure tells, before its steps, where a new request begins")
-    elif "始めに読む" in steps:
-        errors.append(f"{path}: a common procedure has no step '始めに読む'")
+    else:
+        if "始めに読む" in steps:
+            errors.append(f"{path}: a common procedure has no step '始めに読む'")
+        # A common procedure is used by purpose ones and points to none of the procedures beside it.
+        guides = os.path.dirname(os.path.normpath(path))
+        while os.path.basename(guides) != "guides" and os.sep in guides:
+            guides = os.path.dirname(guides)
+        for target, _, _ in links(read(path)):
+            resolved = resolve(path, target).rstrip("/") if target and not is_external(target) else ""
+            if resolved != os.path.normpath(path) and resolved.startswith(guides + os.sep) and resolved.endswith(".md"):
+                errors.append(f"{path}: a common procedure points to another procedure {target}")
     for line in re.findall(r"(?m)^\d+\. .*", text):
         if not re.match(r"\d+\. \*\*.+?\*\*", line):
             errors.append(f"{path}: a step is numbered and named in bold: {line[:40]}")
@@ -285,11 +295,31 @@ ALWAYS_READ = [
 ]
 
 
-def content_lines(path):
+# What a line's width counts is defined in formats.md, 量の上限.
+WIDTH_LIMIT = 130
+CODE_SPAN = re.compile(r"(`[^`\n]*`)")
+
+
+def width(text):
+    """Columns the text takes: a wide character counts two."""
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def display_width(line):
+    """The width of a line outside fenced code, without the parentheses of the inline links outside code spans."""
+    return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
+                         for part in CODE_SPAN.split(line)))
+
+
+def body(path):
+    """The text after the frontmatter, and the number of lines the frontmatter takes."""
     text = read(path)
     m = re.match(r"---\n.*?\n---\n", text, re.S)
-    body = text[m.end():] if m else text
-    return sum(1 for line in body.splitlines() if line.strip())
+    return (text[m.end():], text[:m.end()].count("\n")) if m else (text, 0)
+
+
+def content_lines(path):
+    return sum(1 for line in body(path)[0].splitlines() if line.strip())
 
 
 def check_sizes(paths, errors):
@@ -302,6 +332,18 @@ def check_sizes(paths, errors):
         for key, lines in sorted(groups.items()):
             if lines > limit:
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+    for path in paths:
+        if any(matches(path) for matches, _, _ in ALWAYS_READ):
+            text, skipped = body(path)
+            fenced = set()
+            for m in FENCE.finditer(text):
+                first = text.count("\n", 0, m.start())
+                fenced.update(range(first, first + m.group(0).count("\n") + 1))
+            for index, line in enumerate(text.splitlines()):
+                columns = width(line) if index in fenced else display_width(line)
+                if columns > WIDTH_LIMIT:
+                    errors.append(f"{path}:{index + skipped + 1}: {columns} columns wide, more than the "
+                                  f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
 
 
 def is_role(path):
@@ -523,9 +565,6 @@ def check_reachable(paths, errors):
 
 
 def print_map(m):
-    def width(text):
-        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
-
     names = m.order
     label = {n: "  " * (len(m.ancestors(n)) - 1) + n for n in names}
     w = max(width(label[n]) for n in names)
@@ -537,7 +576,7 @@ def print_map(m):
 
 
 # What a document is follows from where it is: an entry, an index, an overview, a type of document, or a form
-# of delivery (documentation.md).
+# of delivery (documentation.md, and the containers of formats.md).
 SKILL = "スキル"
 KINDS = [("adr", "判断"), ("architecture", "解説"), ("guides", "手順"), ("reference", "参照"), ("rules", "共通のルール"),
          ("skills", SKILL)]

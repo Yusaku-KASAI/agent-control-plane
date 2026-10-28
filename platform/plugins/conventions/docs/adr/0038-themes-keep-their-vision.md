@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-26
 amends: [37]
+amended_by: [43]
 ---
 
 # 0038. テーマの Issue は、狙いと進め方に加えて、そのテーマの切り口での目指す姿を持つ
