@@ -26,7 +26,10 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 ### 2. エージェントごとの GitHub App（任意）
 
-- エージェントごとに GitHub App を作り（Webhook はオフ）、ターゲットのリポジトリにインストールする。ロールごとに
+- エージェントごとに GitHub App を作り（Webhook はオフ）、そのエージェントのターゲットのリポジトリだけにインストールする
+  （Repository access で「Only select repositories」を選ぶ）。トークンはインストールの範囲のすべてに届くので、
+  「All repositories」で入れると、守りのないほかのリポジトリにも書き込める
+  （[ADR 0053](../adr/app/0053-limit-github-app-reach-by-installation.md)）。ロールごとに
   要る権限は[ハーネスの契約の認証情報](../../platform/docs/reference/harness.md#credentials "在りか")にある。
 - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
 - コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は
