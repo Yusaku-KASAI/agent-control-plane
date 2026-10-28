@@ -86,6 +86,8 @@ func TestRunTurn_Errors(t *testing.T) {
 		{name: "other agent's session", token: token, err: domain.ErrSessionAgentMismatch, wantStatus: 409, wantCode: httpapi.CodeSessionAgentMismatch},
 		{name: "busy session", token: token, err: domain.ErrSessionBusy, wantStatus: 409, wantCode: httpapi.CodeSessionBusy},
 		{name: "inbox full", token: token, err: usecase.ErrInboxFull, wantStatus: 429, wantCode: httpapi.CodeInboxFull},
+		{name: "stopped", token: token, err: usecase.ErrStopped, wantStatus: 500, wantCode: httpapi.CodeInternal, wantSess: sessionID},
+		{name: "shutting down", token: token, err: usecase.ErrShuttingDown, wantStatus: 503, wantCode: httpapi.CodeUnavailable, wantSess: sessionID},
 		{
 			name: "failed turn keeps the session", token: token, err: fmt.Errorf("run agent: %w", errors.New("exit 1")),
 			wantStatus: 500, wantCode: httpapi.CodeInternal, wantSess: sessionID,

@@ -16,7 +16,7 @@ import (
 
 var (
 	ErrEmptyPrompt   = errors.New("prompt is empty")
-	ErrInboxFull     = errors.New("too many requests are waiting for this session")
+	ErrInboxFull     = errors.New("too many requests arrived before the session could take them in")
 	ErrShuttingDown  = errors.New("control plane is shutting down")
 	ErrStopped       = errors.New("the session was stopped")
 	errProcessExited = errors.New("agent process exited")
@@ -166,7 +166,9 @@ func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
-// would resume after, and the prompts waiting behind them. It does nothing to an idle session.
+// would resume after, and the prompts waiting in the queue. A request still in the inbox channel,
+// as while the worker starts the agent, may stay and be sent later. It does nothing to an idle
+// session.
 func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
 	s, err := d.sessions.Find(ctx, id)
 	if err != nil {
@@ -186,12 +188,9 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 	return nil
 }
 
-// StopRequest stops one request of the session, by how far it has come. A request waiting in the
-// inbox is withdrawn. While the agent has the request (sent to it, or taken into the running
-// turn), the agent's work is stopped: the running turn, the background tasks, and the prompts sent
-// but not yet taken in; requests waiting in the inbox stay. A request that has ended stops the work
-// the agent does on its own, if any (a turn it started or background tasks, with no request in a
-// turn), and withdraws the prompts sent but not yet taken in.
+// StopRequest stops one request of the session, by how far it has come, as
+// docs/architecture/app/requests.md tells. The worker takes in the requests still in the inbox
+// channel before it looks for the request, so an injected one is sent to the agent if a turn runs.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
 		return nil
@@ -808,7 +807,7 @@ func (w *worker) workingOnItsOwn() bool {
 	return len(w.background) > 0
 }
 
-// stopWork stops what the agent is doing, leaving the requests waiting in the inbox.
+// stopWork stops what the agent is doing, leaving the requests waiting in the inbox channel or the queue.
 func (w *worker) stopWork() {
 	for _, r := range w.sent {
 		r.answer(w.reply(TurnResult{}, ErrStopped))

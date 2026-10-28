@@ -16,7 +16,7 @@ control-plane が認証情報を発行し、エージェントのコンテナに
         ▼                                        ▼
 credentialIssuers ◀── claudeauth / githubapp / slackauth
         │ domain.Credentials
-        ├──▶ 作業領域の clone、片付けでのブランチの確認（その場で使う）
+        ├──▶ 作業領域を作るときの fetch、片付けでのブランチの確認（その場で使う）
         ▼
 runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher が一定間隔で発行し直す
         │ 読み取り専用でマウント（Claude Code の認証だけは環境変数）
@@ -24,8 +24,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 エージェントのコンテナ
 ```
 
-- 発行するのは、セッションを作るとき（clone に使う）、コンテナを起動するとき、コンテナが動いている間の
-  一定間隔ごと、片付けでセッションのブランチを調べるとき。どれも同じ `CredentialIssuer` を呼ぶ。
+- 発行するのは、セッションを作るとき（`origin` の fetch と、リモートの既定のブランチを調べる `remote set-head` に使う）、コンテナを起動するとき、コンテナが動いている間の
+  一定間隔ごと、片付けでセッションが作ったブランチと push したブランチを調べるとき。どれも同じ `CredentialIssuer` を呼ぶ。
 - 発行元ごとに、そのエージェントに設定がなければ空の値を返す。空の認証情報はコンテナに渡らず、対応する
   環境変数も設定されない。GitHub App と Slack アプリはエージェントごとに任意で、Claude Code の認証だけは必ずある。
 - Slack の Bot トークンは、control-plane の Bot とエージェントが同じものを使う。エージェントは Bot が招待された
@@ -87,7 +87,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 ### `internal/adapter/githubapp`（`issuer.go`）
 
 - **責務**：エージェントごとの GitHub App のインストールトークンを、発行のたびに新しく作る。
-- **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256、有効期間 10 分未満）で
+- **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256。時計のずれに備えて発行時刻を 1 分戻し、期限は 9 分後）で
   `POST /app/installations/<ID>/access_tokens` を呼ぶこと。トークンは 1 時間で失効し、手元には持ち続けない。
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
@@ -117,6 +117,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   更新したトークンはどちらにも届く。
 - **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：今のトークンを持つのは
   エージェントごとに一つの `Source` だけ。
+
+<a id="slack-auth"></a>
 
 ### `acp slack-auth`（`cmd/acp/slackauth.go`）
 

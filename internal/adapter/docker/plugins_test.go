@@ -123,7 +123,7 @@ func TestDeclaredPlugins_BesideThroughSymlink(t *testing.T) {
 	hostRoot := t.TempDir()
 	writeFile(t, filepath.Join(hostRoot, "kit", "platform", ".claude-plugin", "marketplace.json"),
 		`{"plugins": [{"name": "roles", "source": "./plugins/roles"}]}`)
-	// Stands in for a marketplace not yet split out of the repository that holds it.
+	// Stands in for a marketplace kept in another repository and linked beside the target.
 	if err := os.Symlink(filepath.Join("kit", "platform"), filepath.Join(hostRoot, "platform")); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestDeclaredPlugins_ThisRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The host as template/docs/guides/devcontainer.md sets it up: agent-platform beside the repository links into it.
+	// The host as docs/guides/operations.md sets it up: agent-platform beside the repository links into it.
 	hostRoot := t.TempDir()
 	for name, target := range map[string]string{filepath.Base(repo): repo, "agent-platform": filepath.Join(repo, "platform")} {
 		if err := os.Symlink(target, filepath.Join(hostRoot, name)); err != nil {
