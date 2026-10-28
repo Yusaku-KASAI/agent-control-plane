@@ -17,22 +17,30 @@
   - 下の PR がマージされずに閉じたら、上の PR の向き先を既定のブランチに変えない（採らなかった下の中身が入る）。
     上の扱いを依頼者に確かめる。
 - PR とコミットに何を書くかは[書き方](writing.md "在りか")にある。
+- 決まりを守るためなら、文書とコメントは破壊的に変えてよい。散らばった説明をまとめ直す、置き場所を移す、ディレクトリ
+  構成を変えることも含む。
 
 <a id="patterns"></a>
 
 ## 変更とパターン
+
+変更を設計するときとレビューするときに、変更の種類から当てはまる行を選び（人が実行する手順を含む変更は、表の下の
+確かめ方も当てはめる）、各パターンの形とよくある失敗を[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")で確かめて当てはめる。レビューでの指摘の書き方は
+[指摘](reviews.md#findings "在りか")にある（[ADR 0042](../adr/0042-no-design-procedure.md)）。
 
 | 当てはまる変更 | 当てはめるパターン |
 | --- | --- |
 | どの変更も | [一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change) |
 | 状態によって振る舞いが変わる | [状態を軸で洗い出す](../../../principles/docs/reference/patterns.md#state-axes)、[事実と判定を分ける](../../../principles/docs/reference/patterns.md#facts-and-judgement) |
 | 消す、上書きする、作り直す | [失われうるものを先に挙げる](../../../principles/docs/reference/patterns.md#loss-first) |
-| 目的の手順を足す、ロールの受け持ちを変える | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（並べた所の一覧は[目的の手順と共通の手順](../architecture/documentation.md#procedures "在りか")） |
-| 検査や試験を足す、変える | [壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing)（何を検査にし、どこに置くかは[検査にするものと置き場所](../architecture/documentation.md#checks "在りか")） |
+| 目的の手順を足す、ロールの受け持ちを変える | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（並べた所の一覧は[目的の手順の読ませ方](delivery.md#procedures "在りか")） |
+| 検査や試験を足す、変える | [壊した版で検査が落ちることを確かめる](../../../principles/docs/reference/patterns.md#mutation-testing)（何を検査にし、どこに置くかは[検査の扱い方](checks.md "在りか")） |
 | テストダブル（試験で本物の代わりに使うもの）を足す、変える | [契約の試験](../../../principles/docs/reference/patterns.md#contract-test) |
-| 人が実行する移行や運用の手順を含む | [手順を実装と突き合わせる](../../../principles/docs/reference/patterns.md#verify-procedures) |
 | 後から理由を知りたくなるか、間違えそうな判断を含む（例：構成、決まりの方針、契約、形式、データの形を選ぶか変える。言い回しや置き場所の直しは含まない） | [判断の記録](../../../principles/docs/reference/patterns.md#adr)（置き場所と形は[形式](formats.md#adr "在りか")） |
 | 決まり（定義）を足す、変える、消す | [一つの出典から届ける](../../../principles/docs/reference/patterns.md#single-source)（直すものは[定義と届け方](../architecture/documentation.md#delivery "在りか")） |
+
+人が実行する移行や運用の手順を含む変更では、手順を実装と突き合わせるか、実際に実行して確かめる（パスの深さ、名前の
+付け方、権限など、食い違いやすい所を特に見る）。確かめていなければ、そう書く。
 
 <a id="checks"></a>
 

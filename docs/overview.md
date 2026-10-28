@@ -60,7 +60,7 @@ GitHub（ブランチ、PR）/ Slack（スレッドへの返信）
 ### 地図
 
 このプロジェクト群の知識を、入れ子の項目に分ける。分け方は conventions の
-[項目の階層と関係](../platform/plugins/conventions/docs/architecture/documentation.md#map "在りか")に、表の書き方と検査は
+[項目の階層と地図](../platform/plugins/conventions/docs/architecture/documentation.md#map "在りか")に、表の書き方と検査は
 [形式](../platform/plugins/conventions/docs/reference/formats.md#map "在りか")にある。ここは最上位の地図で、
 各項目の中の地図はその項目の文書にある。各ターゲットを除く項目は、このリポジトリに同居する。
 
