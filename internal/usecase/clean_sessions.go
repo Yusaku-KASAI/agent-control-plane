@@ -29,21 +29,23 @@ type SessionCleaner struct {
 	cleaningMu sync.Mutex
 	cleaning   map[domain.SessionID]*cleaningLock
 	// told holds, for a while, the reasons each person was told on asking to clean a session now,
-	// so that their :fire: lets go of these alone. It is not in the session's record, whose lock
-	// an agent waiting idle holds; lost on a restart, :wastebasket: is put again.
+	// so that their :fire: on that notice lets go of these alone. It is not in the session's
+	// record, whose lock an agent waiting idle holds; lost on a restart, :wastebasket: is put again.
 	toldMu sync.Mutex
 	told   map[domain.SessionID]notice
 	now    func() time.Time
 }
 
-// notice is the reasons a person was told on their :wastebasket:, and when: on the control
-// plane's clock (at) and on the chat's (chatAt), when they asked plus the time the judgement took.
-// usedAt is the session's LastUsedAt read before the reasons were: once it moves, the work may
-// hold what they were not told of.
+// notice is the reasons a person was told on their :wastebasket:, when, and the message that told
+// them, in the session's conversation: a :fire: there comes after it was posted. usedAt is the
+// session's LastUsedAt read before the reasons were: once it moves, the work may hold what they
+// were not told of.
 type notice struct {
 	by      domain.Requester
 	at      time.Time
-	chatAt  time.Time
+	agent   domain.AgentName
+	where   domain.Conversation
+	message string
 	usedAt  time.Time
 	reasons []string
 }
@@ -275,14 +277,14 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		}
 		return false, errHasWork
 	}
-	branches, _, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
+	branches, _, marking, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
 	if err != nil {
 		return false, err
 	}
-	if err := c.notifier.Notify(ctx, s, c.removedText(s, branches)); err != nil {
-		return true, fmt.Errorf("notify removal: %w", err)
+	if _, err := c.notifier.Notify(ctx, s, c.removedText(s, branches)); err != nil {
+		return true, errors.Join(marking, fmt.Errorf("notify removal: %w", err))
 	}
-	return true, nil
+	return true, marking
 }
 
 // readFacts reads the workspace and asks the remote about the branches the session pushed or
@@ -342,40 +344,48 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, err error) {
+// remove marks the session cleaned before removing its record, while the lock still keeps a new
+// session with the same ID from being made: that one, which takes the mark off, finds it there.
+// Failing to mark (marking) does not stop the removal.
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, marking, err error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer unlock()
 	s, err := c.sessions.Find(ctx, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !unused(s) {
-		return nil, nil, fmt.Errorf("%w: used meanwhile", errKept)
+		return nil, nil, nil, fmt.Errorf("%w: used meanwhile", errKept)
 	}
 	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Forced, it lets go only of what the thread was told.
 	rs := reasons(f)
 	if keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
-		return nil, nil, workFound{rs}
+		return nil, nil, nil, workFound{rs}
 	}
 	if names := f.removable(); len(names) > 0 {
 		if branches, err = c.branches.Remove(ctx, agent, creds, names); err != nil {
-			return nil, nil, fmt.Errorf("remove branches: %w", err)
+			return nil, nil, nil, fmt.Errorf("remove branches: %w", err)
 		}
 	}
 	if err := c.files.Remove(ctx, agent.Name, id); err != nil {
-		return nil, nil, fmt.Errorf("remove agent files: %w", err)
+		return nil, nil, nil, fmt.Errorf("remove agent files: %w", err)
+	}
+	// Removing the record lets the lock go. Should it fail, the record left is retried; with its
+	// credentials and conversation gone, the session is cleaned anyway.
+	if err := c.notifier.MarkCleaned(ctx, s); err != nil {
+		marking = fmt.Errorf("mark removal: %w", err)
 	}
 	if err := c.sessions.Remove(ctx, id); err != nil {
-		return nil, nil, fmt.Errorf("remove session: %w", err)
+		return nil, nil, nil, errors.Join(fmt.Errorf("remove session: %w", err), marking)
 	}
-	return branches, rs, nil
+	return branches, rs, marking, nil
 }
 
 // removeUnsaved removes a directory without a record. Sessions are created under the lock, so once
@@ -396,7 +406,7 @@ func (c *SessionCleaner) removeUnsaved(ctx context.Context, id domain.SessionID)
 // notifyKept posts without the lock, so that requests need not wait for Slack, and records the
 // notice only once it is posted, so that a failed one is retried.
 func (c *SessionCleaner) notifyKept(ctx context.Context, s domain.Session, rs []reason) error {
-	if err := c.notifier.Notify(ctx, s, c.keptText(s, rs)); err != nil {
+	if _, err := c.notifier.Notify(ctx, s, c.keptText(s, rs)); err != nil {
 		return fmt.Errorf("notify kept session: %w", err)
 	}
 	c.setTold(s.ID, nil)
@@ -546,10 +556,6 @@ type workFound struct{ reasons []reason }
 func (workFound) Error() string { return "session kept: work found meanwhile" }
 func (workFound) Unwrap() error { return errKept }
 
-// readingTime is how long after the thread is told a person is taken to have read it: it also
-// covers the time the reaction took to reach the control plane, which the notice's time leaves out.
-const readingTime = 10 * time.Second
-
 // forceWindow is how long after the thread is told the person told may still force: a :fire: put
 // days after, by habit, is not taken as having just weighed the reasons.
 const forceWindow = time.Hour
@@ -582,15 +588,29 @@ func blocksForce(r reason) bool {
 	return r.kind == reasonOpenPull || r.kind == reasonOpenBase
 }
 
-// CleanNow judges one session now, whatever its retention, as a person asked in its thread at
-// askedAt, on the chat's clock, and tells the thread what came of it: removed, kept and why, or
-// not judged. The judgement reads without the lock; only a session to remove has an agent waiting
-// idle let go of, and one at work keeps it. With force, the work found nowhere else does not keep
-// it (keeps), once that person was told of it on their own request, a while before askedAt, with
-// the session not used since its work was read for the notice: forcing before only tells. What the judgement under the lock
-// finds beyond what was told keeps the session too.
-func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error {
-	q := cleanRequest{by: by, at: askedAt, received: c.now()}
+// CleanNow judges one session now, whatever its retention, as a person asked in its thread, and
+// tells the thread what came of it: removed, kept and why, or not judged. The judgement reads
+// without the lock; only a session to remove has an agent waiting idle let go of, and one at work
+// keeps it. A notice of what keeps it lets the person who asked force it (ForceClean).
+func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, by domain.Requester) error {
+	return c.cleanAsked(ctx, id, cleanRequest{by: by})
+}
+
+// ForceClean judges, as CleanNow, the session whose notice of what keeps it is the message in the
+// conversation's channel, as the person told asked on it; the work found nowhere else then does
+// not keep it (keeps), if the session was not used since its work was read for the notice and
+// holds no other reasons, there or under the lock: those are told in a new notice instead. A
+// message that is no such notice, or one to someone else or past forceWindow, is left alone: the
+// reaction may be praise.
+func (c *SessionCleaner) ForceClean(ctx context.Context, agent domain.AgentName, by domain.Requester, where domain.Conversation, message string) error {
+	id, ok := c.noticeAt(agent, where, message)
+	if !ok {
+		return nil
+	}
+	return c.cleanAsked(ctx, id, cleanRequest{by: by, force: true, message: message})
+}
+
+func (c *SessionCleaner) cleanAsked(ctx context.Context, id domain.SessionID, q cleanRequest) error {
 	defer c.cleanOne(id)()
 	s, err := c.sessions.Find(ctx, id)
 	if errors.Is(err, domain.ErrSessionNotFound) {
@@ -599,27 +619,36 @@ func (c *SessionCleaner) CleanNow(ctx context.Context, id domain.SessionID, forc
 	if err != nil {
 		return err
 	}
-	err = c.cleanNow(ctx, s, force, q)
-	if err == nil || errors.Is(err, errNotTold) {
+	err = c.cleanNow(ctx, s, q)
+	if err == nil || errors.Is(err, errSettled) {
 		return err
 	}
 	// Told nothing, the person could not tell a failure from a judgement still running.
-	return errors.Join(err, c.notifier.Notify(ctx, s, "このスレッドのセッションの片付けを判定できませんでした。"+
-		"しばらくしてから、リアクションを外して付け直してください。"))
+	_, nerr := c.notifier.Notify(ctx, s, "このスレッドのセッションの片付けを判定できませんでした。"+
+		"しばらくしてから、リアクションを外して付け直してください。")
+	return errors.Join(err, nerr)
 }
 
-// cleanRequest is a person's asking to clean now: by whom, when on the chat's clock, and when the
-// control plane received it on its own.
+// cleanRequest is a person's asking to clean now: by whom, and whether forced on the notice message.
 type cleanRequest struct {
-	by       domain.Requester
-	at       time.Time
-	received time.Time
+	by      domain.Requester
+	force   bool
+	message string
 }
 
-// errNotTold is a failure to post to the thread, which posting again would not mend.
-var errNotTold = errors.New("thread not told")
+// errSettled is a failure that telling the thread it could not be judged would not mend: a failure
+// to post to it, or one after the session was removed and the thread told so.
+var errSettled = errors.New("settled")
 
-func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force bool, q cleanRequest) error {
+func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, q cleanRequest) error {
+	var n notice
+	if q.force {
+		// Another cleaning may have removed the session, or told it anew, while this one waited.
+		var ok bool
+		if n, ok = c.toldOf(s.ID); !ok || n.message != q.message || n.by != q.by {
+			return nil
+		}
+	}
 	agent, err := c.agents.FindByName(ctx, s.AgentName)
 	if err != nil {
 		return fmt.Errorf("find agent %q: %w", s.AgentName, err)
@@ -633,26 +662,12 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 		return err
 	}
 	rs := reasons(f)
-	// The person must have been told on their own request, with time to read, of the work as it
-	// still is: unused since it was read for the notice; and only of these reasons. The time to read is counted on both clocks,
-	// each against its own: on the chat's, as the person put the reactions; on the control plane's,
-	// as they came, which may be together after a delay.
-	n, told := c.toldOf(s.ID)
-	forced := told && n.by == q.by && n.usedAt.Equal(s.LastUsedAt) &&
-		n.chatAt.Add(readingTime).Before(q.at) && n.chatAt.Add(forceWindow).After(q.at) &&
-		n.at.Add(readingTime).Before(q.received) &&
+	// Forcing lets go of the work as told: unused since it was read for the notice, and only of
+	// these reasons. Anything else is told anew, for the person to weigh.
+	force := q.force && n.usedAt.Equal(s.LastUsedAt) &&
 		!slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(n.reasons, r.name()) })
-	if force && !forced && len(rs) == 0 {
-		// A :fire: not taken as forcing removes nothing: it may be praise.
-		c.setTold(s.ID, nil)
-		return c.tell(ctx, s, "このスレッドのセッションに、片付けを止めるものはありません。"+
-			"片付けるなら、このスレッドの先頭（ルート）のメッセージに :"+CleanReaction+": を付けてください。")
-	}
-	onFire := force
-	force = force && forced
 	if keeps(rs, force) {
-		// A :fire: taken as forcing, kept only by an open pull request, leaves the person able to force.
-		return c.tellKept(ctx, s, rs, onFire && !force, q)
+		return c.tellKept(ctx, s, rs, q)
 	}
 	if c.holder != nil {
 		released, err := c.holder.Release(ctx, s.ID)
@@ -666,16 +681,15 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 	}
 	// Used since it was judged, it may hold work the judgement did not see. Unused is LastUsedAt as
 	// read, not before it: a clock set back writes earlier times.
-	branches, discarded, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
+	branches, discarded, marking, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
 	var found workFound
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
 		c.setTold(s.ID, nil)
 		return nil
 	case errors.As(err, &found):
-		// The thread is told what kept it, so that it may be forced knowingly; a :fire: stopped by
-		// what was not told, as before the lock, asks for :wastebasket: first.
-		return c.tellKept(ctx, s, found.reasons, onFire, q)
+		// The thread is told what kept it, so that it may be forced knowingly.
+		return c.tellKept(ctx, s, found.reasons, q)
 	case errors.Is(err, domain.ErrSessionBusy), errors.Is(err, errKept):
 		return c.tell(ctx, s, "このスレッドのセッションは、片付ける間に使われたので消していません。"+
 			"エージェントの作業が終わってから、リアクションを外して付け直してください。")
@@ -683,19 +697,31 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, force b
 		return err
 	}
 	c.setTold(s.ID, nil)
-	return c.tell(ctx, s, removedNowText(branches, discarded))
+	err = c.tell(ctx, s, removedNowText(branches, discarded))
+	if marking != nil {
+		// Removed and told so, the session is past judging.
+		err = errors.Join(err, fmt.Errorf("%w: %w", errSettled, marking))
+	}
+	return err
 }
 
 func (c *SessionCleaner) tell(ctx context.Context, s domain.Session, text string) error {
-	if err := c.notifier.Notify(ctx, s, text); err != nil {
-		return fmt.Errorf("%w: %w", errNotTold, err)
+	_, err := c.notify(ctx, s, text)
+	return err
+}
+
+func (c *SessionCleaner) notify(ctx context.Context, s domain.Session, text string) (string, error) {
+	message, err := c.notifier.Notify(ctx, s, text)
+	if err != nil {
+		return "", fmt.Errorf("%w: thread not told: %w", errSettled, err)
 	}
-	return nil
+	return message, nil
 }
 
 const (
-	// CleanReaction and ForceCleanReaction, on the message that started a session's thread, ask
-	// for the session to be cleaned now (CleanNow), and to be despite work found nowhere else.
+	// CleanReaction, on the message that started a session's thread, asks for the session to be
+	// cleaned now (CleanNow); ForceCleanReaction, on the notice of what keeps it, to be despite
+	// work found nowhere else (ForceClean).
 	CleanReaction      = "wastebasket"
 	ForceCleanReaction = "fire"
 )
@@ -704,27 +730,46 @@ const (
 const cleanHint = "エージェントに「締めて」と頼むと、残すものを Issue に残し、自分で解けるものを解いて、解けずに残るものを知らせます。" +
 	"片付けを今すぐ回すには、このスレッドの先頭（ルート）のメッセージに :" + CleanReaction + ": を付けてください。"
 
-// tellKept tells the thread the reasons that keep the session. Told on :wastebasket:, the person
-// who put it may then force (told); told on a :fire: not taken as forcing, no one may until they
-// put :wastebasket: themselves.
-func (c *SessionCleaner) tellKept(ctx context.Context, s domain.Session, rs []reason, onFire bool, q cleanRequest) error {
-	if err := c.tell(ctx, s, keptNowText(rs, !onFire)); err != nil {
+// tellKept tells the thread the reasons that keep the session, in a notice the person who asked
+// may then force by a :fire: on it (told).
+func (c *SessionCleaner) tellKept(ctx context.Context, s domain.Session, rs []reason, q cleanRequest) error {
+	message, err := c.notify(ctx, s, keptNowText(rs))
+	if err != nil {
 		return err
 	}
-	if onFire {
+	if message == "" {
+		// Told outside a chat, there is no notice to react on.
 		c.setTold(s.ID, nil)
 		return nil
 	}
-	now := c.now()
-	c.setTold(s.ID, &notice{by: q.by, at: now, chatAt: q.at.Add(now.Sub(q.received)), usedAt: s.LastUsedAt, reasons: names(rs)})
+	c.setTold(s.ID, &notice{by: q.by, at: c.now(), agent: s.AgentName, where: s.Conversation, message: message, usedAt: s.LastUsedAt, reasons: names(rs)})
 	return nil
 }
 
+// toldOf gives the notice of the session, unless past the time a :fire: may follow it.
 func (c *SessionCleaner) toldOf(id domain.SessionID) (notice, bool) {
 	c.toldMu.Lock()
 	defer c.toldMu.Unlock()
 	n, ok := c.told[id]
-	return n, ok
+	if !ok || n.at.Add(forceWindow).Before(c.now()) {
+		return notice{}, false
+	}
+	return n, true
+}
+
+// noticeAt names the agent's session told by the message in the conversation's channel.
+func (c *SessionCleaner) noticeAt(agent domain.AgentName, where domain.Conversation, message string) (domain.SessionID, bool) {
+	c.toldMu.Lock()
+	defer c.toldMu.Unlock()
+	for id, n := range c.told {
+		// Every agent's bot in the channel hears the reaction; each takes only its own notices.
+		in := n.where
+		in.Thread = ""
+		if n.message == message && n.agent == agent && in == where {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 // setTold records the notice of the session, or forgets it when nil, and forgets those past the
@@ -743,7 +788,7 @@ func (c *SessionCleaner) setTold(id domain.SessionID, n *notice) {
 	}
 }
 
-func keptNowText(rs []reason, onClean bool) string {
+func keptNowText(rs []reason) string {
 	var b strings.Builder
 	b.WriteString("このスレッドのセッションは、次の理由で消していません。\n")
 	for _, r := range rs {
@@ -753,15 +798,11 @@ func keptNowText(rs []reason, onClean bool) string {
 	b.WriteString("\n\n")
 	if slices.ContainsFunc(rs, blocksForce) {
 		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、" +
-			"リアクションを外して付け直してください。")
-	} else if onClean {
-		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が 1 時間のうちに、このスレッドの先頭（ルート）の" +
-			"メッセージに :" + ForceCleanReaction + ": を付けてください（付けてあれば、外して付け直してください）。")
+			":" + CleanReaction + ": を付けた人が 1 時間のうちならこの知らせに :" + ForceCleanReaction + ": を付け、" +
+			"過ぎていればこのスレッドの先頭（ルート）のメッセージの :" + CleanReaction + ": を外して付け直してください。")
 	} else {
-		b.WriteString("失われるものを承知で消すなら、まず :" + ForceCleanReaction + ": を外し、このスレッドの先頭（ルート）のメッセージに :" +
-			CleanReaction + ": を付けて（付けてあれば、外して付け直して）この理由を確かめてから、:" + ForceCleanReaction +
-			": を付け直してください。:" + ForceCleanReaction + ": が効くのは、自分で付けた :" + CleanReaction +
-			": に理由が返ってから 1 時間のうちに、そのあとエージェントが動いていない（依頼も、エージェントが自分で始めたターンも、バックグラウンドの処理の終わりもない）ときだけです。")
+		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が 1 時間のうちに、この知らせに :" +
+			ForceCleanReaction + ": を付けてください。そのあとエージェントが動いていたか、理由が増えていれば、消さずに今の理由を知らせ直します。")
 	}
 	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、自分で解けるものを解いて、解けずに残るものを知らせます。" +
 		"解けたら、:" + CleanReaction + ": を外して付け直してください。")
