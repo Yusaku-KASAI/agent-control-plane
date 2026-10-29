@@ -3,8 +3,9 @@
 # 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
 # theme:<name> label, every theme issue has the sections of a theme ("テーマ"), in order, once each,
 # the roadmap's "## 今の焦点" names only open issues of this repository (a closed issue, a pull
-# request, or a number that is neither here is a drift), and no issue is blocked by a closed one. Only what needs no judgement is checked; the rest of the tidy state is left to the
-# procedure that tidies issues.
+# request, or a number that is neither here is a drift), and no issue is blocked by a closed one.
+# Only what needs no judgement is checked; the rest of the tidy state is left to the procedure that
+# tidies issues.
 #
 # Usage: check-issues [<owner>/<repo>]
 #   The repository defaults to $GITHUB_REPOSITORY, else the one gh sees here.
@@ -53,16 +54,12 @@ else
   ok "every open issue has the labels of where and what for"
 fi
 
-# The sections of a theme issue (conventions' issues.md, "テーマ"). Headings in code blocks are not
-# sections; a heading may end in spaces or CR.
+# The sections of a theme issue (conventions' issues.md, "テーマ"), read as prctl reads a PR's body.
 theme_sections=(狙い 目指す姿 進め方)
-lacking=$(jq -r --args '.[]
+lacking=$(jq -r -L "$(dirname "${BASH_SOURCE[0]}")/../lib" --args 'include "markdown"; .[]
   | select(any(.labels[]; .name == "theme"))
   | .number as $number
-  | [foreach ((.body // "") | split("\n")[]) as $l ({fence: false, head: null};
-      if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .head = null
-      else .head = (if .fence then null else ($l | capture("^## (?<n>.*?)\\s*$").n // null) end) end;
-      .head | select(. != null))] as $heads
+  | [(.body // "") | body_lines[] | .head | select(. != null)] as $heads
   | [$heads[] | select(IN($ARGS.positional[]))] as $got
   | select($got != $ARGS.positional)
   | "#\($number) テーマの本文に \($ARGS.positional | map("## \(.)") | join("、")) の節がこの順に一度ずつない（ある節：\(if $got == [] then "なし" else $got | join("、") end)）"' \

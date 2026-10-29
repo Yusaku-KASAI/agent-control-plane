@@ -6,6 +6,7 @@
 github/
   bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体（判定は docs/reference/prctl.md）
   lib/review.jq        レビューの結果と答えの形の検査と、Markdown の表の作り方
+  lib/markdown.jq      PR と Issue の本文の行の読み方（見出しとコードブロック）
   tests/prctl-test.sh  prctl の振る舞いの検査
   bin/check-protection 既定のブランチの守り（ルールセットと CODEOWNERS）が外れていないかの検査
   actions/check-protection/  check-protection を CI で回す GitHub Actions の複合アクション
@@ -56,6 +57,15 @@ github/
   記録させない（強制機能）。[単一の情報源](../../principles/docs/reference/principles.md#ssot)：表と隠した写しは、
   同じ JSON から作る。
 
+### `lib/markdown.jq`
+
+- **責務**：PR と Issue の本文の行を、コードブロックの中か、どの節の見出しかとともに読む（`body_lines`）。
+- **置くもの / 置かないもの**：行の読み方だけ。どの節を求めるか、どの行を数えるかは、使う側（`bin/prctl` の本文の検査と
+  依頼の Issue の取り出し、`bin/check-issues` のテーマの節）に置く。
+- **関係**：`bin/prctl` と `bin/check-issues` が `jq -L` で読み込む。
+- **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：PR の本文と Issue の本文で、
+  見出しとコードブロックの見分け方がずれない。
+
 ### `hooks/hooks.json`
 
 - **責務**：push のあと（Bash の PostToolUse）と、ターンの終わり（Stop）に、`prctl hook` を呼ぶ。
@@ -84,7 +94,7 @@ github/
     メンバーや overview と合っているかも含む）。
   - Issue を書き換えない。読むだけ。CI では回さない（Issue は PR と関わりなく変わる）。課題を整えるときとセッションを
     締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)）。
-- **関係**：`gh` と `jq` を使う。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
+- **関係**：`gh` と `jq` を使い、本文の行は `lib/markdown.jq` で読む。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
   スキルの「Issue のずれを挙げる」が届ける。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：ロードマップの今の焦点が古いまま残る
   ことを、人の気づきに頼らず見つける。
