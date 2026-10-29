@@ -47,7 +47,8 @@ usage:
   prctl draft                         put the PR back into draft, to go on with it
   prctl answer <commit> <answers-json|->
                                       answer every finding of the review of <commit>, in a comment
-  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
+  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree;
+                                      tell its title and the issue its line of Closes or Refs names
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
                                       remove that worktree
@@ -68,6 +69,12 @@ readonly review_mark=prctl-review answers_mark=prctl-answers
 forms=$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd) || forms=/nonexistent
 readonly forms
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
+# A line that closes or refers to an issue (writing.md: PR), by any of GitHub's keywords, in any case,
+# and nothing else on the line: the one form both the body's check and the reading of a PR's request
+# issue go by. Matched as a jq regex with the flag "i".
+readonly issue_line_re='^\s*(?<word>close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)\s*$'
+# The start of such a line, to tell a line that names more issues than one.
+readonly issue_start_re='^\s*(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *([\w.-]+/[\w.-]+)?#[0-9]+'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -281,7 +288,7 @@ is_worktree() {
 # HEAD stays where it is, so neither the hooks meant for a PR's author nor the session's cleanup
 # take it for this session's work.
 cmd_worktree() {
-  local kind=$1 number=${2:-} name commit pr base path from
+  local kind=$1 number=${2:-} name commit pr base path from issues
   # From the main work tree: the worktree to be made again may be where this runs.
   cd "$(main_tree)"
   git worktree prune
@@ -289,7 +296,7 @@ cmd_worktree() {
     pr)
       [[ $number =~ ^[0-9]+$ ]] || usage
       name=pr-$number
-      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName) || die "no PR #$number"
+      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName,title,body) || die "no PR #$number"
       base=$(jq -r .baseRefName <<<"$pr")
       git fetch -q origin "+refs/pull/$number/head:refs/prctl/$name" "+refs/heads/$base:refs/remotes/origin/$base"
       commit=$(git rev-parse "refs/prctl/$name")
@@ -312,6 +319,11 @@ cmd_worktree() {
   echo "path: $path"
   echo "head: $commit"
   if [[ $kind == pr ]]; then
+    # Only the title and the request issue: the rest of the body is the intent, read after the
+    # alternatives are thought of (review.md).
+    echo "title: $(jq -r .title <<<"$pr")"
+    issues=$(request_issues "$(jq -r '.body // ""' <<<"$pr")" | paste -sd ' ' -)
+    echo "issue: ${issues:-none (no line of Closes or Refs)}"
     from=$(git merge-base "origin/$base" "$commit")
     echo "range: $from..$commit (git -C $path diff $from $commit)"
     echo "after reviewing it: prctl review --pr $number $commit <review-json>"
@@ -564,6 +576,11 @@ cmd_review() {
     head=$(pr_head "$pr")
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
     base=$(jq -r .baseRefName <<<"$pr")
+    # Only the title and the request issue: the rest of the body is the intent, read after the
+    # alternatives are thought of (review.md).
+    echo "title: $(jq -r .title <<<"$pr")"
+    issues=$(request_issues "$(jq -r '.body // ""' <<<"$pr")" | paste -sd ' ' -)
+    echo "issue: ${issues:-none (no line of Closes or Refs)}"
     from=$(git merge-base "origin/$base" "$commit") || die "no origin/$base here; fetch it first"
   else
     b=$(branch) || die "not on a branch"
@@ -646,31 +663,47 @@ cmd_answer() {
 # PR). What is written under them is free.
 readonly body_sections=(何を変えるか 検討した別の形 当てはめた決まり どう確かめたか 確かめていないこと)
 
-# body_check <body>: die unless the body has the sections, in order, once each, none of them empty.
-# Lines in code blocks are not headings. Lines that only close or refer to an issue (by any of
-# GitHub's keywords, in any case), the attribution line and the old marker of the head, which the
-# body loses when it is written, do not count as what is written under a section.
+# body_lines: the lines of a body (the input, as one string), each with whether it is in a code block
+# (a fence line is) and the name of the section it heads, if it is a heading outside one.
+# shellcheck disable=SC2016 # a jq expression
+readonly body_lines='def body_lines: [foreach (split("\n")[]) as $l ({fence: false};
+    if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .line = $l | .head = null | .code = true
+    else .line = $l | .code = .fence | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
+    {line, head, code})];'
+
+# request_issues <body>: the issues the lines of Closes or Refs of the body name, one to a line.
+request_issues() {
+  jq -Rrs --arg line "$issue_line_re" "$body_lines"' body_lines[] | select(.code | not) | .line | capture($line; "i").issue' <<<"$1"
+}
+
+# body_check <body>: die unless the body has the sections, in order, once each, none of them empty,
+# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR). Lines
+# in code blocks are not headings, and name no issue. Such lines, the attribution line and the old
+# marker of the head, which the body loses when it is written, do not count as what is written under
+# a section.
 body_check() {
   local errors
-  errors=$(jq -Rrs --args '
-    [foreach (split("\n")[]) as $l ({fence: false};
-        if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .line = $l | .head = null
-        else .line = $l | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
-        {line, head})] as $lines
+  errors=$(jq -Rrs --arg line "$issue_line_re" --arg start "$issue_start_re" --args "$body_lines"'
+    body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
+    | [$lines[] | select(.code | not) | .line] as $prose
     | [ ($want[] as $w
           | ($heads | map(select(.name == $w))) as $hs
           | if ($hs | length) == 0 then "no section ## \($w)"
             elif ($hs | length) > 1 then "the section ## \($w) appears \($hs | length) times"
             else ($heads | map(select(.at > $hs[0].at)) | first | .at // ($lines | length)) as $end
               | if [$lines[$hs[0].at + 1:$end][] | .line
-                    | select(test("\\S") and (test("^\\s*((close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *([\\w.-]+/[\\w.-]+)?#[0-9]+|🤖 )"; "i") | not))] | length == 0
+                    | select(test("\\S") and (test($line; "i") or test("^\\s*🤖 ") | not))] | length == 0
                 then "the section ## \($w) is empty" else empty end
             end),
         ([$heads[] | .name | select(IN($want[]))] as $got
          | if ($got | length) == ($want | length) and ($got | unique | length) == ($want | length) and $got != $want
-         then "the sections are not in the order: \($want | join(", "))" else empty end) ]
+         then "the sections are not in the order: \($want | join(", "))" else empty end),
+        ($prose[] | select(test($start; "i") and (test($line; "i") | not) and (sub($start; ""; "i") | test("#[0-9]+")))
+         | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
+        ([$prose[] | capture($line; "i").issue | ascii_downcase] | unique
+         | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end) ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }

@@ -448,7 +448,10 @@ set_pr "$c7"
 check "a new commit is not reviewed yet" "$("$prctl" unreviewed)" "range: $c6..$c7"
 git checkout -q main
 before=$(git symbolic-ref HEAD; git rev-parse HEAD)
+jq '.title = "t1" | .body = "x\n\nfixes: #3\n```\nCloses #4\n```\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 out=$("$prctl" worktree pr 1)
+check "the worktree tells the title of the PR" "$out" "title: t1"
+check "the worktree tells the issue of the request, by the form of the body's check" "$out" $'\nissue: #3\n'
 wt=$(sed -n 's/^path: //p' <<<"$out")
 check "the PR is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$c7"
 check "the worktree leaves the work tree's HEAD" "$(git symbolic-ref HEAD; git rev-parse HEAD)" "$before"
@@ -461,8 +464,10 @@ check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
   "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"$whole" 2>&1 || true)" "is not in the PR"
+set_pr "$c7"
 out=$(cd "$wt" || exit; "$prctl" worktree pr 1)
 check "the worktree is made again from inside it" "$(git -C "$wt" rev-parse HEAD)" "$c7"
+check "the worktree tells when the body names no issue" "$out" "issue: none"
 (cd "$wt" || exit; "$prctl" worktree remove pr 1)
 [[ ! -e $wt ]] || { echo "FAIL the worktree is left after a remove from inside it"; failures=$((failures + 1)); }
 check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
@@ -597,11 +602,14 @@ check "a review over GitHub's limit is refused" \
 # The names the form takes are those of the conventions.
 reviews=$(dirname "$prctl")/../../conventions/docs/reference/reviews.md
 forms=$(dirname "$prctl")/../lib
-column() { sed -n "/^## $1/,/^## /p" "$reviews" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
-check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column 観点)"
-check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column 結果の形)"
+# section <file> <anchor>: the section that the anchor marks, up to the next section of its level,
+# so that a heading may be renamed.
+section() { awk -v id="$2" 'on && /^## / { if (seen) exit; seen = 1 } $0 == "<a id=\"" id "\"></a>" { on = 1 } on' "$1"; }
+column() { section "$reviews" "$1" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
+check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column perspectives)"
+check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column record)"
 check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; severities')" \
-  "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
+  "$(section "$reviews" findings | grep '^| 重さ |' | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
 
 # A PR body has its sections, in order, none empty; what is under them is free.
 good=$'## 何を変えるか\nx\n\n## 検討した別の形\nw\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
@@ -627,6 +635,21 @@ for ref in 'Fixes owner/repo#1' 'Closes: #1'; do
     "$("$prctl" create t - <<<"$(sed "s|^なし$||; s|^Closes #1$|$ref|" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
 done
 # shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "a sentence after the issue fills the last section" \
+  "$("$prctl" create t - <<<"$(sed 's/^なし$//; s/^Closes #1$/Refs #1 の残りの項目は確かめていない/' <<<"$good")" 2>&1 || true)" "already has an open PR"
+for line in 'Closes #1, #2' 'Closes #1 and fixes owner/repo#2'; do
+  # shellcheck disable=SC2001 # a line-wise edit of a sample body
+  check "\"$line\" is refused as naming more issues than the request" \
+    "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|$line|" <<<"$good")" 2>&1 || true)" "a line of Closes or Refs names more issues than the request"
+done
+check "lines naming two issues are refused" "$("$prctl" create t - <<<"$good"$'\nRefs #2' 2>&1 || true)" \
+  "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"
+check "lines naming the issue twice go on" "$("$prctl" create t - <<<"$good"$'\ncloses #1' 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "an issue of another repository is the same in any case" \
+  "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|Closes Owner/Repo#1|" <<<"$good")"$'\nrefs owner/repo#1' 2>&1 || true)" "already has an open PR"
+check "a line in a code block names no issue" "$("$prctl" create t - <<<"$good"$'\n```\nRefs #2, #3\n```' 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
 check "the old marker of the head does not fill the last section" \
   "$("$prctl" update - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n<!-- prctl: head='"$(printf '%040d' 0)"' -->' 2>&1 || true)" "the section ## 確かめていないこと is empty"
 # shellcheck disable=SC2001,SC2016 # a line-wise edit of a sample body, with Markdown backquotes
@@ -641,7 +664,7 @@ writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
 # shellcheck disable=SC2016 # backquotes of Markdown
 check "the body's sections are those of the conventions" \
   "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
-  "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
+  "$(section "$writing" pull-requests | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
 
 # A PR is stacked on another PR's branch only when built on it, and only on an open PR.
 git checkout -q -b stacked
