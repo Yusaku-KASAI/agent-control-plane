@@ -54,7 +54,8 @@ else
   ok "every open issue has the labels of where and what for"
 fi
 
-# The sections of a theme issue (conventions' issues.md, "テーマ"), read as prctl reads a PR's body.
+# The sections of a theme issue, read as prctl reads a PR's body: a copy of those of conventions'
+# issues.md ("テーマ"), to be changed with them (the test compares them).
 theme_sections=(狙い 目指す姿 進め方)
 lacking=$(jq -r -L "$(dirname "${BASH_SOURCE[0]}")/../lib" --args 'include "markdown"; .[]
   | select(any(.labels[]; .name == "theme"))
