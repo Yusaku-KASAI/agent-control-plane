@@ -128,7 +128,7 @@ func TestAgentAnswers(t *testing.T) {
 			[]string{ShutdownNotice}},
 		{"a restart abandons the work",
 			[]SessionEvent{{Kind: SessionAbandoned}},
-			[]string{RestartNotice}},
+			[]string{restartNotice}},
 	} {
 		next := &noticeRecorder{}
 		a := NewAgentAnswers(next)

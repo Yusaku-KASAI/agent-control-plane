@@ -72,7 +72,8 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
   持つ）、複数のアダプターを一つのポートにまとめる小さな型（`credentialIssuers`、`sessionObserver`）。`Dispatcher` と Bot が
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
 - **関係**：すべてのパッケージに依存してよい。起動は、自分のバイナリを `tools.dir` に置き（失敗したら起動しない。
-  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`sessionObserver` を `AgentAnswers` で包んで渡した `Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
+  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`sessionObserver` を `AgentAnswers` で包んで渡した
+  `Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付け、Slack のトークンの
   確かめ（要れば更新）を動かす。止めるときは、Bot が依頼を受けるのをやめ、`Dispatcher` を閉じて動いていた処理を中断し
   （[停止と再起動の知らせ](requests.md#shutdown "在りか")）、HTTP サーバーを 10 秒の期限で止め、片付けと Bot の

@@ -12,8 +12,8 @@ import (
 // runs out, since the agent reports the end of its tasks shortly before it starts that turn.
 const agentAnswerGrace = 15 * time.Second
 
-// RestartNotice tells a thread that a restart stopped its agent, with the work cut short unknown.
-const RestartNotice = "control-plane が再起動したため、このスレッドのエージェントを止めました。処理の途中だった場合は中断されています。" +
+// restartNotice tells a thread that a restart stopped its agent, with the work cut short unknown.
+const restartNotice = "control-plane が再起動したため、このスレッドのエージェントを止めました。処理の途中だった場合は中断されています。" +
 	"続けるには、もう一度依頼してください。"
 
 // AgentAnswers decides what of the turns no request waits for reaches people, by the table of
@@ -196,7 +196,7 @@ func (h *heldAnswer) errorNotice(e SessionEvent) string {
 
 func abandonedNotice(st SessionStatus) string {
 	if st == (SessionStatus{}) {
-		return RestartNotice
+		return restartNotice
 	}
 	return ShutdownNotice
 }
