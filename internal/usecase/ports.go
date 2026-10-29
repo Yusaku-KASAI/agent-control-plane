@@ -234,6 +234,10 @@ const (
 	// request was waiting to be told: on shutdown, with Status showing the work that was cut
 	// short, or after a restart, with an empty Status since that work is unknown.
 	SessionAbandoned
+	// SessionNotice carries a text to post to the session's conversation, which AgentAnswers decided
+	// from the events before: an answer of a turn no request waited for, or the notice of abandoned
+	// work.
+	SessionNotice
 )
 
 type SessionEvent struct {
@@ -251,6 +255,8 @@ type SessionEvent struct {
 	// SessionTurnUpdated of an agent's own turn that the running request's turn hides. It is nil for
 	// a turn that ended without one, whose usage is unknown.
 	Spent *Spent
+	// Notice is set for SessionNotice.
+	Notice string
 }
 
 // Spent is what a turn spent and the session's total after it.
@@ -270,10 +276,17 @@ type SessionStatus struct {
 	BackgroundTasks int
 }
 
-// SessionObserver is told how a session's turns progress. Calls come from the session's worker
-// in order and must return quickly.
+// SessionObserver is told how a session's turns progress. The calls for a session come in order,
+// from the dispatcher (the session's creation, its worker, Recover) or, for what AgentAnswers wraps,
+// also from its timers and Flush, and must return quickly.
 type SessionObserver interface {
 	Observe(s domain.Session, e SessionEvent)
+}
+
+// ObserverFlusher is implemented by a SessionObserver that holds what it was told for later, as
+// AgentAnswers holds answers; Dispatcher.Close flushes it once the last event has come.
+type ObserverFlusher interface {
+	Flush()
 }
 
 type Runner interface {

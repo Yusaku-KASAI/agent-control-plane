@@ -90,6 +90,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		CredentialsVolume:  cfg.Credentials.Volume,
 	}
 	observer := &sessionObserver{log: log}
+	answers := usecase.NewAgentAnswers(observer)
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
 		sessions,
@@ -97,7 +98,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		issuer,
 		cfg.People,
 		docker.NewRunner(dockerClient, runnerOpts),
-		observer,
+		answers,
 		usagelog.New(cfg.UsageLog, log),
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,

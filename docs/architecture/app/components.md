@@ -22,7 +22,7 @@ acp run / stop ──HTTP──▶ httpapi ────────────�
 usecase.SessionCleaner（起動時と定期的に。今すぐの片付けは usecase.HandleMessage ──SessionCleanup──▶ SessionCleaner）
 SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワーカーを手放させる）
 
-知らせ：worker ──SessionObserver──▶ sessionObserver（serve.go）──▶ slackbot.Bot
+知らせ：worker ──SessionObserver──▶ AgentAnswers ──▶ sessionObserver（serve.go）──▶ slackbot.Bot
        SessionCleaner ──SessionNotifier──▶ sessionObserver ──▶ slackbot.Bot
 ```
 
@@ -49,7 +49,9 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 | `Runner`、`Process` | `ports.go` | `docker.Runner` |
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |
 | `SessionBranches` | `ports.go` | `githubapp.Branches` |
-| `SessionObserver`、`SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
+| `SessionObserver` | `ports.go` | `usecase.AgentAnswers` と、それが包む `serve.go` の `sessionObserver` |
+| `ObserverFlusher` | `ports.go` | `usecase.AgentAnswers`（`Dispatcher.Close` が最後に呼ぶ） |
+| `SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
 | `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |
@@ -70,7 +72,8 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
   持つ）、複数のアダプターを一つのポートにまとめる小さな型（`credentialIssuers`、`sessionObserver`）。`Dispatcher` と Bot が
   互いを要る循環は、`sessionObserver` に Bot を後から渡すことでここだけで解く。判定は置かない。
 - **関係**：すべてのパッケージに依存してよい。起動は、自分のバイナリを `tools.dir` に置き（失敗したら起動しない。
-  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
+  [作業領域を読むコンテナ](containers.md#workspace-reader "在りか")）、`sessionObserver` を `AgentAnswers` で包んで渡した
+  `Dispatcher` を作り、Bot を作って `sessionObserver` に渡し、
   `Dispatcher.Recover` で前の実行が残したコンテナを消してから、HTTP サーバー、Bot、片付け、Slack のトークンの
   確かめ（要れば更新）を動かす。止めるときは、Bot が依頼を受けるのをやめ、`Dispatcher` を閉じて動いていた処理を中断し
   （[停止と再起動の知らせ](requests.md#shutdown "在りか")）、HTTP サーバーを 10 秒の期限で止め、片付けと Bot の

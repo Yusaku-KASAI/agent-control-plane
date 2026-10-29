@@ -283,10 +283,14 @@ func (d *Dispatcher) forgetUsage(ctx context.Context, id domain.SessionID) error
 	return nil
 }
 
-// Close stops every session's process and waits for them.
+// Close stops every session's process and waits for them, then flushes the observer if it holds
+// what it was told for later (ObserverFlusher), since no event comes after.
 func (d *Dispatcher) Close() {
 	d.cancel()
 	d.wg.Wait()
+	if f, ok := d.observer.(ObserverFlusher); ok {
+		f.Flush()
+	}
 }
 
 func (d *Dispatcher) openSession(ctx context.Context, agent domain.Agent, in RunAgentInput) (domain.Session, error) {
