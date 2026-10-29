@@ -66,34 +66,33 @@ def code_block_lines(text):
     with nothing after it but blanks. A fence that such a line closes later keeps less indented lines (such as the end
     of a here document) as code up to it, so that its closing line opens no fence that would hide the rest; one that
     nothing closes ends where its list item ends, or runs to the end outside lists. A line indented four columns past
-    where the text begins, after a blank line, a closing fence or another line of indented code, is indented code.
-    Where the text of each open list item begins is taken from its marker line; a less indented line ends the items
-    it is outside of. An HTML comment that begins a line is read as code up to the end of the line it closes on, or,
-    as a fence, where its list item ends if it never closes. Lazy continuation lines, block quotes, comments inside a line, other
-    HTML blocks, tabs, and backslash escapes are not told apart."""
+    where the text begins, after a blank line, a closing fence, a closed comment or another line of indented code, is
+    indented code. Where the text of each open list item begins is taken from its marker line; a less indented line
+    ends the items it is outside of. An HTML comment that begins a line, indented as a fence may be, is read as code up
+    to the end of the line it closes on, or, as a fence, where its list item ends if it never closes. Lazy continuation
+    lines, block quotes, comments inside a line, other HTML blocks, tabs, and backslash escapes are not told apart."""
     lines = text.split("\n")
-    code, opening, closed_later, items, blank, indented, comment = set(), None, False, [], True, False, None
+    code, items, blank, indented = set(), [], True, False
+    # An open fence or comment: what closes it, the base it was opened at, and whether a closing line comes later.
+    opening, closed_later, comment, comment_closed_later = None, False, None, False
     for index, line in enumerate(lines):
         base = items[-1] if items else 0
         depth = len(line) - len(line.lstrip(" "))
+        ends_item = line.strip() and depth < base
         if opening:
-            if closed_later or not line.strip() or depth >= base:
+            if closed_later or not ends_item:
                 code.add(index)
                 if closes(line, opening, base):
                     opening, blank = None, True
                 continue
             opening = None
-        if comment is not None and line.strip() and depth < comment:
+        if comment is not None:
+            if comment_closed_later or not (line.strip() and depth < comment):
+                code.add(index)
+                if "-->" in line:
+                    comment, blank = None, True
+                continue
             comment = None
-        if comment is not None or (line.lstrip().startswith("<!--") and depth <= base + 3):
-            code.add(index)
-            if "-->" in (line.split("<!--", 1)[1] if comment is None else line):
-                comment = None
-            elif comment is None:
-                # As a fence, a comment closed later runs to its end; one never closed ends with its list item.
-                comment = -1 if any("-->" in rest for rest in lines[index + 1:]) else base
-            blank = False
-            continue
         if not line.strip():
             blank = True
             continue
@@ -104,6 +103,14 @@ def code_block_lines(text):
         blank = False
         if indented:
             code.add(index)
+            continue
+        if line.lstrip().startswith("<!--") and depth <= base + 3:
+            code.add(index)
+            # As in CommonMark, <!--> and <!---> are whole comments.
+            if "-->" in line[line.index("<!--") + 2:]:
+                blank = True
+            else:
+                comment, comment_closed_later = base, any("-->" in rest for rest in lines[index + 1:])
             continue
         item = LIST_ITEM.match(line)
         if item:
@@ -295,7 +302,7 @@ def check_docs_dirs(paths, errors):
 
 
 def check_components(path, errors):
-    # Only code blocks are dropped: headings often consist of inline code, such as a path.
+    # Only code blocks are dropped: headings often consist of code spans, such as a path.
     text = without_code_blocks(read(path))
     m = re.search(r"^## 構成要素\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not m:

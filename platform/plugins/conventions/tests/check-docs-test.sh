@@ -865,9 +865,45 @@ fails "a closing line may end with blanks" "docs/reference/r.md: broken link mis
 fresh
 add docs/reference/r.md '- item
   <!-- open
+  [p](missing.md)
+- next'
+passes "an HTML comment that nothing closes is code up to the end of its list item"
+fresh
+add docs/reference/r.md '- item
+  <!-- open
   [p](p.md)
 - next [x](missing.md)'
 fails "an HTML comment in a list item that nothing closes ends with the item" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- a
+  - b
+  <!-- x
+
+  [l](missing.md)'
+passes "an HTML comment that nothing closes ends with the item it is in, not with an item that has ended"
+fresh
+add docs/reference/r.md '1. step
+
+   text
+<!-- note -->
+    [x](missing.md)'
+passes "a line indented four columns right after an HTML comment that ends a list is indented code"
+fresh
+add docs/reference/r.md '<!--
+x
+-->
+    [x](missing.md)'
+passes "a line indented four columns right after a closed HTML comment is indented code"
+fresh
+add docs/reference/r.md '<!-->
+
+[x](missing.md)'
+fails "<!--> is a whole HTML comment" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md 'text
+    <!--
+[x](missing.md)'
+fails "a line indented four columns in a paragraph opens no HTML comment" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '- item
   <!--
