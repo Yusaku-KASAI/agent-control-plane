@@ -70,10 +70,11 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     メッセージがどのスレッドのものかはメモリに 24 時間覚え、覚えていないメッセージ（再起動の前の依頼、依頼でない
     メッセージ）へのリアクションは何もしない。依頼できる人の指示だけが効く
     （[ADR 0039](../../adr/app/0039-stop-by-reacting-to-request-messages.md)）。
-  - スレッドの最初のメッセージ（ルート）への `:wastebasket:` と `:fire:` を、そのスレッドのセッションを今すぐ片付ける指示
-    （`:fire:` は失われるものを承知で）として `HandleMessage.CleanSession` に渡す。最初のメッセージの ts がスレッドの
-    ts なので、覚えていなくてもセッションが決まり、再起動のあとでも効く。依頼できる人の指示だけが効く。止まるときは
-    取り消す（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
+  - スレッドの最初のメッセージ（ルート）への `:wastebasket:` を、そのスレッドのセッションを今すぐ片付ける指示として
+    `HandleMessage.CleanSession` に渡す。最初のメッセージの ts がスレッドの ts なので、覚えていなくてもセッションが
+    決まり、再起動のあとでも効く。どのメッセージへの `:fire:` も、チャンネルとメッセージの ts を添えて
+    `HandleMessage.ForceCleanSession` に渡し、それが残す理由の知らせかは `SessionCleaner` が決める。依頼できる人の
+    指示だけが効く。止まるときは取り消す（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)、[0056](../../adr/app/0056-force-cleaning-on-the-notice.md)）。
   - 依頼ごとにゴルーチンで `HandleMessage` を動かす。サーバーが止まるときも依頼の処理は取り消さず、
     `Dispatcher` が閉じて依頼が終わるのを待つ。
   - 返事と状態メッセージは、Slack の markdown ブロックが標準の Markdown と違って読む形のうち、意味を変えずに直せる
@@ -148,7 +149,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   依頼のメッセージへの停止の指示を、依頼できる人か確かめてから、その依頼の停止として `Dispatcher.StopRequest` に渡す
   （[ADR 0039](../../adr/app/0039-stop-by-reacting-to-request-messages.md)）。スレッドの最初のメッセージへの片付けの
   指示を、依頼できる人か確かめてから、そのスレッドのセッションの今すぐの片付けとして `SessionCleaner.CleanNow` に渡す
-  （`CleanSession`、[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
+  （`CleanSession`、[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。どのメッセージへの強制の片付けの
+  指示も、依頼できる人か確かめてから、チャンネルとメッセージの ts を添えて `SessionCleaner.ForceClean` に渡す
+  （`ForceCleanSession`、[ADR 0056](../../adr/app/0056-force-cleaning-on-the-notice.md)）。
 - **置くもの / 置かないもの**：結果ごとの合図と文面。
   - 許可されていない依頼者には、受け付けないと返す。依頼できるのは、エージェントごとの `allowed_users` に
     載っている人だけ。
@@ -189,7 +192,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 
 - **責務**：セッションの出来事と知らせを、セッションのエージェントの Bot に渡す。
 - **関係**：`SessionObserver` と `SessionNotifier` を満たす。Slack のスレッドから始まったセッションだけを Bot に
-  渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。
+  渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。知らせは、投稿したメッセージの ts を返す
+  （Slack のスレッドで始まっていないセッションには空を返す）。片付けが、残す理由の知らせへの `:fire:` を見分けるのに使う。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：ユースケースは
   知らせる先を知らず、組み立ての場所で入口と結ぶ。
 

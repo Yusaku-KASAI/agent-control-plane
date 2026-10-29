@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-23
 amends: [26]
+amended_by: [56]
 ---
 
 # 0046. 人は、スレッドの最初のメッセージへの `:wastebasket:` でセッションを今すぐ片付けさせ、`:fire:` で失われるものを承知で片付けさせる
