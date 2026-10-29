@@ -522,8 +522,8 @@ func (w *worker) run() {
 func (w *worker) handle(e ProcessEvent) {
 	switch e.Kind {
 	case EventTurnStarted:
-		if !w.turns.running() {
-			w.startTurn(agentTurn)
+		if w.turns.agentStarts() {
+			w.turnStarted(agentTurn)
 		}
 	case EventTurnFinished:
 		w.finishTurn(e.Result)
@@ -664,26 +664,25 @@ func (w *worker) finishTurn(res TurnResult) {
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
-	agentStarted := w.turns.unrequested()
+	end := w.turns.finish()
 	w.d.usage.Record(w.d.ctx, TurnRecord{
 		Agent:        w.agent.Name,
 		Session:      w.session.ID,
 		Conversation: w.session.Conversation,
 		StartedAt:    w.startedAt,
 		FinishedAt:   w.session.LastUsedAt,
-		Requesters:   w.turns.credit(),
-		AgentStarted: agentStarted,
+		Requesters:   end.requesters,
+		AgentStarted: end.unrequested,
 		Result:       res,
 		Usage:        turnUsage,
 	})
 	spent := &Spent{Turn: turnUsage, Session: total}
-	end := w.turns.finish()
 	if end.hidden {
 		w.startedAt, w.activity = time.Now(), ""
 		w.observe(SessionEvent{Kind: SessionTurnUpdated, Spent: spent})
 		return
 	}
-	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: agentStarted, Spent: spent})
+	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: end.unrequested, Spent: spent})
 	for i, r := range end.answered {
 		if err != nil {
 			r.answer(w.reply(TurnResult{}, err))

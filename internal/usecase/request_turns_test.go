@@ -154,7 +154,7 @@ func TestRequestTurns_StopRequest(t *testing.T) {
 	}{
 		{"a queued request is removed alone", "queued", requestsTurn, true, false, true, false, stopQueued},
 		{"a request taken in stops the work", "current", requestsTurn, true, false, true, false, stopAgentWork},
-		{"a request sent but not taken in stops the work", "sent", agentTurn, false, true, false, false, stopAgentWork},
+		{"a request sent but not taken in stops the work", "sent", requestsTurn, false, true, false, false, stopAgentWork},
 		{"an ended request leaves another request's turn", "ended", requestsTurn, true, false, false, true, stopNothing},
 		{"an ended request leaves the turn before the sent requests", "ended", requestsTurn, false, true, false, false, stopNothing},
 		{"an ended request stops the agent's own turn", "ended", agentTurn, false, false, false, false, stopAgentWork},
@@ -206,7 +206,7 @@ func TestRequestTurns_Credit(t *testing.T) {
 	turns.take("p")
 	turns.current = append(turns.current, request{requester: alice})
 	if got := turns.credit(); len(got) != 2 || got[0] != alice || got[1] != bob {
-		t.Fatalf("credit = %v, want the turn's requesters in order", got)
+		t.Fatalf("credit = %v, want the turn's requesters, sorted", got)
 	}
 	turns.finish()
 	turns.start(agentTurn)
@@ -280,5 +280,49 @@ func TestRequestTurns_Cancel(t *testing.T) {
 	}
 	if turns.unrequested() {
 		t.Error("the request taken in was cancelled")
+	}
+}
+
+func TestRequestTurns_SetBackground(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		before, now []string
+		ended       bool
+	}{
+		{"a task starts", nil, []string{"a"}, false},
+		{"a task ends", []string{"a", "b"}, []string{"b"}, true},
+		{"one ends as another starts", []string{"a"}, []string{"b"}, true},
+		{"nothing changes", []string{"a"}, []string{"a"}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			turns := &requestTurns{background: c.before}
+			if ended := turns.setBackground(c.now); ended != c.ended {
+				t.Errorf("ended = %v, want %v", ended, c.ended)
+			}
+			if len(turns.backgroundTasks()) != len(c.now) {
+				t.Errorf("background = %v, want %v", turns.backgroundTasks(), c.now)
+			}
+		})
+	}
+}
+
+func TestRequestTurns_AgentStarts(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		turn  turnKind
+		began bool
+	}{
+		{"no turn begins the agent's own", noTurn, true},
+		{"a requests' turn stays", requestsTurn, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			turns := turnsIn(c.turn, false, false, false, false)
+			if began := turns.agentStarts(); began != c.began {
+				t.Errorf("agentStarts = %v, want %v", began, c.began)
+			}
+			if want := map[bool]turnKind{true: agentTurn, false: c.turn}[c.began]; turns.turn != want {
+				t.Errorf("turn = %v, want %v", turns.turn, want)
+			}
+		})
 	}
 }

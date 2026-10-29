@@ -110,6 +110,16 @@ func (t *requestTurns) start(k turnKind) {
 	t.turn = k
 }
 
+// agentStarts takes in a turn the process reported as started: the agent's own, unless a turn
+// already runs, as one begun for the requests sent. It reports whether a turn began.
+func (t *requestTurns) agentStarts() bool {
+	if t.running() {
+		return false
+	}
+	t.start(agentTurn)
+	return true
+}
+
 // take moves the request the agent took in as the prompt id into the running turn, starting a
 // requests' turn if none runs. ok is false for a prompt that is not held, as one already cancelled.
 func (t *requestTurns) take(id string) (r request, u Uptake, started, ok bool) {
@@ -139,16 +149,21 @@ type turnEnd struct {
 	// answered are the requests the turn answers, in the order taken in; none for a turn the agent
 	// started by itself and took no request into.
 	answered []request
+	// unrequested and requesters are those of the turn that ended (see unrequested and credit).
+	unrequested bool
+	requesters  []domain.Requester
 	// next is set when the agent still holds requests, which it takes into its next turn: a
 	// requests' turn is to start once this one is told.
 	next bool
 }
 
 func (t *requestTurns) finish() turnEnd {
+	end := turnEnd{unrequested: t.unrequested(), requesters: t.credit()}
 	if t.turn == requestsTurn && len(t.current) == 0 && len(t.sent) > 0 {
-		return turnEnd{hidden: true}
+		end.hidden = true
+		return end
 	}
-	end := turnEnd{answered: t.current, next: len(t.sent) > 0}
+	end.answered, end.next = t.current, len(t.sent) > 0
 	t.turn, t.current = noTurn, nil
 	return end
 }
@@ -166,8 +181,8 @@ func (t *requestTurns) credit() []domain.Requester {
 	return slices.Clone(t.requesters)
 }
 
-// coAuthors are the requesters of the requests taken into the running turn, in the order taken in.
-// A turn the agent started by itself has none, and keeps crediting those before.
+// coAuthors are the requesters of the requests taken into the running turn, in the order taken in;
+// none for a turn without requests, for which the worker keeps the co-authors of the turn before.
 func (t *requestTurns) coAuthors() []domain.Requester {
 	people := make([]domain.Requester, 0, len(t.current))
 	for _, r := range t.current {
