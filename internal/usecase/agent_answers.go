@@ -39,6 +39,9 @@ type heldAnswer struct {
 	limited bool
 }
 
+// Dispatcher.Close finds Flush only through ObserverFlusher; missing it would lose held answers.
+var _ ObserverFlusher = (*AgentAnswers)(nil)
+
 func NewAgentAnswers(next SessionObserver, grace time.Duration) *AgentAnswers {
 	return &AgentAnswers{next: next, grace: grace,
 		sessions: make(map[domain.SessionID]*heldAnswer), releases: make(map[*time.Timer]func())}
@@ -97,6 +100,8 @@ func (a *AgentAnswers) release(s domain.Session, h *heldAnswer) {
 	timer = time.AfterFunc(a.grace, func() {
 		a.mu.Lock()
 		defer a.mu.Unlock()
+		// Flush may have posted it already. Posting only under the lock while registered keeps
+		// every post before Flush returns, and so before the bots wait for their writes.
 		if _, ok := a.releases[timer]; ok {
 			delete(a.releases, timer)
 			release()

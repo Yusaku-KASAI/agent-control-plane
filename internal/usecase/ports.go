@@ -276,8 +276,8 @@ type SessionObserver interface {
 	Observe(s domain.Session, e SessionEvent)
 }
 
-// ObserverFlusher is a SessionObserver that holds what it was told for later, as AgentAnswers holds
-// answers; Dispatcher.Close flushes it once the last event has come.
+// ObserverFlusher is implemented by a SessionObserver that holds what it was told for later, as
+// AgentAnswers holds answers; Dispatcher.Close flushes it once the last event has come.
 type ObserverFlusher interface {
 	Flush()
 }
