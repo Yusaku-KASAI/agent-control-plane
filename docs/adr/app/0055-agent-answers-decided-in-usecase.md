@@ -18,7 +18,7 @@ date: 2026-10-29
   `sessionObserver` を包み、出来事をそのまま渡したあとで、出すと決めた文面を `SessionNotice` として渡す。持っておいた
   回答、15 秒の待ち、使用上限を知らせたかも、ここが持つ。
 - Bot は、状態メッセージを見せることと、`SessionNotice` の文面を投稿することだけを持つ。
-- 止まるときは、`Dispatcher` を閉じたあと、Bot が書き込みを待つ前に `AgentAnswers.Flush` で待っている回答を出す。
+- 止まるときは、`Dispatcher.Close` が最後の出来事のあとに `AgentAnswers.Flush`（`ObserverFlusher`）を呼び、待っている回答を出す。Bot の書き込みの待ちより前に必ず通る。
 - 振る舞いは変えない。
 
 ## Alternatives

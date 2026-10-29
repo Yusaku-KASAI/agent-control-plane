@@ -165,8 +165,6 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 	// The bots stopped taking requests with ctx and the dispatcher refuses new ones once closed;
 	// closing it ends the waiting requests, which lets the HTTP server and the bots finish.
 	turns.Close()
-	// Posts the answers held for the agent's next turn, before the bots wait for their writes.
-	answers.Flush()
 	shutdownCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer stop()
 	shutdownErr := srv.Shutdown(shutdownCtx)

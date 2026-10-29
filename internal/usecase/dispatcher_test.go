@@ -296,6 +296,14 @@ func (p *fakeProcess) isClosed() bool {
 type fakeObserver struct {
 	mu     sync.Mutex
 	events []usecase.SessionEvent
+	// flushedAt is how many events had come when Flush was called; -1 before.
+	flushedAt int
+}
+
+func (f *fakeObserver) Flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.flushedAt = len(f.events)
 }
 
 func (f *fakeObserver) Observe(_ domain.Session, e usecase.SessionEvent) {
@@ -441,7 +449,7 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 		workspaces: &fakeWorkspaces{},
 		issuer:     &fakeIssuer{},
 		runner:     newFakeRunner(),
-		observer:   &fakeObserver{},
+		observer:   &fakeObserver{flushedAt: -1},
 		usage:      &fakeUsage{},
 	}
 	e.workspaces.sessions = e.sessions
@@ -1599,6 +1607,9 @@ func TestDispatcher_ShutdownAbandonsUnattendedWork(t *testing.T) {
 	abandoned := e.observer.of(usecase.SessionAbandoned)
 	if len(abandoned) != 1 || abandoned[0].Status.BackgroundTasks != 1 {
 		t.Errorf("abandoned = %+v, want one with the background task", abandoned)
+	}
+	if e.observer.flushedAt != len(e.observer.events) {
+		t.Errorf("flushed after %d of %d events, want after the last", e.observer.flushedAt, len(e.observer.events))
 	}
 }
 

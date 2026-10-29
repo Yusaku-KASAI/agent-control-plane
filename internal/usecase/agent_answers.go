@@ -17,7 +17,7 @@ const RestartNotice = "control-plane が再起動したため、このスレッ�
 	"続けるには、もう一度依頼してください。"
 
 // AgentAnswers decides what of the turns no request waits for reaches people, by the table of
-// docs/architecture/app/requests.md#agent-answers. It passes every event on to next, and then
+// docs/architecture/app/requests.md#agent-answer-rules. It passes every event on to next, and then
 // tells next what to post as a SessionNotice.
 type AgentAnswers struct {
 	next  SessionObserver
@@ -64,7 +64,7 @@ func (a *AgentAnswers) Observe(s domain.Session, e SessionEvent) {
 }
 
 // Flush posts the held answers still waiting out the grace, so that a shutdown does not lose the
-// agent's last answer. It runs after the dispatcher has closed.
+// agent's last answer. Dispatcher.Close calls it after the last event.
 func (a *AgentAnswers) Flush() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -120,7 +120,7 @@ type answerDecision struct {
 }
 
 // decideAnswer applies the event to what is held for the session and tells what to post, row by row
-// of the table in docs/architecture/app/requests.md#agent-answers.
+// of the table in docs/architecture/app/requests.md#agent-answer-rules.
 func decideAnswer(h *heldAnswer, e SessionEvent) answerDecision {
 	switch {
 	case e.Kind == SessionTurnStarted && e.AgentStarted:
