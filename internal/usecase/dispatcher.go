@@ -395,7 +395,20 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 	return nil
 }
 
-// takeArrivals hands the worker the requests that arrived for it, in the order they arrived.
+// takeArrival hands the worker the first request waiting for it. The worker takes one at a time,
+// so that each stays withdrawable by StopRequest until the worker is about to take it in.
+func (d *Dispatcher) takeArrival(w *worker) (request, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(w.arrivals) == 0 {
+		return request{}, false
+	}
+	r := w.arrivals[0]
+	w.arrivals = w.arrivals[1:]
+	return r, true
+}
+
+// takeArrivals hands the worker every request waiting for it, as when it shuts down.
 func (d *Dispatcher) takeArrivals(w *worker) []request {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -459,8 +472,8 @@ type worker struct {
 	agent   domain.Agent
 	session domain.Session
 	unlock  func()
-	// arrivals are the requests the dispatcher handed over that the worker has not taken yet, guarded
-	// by the dispatcher's mu; arrived tells that some came. They have no limit, so a request is
+	// arrivals are the requests waiting for the worker to take them, guarded by the dispatcher's mu;
+	// arrived tells that some came. They have no limit, so a request is
 	// never refused while the worker cannot take them, as while it starts the agent.
 	arrivals []request
 	arrived  chan struct{}
@@ -501,7 +514,7 @@ func (w *worker) run() {
 		}
 		select {
 		case <-w.arrived:
-			for _, r := range w.d.takeArrivals(w) {
+			for r, ok := w.d.takeArrival(w); ok; r, ok = w.d.takeArrival(w) {
 				w.accept(r)
 			}
 		case e, ok := <-events:

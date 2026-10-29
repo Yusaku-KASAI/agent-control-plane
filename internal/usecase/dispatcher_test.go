@@ -893,7 +893,7 @@ func TestDispatcher_StopRequestSentButNotTakenIn(t *testing.T) {
 }
 
 // A request the worker has not taken yet, as while it starts a process, is withdrawn too.
-// The worker may take the stop before the request, so the test repeats.
+// The test repeats to try the start and the sends after the withdrawal in different orders.
 func TestDispatcher_StopRequestNotTakenYet(t *testing.T) {
 	for range 20 {
 		e := newEnv(t, usecase.DispatcherOptions{})
@@ -920,7 +920,7 @@ func TestDispatcher_StopRequestNotTakenYet(t *testing.T) {
 // An injected request the worker has not taken yet while a turn runs is withdrawn alone, without
 // sending it, so the agent's work for the request before goes on.
 func TestDispatcher_StopInjectedRequestNotTakenYet(t *testing.T) {
-	// The worker takes the arrivals or the stop first, as select picks.
+	// The test repeats to try the sends after the withdrawal in different orders.
 	for range 20 {
 		e := newEnv(t, usecase.DispatcherOptions{})
 		running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
@@ -961,10 +961,46 @@ func TestDispatcher_StopInjectedRequestNotTakenYet(t *testing.T) {
 	}
 }
 
+// Requests that arrived together are taken one at a time, so one still waiting behind another's
+// send is withdrawn alone too.
+func TestDispatcher_StopInjectedRequestWaitingBehindASend(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task", RequestID: "1.0"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	gate := make(chan struct{})
+	release := sync.OnceFunc(func() { close(gate) })
+	t.Cleanup(release)
+	p.mu.Lock()
+	p.sendGate = gate
+	p.mu.Unlock()
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "1.5"})
+	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 1 })
+	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "and this", Inject: true, RequestID: "2.0"})
+	stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", Inject: true, RequestID: "3.0"})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 2 })
+	gate <- struct{}{} // lets the first send through; the worker then holds in the second's
+	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 2 })
+	if err := e.d.StopRequest(context.Background(), dev.Name, existingID, "3.0"); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	if o := wait(t, stopped); !errors.Is(o.err, usecase.ErrStopped) {
+		t.Errorf("stopped request = %+v, %v; want ErrStopped", o.out, o.err)
+	}
+	eventually(t, func() bool { return len(p.sent()) == 3 })
+	p.finish("all")
+	for name, ch := range map[string]<-chan outcome{"running": running, "first": first, "second": second} {
+		if o := wait(t, ch); o.err != nil || o.out.Interrupted {
+			t.Errorf("%s request = %+v, %v; want it answered", name, o.out, o.err)
+		}
+	}
+}
+
 // An injected request the worker has not taken yet while it starts the agent is withdrawn alone,
 // and the request before goes on.
 func TestDispatcher_StopInjectedRequestWhileStarting(t *testing.T) {
-	// The worker takes the arrivals, the events, or the stop first, as select picks.
+	// The test repeats to try the start and the events after the withdrawal in different orders.
 	for range 20 {
 		e := newEnv(t, usecase.DispatcherOptions{})
 		gate := make(chan struct{})
