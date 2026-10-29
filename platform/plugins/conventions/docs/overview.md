@@ -95,7 +95,7 @@ conventions/
   principles の文書の在りかを読み込ませる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通の
   ルールの相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/context-test.sh`（読み込ませる文のファイルへのリンク先が
-  絶対パスになり、どれもあること、最後の行の文書の在りかのパスと、hook のイベントの名前）。
+  絶対パスになり、どれもあること、最後の行の文書の在りかのパスがあること、hook が渡すイベントの名前）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### ターンの終わりの文書の検査（`hooks/`、[`scripts/check-docs-at-stop`](../scripts/check-docs-at-stop "在りか")）

@@ -26,7 +26,17 @@ context() {
 }
 
 # The paths the context tells: the harness contract, then the index of platform's docs.
-told() { sed -n -e 's/^ハーネスの契約（[^）]*）[^：]*：//p' -e 's/^platform の文書の一覧（[^）]*）：//p' <<<"$1"; }
+# Only .* around the wide characters, so that it reads the same in a locale that is not UTF-8.
+told() { sed -n -e 's/^ハーネスの契約.*）：//p' -e 's/^platform の文書の一覧.*）：//p' <<<"$1"; }
+
+# Each event the hooks run scripts/context for must reach the output by its name.
+wired() {
+  local plugin=$1 event command
+  while IFS=$'\t' read -r event command; do
+    echo "$event $(CLAUDE_PLUGIN_ROOT=$plugin bash -c "$command" | jq -r .hookSpecificOutput.hookEventName)"
+  done < <(jq -r '.hooks | to_entries[] | .key as $e | .value[].hooks[].command | select(test("scripts/context"))
+    | [$e, .] | @tsv' "$plugin/hooks/hooks.json")
+}
 
 # The told paths that are not files.
 missing() { told "$1" | while read -r f; do [[ -f $f ]] || echo "$f"; done; }
@@ -41,8 +51,9 @@ check "under the control plane, it tells so and names the session's branch" "動
 check "run directly, it tells so" "動き方：devcontainer で直接" \
   "$(env -u ACP_SESSION_BRANCH "$plugin/scripts/context" SessionStart | jq -r .hookSpecificOutput.additionalContext |
     grep -o '^動き方：.*')"
-check "the output names the event it was called for" "SubagentStart" \
-  "$("$plugin/scripts/context" SubagentStart | jq -r .hookSpecificOutput.hookEventName)"
+check "the hooks run it at the start of sessions and subagents, and the output names the event" \
+  "SessionStart SessionStart
+SubagentStart SubagentStart" "$(wired "$plugin")"
 
 # Copies of the plugin in a marketplace of their own, and outside any.
 tmp=$(mktemp -d)
@@ -56,10 +67,16 @@ $tmp/market/docs/README.md" "$(told "$(context "$tmp/market/plugins/harness")")"
 rm "$tmp/market/docs/reference/harness.md"
 check "a marketplace without the contract is told as not found" "（見つからない。platform の docs/）/reference/harness.md
 （見つからない。platform の docs/）/README.md" "$(told "$(context "$tmp/market/plugins/harness")")"
-# Outside a marketplace, the docs are looked for where every target declares the marketplace.
-fallback=/workspace/agent-platform/docs
-[[ -f $fallback/reference/harness.md ]] || fallback="（見つからない。platform の docs/）"
-check "a copy outside a marketplace looks where targets declare it" "$fallback/reference/harness.md
-$fallback/README.md" "$(told "$(context "$tmp/elsewhere/harness")")"
+# Outside a marketplace, the docs are looked for where every target declares the marketplace. That place is
+# moved into the temporary directory in the copy: a script that names another place is left unchanged and fails.
+sed -i "s#/workspace/agent-platform/docs#$tmp/declared/docs#" "$tmp/elsewhere/harness/scripts/context"
+mkdir -p "$tmp/declared/docs/reference"
+touch "$tmp/declared/docs/reference/harness.md"
+check "a copy outside a marketplace looks where targets declare it" "$tmp/declared/docs/reference/harness.md
+$tmp/declared/docs/README.md" "$(told "$(context "$tmp/elsewhere/harness")")"
+rm "$tmp/declared/docs/reference/harness.md"
+check "a copy outside a marketplace without the contract there is told as not found" \
+  "（見つからない。platform の docs/）/reference/harness.md
+（見つからない。platform の docs/）/README.md" "$(told "$(context "$tmp/elsewhere/harness")")"
 
 exit "$failed"

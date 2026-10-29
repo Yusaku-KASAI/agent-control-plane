@@ -31,7 +31,8 @@ harness/
   含む）までを書き、別の PR に分けるときやほかの PR に重ねるときの切り方は書かない。
 - **関係**：文書のパスは、マーケットプレイスの中でプラグインの隣にある `docs/` から決める。プラグインが別の場所に
   写されていて見つからなければ、ターゲットがマーケットプレイスを宣言する `/workspace/agent-platform/docs` を使う。試験は
-  `tests/context-test.sh`（動き方ごとの要約、伝える文書のパスがあること、hook のイベントの名前）。
+  `tests/context-test.sh`（どちらの動き方か、control-plane 経由のときのセッションのブランチ、伝える文書のパスが
+  あることと、写した先での行き先、hook が渡すイベントの名前）。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
   エージェントにも、契約の在りかを届ける。[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読み込まれるので、
   中身ではなく行き先を渡す。

@@ -35,6 +35,15 @@ relative() { targets "$1" | grep -vE '^(/|[a-z]+:|$)' || true; }
 # The absolute targets that do not exist.
 missing() { targets "$1" | grep '^/' | while read -r f; do [[ -e $f ]] || echo "$f"; done; }
 
+# Each event the hooks run scripts/context for must reach the output by its name.
+wired() {
+  local plugin=$1 event command
+  while IFS=$'\t' read -r event command; do
+    echo "$event $(CLAUDE_PLUGIN_ROOT=$plugin bash -c "$command" | jq -r .hookSpecificOutput.hookEventName)"
+  done < <(jq -r '.hooks | to_entries[] | .key as $e | .value[].hooks[].command | select(test("scripts/context"))
+    | [$e, .] | @tsv' "$plugin/hooks/hooks.json")
+}
+
 # The paths the last line tells, one per line: the documents of this plugin, then those of principles.
 told() { tail -n 1 <<<"$1" | sed -n 's/^文書の在りか：決まりは \(.*\)、原則とパターンは \(.*\)。$/\1\n\2/p'; }
 
@@ -44,8 +53,10 @@ check "every path the context links to exists" "" "$(missing "$ctx")"
 check "the last line tells where the documents of conventions and principles are" \
   "$plugin/docs/README.md
 $(dirname "$plugin")/principles/docs/README.md" "$(told "$ctx")"
-check "the output names the event it was called for" "SubagentStart" \
-  "$("$plugin/scripts/context" SubagentStart | jq -r .hookSpecificOutput.hookEventName)"
+check "every path the last line tells exists" "" "$(told "$ctx" | while read -r f; do [[ -f $f ]] || echo "$f"; done)"
+check "the hooks run it at the start of sessions and subagents, and the output names the event" \
+  "SessionStart SessionStart
+SubagentStart SubagentStart" "$(wired "$plugin")"
 
 # Copies whose rules are broken in one way each must have that reported.
 tmp=$(mktemp -d)
