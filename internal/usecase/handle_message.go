@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
@@ -50,9 +49,11 @@ type TurnExecutor interface {
 	StopRequest(ctx context.Context, agent domain.AgentName, id domain.SessionID, requestID string) error
 }
 
-// SessionCleanup cleans one session now, as a person asked in its thread (SessionCleaner.CleanNow).
+// SessionCleanup cleans one session now, as a person asked in its thread (SessionCleaner.CleanNow),
+// or despite work found nowhere else, as they asked on the notice of it (SessionCleaner.ForceClean).
 type SessionCleanup interface {
-	CleanNow(ctx context.Context, id domain.SessionID, force bool, by domain.Requester, askedAt time.Time) error
+	CleanNow(ctx context.Context, id domain.SessionID, by domain.Requester) error
+	ForceClean(ctx context.Context, agent domain.AgentName, by domain.Requester, c domain.Conversation, message string) error
 }
 
 type HandleMessage struct {
@@ -143,13 +144,23 @@ func (u *HandleMessage) StopRequest(ctx context.Context, agent domain.AgentName,
 	return u.turns.StopRequest(ctx, agent, c.SessionID(agent), msgID)
 }
 
-// CleanSession cleans the conversation's session now, if the requester may use the agent; with
-// force, despite work found nowhere else (SessionCleaner.CleanNow).
-func (u *HandleMessage) CleanSession(ctx context.Context, agent domain.AgentName, r domain.Requester, c domain.Conversation, force bool, askedAt time.Time) error {
+// CleanSession cleans the conversation's session now, if the requester may use the agent
+// (SessionCleaner.CleanNow).
+func (u *HandleMessage) CleanSession(ctx context.Context, agent domain.AgentName, r domain.Requester, c domain.Conversation) error {
 	if !u.policy.Allows(agent, r) {
 		return domain.ErrRequesterNotAllowed
 	}
-	return u.cleanup.CleanNow(ctx, c.SessionID(agent), force, r, askedAt)
+	return u.cleanup.CleanNow(ctx, c.SessionID(agent), r)
+}
+
+// ForceCleanSession cleans, despite work found nowhere else, the session whose notice of that work
+// is the message in the conversation's channel, if the requester may use the agent
+// (SessionCleaner.ForceClean).
+func (u *HandleMessage) ForceCleanSession(ctx context.Context, agent domain.AgentName, r domain.Requester, c domain.Conversation, message string) error {
+	if !u.policy.Allows(agent, r) {
+		return domain.ErrRequesterNotAllowed
+	}
+	return u.cleanup.ForceClean(ctx, agent, r, c, message)
 }
 
 func failureText(s domain.Session, err error) string {

@@ -114,9 +114,13 @@ type SessionBranches interface {
 }
 
 type SessionNotifier interface {
-	// Notify posts text where the session started. It does nothing for a session that did not
+	// Notify posts text where the session started and returns the posted message's ID, by which
+	// a reaction on it is told apart. It does nothing, and returns "", for a session that did not
 	// start in a chat.
-	Notify(ctx context.Context, s domain.Session, text string) error
+	Notify(ctx context.Context, s domain.Session, text string) (string, error)
+	// MarkCleaned marks where the session started as cleaned, for people to see without opening
+	// it. It does nothing for a session that did not start in a chat.
+	MarkCleaned(ctx context.Context, s domain.Session) error
 }
 
 type SessionFiles interface {
@@ -223,6 +227,9 @@ const (
 	SessionTurnFinished
 	// SessionUpdated reports a change between turns, such as background tasks ending.
 	SessionUpdated
+	// SessionCreated reports a session made for a conversation: one cleaned before in the same
+	// thread no longer is.
+	SessionCreated
 	// SessionAbandoned reports that the control plane stopped the session's process while no
 	// request was waiting to be told: on shutdown, with Status showing the work that was cut
 	// short, or after a restart, with an empty Status since that work is unknown.
@@ -270,8 +277,8 @@ type SessionStatus struct {
 }
 
 // SessionObserver is told how a session's turns progress. The calls for a session come in order,
-// from its worker or, for what AgentAnswers wraps, also from its timers and Flush, and must return
-// quickly.
+// from the dispatcher (the session's creation, its worker, Recover) or, for what AgentAnswers wraps,
+// also from its timers and Flush, and must return quickly.
 type SessionObserver interface {
 	Observe(s domain.Session, e SessionEvent)
 }

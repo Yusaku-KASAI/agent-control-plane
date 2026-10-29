@@ -79,38 +79,46 @@ func TestHandleReactionStopsTheRequest(t *testing.T) {
 type cleanRecorder struct {
 	mu     sync.Mutex
 	cleans []string
-	asked  []time.Time
 	done   chan struct{}
 }
 
-func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, force bool, _ domain.Requester, askedAt time.Time) error {
+func (c *cleanRecorder) CleanNow(_ context.Context, id domain.SessionID, _ domain.Requester) error {
+	return c.record(fmt.Sprintf("clean %s", id))
+}
+
+func (c *cleanRecorder) ForceClean(_ context.Context, agent domain.AgentName, _ domain.Requester, where domain.Conversation, message string) error {
+	return c.record(fmt.Sprintf("force %s %s/%s/%s %s", agent, where.Workspace, where.Channel, where.Thread, message))
+}
+
+func (c *cleanRecorder) record(call string) error {
 	c.mu.Lock()
-	c.cleans = append(c.cleans, fmt.Sprintf("%s %v", id, force))
-	c.asked = append(c.asked, askedAt)
+	c.cleans = append(c.cleans, call)
 	c.mu.Unlock()
 	c.done <- struct{}{}
 	return nil
 }
 
 // A clean reaction on the message that started a thread names the thread's session by itself,
-// with no memory of the request (docs/adr/app/0046).
+// with no memory of the request; a force reaction names the message it is on, for the cleaner to
+// tell whether it is a notice (docs/adr/app/0046, 0056).
 func TestHandleReactionCleansTheSession(t *testing.T) {
 	cleanup := &cleanRecorder{done: make(chan struct{}, 4)}
 	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, 0, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
-	reaction := func(name, user string) *slackevents.ReactionAddedEvent {
-		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, EventTimestamp: "1700000000.000100",
-			Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: "1.0"}}
+	reaction := func(name, user, ts string) *slackevents.ReactionAddedEvent {
+		return &slackevents.ReactionAddedEvent{Reaction: name, User: user,
+			Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: ts}}
 	}
 
-	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "UBOT"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "UBOT", "1.0"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.ForceCleanReaction, "UBOT", "2.0"), "UBOT", "T1")
 	select {
 	case <-cleanup.done:
 		t.Fatal("cleaned for the bot's own reaction")
 	case <-time.After(200 * time.Millisecond):
 	}
-	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "U1"), "UBOT", "T1")
-	b.handleReaction(context.Background(), reaction(usecase.ForceCleanReaction, "U1"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.CleanReaction, "U1", "1.0"), "UBOT", "T1")
+	b.handleReaction(context.Background(), reaction(usecase.ForceCleanReaction, "U1", "2.0"), "UBOT", "T1")
 	for range 2 {
 		select {
 		case <-cleanup.done:
@@ -120,24 +128,8 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	}
 	cleanup.mu.Lock()
 	defer cleanup.mu.Unlock()
-	id := string(thread.SessionID("dev"))
 	slices.Sort(cleanup.cleans)
-	if want := []string{id + " false", id + " true"}; !slices.Equal(cleanup.cleans, want) {
+	if want := []string{"clean " + string(thread.SessionID("dev")), "force dev T1/C1/ 2.0"}; !slices.Equal(cleanup.cleans, want) {
 		t.Errorf("cleaned %q, want %q", cleanup.cleans, want)
-	}
-	// When the reaction was put, not when it came: a redelivered one stays as old as it was.
-	for _, at := range cleanup.asked {
-		if !at.Equal(time.Unix(1700000000, 100000)) {
-			t.Errorf("asked at %v, want the reaction's event time", at)
-		}
-	}
-}
-
-func TestSlackTime(t *testing.T) {
-	if got := slackTime("1700000000.000100"); !got.Equal(time.Unix(1700000000, 100000)) {
-		t.Errorf("slackTime() = %v", got)
-	}
-	if got := slackTime("bad"); !got.IsZero() {
-		t.Errorf("slackTime(bad) = %v, want zero, which no notice precedes", got)
 	}
 }

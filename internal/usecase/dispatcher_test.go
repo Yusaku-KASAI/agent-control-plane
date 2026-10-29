@@ -1456,6 +1456,9 @@ func TestDispatcher_FailedCreationLeavesNothing(t *testing.T) {
 			if e.sessions.isLocked(id) {
 				t.Error("the failed creation kept the lock")
 			}
+			if created := e.observer.of(usecase.SessionCreated); len(created) != 0 {
+				t.Error("told created for a failed creation")
+			}
 
 			tt.fix(e)
 			retry := e.execute(in)
@@ -1487,6 +1490,10 @@ func TestDispatcher_CreateIfMissing(t *testing.T) {
 	p.finish("two")
 	if o := wait(t, second); o.err != nil || e.workspaces.prepared != 1 {
 		t.Fatalf("second = %+v, %v (prepared %d), want the same session", o.out, o.err, e.workspaces.prepared)
+	}
+	// Made once, the session is told as made once: its thread, cleaned before, no longer is.
+	if created := e.observer.of(usecase.SessionCreated); len(created) != 1 {
+		t.Errorf("told created %d times, want once", len(created))
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/usecase"
@@ -267,10 +266,18 @@ func TestHandleMessage_TurnEndedOnError(t *testing.T) {
 	}
 }
 
-type cleanCalls struct{ ids []domain.SessionID }
+type cleanCalls struct {
+	ids    []domain.SessionID
+	forced []string
+}
 
-func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ bool, _ domain.Requester, _ time.Time) error {
+func (c *cleanCalls) CleanNow(_ context.Context, id domain.SessionID, _ domain.Requester) error {
 	c.ids = append(c.ids, id)
+	return nil
+}
+
+func (c *cleanCalls) ForceClean(_ context.Context, _ domain.AgentName, _ domain.Requester, _ domain.Conversation, message string) error {
+	c.forced = append(c.forced, message)
 	return nil
 }
 
@@ -280,10 +287,17 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 	h := usecase.NewHandleMessage(&fakeTurns{}, cleanup, allowList{alice: true}, &fakeResponder{})
 	c := domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1.0"}
 
-	if err := h.CleanSession(context.Background(), "dev", domain.Requester{Platform: "slack", ID: "U_BOB"}, c, false, time.Now()); !errors.Is(err, domain.ErrRequesterNotAllowed) {
+	bob := domain.Requester{Platform: "slack", ID: "U_BOB"}
+	if err := h.CleanSession(context.Background(), "dev", bob, c); !errors.Is(err, domain.ErrRequesterNotAllowed) {
 		t.Errorf("CleanSession() by someone else = %v, want ErrRequesterNotAllowed", err)
 	}
-	if err := h.CleanSession(context.Background(), "dev", alice, c, true, time.Now()); err != nil || len(cleanup.ids) != 1 || cleanup.ids[0] != c.SessionID("dev") {
+	if err := h.ForceCleanSession(context.Background(), "dev", bob, c, "2.0"); !errors.Is(err, domain.ErrRequesterNotAllowed) {
+		t.Errorf("ForceCleanSession() by someone else = %v, want ErrRequesterNotAllowed", err)
+	}
+	if err := h.CleanSession(context.Background(), "dev", alice, c); err != nil || len(cleanup.ids) != 1 || cleanup.ids[0] != c.SessionID("dev") {
 		t.Errorf("CleanSession() = %v, cleaned %v; want the thread's session", err, cleanup.ids)
+	}
+	if err := h.ForceCleanSession(context.Background(), "dev", alice, c, "2.0"); err != nil || !slices.Equal(cleanup.forced, []string{"2.0"}) {
+		t.Errorf("ForceCleanSession() = %v, forced %v; want the notice", err, cleanup.forced)
 	}
 }

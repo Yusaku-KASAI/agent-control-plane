@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -98,17 +99,48 @@ func (f *fakeFiles) Remove(_ context.Context, _ domain.AgentName, id domain.Sess
 type fakeNotifier struct {
 	err   error
 	posts map[domain.SessionID][]string
+	// messages are the IDs of the posts, in the same order.
+	messages map[domain.SessionID][]string
+	sent     int
+	marked   []domain.SessionID
+	markErr  error
+	// onMark runs as a session is marked.
+	onMark func(domain.SessionID)
 }
 
-func (f *fakeNotifier) Notify(_ context.Context, s domain.Session, text string) error {
+func (f *fakeNotifier) MarkCleaned(_ context.Context, s domain.Session) error {
+	if f.onMark != nil {
+		f.onMark(s.ID)
+	}
+	if f.markErr != nil {
+		return f.markErr
+	}
+	f.marked = append(f.marked, s.ID)
+	return nil
+}
+
+func (f *fakeNotifier) Notify(_ context.Context, s domain.Session, text string) (string, error) {
 	if f.err != nil {
-		return f.err
+		return "", f.err
 	}
 	if f.posts == nil {
 		f.posts = make(map[domain.SessionID][]string)
+		f.messages = make(map[domain.SessionID][]string)
 	}
+	f.sent++
+	message := fmt.Sprintf("1700000000.%06d", f.sent)
 	f.posts[s.ID] = append(f.posts[s.ID], text)
-	return nil
+	f.messages[s.ID] = append(f.messages[s.ID], message)
+	return message, nil
+}
+
+// lastMessage is the ID of the last post to the session's thread.
+func (f *fakeNotifier) lastMessage(id domain.SessionID) string {
+	ms := f.messages[id]
+	if len(ms) == 0 {
+		return ""
+	}
+	return ms[len(ms)-1]
 }
 
 type cleanEnv struct {
@@ -136,8 +168,11 @@ func newCleanEnv() *cleanEnv {
 	return e
 }
 
+// cleanThread is the conversation the saved sessions started in.
+var cleanThread = domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1700000000.000000"}
+
 func (e *cleanEnv) save(id domain.SessionID, agent domain.AgentName, lastUsed time.Time) {
-	e.sessions.saved[id] = domain.Session{ID: id, AgentName: agent, Workspace: domain.Workspace{Path: workspacePath(id)}, LastUsedAt: lastUsed}
+	e.sessions.saved[id] = domain.Session{ID: id, AgentName: agent, Conversation: cleanThread, Workspace: domain.Workspace{Path: workspacePath(id)}, LastUsedAt: lastUsed}
 }
 
 // merged is a branch on GitHub whose tip is in the default branch.
