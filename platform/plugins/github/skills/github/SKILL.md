@@ -78,6 +78,9 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - `prctl create` は PR を下書きで作る。終える前（依頼者に終えたと報告する前）に、PR 全体の差分のレビュー
   （`"scope": "pr"`）を回して[終える前](../../../conventions/docs/reference/reviews.md#ending)を満たし、`prctl ready` で
   下書きを外す。満たしていなければ `prctl ready` が断り、何が足りないかを言う（`prctl status` の `end:` でも見える）。
+  `prctl ready` は、依頼の Issue の範囲の中のうち、この PR が扱う項目の末尾に PR の番号を添えたことと、`Closes` と `Refs` が
+  残る項目に合うこと（残れば `Refs`、残らなければ `Closes`）も確かめる（[範囲の項目と PR の付け合わせ](../../../conventions/docs/reference/issues.md#scope-items)）。
+  番号を添え、残る積んだ指摘を項目にしてから `prctl ready` を回す。
   下書きを外したあとに変更すると、ターンの終わりに hook が止める。PR 全体の差分のレビューが上限（10 回、
   [回し方](../../../conventions/docs/reference/reviews.md#ways)）に達したら、`prctl ready` が断るとき、または下書きを
   外したあとのターンの終わりに hook が、依頼者に返すよう言う。

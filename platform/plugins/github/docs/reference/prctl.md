@@ -68,6 +68,15 @@ github プラグインの `bin/prctl` が何をどう判定するか。サブコ
   止め、下書きのあいだは言わずに覚える）と、下書きでない PR で終えてよいと確かめたとき（ほかにターンを止めるものが
   ないとき）と、`ready` が下書きを外したとき。
 - PR は下書きで作る（`create`）。`ready` は終えてよいときだけ下書きを外し、`draft` は下書きに戻す。
+- `ready` は、本文の `Closes` か `Refs` の行が依頼の Issue を挙げていれば、その Issue の範囲との付け合わせ（conventions の
+  [範囲の項目と PR の付け合わせ](../../../conventions/docs/reference/issues.md#scope-items)、[依頼の範囲](../../../conventions/docs/reference/issues.md#scope)）も確かめ、合わなければ
+  下書きのままにする（[ADR 0034](../../../../docs/adr/0034-ready-checks-the-scope-of-the-request.md)）。
+  - 範囲の中の項目は、Issue の本文の `## 範囲` の節のタスクリスト。項目を扱う PR は、項目の末尾の `#<番号>`。
+  - この PR の番号で終わる項目が一つもなければ断る。
+  - 残る項目は、チェックがなく、この PR の番号で終わらず、末尾の番号の PR がマージされていない項目。`Closes` なのに残る
+    項目があるか、`Refs` なのに残る項目がなければ断る。コメントに積んだ指摘は見ない（PR を終えるときに項目にする）。
+  - `## 範囲` の節がなければ断り、Issue を読めなければ失敗する。ほかのリポジトリの Issue（`owner/repo#N`）は読まない。
+  - `status` の `end:` と、ターンの終わりの hook は、これを確かめない。
 
 <a id="ci"></a>
 
