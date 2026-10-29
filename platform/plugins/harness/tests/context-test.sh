@@ -33,7 +33,7 @@ told() { sed -n -e 's/^ハーネスの契約.*）：//p' -e 's/^platform の文�
 wired() {
   local plugin=$1 event command
   while IFS=$'\t' read -r event command; do
-    echo "$event $(CLAUDE_PLUGIN_ROOT=$plugin bash -c "$command" | jq -r .hookSpecificOutput.hookEventName)"
+    echo "$event $(CLAUDE_PLUGIN_ROOT=$plugin bash -c "$command" </dev/null | jq -r .hookSpecificOutput.hookEventName)"
   done < <(jq -r '.hooks | to_entries[] | .key as $e | .value[].hooks[].command | select(test("scripts/context"))
     | [$e, .] | @tsv' "$plugin/hooks/hooks.json")
 }

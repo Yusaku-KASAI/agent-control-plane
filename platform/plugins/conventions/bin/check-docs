@@ -61,9 +61,16 @@ def closes(line, fence, base):
     return bool(re.fullmatch(rf" {{0,{base + 3}}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*", line))
 
 
-def opened(is_closing, base, rest):
-    """An open fence or comment: what tells its closing line, the base it was opened at, and whether one comes later."""
-    return is_closing, base, any(is_closing(later) for later in rest)
+def opened(is_closing, base, lines, index, unclosed, key):
+    """An open fence or comment: what tells its closing line, the base it was opened at, and whether one comes later.
+    unclosed holds, for each kind of block (key), a line after which no closing line was found, so that blocks that are
+    never closed do not each read the rest of the document again."""
+    if key in unclosed and unclosed[key] <= index:
+        return is_closing, base, False
+    later = any(is_closing(line) for line in lines[index + 1:])
+    if not later:
+        unclosed[key] = index
+    return is_closing, base, later
 
 
 def code_block_lines(text):
@@ -76,13 +83,13 @@ def code_block_lines(text):
     the rest; one never closed ends where its list item ends, or runs to the end outside lists. A line indented four
     columns past where the text begins is indented code unless it continues a paragraph. Where the text of each open
     list item begins is taken from its marker line; a less indented line ends the items it is outside of. Lazy
-    continuation lines, block quotes, headings and comments right after a list marker, comments inside a line, other
-    HTML blocks, tabs, and backslash escapes are not told apart."""
+    continuation lines, block quotes, a second list marker on the marker line, headings and comments right after a
+    list marker, comments inside a line, other HTML blocks, tabs, and backslash escapes are not told apart."""
     lines = text.split("\n")
     code, items, indented = set(), [], False
     # Whether the line before ends no paragraph that an indented line would continue.
     after_block = True
-    block = None
+    block, unclosed = None, {}
     for index, line in enumerate(lines):
         depth = len(line) - len(line.lstrip(" "))
         if block:
@@ -110,7 +117,7 @@ def code_block_lines(text):
             if "-->" in line[line.index("<!--") + 2:]:
                 after_block = True
             else:
-                block = opened(lambda later: "-->" in later, base, lines[index + 1:])
+                block = opened(lambda later: "-->" in later, base, lines, index, unclosed, "-->")
             continue
         if depth <= base + 3 and (HEADING.match(line[depth:]) or BREAK.fullmatch(line[depth:])):
             after_block = True
@@ -131,7 +138,8 @@ def code_block_lines(text):
         if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
             code.add(index)
             fence = m.group(2)
-            block = opened(lambda later, fence=fence, base=base: closes(later, fence, base), base, lines[index + 1:])
+            block = opened(lambda later, fence=fence, base=base: closes(later, fence, base), base, lines, index, unclosed,
+                           (fence, base))
     return code
 
 

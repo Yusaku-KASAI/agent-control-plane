@@ -380,6 +380,14 @@ add p/agents/role.md '
 ## 使う決まり
 ```'
 passes "a heading in fenced code is no section of a role"
+fresh
+put docs/reference/role-doc.md '# R
+
+reviewer ロールとして読む。
+
+## 読むもの'
+add docs/README.md '- [rd](reference/role-doc.md)'
+passes "a document outside agents/ that says it is a role is no role"
 
 echo "# ADR"
 adr() { put "docs/adr/$1" "$2"; }
@@ -755,6 +763,37 @@ fresh
 add docs/reference/r.md '- ```
 [x](missing.md)'
 fails "a fence in a list item that nothing closes ends where the item ends" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- ```
+x
+  [x](missing.md)'
+fails "a fence that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- <!--
+x
+  [x](missing.md)'
+fails "a comment that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '  - item
+    <!--
+    [x](missing.md)
+    -->'
+passes "an HTML comment in a nested list item is code"
+fresh
+add docs/reference/r.md '10. 項目
+
+     [x](missing.md)'
+fails "a paragraph in an item numbered with two digits is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+for _ in $(seq 12000); do printf -- '- ```x\n'; done >>"$repo/docs/reference/r.md"
+status=0
+(cd "$repo" && timeout 10 "$bin" >/dev/null 2>&1) || status=$?
+if [[ $status != 124 ]]; then
+  echo "ok   fences that are never closed are read in time"
+else
+  echo "FAIL fences that are never closed are read in time: it took more than 10 seconds"
+  failed=1
+fi
 fresh
 add docs/reference/r.md '- 例：
 
