@@ -611,7 +611,8 @@ func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
 	}
 }
 
-// A session removed, by retention or as asked, is marked cleaned where it started; one kept is not.
+// A session removed, by retention or as asked, is marked cleaned where it started, under its lock:
+// a session made after in the thread, which takes the mark off, finds it there. One kept is not.
 func TestSessionCleaner_MarksTheRemoved(t *testing.T) {
 	for name, tt := range map[string]struct {
 		lastUsed   time.Duration
@@ -628,6 +629,13 @@ func TestSessionCleaner_MarksTheRemoved(t *testing.T) {
 			e := newCleanEnv()
 			e.save(existingID, dev.Name, e.now.Add(tt.lastUsed))
 			e.work[existingID] = tt.work
+			e.notifier.onMark = func(id domain.SessionID) {
+				e.sessions.mu.Lock()
+				defer e.sessions.mu.Unlock()
+				if e.sessions.locks[id] == 0 {
+					t.Error("marked without the session's lock")
+				}
+			}
 			var err error
 			if tt.now {
 				err = e.cleaner.CleanNow(context.Background(), existingID, person)

@@ -277,18 +277,14 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 		}
 		return false, errHasWork
 	}
-	branches, _, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
+	branches, _, marking, err := c.remove(ctx, agent, id, creds, func(s domain.Session) bool { return s.LastUsedAt.Before(cutoff) }, false, nil)
 	if err != nil {
 		return false, err
 	}
-	var errs error
 	if _, err := c.notifier.Notify(ctx, s, c.removedText(s, branches)); err != nil {
-		errs = fmt.Errorf("notify removal: %w", err)
+		return true, errors.Join(marking, fmt.Errorf("notify removal: %w", err))
 	}
-	if err := c.notifier.MarkCleaned(ctx, s); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("mark removal: %w", err))
-	}
-	return true, errs
+	return true, marking
 }
 
 // readFacts reads the workspace and asks the remote about the branches the session pushed or
@@ -348,40 +344,45 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, err error) {
+// remove marks the removed session cleaned under the lock, so that a session made after in the same
+// thread, which takes the mark off, finds it there; failing to mark (marking) does not undo the removal.
+func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, marking, err error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer unlock()
 	s, err := c.sessions.Find(ctx, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !unused(s) {
-		return nil, nil, fmt.Errorf("%w: used meanwhile", errKept)
+		return nil, nil, nil, fmt.Errorf("%w: used meanwhile", errKept)
 	}
 	f, err := readFacts(ctx, c.workspaces, c.branches, agent, s.ID.Branch(), s.Workspace.Path, creds)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Forced, it lets go only of what the thread was told.
 	rs := reasons(f)
 	if keeps(rs, force) || (force && slices.ContainsFunc(rs, func(r reason) bool { return !slices.Contains(told, r.name()) })) {
-		return nil, nil, workFound{rs}
+		return nil, nil, nil, workFound{rs}
 	}
 	if names := f.removable(); len(names) > 0 {
 		if branches, err = c.branches.Remove(ctx, agent, creds, names); err != nil {
-			return nil, nil, fmt.Errorf("remove branches: %w", err)
+			return nil, nil, nil, fmt.Errorf("remove branches: %w", err)
 		}
 	}
 	if err := c.files.Remove(ctx, agent.Name, id); err != nil {
-		return nil, nil, fmt.Errorf("remove agent files: %w", err)
+		return nil, nil, nil, fmt.Errorf("remove agent files: %w", err)
 	}
 	if err := c.sessions.Remove(ctx, id); err != nil {
-		return nil, nil, fmt.Errorf("remove session: %w", err)
+		return nil, nil, nil, fmt.Errorf("remove session: %w", err)
 	}
-	return branches, rs, nil
+	if err := c.notifier.MarkCleaned(ctx, s); err != nil {
+		marking = fmt.Errorf("mark removal: %w", err)
+	}
+	return branches, rs, marking, nil
 }
 
 // removeUnsaved removes a directory without a record. Sessions are created under the lock, so once
@@ -616,7 +617,7 @@ func (c *SessionCleaner) cleanAsked(ctx context.Context, id domain.SessionID, q 
 		return err
 	}
 	err = c.cleanNow(ctx, s, q)
-	if err == nil || errors.Is(err, errNotTold) {
+	if err == nil || errors.Is(err, errSettled) {
 		return err
 	}
 	// Told nothing, the person could not tell a failure from a judgement still running.
@@ -632,8 +633,9 @@ type cleanRequest struct {
 	message string
 }
 
-// errNotTold is a failure to post to the thread, which posting again would not mend.
-var errNotTold = errors.New("thread not told")
+// errSettled is a failure that telling the thread it could not be judged would not mend: a failure
+// to post to it, or one after the session was removed and the thread told so.
+var errSettled = errors.New("settled")
 
 func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, q cleanRequest) error {
 	var n notice
@@ -676,7 +678,7 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, q clean
 	}
 	// Used since it was judged, it may hold work the judgement did not see. Unused is LastUsedAt as
 	// read, not before it: a clock set back writes earlier times.
-	branches, discarded, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
+	branches, discarded, marking, err := c.remove(ctx, agent, s.ID, creds, func(now domain.Session) bool { return now.LastUsedAt.Equal(s.LastUsedAt) }, force, n.reasons)
 	var found workFound
 	switch {
 	case errors.Is(err, domain.ErrSessionNotFound):
@@ -693,9 +695,9 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, q clean
 	}
 	c.setTold(s.ID, nil)
 	err = c.tell(ctx, s, removedNowText(branches, discarded))
-	if merr := c.notifier.MarkCleaned(ctx, s); merr != nil {
-		// Marking again would not mend it either; the thread was told, or failed to be, already.
-		err = errors.Join(err, fmt.Errorf("%w: mark removal: %w", errNotTold, merr))
+	if marking != nil {
+		// Removed and told so, the session is past judging.
+		err = errors.Join(err, fmt.Errorf("%w: %w", errSettled, marking))
 	}
 	return err
 }
@@ -708,7 +710,7 @@ func (c *SessionCleaner) tell(ctx context.Context, s domain.Session, text string
 func (c *SessionCleaner) notify(ctx context.Context, s domain.Session, text string) (string, error) {
 	message, err := c.notifier.Notify(ctx, s, text)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", errNotTold, err)
+		return "", fmt.Errorf("%w: thread not told: %w", errSettled, err)
 	}
 	return message, nil
 }

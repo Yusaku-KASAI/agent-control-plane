@@ -104,9 +104,14 @@ type fakeNotifier struct {
 	sent     int
 	marked   []domain.SessionID
 	markErr  error
+	// onMark runs as a session is marked.
+	onMark func(domain.SessionID)
 }
 
 func (f *fakeNotifier) MarkCleaned(_ context.Context, s domain.Session) error {
+	if f.onMark != nil {
+		f.onMark(s.ID)
+	}
 	if f.markErr != nil {
 		return f.markErr
 	}

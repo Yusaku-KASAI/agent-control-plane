@@ -88,4 +88,13 @@ func TestCleanedMark(t *testing.T) {
 	answer = `{"ok":false,"error":"no_reaction"}`
 	b.Observe(domain.Session{ID: "s", Conversation: c}, usecase.SessionEvent{Kind: usecase.SessionCreated})
 	want("/reactions.remove")
+	if err := b.unmarkCleaned(context.Background(), c); err != nil {
+		t.Errorf("unmarkCleaned() with no mark = %v, want nil", err)
+	}
+	want("/reactions.remove")
+	answer = `{"ok":false,"error":"channel_not_found"}`
+	if err := b.unmarkCleaned(context.Background(), c); err == nil {
+		t.Error("unmarkCleaned() = nil on another error")
+	}
+	want("/reactions.remove")
 }
