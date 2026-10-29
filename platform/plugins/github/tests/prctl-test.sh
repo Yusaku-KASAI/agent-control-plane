@@ -99,6 +99,7 @@ case $args in
     ;;
   *" repos/{owner}/{repo}/pulls/"[0-9]*" --jq "*)
     n=${args#* repos/\{owner\}/\{repo\}/pulls/}; n=${n%% *}
+    [[ ! -f $dir/fail-pull-$n ]] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
     [[ -f $dir/pull-$n.json ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     jq -r "${@: -1}" "$dir/pull-$n.json"
     ;;
@@ -856,6 +857,11 @@ set_pr "$c21"
 with_request "Refs #7"
 scope $'- [ ] a #1\n- [x] b #3\n- [ ] d #5'
 check "a PR that only refers to an issue with nothing else left is held" "$(ready)" "nothing is left in the scope of #7 but what PR #1 handles: write Closes #7"
+touch "$state/fail-pull-5"
+check "a PR an item names that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR"
+rm "$state/fail-pull-5"
+scope $'- [ ] a #1\n- [ ] e #9'
+check "an item of a number that is no PR is left" "$(ready)" "https://example.invalid/pull/1"
 set_pr "$c21"
 with_request "Fixes #7"
 scope $'- [ ] a\n- [ ] b #2'

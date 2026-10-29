@@ -680,7 +680,7 @@ request_refs() {
 # whose PR is not this one and not merged. Without a line of Closes or Refs, or with an issue of
 # another repository, nothing is asked.
 scope_message() {
-  local pr=$1 number refs issue closes body items left mine m
+  local pr=$1 number refs issue closes body items left mine m n merged err
   number=$(jq -r .number <<<"$pr")
   refs=$(request_refs "$(jq -r '.body // ""' <<<"$pr")")
   issue=$(jq -r '.[0].issue // empty' <<<"$refs")
@@ -706,13 +706,22 @@ scope_message() {
     return 0
   fi
   left=()
+  err=$(mktemp)
   while IFS= read -r m; do
     [[ -n $m ]] || continue
-    local n=${m%%$'\t'*}
-    # An item of a merged PR is done, though not checked yet; of an open or closed one, it is left.
-    if [[ $n != - ]] && [[ $(gh api "repos/{owner}/{repo}/pulls/$n" --jq '.merged_at != null' 2>/dev/null) == true ]]; then continue; fi
+    n=${m%%$'\t'*}
+    # An item of a merged PR is done, though not checked yet; of an open or closed one, or of a
+    # number that is no PR, it is left. A PR that cannot be read stops the check.
+    if [[ $n != - ]]; then
+      if merged=$(gh api "repos/{owner}/{repo}/pulls/$n" --jq '.merged_at != null' 2>"$err"); then
+        [[ $merged != true ]] || continue
+      elif ! grep -qE 'HTTP (404|410)' "$err"; then
+        rm -f "$err"; return 1
+      fi
+    fi
     left+=("${m#*$'\t'}")
   done < <(jq -r --arg n "$number" '.[] | select((.done | not) and .pr != $n) | "\(.pr // "-")\t\(.text)"' <<<"$items")
+  rm -f "$err"
   if [[ $closes == true ]] && ((${#left[@]})); then
     printf 'PR #%s closes %s, which still has items it does not handle: write Refs %s instead, unless they are to be handled here (issues.md: scope):\n' "$number" "$issue" "$issue"
     printf -- '- %s\n' "${left[@]}"
@@ -785,10 +794,10 @@ cmd_ready() {
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
-  # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
   # Before the reviews are told settled, which starts their count afresh.
   msg=$(scope_message "$pr") || die "could not read the request issue of the PR"
   [[ -z $msg ]] || die "not ready: $msg"
+  # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
   msg=$(final_message "$pr" "$head" "$list" settled) || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "$msg"
   draft_state "$pr" markPullRequestReadyForReview
