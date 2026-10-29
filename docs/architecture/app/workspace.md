@@ -59,9 +59,9 @@ GitHub のブランチと PR
 - **責務**：control-plane が作業領域を作るときと、作業領域の状態を読むとき（作業領域を読むコンテナの
   `acp workspace-state`、エージェントのコンテナの `acp cleanup-check`）の git の操作を、動かす人の環境によらず同じにする。
 - **置くもの / 置かないもの**：ホストのユーザーとシステムの git 設定を読まず、端末で聞かない。認証には
-  control-plane が発行したトークンだけを使い、認証ヘルパーで `https://github.com` にだけ渡す。作業領域の remote は
-  エージェントが書き換えられるので、ほかの宛先（remote、サブモジュール、リダイレクトの先）には渡さない。github.com の
-  SSH の URL は HTTPS に読み替える。
+  control-plane が発行したトークンだけを使い、認証ヘルパーで `https://github.com` にだけ渡す。トークンを持つのは
+  作業領域を作るときだけだが、ターゲットの `origin`、サブモジュール、リダイレクトの先が github.com とは限らないので、
+  ほかの宛先には渡さない。github.com の SSH の URL は HTTPS に読み替える。
   所有者の違う作業領域も扱えるよう `safe.directory` を `*` にする。状態を読むときに index を書き換えない
   （`GIT_OPTIONAL_LOCKS=0`）ので、エージェントが使っている最中に読んでもぶつからない。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：ホストの鍵や設定を

@@ -19,7 +19,7 @@ func TestOperations_AreKnown(t *testing.T) {
 }
 
 // git asks the credential helper of gitRunner for each remote it reaches; only github.com may get
-// the token, whatever the agent set the workspace's remotes to.
+// the token, whatever remote git reaches.
 func TestGitRunner_GivesTheTokenToGitHubAlone(t *testing.T) {
 	g := gitRunner{token: "ghs_secret"}
 	for url, want := range map[string]bool{
