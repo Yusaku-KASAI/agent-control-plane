@@ -476,6 +476,13 @@ def read_first(paths):
     return found
 
 
+def check_read_first(paths, errors):
+    """Rules that point to no document whole from their 始めに読む section would leave it out of the size limits."""
+    rules = sorted({os.path.dirname(p) for p in paths if in_plugin_dir(p, "rules")})
+    if rules and not read_first(paths):
+        errors.append(f"{rules[0]}: no section '## {READ_FIRST}' in the rules points to a whole document by a link")
+
+
 def size_limits(paths):
     first = read_first(paths)
     return ALWAYS_READ + [(lambda p: p in first, READ_FIRST_LIMIT, "together")]
@@ -877,6 +884,7 @@ def main():
         check_links(path, errors)
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
+    check_read_first(paths, errors)
     check_sizes(paths, errors)
     check_widths(paths, errors)
     check_descriptions(paths, errors)
