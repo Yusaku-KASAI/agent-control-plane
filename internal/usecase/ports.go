@@ -269,8 +269,9 @@ type SessionStatus struct {
 	BackgroundTasks int
 }
 
-// SessionObserver is told how a session's turns progress. Calls come from the session's worker
-// in order and must return quickly.
+// SessionObserver is told how a session's turns progress. The calls for a session come in order,
+// from its worker or, for what AgentAnswers wraps, also from its timers and Flush, and must return
+// quickly.
 type SessionObserver interface {
 	Observe(s domain.Session, e SessionEvent)
 }
