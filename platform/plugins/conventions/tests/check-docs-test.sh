@@ -248,6 +248,14 @@ fresh
 add p/docs/guides/part.md '2. **引く**：[索引](../README.md) を引く。'
 passes "a common procedure that points outside the procedures passes"
 fresh
+put p/docs/guides/sub/y.md '# Y
+
+共通の手順で、目的の手順の段の中で使う。
+
+1. **戻る**：[do](../do.md) に戻る。'
+add p/docs/README.md '- [y](guides/sub/y.md)'
+fails "a common procedure under guides/ that points to another procedure fails" "p/docs/guides/sub/y.md: a common procedure points to another procedure ../do.md"
+fresh
 add p/docs/guides/part.md '2. **戻る**：[この手順](part.md) の 1 に戻る。'
 passes "a common procedure that points into itself passes"
 fresh
@@ -536,7 +544,7 @@ add docs/reference/r.md '- 項目
       ```
       [x](missing.md)
       ```'
-passes "a fence indented deep in a list item is fenced code"
+passes "lines indented four columns past the text of a list item are indented code"
 fresh
 add docs/reference/r.md '  - 項目
 
@@ -544,6 +552,11 @@ add docs/reference/r.md '  - 項目
     [x](missing.md)
     ```'
 passes "a fence in a nested list item is fenced code"
+fresh
+add docs/reference/r.md '   ```
+   [x](missing.md)
+   ```'
+passes "a fence indented three columns is fenced code"
 fresh
 add docs/reference/r.md '- 項目
 
@@ -621,7 +634,7 @@ fresh
 add docs/reference/r.md '- 項目
 
   ```
-        ```
+      ```
   [x](missing.md)
   ```'
 passes "a fence line indented four columns past a list item does not close a fence"
@@ -640,6 +653,36 @@ fails "a link after a fence that opens after a list marker is checked" "docs/ref
 fresh
 add docs/reference/r.md '`` `[x](missing.md)` ``'
 passes "a code span of two backticks hides its link"
+fresh
+add docs/reference/r.md '`` [x](missing.md) ` ``'
+passes "a code span of two backticks holds a single backtick"
+fresh
+add docs/reference/r.md 'a ``` [x](missing.md) `` b'
+fails "runs of backticks of other lengths make no code span" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '  - 項目
+
+    ```
+    x
+    ```
+
+    [x](missing.md)'
+fails "a link after a fence closed in a nested list item is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- ```
+[x](missing.md)
+```'
+fails "a fence in a list item closes where the item ends" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- a
+  - b
+
+   c
+
+      ```
+
+  [x](missing.md)'
+fails "a less indented line goes back to the text of the item it is in" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '`` [x](missing.md)'
 fails "two backticks never closed make no code span" "docs/reference/r.md: broken link missing.md"
@@ -818,6 +861,11 @@ ${top/top/q}
 add p/docs/README.md '- [q](../../q/docs/overview.md)'
 fails "a map in a docs/ without an index fails" "q/docs/overview.md: a map sits in the docs/overview.md"
 fresh
+add docs/README.md "
+${top/top/idx}
+| q | | | |"
+fails "a map in an index fails" "docs/README.md: a map sits in the docs/overview.md"
+fresh
 add docs/reference/r.md 'The form `<a id="map-x"></a>` starts a map.'
 passes "a map anchor in a code span starts no map"
 fresh
@@ -849,6 +897,9 @@ fails "a link to a sibling not relied on fails" "docs/reference/r.md: relies on 
 fresh
 add docs/adr/0001-first.md '[do](../../p/docs/guides/do.md)'
 passes "links from an ADR and from an index are not held to the prerequisites"
+fresh
+add p/docs/guides/do.md '3. **引く**：[判断](../../../docs/adr/0001-first.md) を引く。'
+passes "a link to an ADR is not held to the prerequisites"
 fresh
 put docs/overview.md '# O'
 put other.md '# Other'
