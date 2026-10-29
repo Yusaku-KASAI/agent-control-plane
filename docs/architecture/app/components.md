@@ -22,7 +22,7 @@ acp run / stop ──HTTP──▶ httpapi ────────────�
 usecase.SessionCleaner（起動時と定期的に。今すぐの片付けは usecase.HandleMessage ──SessionCleanup──▶ SessionCleaner）
 SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワーカーを手放させる）
 
-知らせ：worker ──SessionObserver──▶ sessionObserver（serve.go）──▶ slackbot.Bot
+知らせ：worker ──SessionObserver──▶ AgentAnswers ──▶ sessionObserver（serve.go）──▶ slackbot.Bot
        SessionCleaner ──SessionNotifier──▶ sessionObserver ──▶ slackbot.Bot
 ```
 
@@ -49,7 +49,8 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 | `Runner`、`Process` | `ports.go` | `docker.Runner` |
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |
 | `SessionBranches` | `ports.go` | `githubapp.Branches` |
-| `SessionObserver`、`SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
+| `SessionObserver` | `ports.go` | `usecase.AgentAnswers` と、それが包む `serve.go` の `sessionObserver` |
+| `SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
 | `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |
 | `TurnExecutor` | `handle_message.go` | `usecase.Dispatcher` |

@@ -133,32 +133,6 @@ func TestStatusViewRender(t *testing.T) {
 	}
 }
 
-func TestErrorNotice(t *testing.T) {
-	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
-	s := domain.Session{ID: "sess"}
-	limit := usecase.TurnResult{Output: "You've hit your session limit · resets 2pm", Error: true, UsageLimited: true}
-	steps := []struct {
-		name  string
-		event usecase.SessionEvent
-		want  string
-	}{
-		{"a request stops at the limit", usecase.SessionEvent{Result: limit}, ""},
-		{"the agent's own turn at the same limit", usecase.SessionEvent{AgentStarted: true, Result: limit}, ""},
-		{"a turn passes", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "ok"}}, ""},
-		{"the agent's own turn at the limit again", usecase.SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
-		{"the agent's own turn on another error", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
-		{"the agent's own turn failing with the process", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Failed: true}}, ""},
-		{"the agent's own turn answering with blanks", usecase.SessionEvent{AgentStarted: true, Result: usecase.TurnResult{Output: " \n"}}, ""},
-	}
-	for _, st := range steps {
-		st.event.Kind = usecase.SessionTurnFinished
-		text := b.errorNotice(s, st.event)
-		if (text != "") != (st.want != "") || !strings.Contains(text, st.want) {
-			t.Errorf("%s: notice = %q; want one containing %q", st.name, text, st.want)
-		}
-	}
-}
-
 func TestStatusForAgentStartedTurn(t *testing.T) {
 	b := New("dev", "", nil, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
@@ -234,28 +208,6 @@ func remarks(rs ...string) [maxRemarks]string {
 	return out
 }
 
-func TestAgentAnswer(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		result     usecase.TurnResult
-		background int
-		want       answerAction
-	}{
-		{"done, no background", usecase.TurnResult{Output: "結果"}, 0, postAnswer},
-		{"done, background remains", usecase.TurnResult{Output: "待ちます"}, 1, holdAnswer},
-		{"done, empty", usecase.TurnResult{Output: " \n"}, 0, dropAnswer},
-		{"interrupted, background remains", usecase.TurnResult{Output: "止めました", Interrupted: true}, 1, postAnswer},
-		{"interrupted, empty", usecase.TurnResult{Interrupted: true}, 0, dropAnswer},
-		{"failed", usecase.TurnResult{Failed: true}, 0, dropAnswer},
-	} {
-		e := usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: tc.result,
-			Status: usecase.SessionStatus{BackgroundTasks: tc.background}}
-		if got := agentAnswer(e); got != tc.want {
-			t.Errorf("%s: agentAnswer = %v, want %v", tc.name, got, tc.want)
-		}
-	}
-}
-
 type failingTokens struct{}
 
 func (failingTokens) Token(context.Context) (string, error) {
@@ -266,7 +218,6 @@ func (failingTokens) Token(context.Context) (string, error) {
 func recordingBot(t *testing.T) (*Bot, func() []string) {
 	t.Helper()
 	b := New("dev", "", failingTokens{}, nil, nil, nil, 0, slog.New(slog.DiscardHandler))
-	b.heldGrace = 20 * time.Millisecond
 	var mu sync.Mutex
 	var posts []string
 	b.post = func(_ domain.Session, text string) {
@@ -281,128 +232,14 @@ func recordingBot(t *testing.T) (*Bot, func() []string) {
 	}
 }
 
-func TestObserveAgentAnswers(t *testing.T) {
+func TestObservePostsNotices(t *testing.T) {
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
-	started := func(agent bool) usecase.SessionEvent {
-		return usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: agent, Status: usecase.SessionStatus{Running: true}}
-	}
-	finished := func(output string, background int) usecase.SessionEvent {
-		return usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true,
-			Result: usecase.TurnResult{Output: output}, Status: usecase.SessionStatus{BackgroundTasks: background}}
-	}
-	updated := func(background int) usecase.SessionEvent {
-		return usecase.SessionEvent{Kind: usecase.SessionUpdated, Status: usecase.SessionStatus{BackgroundTasks: background}}
-	}
-	for _, tc := range []struct {
-		name   string
-		events []usecase.SessionEvent
-		want   []string
-	}{
-		{"the next turn starts after the tasks run out",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true), finished("終わりました", 0)},
-			[]string{"終わりました"}},
-		{"an answer posted after a held one drops it",
-			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), started(true), finished("B", 0), started(true), finished("", 0)},
-			[]string{"B"}},
-		{"a turn starting within the grace stops the release",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true)},
-			nil},
-		{"the next turn starts before the tasks run out",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(true),
-				{Kind: usecase.SessionTurnUpdated, Status: usecase.SessionStatus{Running: true}}, finished("終わりました", 0)},
-			[]string{"終わりました"}},
-		{"the tasks run out without a turn",
-			[]usecase.SessionEvent{started(false), started(true), finished("最後の結果", 1), updated(1), updated(0)},
-			[]string{"最後の結果"}},
-		{"a request comes while an answer is held",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), started(false), updated(0)},
-			nil},
-		{"a release meant for an earlier answer",
-			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1)},
-			nil},
-		{"a later answer released in its own time",
-			[]usecase.SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1), updated(0)},
-			[]string{"B"}},
-		{"an error while background work remains",
-			[]usecase.SessionEvent{started(false), started(true), {Kind: usecase.SessionTurnFinished, AgentStarted: true,
-				Result: usecase.TurnResult{Output: "API Error", Error: true}, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
-			[]string{usecase.TurnErrorText("API Error", false)}},
-		{"the next turn stops at the usage limit",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
-				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
-			[]string{usecase.TurnErrorText("limit", true) + "\n\n---\n\nPR を作りました"}},
-		{"a turn with a request joined stops at the usage limit",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
-				{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
-			[]string{"PR を作りました"}},
-		{"the next turn is stopped",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true),
-				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Interrupted: true}}, updated(0)},
-			[]string{"PR を作りました"}},
-		{"the next turn ends without an answer while tasks remain",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true), finished("", 1), updated(0)},
-			[]string{"PR を作りました"}},
-		{"the answer stays held while tasks remain after an answerless turn",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true), finished("", 1)},
-			nil},
-		{"the next turn fails with the process",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
-				{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}}},
-			[]string{"PR を作りました"}},
-		{"the next turn ends without an answer",
-			[]usecase.SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true), finished("", 0)},
-			[]string{"PR を作りました"}},
-		{"a request joins the next turn",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), updated(0), started(true),
-				{Kind: usecase.SessionTurnFinished, Result: usecase.TurnResult{Output: "答え"}}, updated(0)},
-			nil},
-		{"the control plane stops while an answer is held",
-			[]usecase.SessionEvent{started(false), started(true), finished("待ちます", 1), {Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}}, updated(0)},
-			[]string{usecase.ShutdownNotice}},
-	} {
-		b, posts := recordingBot(t)
-		for _, e := range tc.events {
-			b.observe(s, e)
-		}
-		deadline := time.Now().Add(5 * time.Second)
-		for b.pendingReleases() > 0 && time.Now().Before(deadline) {
-			time.Sleep(b.heldGrace)
-		}
-		if got := posts(); !slices.Equal(got, tc.want) {
-			t.Errorf("%s: posted %q, want %q", tc.name, got, tc.want)
-		}
-	}
-}
-
-func TestWaitPostsHeldAnswers(t *testing.T) {
-	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
-	held := []usecase.SessionEvent{
-		{Kind: usecase.SessionTurnStarted},
-		{Kind: usecase.SessionTurnStarted, AgentStarted: true},
-		{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "最後の結果"},
-			Status: usecase.SessionStatus{BackgroundTasks: 1}},
-	}
-	for _, tc := range []struct {
-		name   string
-		events []usecase.SessionEvent
-		want   []string
-	}{
-		{"the tasks have run out", append(slices.Clone(held), usecase.SessionEvent{Kind: usecase.SessionUpdated}),
-			[]string{"最後の結果"}},
-		{"the control plane cuts the tasks short", append(slices.Clone(held),
-			usecase.SessionEvent{Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}},
-			usecase.SessionEvent{Kind: usecase.SessionUpdated}),
-			[]string{usecase.ShutdownNotice}},
-	} {
-		b, posts := recordingBot(t)
-		b.heldGrace = time.Hour
-		for _, e := range tc.events {
-			b.observe(s, e)
-		}
-		b.Wait()
-		if got := posts(); !slices.Equal(got, tc.want) {
-			t.Errorf("%s: posted %q on shutdown, want %q", tc.name, got, tc.want)
-		}
+	b, posts := recordingBot(t)
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "回答"}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionNotice, Notice: "知らせ"})
+	if got := posts(); !slices.Equal(got, []string{"知らせ"}) {
+		t.Errorf("posted %q, want only the notice", got)
 	}
 }
 

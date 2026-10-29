@@ -17,7 +17,6 @@ const (
 	stopReaction = "no_entry_sign"
 	// refreshInterval keeps the elapsed time moving while nothing else changes.
 	refreshInterval = 5 * time.Second
-	heldAnswerGrace = 15 * time.Second
 	// maxRemarks is how many of the agent's latest remarks a running status message shows, so that
 	// the flow of the work can be followed, and maxRemarkLength the runes each is cut to, which most
 	// remarks other than answers fit in.
@@ -224,67 +223,16 @@ type statusMessage struct {
 	ts       string
 	updating bool
 	wake     chan struct{}
-	// held is the answer of the agent's own turn that ended while background work remained;
-	// heldGen numbers it, so that a release meant for an earlier answer does not post a later one.
-	held    string
-	heldGen int
-}
-
-func (m *statusMessage) hold(text string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.held = text
-	m.heldGen++
-}
-
-// heldGeneration is the number of the held answer, or 0 when nothing is held.
-func (m *statusMessage) heldGeneration() int {
-	if m == nil {
-		return 0
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.held == "" {
-		return 0
-	}
-	return m.heldGen
-}
-
-// takeHeld returns the held answer and forgets it, if it is still the one numbered gen.
-func (m *statusMessage) takeHeld(gen int) string {
-	if m == nil || gen == 0 {
-		return ""
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.heldGen != gen {
-		return ""
-	}
-	text := m.held
-	m.held = ""
-	return text
-}
-
-// cancelRelease keeps the held answer but stops a release already scheduled for it.
-func (m *statusMessage) cancelRelease() {
-	if m == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.heldGen++
-}
-
-func (m *statusMessage) dropHeld() {
-	if m == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.held = ""
 }
 
 func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
+	switch e.Kind {
+	case usecase.SessionNotice:
+		b.post(s, e.Notice)
+		return
+	case usecase.SessionAbandoned:
+		return
+	}
 	var m *statusMessage
 	if e.Kind == usecase.SessionTurnStarted {
 		m = b.statusFor(s, e)
@@ -293,137 +241,25 @@ func (b *Bot) observe(s domain.Session, e usecase.SessionEvent) {
 		m = b.status[s.ID]
 		b.statusMu.Unlock()
 	}
-	if m != nil && e.Kind != usecase.SessionAbandoned {
-		m.mu.Lock()
-		if e.Kind == usecase.SessionTurnFinished {
-			m.view.finishedAt = time.Now()
-			m.view.outcome = outcomeOf(e.Result)
-			m.view.forgetAnswer(e.Result.Output)
-		}
-		if e.Kind == usecase.SessionTurnFinished || e.Spent != nil {
-			m.view.spent.add(e.Spent)
-		}
-		if n := e.Result.ContextTokens; n > 0 {
-			m.view.contextTokens = n
-		}
-		m.view.addRemark(e.Remark)
-		m.mu.Unlock()
-		m.apply(e.Status)
-		b.refresh(m)
-	}
-	switch {
-	case e.Kind == usecase.SessionTurnFinished:
-		notice := b.errorNotice(s, e)
-		switch {
-		case e.Result.Error || e.Result.Failed:
-			// A turn that ended on an error or a failure says nothing of the work before it, so the
-			// held answer is posted too. One message keeps them in order, and the notice goes first
-			// so that a long answer cut to the message limit cannot cut it off.
-			if text := joinPosts(notice, m.takeHeld(m.heldGeneration())); text != "" {
-				b.post(s, text)
-			}
-		case !e.AgentStarted:
-			// The reply to the request that joined the turn answers it.
-			m.dropHeld()
-		default:
-			switch agentAnswer(e) {
-			case postAnswer:
-				m.dropHeld()
-				b.post(s, e.Result.Output)
-			case holdAnswer:
-				if m == nil {
-					b.post(s, e.Result.Output)
-					break
-				}
-				m.hold(e.Result.Output)
-			case dropAnswer:
-				if e.Status.BackgroundTasks == 0 {
-					b.releaseHeld(s, m)
-				}
-			}
-		}
-	case e.Kind == usecase.SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
-		b.releaseHeld(s, m)
-	case e.Kind == usecase.SessionAbandoned:
-		// The notice replaces the held answer, which spoke of work that is now cut short.
-		m.dropHeld()
-		b.post(s, abandonedText(e.Status))
-	}
-}
-
-// errorNotice tells what to post for a turn the agent started by itself that ended on an error;
-// it is posted at once, even while background work remains. It also remembers whether the session
-// stopped at the usage limit: once told, the agent's own turns refused while the limit lasts, one
-// for each background task that ends, only show in the status message.
-func (b *Bot) errorNotice(s domain.Session, e usecase.SessionEvent) string {
-	b.statusMu.Lock()
-	told := b.limited[s.ID]
-	if e.Result.UsageLimited {
-		b.limited[s.ID] = true
-	} else {
-		delete(b.limited, s.ID)
-	}
-	b.statusMu.Unlock()
-	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
-		return ""
-	}
-	return usecase.TurnErrorText(e.Result.Output, e.Result.UsageLimited)
-}
-
-// joinPosts puts texts that must appear in order into one message.
-func joinPosts(texts ...string) string {
-	var parts []string
-	for _, t := range texts {
-		if strings.TrimSpace(t) != "" {
-			parts = append(parts, t)
-		}
-	}
-	return strings.Join(parts, "\n\n---\n\n")
-}
-
-// releaseHeld posts the held answer unless the agent starts another turn within the grace.
-func (b *Bot) releaseHeld(s domain.Session, m *statusMessage) {
-	gen := m.heldGeneration()
-	if gen == 0 {
+	if m == nil {
 		return
 	}
-	release := func() {
-		if text := m.takeHeld(gen); text != "" {
-			b.post(s, text)
-		}
+	m.mu.Lock()
+	if e.Kind == usecase.SessionTurnFinished {
+		m.view.finishedAt = time.Now()
+		m.view.outcome = outcomeOf(e.Result)
+		m.view.forgetAnswer(e.Result.Output)
 	}
-	b.releasesMu.Lock()
-	defer b.releasesMu.Unlock()
-	var timer *time.Timer
-	timer = time.AfterFunc(b.heldGrace, func() {
-		b.releasesMu.Lock()
-		defer b.releasesMu.Unlock()
-		// Posting under the lock registers the write before Wait can start waiting for writes.
-		if _, ok := b.releases[timer]; ok {
-			delete(b.releases, timer)
-			release()
-		}
-	})
-	b.releases[timer] = release
-}
-
-// releaseAll posts the held answers still waiting out the grace, so that a shutdown does not
-// lose the agent's last answer.
-func (b *Bot) releaseAll() {
-	b.releasesMu.Lock()
-	defer b.releasesMu.Unlock()
-	for timer, release := range b.releases {
-		timer.Stop()
-		release()
+	if e.Kind == usecase.SessionTurnFinished || e.Spent != nil {
+		m.view.spent.add(e.Spent)
 	}
-	clear(b.releases)
-}
-
-// pendingReleases is the number of held answers waiting out the grace.
-func (b *Bot) pendingReleases() int {
-	b.releasesMu.Lock()
-	defer b.releasesMu.Unlock()
-	return len(b.releases)
+	if n := e.Result.ContextTokens; n > 0 {
+		m.view.contextTokens = n
+	}
+	m.view.addRemark(e.Remark)
+	m.mu.Unlock()
+	m.apply(e.Status)
+	b.refresh(m)
 }
 
 // statusFor returns the status message that follows the turn starting now. A turn the agent
@@ -434,51 +270,15 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	defer b.statusMu.Unlock()
 	prev := b.status[s.ID]
 	if prev != nil && e.AgentStarted {
-		// The agent's own turn decides at its end whether the held answer still matters.
-		prev.cancelRelease()
 		prev.mu.Lock()
 		prev.view.outcome, prev.view.finishedAt = running, time.Time{}
 		prev.mu.Unlock()
 		return prev
 	}
-	// A request's turn answers it whatever happened before, so the held answer is dropped.
-	prev.dropHeld()
 	m := &statusMessage{conv: s.Conversation, wake: make(chan struct{}, 1)}
 	m.view = statusView{session: s.ID, startedAt: e.Status.TurnStartedAt, suggestClosingAt: b.suggestClosingAt}
 	b.status[s.ID] = m
 	return m
-}
-
-type answerAction int
-
-const (
-	dropAnswer answerAction = iota
-	postAnswer
-	// holdAnswer keeps the answer until the background work ends without starting another turn.
-	holdAnswer
-)
-
-// agentAnswer decides what becomes of the answer of a turn the agent started by itself. While
-// background work remains, the agent will start another turn, and its answer would mostly say
-// that it is waiting; the turn after the last background task ends says the rest. A stopped
-// turn is answered at once, since no turn follows it.
-func agentAnswer(e usecase.SessionEvent) answerAction {
-	switch {
-	case e.Result.Failed, strings.TrimSpace(e.Result.Output) == "":
-		return dropAnswer
-	case e.Result.Interrupted, e.Status.BackgroundTasks == 0:
-		return postAnswer
-	default:
-		return holdAnswer
-	}
-}
-
-func abandonedText(st usecase.SessionStatus) string {
-	if st == (usecase.SessionStatus{}) {
-		return "control-plane が再起動したため、このスレッドのエージェントを止めました。処理の途中だった場合は中断されています。" +
-			"続けるには、もう一度依頼してください。"
-	}
-	return usecase.ShutdownNotice
 }
 
 func (b *Bot) postAsync(s domain.Session, text string) {

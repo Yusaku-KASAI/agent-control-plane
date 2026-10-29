@@ -227,6 +227,10 @@ const (
 	// request was waiting to be told: on shutdown, with Status showing the work that was cut
 	// short, or after a restart, with an empty Status since that work is unknown.
 	SessionAbandoned
+	// SessionNotice carries a text to post to the session's conversation, which AgentAnswers decided
+	// from the events before: an answer of a turn no request waited for, or the notice of abandoned
+	// work.
+	SessionNotice
 )
 
 type SessionEvent struct {
@@ -244,6 +248,8 @@ type SessionEvent struct {
 	// SessionTurnUpdated of an agent's own turn that the running request's turn hides. It is nil for
 	// a turn that ended without one, whose usage is unknown.
 	Spent *Spent
+	// Notice is set for SessionNotice.
+	Notice string
 }
 
 // Spent is what a turn spent and the session's total after it.

@@ -37,8 +37,6 @@ type Bot struct {
 
 	statusMu sync.Mutex
 	status   map[domain.SessionID]*statusMessage
-	// limited holds the sessions whose last turn stopped at the usage limit.
-	limited  map[domain.SessionID]bool
 	mentions *seenMessages
 	// requests remembers the conversation of each request message, so a stop reaction on it can
 	// find the session.
@@ -47,12 +45,6 @@ type Bot struct {
 	writes sync.WaitGroup
 	// post writes outside a request; tests replace it.
 	post func(s domain.Session, text string)
-	// heldGrace is how long a held answer waits for the agent's next turn after background work
-	// runs out, since the agent reports the end of its tasks shortly before it starts that turn.
-	heldGrace time.Duration
-	// releases holds the held answers waiting out heldGrace; Wait posts them at once.
-	releasesMu sync.Mutex
-	releases   map[*time.Timer]func()
 }
 
 // TokenSource supplies the current bot token, which may rotate.
@@ -68,12 +60,9 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		log:              log.With("agent", agent),
 		suggestClosingAt: suggestClosingAt,
 
-		status:    make(map[domain.SessionID]*statusMessage),
-		limited:   make(map[domain.SessionID]bool),
-		mentions:  newSeenMessages(time.Hour),
-		requests:  newRequestMessages(requestMemory),
-		heldGrace: heldAnswerGrace,
-		releases:  make(map[*time.Timer]func()),
+		status:   make(map[domain.SessionID]*statusMessage),
+		mentions: newSeenMessages(time.Hour),
+		requests: newRequestMessages(requestMemory),
 	}
 	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, cleanup, policy, b)
@@ -123,10 +112,9 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
-// Wait posts the held answers still waiting out their grace, then waits for every write outside
-// a request. Call it after the dispatcher is closed, so that no session event comes afterwards.
+// Wait waits for every write outside a request. Call it after the dispatcher is closed and the
+// held answers are flushed (usecase.AgentAnswers.Flush), so that no session event comes afterwards.
 func (b *Bot) Wait() {
-	b.releaseAll()
 	b.writes.Wait()
 }
 
