@@ -86,7 +86,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 
 ### `internal/adapter/githubapp`（`issuer.go`）
 
-- **責務**：エージェントごとの GitHub App のインストールトークンを、発行のたびに新しく作る。
+- **責務**：エージェントごとの GitHub App のインストールトークンを、発行のたびに新しく作り、ターゲットだけに届くときに渡す。
 - **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256。時計のずれに備えて発行時刻を 1 分戻し、期限は 9 分後）で
   `POST /app/installations/<ID>/access_tokens` を呼ぶこと。リポジトリと権限は絞らずに発行するので、届く範囲は
   インストールの範囲と App の権限で決まる（[ADR 0053](../../adr/app/0053-limit-github-app-reach-by-installation.md)）。

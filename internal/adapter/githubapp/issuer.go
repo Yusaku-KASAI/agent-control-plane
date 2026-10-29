@@ -135,7 +135,7 @@ func reachOnly(target, selection string, repos []string) error {
 	if len(repos) == 0 {
 		return fmt.Errorf("the installation reaches no repositories, not %s", target)
 	}
-	if selection == "selected" && len(repos) == 1 && !strings.EqualFold(repos[0], target) {
+	if len(repos) == 1 && !strings.EqualFold(repos[0], target) {
 		return fmt.Errorf("the installation reaches %s, not %s (if the target was renamed or moved to it, point the target's origin at it)", repos[0], target)
 	}
 	if len(repos) != 1 || !strings.EqualFold(repos[0], target) {
