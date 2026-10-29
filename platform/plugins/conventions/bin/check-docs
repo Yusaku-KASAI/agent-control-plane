@@ -105,7 +105,8 @@ def code_block_lines(text):
                 if is_closing(line):
                     block, after_block = None, True
                 continue
-            block = None
+            # The block ended with its list item: this line continues no paragraph.
+            block, after_block = None, True
         if not line.strip():
             if empty_item:
                 # An item that begins with a blank line ends at a second one.

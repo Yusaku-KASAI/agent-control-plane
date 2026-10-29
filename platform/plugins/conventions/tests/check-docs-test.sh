@@ -786,6 +786,18 @@ add docs/reference/r.md '- a
 [x](missing.md)'
 fails "a fence line is not its own closing line" "docs/reference/r.md: broken link missing.md"
 fresh
+add docs/reference/r.md '-    ```
+     x
+
+    [x](missing.md)'
+passes "a line after a fence that its list item ended may be indented code"
+fresh
+add docs/reference/r.md '**太字**の段落
+    ```
+[x](missing.md)
+    ```'
+fails "a marker without a space after it is no list item" "docs/reference/r.md: broken link missing.md"
+fresh
 add docs/reference/r.md '- 項目
   <!--
 x
