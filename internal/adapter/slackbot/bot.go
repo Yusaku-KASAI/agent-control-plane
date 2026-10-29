@@ -34,6 +34,8 @@ type Bot struct {
 	webMu    sync.Mutex
 	webToken string
 	webAPI   *slack.Client
+	// markTimeout bounds putting the cleaned mark, which the cleaner does holding the session's lock.
+	markTimeout time.Duration
 
 	statusMu sync.Mutex
 	status   map[domain.SessionID]*statusMessage
@@ -74,6 +76,8 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		requests:  newRequestMessages(requestMemory),
 		heldGrace: heldAnswerGrace,
 		releases:  make(map[*time.Timer]func()),
+
+		markTimeout: 30 * time.Second,
 	}
 	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, cleanup, policy, b)
@@ -224,9 +228,11 @@ func (b *Bot) Observe(s domain.Session, e usecase.SessionEvent) {
 // and from the person's :wastebasket:, which asks and does not tell.
 const cleanedReaction = "broom"
 
-// MarkCleaned puts the cleaned mark on the message that started the conversation's thread.
+// MarkCleaned puts the cleaned mark on the message that started the conversation's thread. It gives
+// up after markTimeout: the session's lock is held meanwhile, refusing the thread's requests.
 func (b *Bot) MarkCleaned(ctx context.Context, c domain.Conversation) error {
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), b.markTimeout)
+	defer cancel()
 	api, err := b.web(ctx)
 	if err != nil {
 		return err

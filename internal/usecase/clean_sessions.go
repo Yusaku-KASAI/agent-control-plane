@@ -383,7 +383,7 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 		marking = fmt.Errorf("mark removal: %w", err)
 	}
 	if err := c.sessions.Remove(ctx, id); err != nil {
-		return nil, nil, nil, fmt.Errorf("remove session: %w", err)
+		return nil, nil, nil, errors.Join(fmt.Errorf("remove session: %w", err), marking)
 	}
 	return branches, rs, marking, nil
 }

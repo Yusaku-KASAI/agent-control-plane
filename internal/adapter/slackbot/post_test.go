@@ -98,3 +98,26 @@ func TestCleanedMark(t *testing.T) {
 	}
 	want("/reactions.remove")
 }
+
+// Slack not answering, putting the mark gives up, for the cleaner holds the session's lock meanwhile.
+func TestMarkCleanedGivesUp(t *testing.T) {
+	stuck := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-stuck }))
+	defer srv.Close()
+	defer close(stuck)
+	b := New("dev", "", fixedToken("xoxb-test"), &stopRecorder{}, nil, allowAll{}, 0, slog.New(slog.DiscardHandler))
+	b.webToken, b.webAPI = "xoxb-test", slack.New("xoxb-test", slack.OptionAPIURL(srv.URL+"/"))
+	b.markTimeout = 50 * time.Millisecond
+	done := make(chan error, 1)
+	go func() {
+		done <- b.MarkCleaned(context.Background(), domain.Conversation{Platform: platform, Channel: "C1", Thread: "1.0"})
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("MarkCleaned() = nil, want the timeout")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("MarkCleaned() did not give up")
+	}
+}
