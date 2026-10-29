@@ -28,9 +28,12 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 - エージェントごとに GitHub App を作り（Webhook はオフ）、そのエージェントのターゲットのリポジトリだけにインストールする
   （Repository access で「Only select repositories」を選ぶ）。トークンはインストールの範囲のすべてに App の権限のまま
-  届くので、「All repositories」で入れると、ほかのリポジトリでも、ロールの権限に応じて非公開の中身を読み、Issue や
-  PR に書き、守りのないブランチに push できる
-  （[ADR 0053](../adr/app/0053-limit-github-app-reach-by-installation.md)）。ロールごとに
+  届く（[ADR 0053](../adr/app/0053-limit-github-app-reach-by-installation.md)）ので、ターゲットのほかにも届くインストール
+  （「All repositories」か、ほかのリポジトリも選んだもの）では、control-plane はトークンを渡さない。セッションを
+  始められず、動いているセッションは次のトークンの更新で止まり、片付けも進まない。Repository access を直せば戻る
+  （[ADR 0054](../adr/app/0054-refuse-a-token-that-reaches-beyond-the-target.md)）。照らす相手はターゲットの `origin` で、
+  GitHub のリポジトリを `https://github.com/`（ユーザー情報が付いてもよい）、`git@github.com:`、
+  `ssh://git@github.com/` のどれかで指していないと（SSH の設定の別名など）、同じくトークンを渡さない。ロールごとに
   要る権限は[ハーネスの契約の認証情報](../../platform/docs/reference/harness.md#credentials "在りか")にある。
 - App ID、インストール ID（インストール設定画面の URL の末尾）、秘密鍵のファイルを `github` に書く。
 - コミットする developer は、`git` に App の Bot ユーザーを書く。メールアドレスの番号は

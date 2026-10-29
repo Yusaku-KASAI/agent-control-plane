@@ -258,7 +258,7 @@ func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer
 		}
 		loaded[name] = githubapp.App{ID: app.AppID, InstallationID: app.InstallationID, PrivateKey: key}
 	}
-	return githubapp.NewIssuer(loaded, githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}), nil
+	return githubapp.NewIssuer(loaded, githubapp.DefaultBaseURL, &http.Client{Timeout: 30 * time.Second}, gitworkspace.Origin), nil
 }
 
 // sessionObserver hands session events to the Slack bot of the session's agent. Sessions

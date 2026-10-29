@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-29
+amended_by: [54]
 ---
 
 # 0053. GitHub App の届く範囲はインストールで絞り、トークンの発行では絞らない
