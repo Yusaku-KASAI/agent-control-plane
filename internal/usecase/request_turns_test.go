@@ -355,3 +355,20 @@ func TestRequestTurns_EndTurn(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestTurns_HandFirstAndStartHeld(t *testing.T) {
+	turns := turnsIn(noTurn, false, false, false, false)
+	turns.handFirst("p", request{id: "first"})
+	if turns.turn != requestsTurn || len(turns.sent) != 1 {
+		t.Fatalf("after handFirst: turn %v, sent %d; want a requests' turn holding the request", turns.turn, len(turns.sent))
+	}
+	turns.hand("q", request{id: "injected"})
+	turns.take("p")
+	if end := turns.finish(); !end.next || turns.running() {
+		t.Fatalf("finish = %+v, running %v; want the next turn to come, none running yet", end, turns.running())
+	}
+	turns.startHeld()
+	if turns.turn != requestsTurn {
+		t.Errorf("after startHeld: turn %v, want a requests' turn", turns.turn)
+	}
+}
