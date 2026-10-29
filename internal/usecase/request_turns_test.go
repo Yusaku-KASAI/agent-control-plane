@@ -214,3 +214,71 @@ func TestRequestTurns_Credit(t *testing.T) {
 		t.Errorf("the agent's own turn credits %v, want those of the work it continues", got)
 	}
 }
+
+func TestRequestTurns_EndProcess(t *testing.T) {
+	for _, c := range []struct {
+		name                      string
+		turn                      turnKind
+		current, sent, background bool
+		wasRunning, hadBackground bool
+		held                      int
+	}{
+		{"a turn holding requests taken in and sent", requestsTurn, true, true, false, true, false, 2},
+		{"a turn with only sent requests", requestsTurn, false, true, false, true, false, 1},
+		{"background tasks between turns", noTurn, false, false, true, false, true, 0},
+		{"nothing", noTurn, false, false, false, false, false, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			turns := turnsIn(c.turn, c.current, c.sent, true, c.background)
+			turns.requesters = []domain.Requester{{Platform: "slack", ID: "A"}}
+			wasRunning, hadBackground := turns.endProcess()
+			if wasRunning != c.wasRunning || hadBackground != c.hadBackground {
+				t.Errorf("endProcess = %v, %v; want %v, %v", wasRunning, hadBackground, c.wasRunning, c.hadBackground)
+			}
+			if turns.running() || len(turns.backgroundTasks()) > 0 || len(turns.requesters) > 0 {
+				t.Error("the turn, the background tasks or the requesters outlived the process")
+			}
+			if held := turns.dropHeld(); len(held) != c.held {
+				t.Errorf("dropHeld returned %d, want %d", len(held), c.held)
+			}
+			if turns.waiting() != true || turns.queued() != 1 {
+				t.Error("the queued request did not stay")
+			}
+		})
+	}
+}
+
+func TestRequestTurns_Waiting(t *testing.T) {
+	for _, c := range []struct {
+		name                  string
+		current, sent, queued bool
+		want                  bool
+	}{
+		{"nothing", false, false, false, false},
+		{"taken in", true, false, false, true},
+		{"sent", false, true, false, true},
+		{"queued", false, false, true, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := turnsIn(requestsTurn, c.current, c.sent, c.queued, false).waiting(); got != c.want {
+				t.Errorf("waiting = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestRequestTurns_Cancel(t *testing.T) {
+	turns := turnsIn(requestsTurn, true, true, true, false)
+	if rs := turns.cancelQueued(); len(rs) != 1 || rs[0].id != "queued" {
+		t.Errorf("cancelQueued = %v", rs)
+	}
+	if rs := turns.cancelSent(); len(rs) != 1 || rs[0].id != "sent" {
+		t.Errorf("cancelSent = %v", rs)
+	}
+	if turns.queued() != 0 || len(turns.sent) != 0 || len(turns.current) != 1 {
+		t.Error("cancelling took more or less than the queue and the sent requests")
+	}
+	if turns.unrequested() {
+		t.Error("the request taken in was cancelled")
+	}
+}

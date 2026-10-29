@@ -43,6 +43,17 @@ type requestTurns struct {
 
 func (t *requestTurns) running() bool { return t.turn != noTurn }
 
+// unrequested tells that no request waits for the running turn's result, which then reaches people
+// only through the observer (SessionEvent.AgentStarted). It differs from the turn axis: the agent's
+// own turn may have taken in an injected request, and a requests' turn may have lost its requests to
+// a stop before it ended.
+func (t *requestTurns) unrequested() bool { return len(t.current) == 0 }
+
+func (t *requestTurns) queued() int { return len(t.queue) }
+
+// backgroundTasks are the IDs of the background tasks still running.
+func (t *requestTurns) backgroundTasks() []string { return t.background }
+
 // idle is true when nothing would be lost by closing the process: no turn, no queued request, and
 // no background task whose completion would start a turn.
 func (t *requestTurns) idle() bool {

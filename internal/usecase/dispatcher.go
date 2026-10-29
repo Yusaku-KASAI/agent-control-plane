@@ -619,8 +619,8 @@ func (w *worker) observe(e SessionEvent) {
 		Running:         w.turns.running(),
 		TurnStartedAt:   w.startedAt,
 		Activity:        w.activity,
-		Queued:          len(w.turns.queue),
-		BackgroundTasks: len(w.turns.background),
+		Queued:          w.turns.queued(),
+		BackgroundTasks: len(w.turns.backgroundTasks()),
 	}
 	w.d.observer.Observe(w.session, e)
 }
@@ -664,7 +664,7 @@ func (w *worker) finishTurn(res TurnResult) {
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
-	agentStarted := len(w.turns.current) == 0
+	agentStarted := w.turns.unrequested()
 	w.d.usage.Record(w.d.ctx, TurnRecord{
 		Agent:        w.agent.Name,
 		Session:      w.session.ID,
@@ -743,7 +743,7 @@ func (w *worker) stopWork() {
 		return
 	}
 	var err error
-	for _, id := range w.turns.background {
+	for _, id := range w.turns.backgroundTasks() {
 		err = errors.Join(err, w.proc.StopTask(w.d.ctx, id))
 	}
 	if w.turns.running() {
@@ -798,7 +798,7 @@ func (w *worker) stopProcess(cause error) {
 		_ = w.forgetUsage()
 	}
 	w.proc = nil
-	agentStarted := len(w.turns.current) == 0
+	agentStarted := w.turns.unrequested()
 	wasRunning, hadBackground := w.turns.endProcess()
 	if wasRunning || hadBackground {
 		w.markUsed()
@@ -826,13 +826,13 @@ func (w *worker) shutdown() {
 		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
 	}
 	waiting := w.turns.waiting() || len(w.inbox) > 0
-	if !waiting && (running || len(w.turns.background) > 0) {
+	if !waiting && (running || len(w.turns.backgroundTasks()) > 0) {
 		w.observe(SessionEvent{Kind: SessionAbandoned})
 	}
 	if running {
 		w.turns.endTurn()
 		w.markUsed()
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: len(w.turns.current) == 0})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: w.turns.unrequested()})
 	}
 	w.stopProcess(ErrShuttingDown)
 	w.failAll(ErrShuttingDown)

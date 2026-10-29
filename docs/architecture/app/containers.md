@@ -143,7 +143,7 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
   - `UpdateCredentials` と `SetCoAuthors`：セッションの認証情報のディレクトリのファイルを書き換える。
   - `Close`：標準入力を閉じ、終わるか期限（dispatcher の `StopTimeout`、30 秒）が来るまで待ってから、コンテナを
     強制的に消す。
-- **関係**：usecase の `Process` を実装する。出来事をどう扱うか（依頼の順番、休ませること）は[セッションのワーカー](sessions.md#worker "在りか")に、どう見せるかは
+- **関係**：usecase の `Process` を実装する。出来事をどう扱うかは、依頼の順番は[依頼とターンの状態](requests.md#states "在りか")に、休ませることは[セッションのワーカー](sessions.md#worker "在りか")に、どう見せるかは
   [状態メッセージ](requests.md#status "在りか")にある。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Claude Code の出力の形を
   知るのはここだけで、usecase は `ProcessEvent` だけを見る。
