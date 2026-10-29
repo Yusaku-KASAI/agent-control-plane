@@ -676,7 +676,7 @@ request_refs() {
 
 # scope_message <pr>: what keeps the PR from ending by the scope of its request issue (issues.md:
 # scope, scope-items), or nothing. The items of the scope are the task list of its section ## 範囲,
-# and the PR an item is handled by is the number at its end. What is left is an item not checked
+# and the PR an item is handled by is the number of this repository at its end. What is left is an item not checked
 # whose PR is not this one and not merged. Without a line of Closes or Refs, or with an issue of
 # another repository, nothing is asked.
 scope_message() {
@@ -694,7 +694,7 @@ scope_message() {
         ([$lines | to_entries[] | select(.key > $at and .value.head != null) | .key] | first // ($lines | length)) as $end
         | [$lines[$at + 1:$end][] | select(.code | not) | .line
            | capture("^\\s*[-*+] \\[(?<mark>[ xX])\\]\\s+(?<text>.*?)\\s*$")
-           | {done: (.mark != " "), text, pr: (.text | capture("#(?<n>[0-9]+)$").n // null)}]
+           | {done: (.mark != " "), text, pr: (.text | capture("(^|\\s)#(?<n>[0-9]+)$").n // null)}]
       end' <<<"$body")
   if [[ $items == null ]]; then
     echo "the request issue $issue has no section ## 範囲; write its scope there (issues.md: scope)."
@@ -795,7 +795,7 @@ cmd_ready() {
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
   # Before the reviews are told settled, which starts their count afresh.
-  msg=$(scope_message "$pr") || die "could not read the request issue of the PR"
+  msg=$(scope_message "$pr") || die "could not read the request issue of the PR, or a PR its scope names"
   [[ -z $msg ]] || die "not ready: $msg"
   # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
   msg=$(final_message "$pr" "$head" "$list" settled) || die "could not read the reviews of the PR"

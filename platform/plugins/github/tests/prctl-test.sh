@@ -858,10 +858,17 @@ with_request "Refs #7"
 scope $'- [ ] a #1\n- [x] b #3\n- [ ] d #5'
 check "a PR that only refers to an issue with nothing else left is held" "$(ready)" "nothing is left in the scope of #7 but what PR #1 handles: write Closes #7"
 touch "$state/fail-pull-5"
-check "a PR an item names that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR"
+check "a PR an item names that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
 rm "$state/fail-pull-5"
 scope $'- [ ] a #1\n- [ ] e #9'
 check "an item of a number that is no PR is left" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] f other/repo#5\n'"\`\`\`"$'\n- [ ] example #8\n'"\`\`\`"
+out=$(ready)
+check "an item of another repository's PR is left, not this one's" "$out" $'still has items it does not handle'
+check "the item of another repository is named" "$out" "- f other/repo#5"
+lacks "an item in a code block is not an item" "$out" "- f other/repo#5" "example"
 set_pr "$c21"
 with_request "Fixes #7"
 scope $'- [ ] a\n- [ ] b #2'
@@ -869,7 +876,7 @@ check "a PR no item names is held" "$(ready)" "no item of the scope of #7 ends w
 jq '.body = "狙い\n\n## 今の姿\n\n- [ ] a #1"' -n >"$state/issue-7.json"
 check "an issue without a scope is held" "$(ready)" "the request issue #7 has no section ## 範囲"
 rm "$state/issue-7.json"
-check "an issue that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR"
+check "an issue that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
 set_pr "$c21"
 with_request "Closes other/repo#7"
 check "an issue of another repository is not read" "$(ready)" "https://example.invalid/pull/1"

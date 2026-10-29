@@ -71,7 +71,8 @@ github プラグインの `bin/prctl` が何をどう判定するか。サブコ
 - `ready` は、本文の `Closes` か `Refs` の行が依頼の Issue を挙げていれば、その Issue の範囲との付け合わせ（conventions の
   [範囲の項目と PR の付け合わせ](../../../conventions/docs/reference/issues.md#scope-items)、[依頼の範囲](../../../conventions/docs/reference/issues.md#scope)）も確かめ、合わなければ
   下書きのままにする（[ADR 0034](../../../../docs/adr/0034-ready-checks-the-scope-of-the-request.md)）。
-  - 範囲の中の項目は、Issue の本文の `## 範囲` の節のタスクリスト。項目を扱う PR は、項目の末尾の `#<番号>`。
+  - 範囲の中の項目は、Issue の本文の `## 範囲` の節のタスクリスト。項目を扱う PR は、項目の末尾の `#<番号>`（このリポジトリの番号だけ。
+    `owner/repo#N` で終わる項目は、扱う PR のない項目と読む）。コードブロックの中の行は項目に数えない。
   - この PR の番号で終わる項目が一つもなければ断る。
   - 残る項目は、チェックがなく、この PR の番号で終わらず、末尾の番号の PR がマージされていない項目。`Closes` なのに残る
     項目があるか、`Refs` なのに残る項目がなければ断る。コメントに積んだ指摘は見ない（PR を終えるときに項目にする）。
