@@ -77,6 +77,12 @@ def opened(key, lines, index, unclosed):
     return is_closing, base, later
 
 
+def end_items(items, depth):
+    """Ends the open list items (where the text of each begins) that a line indented to depth is outside of."""
+    while items and items[-1] > depth:
+        items.pop()
+
+
 def code_block_lines(text):
     """The indexes of the lines (counted from 0, split at each newline) inside code blocks, the fence lines included.
     As in CommonMark, a fence opens and closes indented up to three columns past where the text of the list item it
@@ -105,8 +111,7 @@ def code_block_lines(text):
                 if is_closing(line):
                     block, after_block = None, True
                     # A closing line less indented than the text of its item ends that item as any such line does.
-                    while items and items[-1] > depth:
-                        items.pop()
+                    end_items(items, depth)
                 continue
             # The block ended with its list item: this line continues no paragraph.
             block, after_block = None, True
@@ -118,8 +123,7 @@ def code_block_lines(text):
             after_block = True
             continue
         empty_item = False
-        while items and items[-1] > depth:
-            items.pop()
+        end_items(items, depth)
         base = items[-1] if items else 0
         indented = depth >= base + 4 and (after_block or indented)
         after_block = False

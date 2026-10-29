@@ -805,6 +805,14 @@ add docs/reference/r.md '- item
     code [x](missing.md)'
 passes "a closing line less indented than its item ends the item"
 fresh
+add docs/reference/r.md '1. step
+   ```
+   cmd
+   ```
+
+    see [l](missing.md)'
+fails "a closing line at the text of its item keeps the item" "docs/reference/r.md: broken link missing.md"
+fresh
 add docs/reference/r.md '**太字**の段落
     ```
 [x](missing.md)
@@ -1259,6 +1267,9 @@ fresh
 add CLAUDE.md "\`\`\`[$(wide 126)](docs/README.md)"
 fails "the line that opens a fence is counted as code" "CLAUDE.md:5: 147 columns wide"
 fresh
+add CLAUDE.md "$(wide 128)→→"
+passes "a character of ambiguous width counts one column"
+fresh
 add CLAUDE.md "$(printf 'Ａ%.0s' $(seq 65))a"
 fails "a fullwidth character counts two columns" "CLAUDE.md:5: 131 columns wide"
 fresh
@@ -1411,6 +1422,22 @@ add docs/README.md "
 ${top/top/idx}
 | q | | | |"
 fails "a map in an index fails" "docs/README.md: a map sits in the docs/overview.md"
+fresh
+put docs/overview.md "# O
+
+The \`docs/overview.md, the documents it holds, and the documents those documents hold in turn, and so on\` here.
+
+## 構成
+
+<a id=\"map-top\"></a>
+
+## 地図
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
+| repo | | \`../README.md\`, \`../CLAUDE.md\`, \`./\`, \`../.claude/\` | |
+| p | | \`../p/\` | |"
+passes "a code span before a map anchor does not move where its table is read"
 fresh
 add docs/reference/r.md 'The form `<a id="map-x"></a>` starts a map.'
 passes "a map anchor in a code span starts no map"
