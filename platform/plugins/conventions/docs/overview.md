@@ -127,7 +127,9 @@ conventions/
 ### 文書の検査（`bin/check-docs`）
 
 - **責務**：文書の構造の決まりのうち、検査にしたもの（形式の各節の「検査」に挙げたもの）を、作業ディレクトリを含む
-  リポジトリの Markdown について確かめる。`--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの
+  リポジトリの Markdown（git が無視するものを除く。git の外では、作業ディレクトリの下の `.git` と `node_modules` の
+  ほかのすべて）について確かめる。コードブロックとコードスパンの中は、CommonMark に倣って行ごとに見分け、リンクと
+  見出しと地図としては読まない。`--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの
   属性（区分、タイトル、版と更新日（作業ツリーで書き換えていれば版に `+`）、ADR の状態、地図の項目、前提にする文書と
   在りかを示すだけの文書）を、一次の情報（置き場所、見出し、git の履歴、ADR の frontmatter、地図、リンク）から導いて、
   タブ区切りの一覧に出す。前提をリンクでなくパスで書きうる文書（役割ごとの指示とスキル）の行は、リンクから導けない
@@ -137,7 +139,8 @@ conventions/
   述べること（中身。[形式：検査の範囲](reference/formats.md#check-scope "在りか")）は確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
   `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。検査の試験は
-  `tests/check-docs-test.sh`（形式の各節の「検査」ごとに、守った文書で通り、破った文書で落ちること）、一覧の試験は
+  `tests/check-docs-test.sh`（形式の各節の「検査」ごとに、守った文書で通り、破った文書で落ちること。どの文書を
+  読み、どの行をコードと見分けるかも）、一覧の試験は
   `tests/check-docs-catalog-test.sh`。CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの
   選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。

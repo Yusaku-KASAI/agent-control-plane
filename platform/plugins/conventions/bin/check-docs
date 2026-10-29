@@ -28,7 +28,8 @@ MAP_COLUMNS = ["項目", "親", "置き場所", "前提にする"]
 TOP_MAP = "docs/overview.md"
 FENCE_OPENING = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
 LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)])(?: +|$)")
-CODE_SPAN = re.compile(r"(`[^`\n]*`)")
+# A code span as CommonMark reads it within a line: a run of backticks, and the next run as long closes it.
+CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
 WHOLE = "全体"
 # Files the OS leaves in directories; they are not documents.
 IGNORED_ENTRIES = {".DS_Store"}
@@ -55,16 +56,17 @@ def read(path):
 
 def code_block_lines(text):
     """The indexes of the lines (counted from 0, split at each newline) inside code blocks, the fence lines included.
-    As in CommonMark, a fence closes only at a line of the same character, at least as long, with nothing after it but
-    blanks, and one never closed runs to the end. A fence opens indented up to three columns past where the text of
-    the list item it sits in begins, and a line indented four columns past that, after a blank line or another such
-    line, is indented code. Where an item's text begins is taken from its marker line, and a less indented line moves
-    it back to its own indentation; lazy continuation lines and block quotes are not told apart."""
+    As in CommonMark, a fence opens and closes indented up to three columns past where the text of the list item it
+    sits in begins, also right after the item's marker. It closes only at a line of the same character, at least as
+    long, with nothing after it but blanks, and one never closed runs to the end. A line indented four columns past
+    where the text begins, after a blank line or another such line, is indented code. Where an item's text begins is
+    taken from its marker line, and a less indented line moves it back to its own indentation; lazy continuation
+    lines and block quotes are not told apart."""
     code, opening, base, blank, indented = set(), None, 0, True, False
     for index, line in enumerate(text.split("\n")):
         if opening:
             code.add(index)
-            if re.fullmatch(rf" *{re.escape(opening[0])}{{{len(opening)},}}[ \t]*", line):
+            if re.fullmatch(rf" {{0,{base + 3}}}{re.escape(opening[0])}{{{len(opening)},}}[ \t]*", line):
                 opening, blank = None, True
             continue
         if not line.strip():
@@ -81,7 +83,7 @@ def code_block_lines(text):
             base = item.end()
         elif depth < base:
             base = depth
-        m = FENCE_OPENING.match(line)
+        m = FENCE_OPENING.match(" " * item.end() + line[item.end():] if item else line)
         # The info string of a backtick fence holds no backtick: such a line opens no fence.
         if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
             code.add(index)
@@ -347,8 +349,11 @@ def width(text):
 
 def display_width(line):
     """The width of a line outside code blocks, without the parentheses of the inline links outside code spans."""
-    return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
-                         for part in CODE_SPAN.split(line)))
+    parts, end = [], 0
+    for span in CODE_SPAN.finditer(line):
+        parts += [INLINE_LINK.sub("]", line[end:span.start()]), span.group(0)]
+        end = span.end()
+    return width("".join(parts) + INLINE_LINK.sub("]", line[end:]))
 
 
 def body(path):
@@ -504,7 +509,7 @@ def read_map(paths, errors):
                     errors.append(f"{path}: item {name} is already declared in {items[name]['table']}")
                     continue
                 places = []
-                for p in (span[1:-1] for span in CODE_SPAN.findall(place) if len(span) > 2):
+                for p in (span.group(2) for span in CODE_SPAN.finditer(place)):
                     resolved = os.path.normpath(os.path.join(os.path.dirname(path), p))
                     if not os.path.exists(resolved):
                         errors.append(f"{path}: place {p} of item {name} does not exist")

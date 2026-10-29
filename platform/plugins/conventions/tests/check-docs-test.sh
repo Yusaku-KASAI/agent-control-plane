@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks that check-docs passes documents that keep each check of docs/reference/formats.md, and fails those that
-# break one, with the error that names it.
+# break one, with the error that names it; and which documents it reads, and which lines it reads as code.
 # The backquotes are Markdown, not commands.
 # shellcheck disable=SC2016
 set -euo pipefail
@@ -488,7 +488,7 @@ add docs/reference/r.md '
 [x](#plain-heading-1)'
 passes "a link to the second of two same ASCII headings passes"
 
-echo "# 囲みのコードとコードスパン"
+echo "# コードブロックとコードスパン"
 fresh
 add docs/reference/r.md '`[x](missing.md)`
 
@@ -576,8 +576,73 @@ add docs/reference/r.md '- 項目
 
   続き
 
+      [x](missing.md)'
+passes "a less indented line goes back to the list item it continues"
+fresh
+add docs/reference/r.md '- 項目
+  - 中の項目
+
+  続き
+
     [x](missing.md)'
-fails "a less indented line goes back to the list item it continues" "docs/reference/r.md: broken link missing.md"
+fails "a line indented less than four past the item it goes back to is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- 項目
+
+text
+    ```
+[x](missing.md)'
+fails "a paragraph after a list goes back to no indentation" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '1. 項目
+
+    [x](missing.md)'
+fails "a paragraph in a numbered list item is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '```
+x
+```
+    [x](missing.md)'
+passes "a line indented four columns right after a fence is indented code"
+fresh
+add docs/reference/r.md '```
+    ```
+[x](missing.md)
+```'
+passes "a fence line indented four columns does not close a fence"
+fresh
+add docs/reference/r.md '```
+    ```
+```
+
+[x](missing.md)'
+fails "a link after a fence with a deeply indented fence line in it is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- 項目
+
+  ```
+        ```
+  [x](missing.md)
+  ```'
+passes "a fence line indented four columns past a list item does not close a fence"
+fresh
+add docs/reference/r.md '- ```md
+  [x](missing.md)
+  ```'
+passes "a fence right after a list marker is fenced code"
+fresh
+add docs/reference/r.md '- ```md
+  x
+  ```
+
+[x](missing.md)'
+fails "a link after a fence that opens after a list marker is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '`` `[x](missing.md)` ``'
+passes "a code span of two backticks hides its link"
+fresh
+add docs/reference/r.md '`` [x](missing.md)'
+fails "two backticks never closed make no code span" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '```x`y
 [x](missing.md)'
@@ -616,6 +681,9 @@ add CLAUDE.md "\`\`\`
 [$(wide 126)](docs/README.md)
 \`\`\`"
 fails "the parentheses of a link in fenced code are counted" "CLAUDE.md:6: 144 columns wide"
+fresh
+add CLAUDE.md "\`\`\`[$(wide 126)](docs/README.md)"
+fails "the line that opens a fence is counted as code" "CLAUDE.md:5: 147 columns wide"
 fresh
 add CLAUDE.md "$(printf 'Ａ%.0s' $(seq 65))a"
 fails "a fullwidth character counts two columns" "CLAUDE.md:5: 131 columns wide"

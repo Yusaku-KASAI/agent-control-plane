@@ -62,21 +62,25 @@ mkdir -p "$tmp/market/plugins" "$tmp/market/docs/reference" "$tmp/elsewhere"
 cp -R "$plugin" "$tmp/market/plugins/harness"
 cp -R "$plugin" "$tmp/elsewhere/harness"
 touch "$tmp/market/docs/README.md" "$tmp/market/docs/reference/harness.md"
+out=$(context "$tmp/market/plugins/harness")
 check "a copy in another marketplace tells the docs beside its plugins" "$tmp/market/docs/reference/harness.md
-$tmp/market/docs/README.md" "$(told "$(context "$tmp/market/plugins/harness")")"
+$tmp/market/docs/README.md" "$(told "$out")"
 rm "$tmp/market/docs/reference/harness.md"
+out=$(context "$tmp/market/plugins/harness")
 check "a marketplace without the contract is told as not found" "（見つからない。platform の docs/）/reference/harness.md
-（見つからない。platform の docs/）/README.md" "$(told "$(context "$tmp/market/plugins/harness")")"
+（見つからない。platform の docs/）/README.md" "$(told "$out")"
 # Outside a marketplace, the docs are looked for where every target declares the marketplace. That place is
 # moved into the temporary directory in the copy: a script that names another place is left unchanged and fails.
 sed -i "s#/workspace/agent-platform/docs#$tmp/declared/docs#" "$tmp/elsewhere/harness/scripts/context"
 mkdir -p "$tmp/declared/docs/reference"
 touch "$tmp/declared/docs/reference/harness.md"
+out=$(context "$tmp/elsewhere/harness")
 check "a copy outside a marketplace looks where targets declare it" "$tmp/declared/docs/reference/harness.md
-$tmp/declared/docs/README.md" "$(told "$(context "$tmp/elsewhere/harness")")"
+$tmp/declared/docs/README.md" "$(told "$out")"
 rm "$tmp/declared/docs/reference/harness.md"
+out=$(context "$tmp/elsewhere/harness")
 check "a copy outside a marketplace without the contract there is told as not found" \
   "（見つからない。platform の docs/）/reference/harness.md
-（見つからない。platform の docs/）/README.md" "$(told "$(context "$tmp/elsewhere/harness")")"
+（見つからない。platform の docs/）/README.md" "$(told "$out")"
 
 exit "$failed"
