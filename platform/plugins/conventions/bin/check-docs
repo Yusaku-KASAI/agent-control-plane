@@ -94,7 +94,8 @@ def code_block_lines(text):
     columns past where the text begins is indented code unless it continues a paragraph. Where the text of each open
     list item begins is taken from its marker line; a less indented line ends the items it is outside of. Lazy
     continuation lines, list markers that cannot interrupt a paragraph (an empty item, a number other than 1, a marker
-    indented four columns; a lone - after a paragraph is read as an empty item, not a heading's underline), block
+    indented four columns; a lone - after a paragraph is read as an empty item, not a heading's underline), a line of
+    = or of two or more - that follows no paragraph (read as a heading's underline all the same), block
     quotes, a second list marker on the marker line, headings and comments right after a list marker, comments inside
     a line, other HTML blocks, tabs, and backslash escapes are not told apart. Code spans are told by CODE_SPAN."""
     lines = text.split("\n")

@@ -1482,6 +1482,23 @@ sed -i 's/^| p | | `..\/p\/` | |$/| p | | `..\/p\/` | repo |/' "$repo/docs/overv
 add p/docs/guides/do.md '3. **引く**：[参照](../../../docs/reference/r.md) を引く。'
 passes "a link along the prerequisites passes"
 fresh
+add docs/overview.md '| q | | `../q/` | |
+| s | | `../s/` | q |
+| t | | `../t/` | s |'
+put q/a.md '# A'
+put s/b.md '# B'
+put t/c.md '# C
+
+[a](../q/a.md)'
+add docs/README.md '- [a](../q/a.md)
+- [b](../s/b.md)
+- [c](../t/c.md)'
+passes "a link along a prerequisite of a prerequisite passes"
+put q/a.md '# A
+
+[c](../t/c.md)'
+fails "a link against a prerequisite of a prerequisite fails" "q/a.md: relies on ../t/c.md, but q may not rely on t"
+fresh
 add docs/reference/r.md '[do](../../p/docs/guides/do.md) [adr](../adr/0001-first.md)'
 add docs/adr/0001-first.md '[do](../../p/docs/guides/do.md)'
 fails "a link to a sibling not relied on fails" "docs/reference/r.md: relies on ../../p/docs/guides/do.md, but repo may not rely on p"
