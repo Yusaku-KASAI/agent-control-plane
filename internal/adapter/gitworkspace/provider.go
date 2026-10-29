@@ -98,7 +98,8 @@ func installHooks(repo string, id domain.SessionID) error {
 
 // gitRunner ignores the host user's git configuration and credential helpers, so they do not affect
 // the result; github.com's SSH URLs are read as HTTPS, for the token to apply (other SSH origins
-// still use the host's SSH setup). Bind-mounted repositories may show a foreign owner inside a
+// still use the host's SSH setup). The token is given to github.com alone: a remote, a submodule
+// or a redirect elsewhere gets none. Bind-mounted repositories may show a foreign owner inside a
 // container, hence safe.directory.
 type gitRunner struct {
 	token string
@@ -109,7 +110,16 @@ const tokenHelper = `!f() { test "$1" = get && echo username=x-access-token && e
 func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
+	cmd.Env = g.env()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (g gitRunner) env() []string {
+	return append(os.Environ(),
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_TERMINAL_PROMPT=0",
@@ -117,16 +127,11 @@ func (g gitRunner) run(ctx context.Context, dir string, args ...string) (string,
 		"GIT_OPTIONAL_LOCKS=0",
 		"ACP_GIT_TOKEN="+g.token,
 		"GIT_CONFIG_COUNT=4",
-		"GIT_CONFIG_KEY_0=credential.helper", "GIT_CONFIG_VALUE_0="+tokenHelper,
+		"GIT_CONFIG_KEY_0=credential.https://github.com.helper", "GIT_CONFIG_VALUE_0="+tokenHelper,
 		"GIT_CONFIG_KEY_1=url.https://github.com/.insteadOf", "GIT_CONFIG_VALUE_1=git@github.com:",
 		"GIT_CONFIG_KEY_2=url.https://github.com/.insteadOf", "GIT_CONFIG_VALUE_2=ssh://git@github.com/",
 		"GIT_CONFIG_KEY_3=safe.directory", "GIT_CONFIG_VALUE_3=*",
 	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 // Origin returns the origin URL of the repository at path, or "" when it has none.
