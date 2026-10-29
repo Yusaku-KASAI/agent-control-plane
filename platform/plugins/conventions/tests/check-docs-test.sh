@@ -582,6 +582,12 @@ put docs/reference/s.txt 'x'
 add docs/reference/r.md '[s](s.txt#L1)'
 passes "a link into a file that is not Markdown has its fragment unchecked"
 fresh
+add docs/reference/r.md '
+## Go の試験
+
+[g](r.md#go-)'
+fails "a heading not all in ASCII gives no id" "docs/reference/r.md: no anchor #go- in r.md"
+fresh
 add docs/reference/r.md '[x](#part) [y](#plain-heading) [z](r.md#part)'
 passes "links to an <a id> and to an ASCII heading pass"
 fresh
@@ -791,6 +797,13 @@ add docs/reference/r.md '-    ```
 
     [x](missing.md)'
 passes "a line after a fence that its list item ended may be indented code"
+fresh
+add docs/reference/r.md '- item
+  <!-- c
+-->
+
+    code [x](missing.md)'
+passes "a closing line less indented than its item ends the item"
 fresh
 add docs/reference/r.md '**太字**の段落
     ```

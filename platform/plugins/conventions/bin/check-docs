@@ -104,6 +104,9 @@ def code_block_lines(text):
                 code.add(index)
                 if is_closing(line):
                     block, after_block = None, True
+                    # A closing line less indented than the text of its item ends that item as any such line does.
+                    while items and items[-1] > depth:
+                        items.pop()
                 continue
             # The block ended with its list item: this line continues no paragraph.
             block, after_block = None, True
