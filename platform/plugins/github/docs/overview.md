@@ -93,7 +93,7 @@ github/
   - 整っている状態のうち、上の四つのほかは確かめない（判断が要り、課題を整える手順に任せる。テーマの本文の中身が
     メンバーや overview と合っているかも含む）。
   - Issue を書き換えない。読むだけ。CI では回さない（Issue は PR と関わりなく変わる）。課題を整えるときとセッションを
-    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)）。
+    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)、[0033](../../../docs/adr/0033-check-issues-checks-theme-sections.md)）。
 - **関係**：`gh` と `jq` を使い、本文の行は `lib/markdown.jq` で読む。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
   スキルの「Issue のずれを挙げる」が届ける。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：ロードマップの今の焦点が古いまま残る
