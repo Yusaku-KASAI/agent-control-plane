@@ -606,8 +606,8 @@ check "a review over GitHub's limit is refused" \
 # The names the form takes are those of the conventions.
 reviews=$(dirname "$prctl")/../../conventions/docs/reference/reviews.md
 forms=$(dirname "$prctl")/../lib
-# section <file> <anchor>: the section that the anchor marks, up to the next section of its level,
-# so that a heading may be renamed.
+# section <file> <anchor>: the section of ## that the anchor marks, up to the next heading of ##, so
+# that a heading may be renamed.
 section() { awk -v id="$2" 'on && /^## / { if (seen) exit; seen = 1 } $0 == "<a id=\"" id "\"></a>" { on = 1 } on' "$1"; }
 column() { section "$reviews" "$1" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
 check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column perspectives)"
