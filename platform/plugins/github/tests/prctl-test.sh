@@ -646,7 +646,7 @@ for line in 'Closes #1, #2' 'Closes #1 and fixes owner/repo#2'; do
   check "\"$line\" is refused as naming more issues than the request" \
     "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|$line|" <<<"$good")" 2>&1 || true)" "a line of Closes or Refs names more issues than the request"
 done
-for line in 'Closes #2 についても直した' 'Closes #2.' '- Refs #2'; do
+for line in 'Closes #2 についても直した' 'Closes #2.' '- Refs #2' '1. Refs #2' '> - Closes #2'; do
   check "\"$line\" names its issue, whatever follows" "$("$prctl" create t - <<<"$good"$'\n'"$line" 2>&1 || true)" \
     "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"
 done

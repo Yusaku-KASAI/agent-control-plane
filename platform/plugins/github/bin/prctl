@@ -70,10 +70,10 @@ forms=$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd) || forms=
 readonly forms
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
 # The start of a line that closes or refers to an issue (writing.md: PR), by any of GitHub's keywords,
-# in any case, also as an item of a list: the one form both the body's check and the reading of a PR's
+# in any case, also as an item of a list or in a quote: the one form both the body's check and the reading of a PR's
 # request issue go by, as GitHub closes the issue whatever follows. Matched as a jq regex with the
 # flag "i".
-readonly issue_start_re='^\s*([-*+]\s+)?(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
+readonly issue_start_re='^\s*([-*+]\s+|[0-9]+[.)]\s+|>\s*)*(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
 # Such a line with nothing after the issue, which is not what is written under a section.
 readonly issue_line_re=$issue_start_re'\s*$'
 
@@ -674,11 +674,10 @@ request_issues() {
 }
 
 # body_check <body>: die unless the body has the sections, in order, once each, none of them empty,
-# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR), whatever
-# follows it on the line. Lines in code blocks are not headings, and name no issue. Such lines with
-# nothing after the issue, the attribution line and the old
-# marker of the head, which the body loses when it is written, do not count as what is written under
-# a section.
+# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR),
+# whatever follows it on the line. Lines in code blocks are not headings, and name no issue. Such
+# lines with nothing after the issue, the attribution line and the old marker of the head, which the
+# body loses when it is written, do not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs --arg line "$issue_line_re" --arg start "$issue_start_re" --args "$body_lines"'
