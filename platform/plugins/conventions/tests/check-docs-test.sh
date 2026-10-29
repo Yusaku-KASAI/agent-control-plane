@@ -784,6 +784,45 @@ add docs/reference/r.md '<!--
 [x](missing.md)'
 fails "a fence line in an HTML comment opens nothing" "docs/reference/r.md: broken link missing.md"
 fresh
+add docs/reference/r.md '<!--
+[x](missing.md)
+<a id="only"></a>
+-->
+
+[y](#only)'
+fails "an HTML comment is read as code" "docs/reference/r.md: no anchor #only"
+fresh
+add docs/reference/r.md '<!-- note -->
+
+[x](missing.md)'
+fails "a link after a one-line HTML comment is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md 'text
+
+    <!--
+[x](missing.md)'
+fails "an HTML comment indented four columns opens no comment" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '-   項目
+
+      [x](missing.md)'
+fails "the text of a list item begins after all the spaces after its marker" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '-      a
+
+     [x](missing.md)'
+fails "after five spaces after a marker, the text of the item begins one space after it" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- a
+  ```sh
+  x
+- b [x](missing.md)
+
+```
+y
+```'
+fails "a fence in a list item that nothing closes before the next item ends there" "docs/reference/r.md: broken link missing.md"
+fresh
 add docs/reference/r.md '1) 項目
 
     [x](missing.md)'

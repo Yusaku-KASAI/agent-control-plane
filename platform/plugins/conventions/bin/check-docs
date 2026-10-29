@@ -27,7 +27,7 @@ MAP_ANCHOR = re.compile(r'<a id="map-[a-z0-9-]+"></a>')
 MAP_COLUMNS = ["項目", "親", "置き場所", "前提にする"]
 TOP_MAP = "docs/overview.md"
 FENCE_OPENING = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
-LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)])(?: +|$)")
+LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)])( +|$)")
 # A code span as CommonMark reads it within a line: a run of backticks, and the next run as long closes it.
 CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
 WHOLE = "全体"
@@ -59,17 +59,28 @@ def closes(line, fence, base):
     return bool(re.fullmatch(rf" {{0,{base + 3}}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*", line))
 
 
+def closed_before_next_item(rest, fence, base):
+    """Whether a line of rest closes the fence before a marker line of the same or an outer list, which ends its item."""
+    for line in rest:
+        if closes(line, fence, base):
+            return True
+        item = LIST_ITEM.match(line)
+        if base and item and len(line) - len(line.lstrip(" ")) < base:
+            return False
+    return False
+
+
 def code_block_lines(text):
     """The indexes of the lines (counted from 0, split at each newline) inside code blocks, the fence lines included.
     As in CommonMark, a fence opens and closes indented up to three columns past where the text of the list item it
     sits in begins, also right after the item's marker. It closes at a line of the same character, at least as long,
-    with nothing after it but blanks. A fence in a list item that no such line closes ends where the item ends, and
-    one elsewhere runs to the end; a fence that is closed later keeps less indented lines (such as the end of a here
-    document) as code, as the slack plugin's check-markdown does. A line indented four columns past where the text
-    begins, after a blank line, a closing fence or another line of indented code, is indented code. Where the text of
-    each open list item begins is taken from its marker line; a less indented line ends the items it is outside of.
-    Lazy continuation lines, block quotes, HTML blocks other than comments, tabs, and backslash escapes are not told
-    apart."""
+    with nothing after it but blanks. A fence in a list item that no such line closes before the next item of the same
+    or an outer list ends where the item ends, and one elsewhere runs to the end; a fence that is closed so keeps less
+    indented lines (such as the end of a here document) as code, so that its closing line opens no fence that would
+    hide the rest. A line indented four columns past where the text begins, after a blank line, a closing fence or
+    another line of indented code, is indented code. Where the text of each open list item begins is taken from its
+    marker line; a less indented line ends the items it is outside of. An HTML comment is read as code as well. Lazy
+    continuation lines, block quotes, other HTML blocks, tabs, and backslash escapes are not told apart."""
     lines = text.split("\n")
     code, opening, closed_later, items, blank, indented, comment = set(), None, False, [], True, False, False
     for index, line in enumerate(lines):
@@ -83,30 +94,32 @@ def code_block_lines(text):
                 continue
             opening = None
         if comment or (line.lstrip().startswith("<!--") and depth <= base + 3):
-            # A fence line inside an HTML comment opens nothing.
+            code.add(index)
             comment = "-->" not in (line.split("<!--", 1)[1] if not comment else line)
             blank = False
             continue
         if not line.strip():
             blank = True
             continue
+        while items and items[-1] > depth:
+            items.pop()
+        base = items[-1] if items else 0
         indented = depth >= base + 4 and (blank or indented)
         blank = False
         if indented:
             code.add(index)
             continue
         item = LIST_ITEM.match(line)
-        while items and items[-1] > depth:
-            items.pop()
         if item:
-            items.append(item.end())
+            # Five spaces or more after the marker start indented code: the text then begins one space after it.
+            items.append(item.end() if len(item.group(1)) < 5 else item.start(1) + 1)
         base = items[-1] if items else 0
         m = FENCE_OPENING.match(" " * item.end() + line[item.end():] if item else line)
         # The info string of a backtick fence holds no backtick: such a line opens no fence.
         if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
             code.add(index)
             opening = m.group(2)
-            closed_later = any(closes(rest, opening, base) for rest in lines[index + 1:])
+            closed_later = closed_before_next_item(lines[index + 1:], opening, base)
     return code
 
 
