@@ -26,7 +26,8 @@ ANCHOR = re.compile(r'<a id="([^"]+)"></a>')
 MAP_ANCHOR = re.compile(r'<a id="map-[a-z0-9-]+"></a>')
 MAP_COLUMNS = ["項目", "親", "置き場所", "前提にする"]
 TOP_MAP = "docs/overview.md"
-FENCE_OPENING = re.compile(r"^ *(`{3,}|~{3,})(.*)$")
+FENCE_OPENING = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
+LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)])(?: +|$)")
 CODE_SPAN = re.compile(r"(`[^`\n]*`)")
 WHOLE = "全体"
 # Files the OS leaves in directories; they are not documents.
@@ -52,34 +53,50 @@ def read(path):
         return f.read()
 
 
-def fenced_lines(text):
-    """The indexes of the lines (counted from 0, split at each newline) inside fenced code, the fence lines included.
+def code_block_lines(text):
+    """The indexes of the lines (counted from 0, split at each newline) inside code blocks, the fence lines included.
     As in CommonMark, a fence closes only at a line of the same character, at least as long, with nothing after it but
-    blanks, and one never closed runs to the end. A fence may be indented to any depth, as fences in list items are;
-    indented code blocks are not told apart."""
-    fenced, opening = set(), None
+    blanks, and one never closed runs to the end. A fence opens indented up to three columns past where the text of
+    the list item it sits in begins, and a line indented four columns past that, after a blank line or another such
+    line, is indented code. Where an item's text begins is taken from its marker line, and a less indented line moves
+    it back to its own indentation; lazy continuation lines and block quotes are not told apart."""
+    code, opening, base, blank, indented = set(), None, 0, True, False
     for index, line in enumerate(text.split("\n")):
         if opening:
-            fenced.add(index)
+            code.add(index)
             if re.fullmatch(rf" *{re.escape(opening[0])}{{{len(opening)},}}[ \t]*", line):
-                opening = None
+                opening, blank = None, True
             continue
+        if not line.strip():
+            blank = True
+            continue
+        depth = len(line) - len(line.lstrip(" "))
+        indented = depth >= base + 4 and (blank or indented)
+        blank = False
+        if indented:
+            code.add(index)
+            continue
+        item = LIST_ITEM.match(line)
+        if item:
+            base = item.end()
+        elif depth < base:
+            base = depth
         m = FENCE_OPENING.match(line)
-        # The info string of a backtick fence holds no backtick: such a line is a code span instead.
-        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
-            fenced.add(index)
-            opening = m.group(1)
-    return fenced
+        # The info string of a backtick fence holds no backtick: such a line opens no fence.
+        if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
+            code.add(index)
+            opening = m.group(2)
+    return code
 
 
-def without_fences(text):
-    """The text with the lines of fenced code left empty, so that the other lines keep their numbers."""
-    fenced = fenced_lines(text)
-    return "\n".join("" if index in fenced else line for index, line in enumerate(text.split("\n")))
+def without_code_blocks(text):
+    """The text with the lines of code blocks left empty, so that the other lines keep their numbers."""
+    code = code_block_lines(text)
+    return "\n".join("" if index in code else line for index, line in enumerate(text.split("\n")))
 
 
 def strip_code(text):
-    return CODE_SPAN.sub("", without_fences(text))
+    return CODE_SPAN.sub("", without_code_blocks(text))
 
 
 def links(text):
@@ -118,7 +135,7 @@ def is_index(path):
 
 def anchors(path):
     """The ids set with <a id>, and the ids GitHub derives from headings written in ASCII only."""
-    text = without_fences(read(path))
+    text = without_code_blocks(read(path))
     ids = set(ANCHOR.findall(CODE_SPAN.sub("", text)))
     seen = {}
     for heading in re.findall(r"^#{1,6} (.+)$", text, re.M):
@@ -248,8 +265,8 @@ def check_docs_dirs(paths, errors):
 
 
 def check_components(path, errors):
-    # Only fenced blocks are dropped: headings often consist of inline code, such as a path.
-    text = without_fences(read(path))
+    # Only code blocks are dropped: headings often consist of inline code, such as a path.
+    text = without_code_blocks(read(path))
     m = re.search(r"^## 構成要素\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not m:
         errors.append(f"{path}: no '## 構成要素' section")
@@ -262,7 +279,7 @@ def check_components(path, errors):
 
 def check_procedure(path, errors):
     """A purpose procedure starts with the step that reads, and tells where a new request begins; a common one does neither, and points to no other procedure in the same guides/."""
-    text = without_fences(read(path))
+    text = without_code_blocks(read(path))
     # Lines are folded anywhere, even inside a word: join them before looking for a phrase.
     # The opening is what comes before the first section or step.
     intro = re.sub(r"\n[ \t]*", "", re.split(r"\n(?:1\. |## )", text, maxsplit=1)[0])
@@ -329,7 +346,7 @@ def width(text):
 
 
 def display_width(line):
-    """The width of a line outside fenced code, without the parentheses of the inline links outside code spans."""
+    """The width of a line outside code blocks, without the parentheses of the inline links outside code spans."""
     return width("".join(part if CODE_SPAN.fullmatch(part) else INLINE_LINK.sub("]", part)
                          for part in CODE_SPAN.split(line)))
 
@@ -358,9 +375,9 @@ def check_sizes(paths, errors):
     for path in paths:
         if any(matches(path) for matches, _, _ in ALWAYS_READ):
             text, skipped = body(path)
-            fenced = fenced_lines(text)
+            code = code_block_lines(text)
             for index, line in enumerate(text.split("\n")):
-                columns = width(line) if index in fenced else display_width(line)
+                columns = width(line) if index in code else display_width(line)
                 if columns > WIDTH_LIMIT:
                     errors.append(f"{path}:{index + skipped + 1}: {columns} columns wide, more than the "
                                   f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
@@ -371,7 +388,7 @@ def is_role(path):
     other custom agents (helpers that are no role) may sit: there, only a text that says it is a role is one."""
     if in_plugin_dir(path, "agents"):
         return True
-    return in_project_agents(path) and "ロールとして" in re.sub(r"\n[ \t]*", "", without_fences(read(path)).split("\n## ", 1)[0])
+    return in_project_agents(path) and "ロールとして" in re.sub(r"\n[ \t]*", "", without_code_blocks(read(path)).split("\n## ", 1)[0])
 
 
 def check_roles(paths, errors):
@@ -379,7 +396,7 @@ def check_roles(paths, errors):
     for path in paths:
         if not is_role(path):
             continue
-        text = without_fences(read(path))
+        text = without_code_blocks(read(path))
         sections = re.findall(r"(?m)^## (.+)$", text)
         takes = re.search(r"(?ms)^## 受け持つ手順$(.*?)(?=^## |\Z)", text)
         if not sections or sections[0] != "受け持つ手順":
@@ -453,7 +470,7 @@ class Map:
 def map_tables(path, errors):
     """The rows of each map table in a file. A table belongs to the <a id="map-..."> before it; a heading
     and text may come between them, but not another heading."""
-    text = without_fences(read(path))
+    text = without_code_blocks(read(path))
     code_free = CODE_SPAN.sub(lambda m: " " * len(m.group(0)), text)
     tables = []
     for anchor in MAP_ANCHOR.finditer(code_free):
@@ -474,15 +491,11 @@ def map_tables(path, errors):
     return tables
 
 
-def is_overview(path):
-    return os.path.basename(path) == "overview.md" and os.path.basename(os.path.dirname(path)) == "docs"
-
-
 def read_map(paths, errors):
-    items = {}
+    items, roots = {}, docs_roots(paths)
     for path in paths:
         tables = map_tables(path, errors)
-        if tables and not is_overview(path):
+        if tables and not (os.path.basename(path) == "overview.md" and os.path.dirname(path) in roots):
             errors.append(f"{path}: a map sits in the docs/overview.md of the item it maps")
         for rows in tables:
             for cells in rows:
@@ -491,7 +504,7 @@ def read_map(paths, errors):
                     errors.append(f"{path}: item {name} is already declared in {items[name]['table']}")
                     continue
                 places = []
-                for p in re.findall(r"`([^`]+)`", place):
+                for p in (span[1:-1] for span in CODE_SPAN.findall(place) if len(span) > 2):
                     resolved = os.path.normpath(os.path.join(os.path.dirname(path), p))
                     if not os.path.exists(resolved):
                         errors.append(f"{path}: place {p} of item {name} does not exist")
@@ -501,11 +514,11 @@ def read_map(paths, errors):
     if not items:
         return None
     m = Map(items)
-    roots = sorted({item["table"] for item in items.values() if item["parent"] is None})
-    if len(roots) != 1:
-        errors.append(f"top-level items must be declared in exactly one table, found in: {', '.join(roots) or 'none'}")
-    elif roots[0] != TOP_MAP:
-        errors.append(f"{roots[0]}: top-level items are declared in {TOP_MAP}")
+    tops = sorted({item["table"] for item in items.values() if item["parent"] is None})
+    if len(tops) != 1:
+        errors.append(f"top-level items must be declared in exactly one table, found in: {', '.join(tops) or 'none'}")
+    elif tops[0] != TOP_MAP:
+        errors.append(f"{tops[0]}: top-level items are declared in {TOP_MAP}")
     for name, item in items.items():
         parent, table = item["parent"], item["table"]
         if parent is not None and parent not in items:
@@ -631,7 +644,7 @@ def kind_of(path):
 def title_of(path):
     """The first heading, or the name in the frontmatter of a document without one (a role instruction)."""
     text = read(path)
-    m = re.search(r"^# (.+)$", without_fences(text), re.M)
+    m = re.search(r"^# (.+)$", without_code_blocks(text), re.M)
     if m:
         return m.group(1).strip()
     return (parse_frontmatter(path, text, []) or {}).get("name", "")

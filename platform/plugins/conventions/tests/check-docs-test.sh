@@ -26,9 +26,10 @@ passes() {
   fi
 }
 
+# Run from the directory $3 inside the repository when given.
 fails() {
   local name=$1 want=$2 out
-  if out=$(cd "$repo" && "$bin" 2>&1); then
+  if out=$(cd "$repo/${3:-}" && "$bin" 2>&1); then
     echo "FAIL $name: it passes, want an error with '$want'"
     failed=1
   elif grep -qF -- "$want" <<<"$out"; then
@@ -247,6 +248,22 @@ fresh
 add p/docs/guides/part.md '2. **引く**：[索引](../README.md) を引く。'
 passes "a common procedure that points outside the procedures passes"
 fresh
+add p/docs/guides/part.md '2. **戻る**：[この手順](part.md) の 1 に戻る。'
+passes "a common procedure that points into itself passes"
+fresh
+put p/docs/guides/sub/x.md '# X
+
+x をする手順。'
+add p/docs/README.md '- [x](guides/sub/x.md)'
+fails "a plugin's procedure in a directory under guides/ tells its layer" "p/docs/guides/sub/x.md: a plugin's procedure tells its layer"
+fresh
+put docs/guides/g.md '# G
+
+目的の手順で、新しい依頼は振り分けから入る。
+
+1. **書く**：書く。'
+fails "a procedure outside plugins that tells its layer keeps that layer's form" "docs/guides/g.md: a purpose procedure starts with the step"
+fresh
 add p/docs/guides/do.md '3. 名前のない段。'
 fails "a step without a bold name fails" "p/docs/guides/do.md: a step is numbered and named in bold"
 
@@ -332,6 +349,22 @@ date: 2026-01-01
 
 # 0001. First'
 fails "a superseded ADR without superseded_by fails" "docs/adr/0001-first.md: status superseded goes with superseded_by"
+fresh
+adr 0001-first.md '---
+status: accepted
+date: 2026-01-01
+superseded_by: [2]
+---
+
+# 0001. First'
+adr 0002-second.md '---
+status: accepted
+date: 2026-01-02
+supersedes: [1]
+---
+
+# 0002. Second'
+fails "an ADR not superseded with superseded_by fails" "docs/adr/0001-first.md: status superseded goes with superseded_by"
 fresh
 adr 0001-first.md '---
 status: accepted
@@ -444,6 +477,11 @@ fresh
 add docs/reference/r.md '[x](#part) [y](#plain-heading) [z](r.md#part)'
 passes "links to an <a id> and to an ASCII heading pass"
 fresh
+add docs/reference/r.md '`<a id="only-code"></a>`
+
+[x](#only-code)'
+fails "an <a id> in a code span is no anchor" "docs/reference/r.md: no anchor #only-code in docs/reference/r.md"
+fresh
 add docs/reference/r.md '
 ## Plain Heading
 
@@ -499,6 +537,47 @@ add docs/reference/r.md '- 項目
       [x](missing.md)
       ```'
 passes "a fence indented deep in a list item is fenced code"
+fresh
+add docs/reference/r.md '  - 項目
+
+    ```
+    [x](missing.md)
+    ```'
+passes "a fence in a nested list item is fenced code"
+fresh
+add docs/reference/r.md '- 項目
+
+  [x](missing.md)'
+fails "a paragraph in a list item is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md 'text
+
+    [x](missing.md)
+
+    [y](missing.md)'
+passes "lines indented four columns after a blank line are indented code"
+fresh
+add docs/reference/r.md 'text
+    ```
+[x](missing.md)'
+fails "a fence indented four columns outside a list opens nothing" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md 'text
+    [x](missing.md)'
+fails "a line indented four columns right after a paragraph is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '  - 項目
+
+    [x](missing.md)'
+fails "a paragraph in a nested list item is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- 項目
+  - 中の項目
+
+  続き
+
+    [x](missing.md)'
+fails "a less indented line goes back to the list item it continues" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '```x`y
 [x](missing.md)'
@@ -586,6 +665,9 @@ fresh
 add docs/overview.md '| p | | `../p/docs/` | |'
 fails "an item declared twice fails" "docs/overview.md: item p is already declared"
 fresh
+add docs/overview.md '| q | | | nope |'
+fails "a prerequisite that is no item fails" "docs/overview.md: item q may only rely on its siblings, not nope"
+fresh
 add docs/overview.md '| q | x | | |'
 fails "an item of an unknown parent fails" "docs/overview.md: item q has unknown parent x"
 fresh
@@ -648,6 +730,29 @@ ${top/top/r}
 | q | | | |"
 fails "a map outside an overview fails" "docs/reference/r.md: a map sits in the docs/overview.md of the item it maps"
 fresh
+put docs/architecture/overview.md "# AO
+
+## 構成要素
+
+### y
+
+- **責務**：y を持つ。
+
+${top/top/ao}
+| q | | | |"
+add docs/README.md '- [ao](architecture/overview.md)'
+fails "a map in an overview outside a docs root fails" "docs/architecture/overview.md: a map sits in the docs/overview.md"
+fresh
+put q/docs/overview.md "# Q
+
+${top/top/q}
+| q-in | p | | |"
+add p/docs/README.md '- [q](../../q/docs/overview.md)'
+fails "a map in a docs/ without an index fails" "q/docs/overview.md: a map sits in the docs/overview.md"
+fresh
+add docs/reference/r.md 'The form `<a id="map-x"></a>` starts a map.'
+passes "a map anchor in a code span starts no map"
+fresh
 add docs/reference/r.md '
 <a id="map-r"></a>
 
@@ -698,14 +803,7 @@ put docs/reference/x.md '[x](missing.md)'
 fails "outside a git work tree, every other Markdown file is checked" "docs/reference/x.md: broken link missing.md"
 fresh
 add docs/reference/r.md '[x](missing.md)'
-if out=$(cd "$repo/docs/guides" && "$bin" 2>&1); then
-  echo "FAIL from a directory inside the repository, the whole repository is checked: it passes"
-  failed=1
-elif grep -qF "docs/reference/r.md: broken link missing.md" <<<"$out"; then
-  echo "ok   from a directory inside the repository, the whole repository is checked"
-else
-  echo "FAIL from a directory inside the repository, the whole repository is checked: got '$out'"
-  failed=1
-fi
+fails "from a directory inside the repository, the whole repository is checked" "docs/reference/r.md: broken link missing.md" \
+  docs/guides
 
 exit "$failed"
