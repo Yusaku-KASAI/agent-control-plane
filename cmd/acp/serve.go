@@ -90,7 +90,7 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		CredentialsVolume:  cfg.Credentials.Volume,
 	}
 	observer := &sessionObserver{log: log}
-	answers := usecase.NewAgentAnswers(observer, usecase.AgentAnswerGrace)
+	answers := usecase.NewAgentAnswers(observer)
 	turns := usecase.NewDispatcher(
 		cfg.Agents,
 		sessions,

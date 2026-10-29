@@ -8,9 +8,9 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
 
-// AgentAnswerGrace is how long a held answer waits for the agent's next turn after background work
+// agentAnswerGrace is how long a held answer waits for the agent's next turn after background work
 // runs out, since the agent reports the end of its tasks shortly before it starts that turn.
-const AgentAnswerGrace = 15 * time.Second
+const agentAnswerGrace = 15 * time.Second
 
 // RestartNotice tells a thread that a restart stopped its agent, with the work cut short unknown.
 const RestartNotice = "control-plane が再起動したため、このスレッドのエージェントを止めました。処理の途中だった場合は中断されています。" +
@@ -42,8 +42,8 @@ type heldAnswer struct {
 // Dispatcher.Close finds Flush only through ObserverFlusher; missing it would lose held answers.
 var _ ObserverFlusher = (*AgentAnswers)(nil)
 
-func NewAgentAnswers(next SessionObserver, grace time.Duration) *AgentAnswers {
-	return &AgentAnswers{next: next, grace: grace,
+func NewAgentAnswers(next SessionObserver) *AgentAnswers {
+	return &AgentAnswers{next: next, grace: agentAnswerGrace,
 		sessions: make(map[domain.SessionID]*heldAnswer), releases: make(map[*time.Timer]func())}
 }
 

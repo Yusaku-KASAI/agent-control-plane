@@ -131,7 +131,8 @@ func TestAgentAnswers(t *testing.T) {
 			[]string{RestartNotice}},
 	} {
 		next := &noticeRecorder{}
-		a := NewAgentAnswers(next, 20*time.Millisecond)
+		a := NewAgentAnswers(next)
+		a.grace = 20 * time.Millisecond
 		s := domain.Session{ID: "sess"}
 		for _, e := range tc.events {
 			a.Observe(s, e)
@@ -191,7 +192,8 @@ func TestAgentAnswersFlush(t *testing.T) {
 			[]string{ShutdownNotice}},
 	} {
 		next := &noticeRecorder{}
-		a := NewAgentAnswers(next, time.Hour)
+		a := NewAgentAnswers(next)
+		a.grace = time.Hour
 		for _, e := range tc.events {
 			a.Observe(domain.Session{ID: "sess"}, e)
 		}
