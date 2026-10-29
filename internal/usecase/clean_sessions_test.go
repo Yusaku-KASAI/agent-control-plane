@@ -153,8 +153,11 @@ func newCleanEnv() *cleanEnv {
 	return e
 }
 
+// cleanThread is the conversation the saved sessions started in.
+var cleanThread = domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C1", Thread: "1700000000.000000"}
+
 func (e *cleanEnv) save(id domain.SessionID, agent domain.AgentName, lastUsed time.Time) {
-	e.sessions.saved[id] = domain.Session{ID: id, AgentName: agent, Workspace: domain.Workspace{Path: workspacePath(id)}, LastUsedAt: lastUsed}
+	e.sessions.saved[id] = domain.Session{ID: id, AgentName: agent, Conversation: cleanThread, Workspace: domain.Workspace{Path: workspacePath(id)}, LastUsedAt: lastUsed}
 }
 
 // merged is a branch on GitHub whose tip is in the default branch.

@@ -190,7 +190,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 
 - **責務**：セッションの出来事と知らせを、セッションのエージェントの Bot に渡す。
 - **関係**：`SessionObserver` と `SessionNotifier` を満たす。Slack のスレッドから始まったセッションだけを Bot に
-  渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。
+  渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。知らせは、投稿したメッセージの ts を返す
+  （Slack のスレッドで始まっていないセッションには空を返す）。片付けが、残す理由の知らせへの `:fire:` を見分けるのに使う。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：ユースケースは
   知らせる先を知らず、組み立ての場所で入口と結ぶ。
 

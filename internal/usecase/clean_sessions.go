@@ -783,10 +783,11 @@ func keptNowText(rs []reason) string {
 	b.WriteString("\n\n")
 	if slices.ContainsFunc(rs, blocksForce) {
 		b.WriteString("開いている PR があるあいだは、:" + ForceCleanReaction + ": でも消しません。PR をマージするか閉じてから、" +
-			"リアクションを外して付け直してください。")
+			":" + CleanReaction + ": を付けた人が 1 時間のうちならこの知らせに :" + ForceCleanReaction + ": を付け、" +
+			"過ぎていればこのスレッドの先頭（ルート）のメッセージの :" + CleanReaction + ": を外して付け直してください。")
 	} else {
 		b.WriteString("失われるものを承知で消すなら、:" + CleanReaction + ": を付けた人が 1 時間のうちに、この知らせに :" +
-			ForceCleanReaction + ": を付けてください。そのあとエージェントが動いていれば消さず、今の理由を知らせ直します。")
+			ForceCleanReaction + ": を付けてください。そのあとエージェントが動いていたか、理由が増えていれば、消さずに今の理由を知らせ直します。")
 	}
 	b.WriteString("\n\nエージェントに「締めて」と頼むと、残すものを Issue に残し、自分で解けるものを解いて、解けずに残るものを知らせます。" +
 		"解けたら、:" + CleanReaction + ": を外して付け直してください。")

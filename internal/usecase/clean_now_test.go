@@ -15,10 +15,13 @@ import (
 // person puts the reactions in the tests.
 var person = domain.Requester{Platform: "slack", ID: "U_ALICE"}
 
+// channel is where the reactions are put: the thread's, as the bot hears them.
+var channel = domain.Conversation{Platform: cleanThread.Platform, Workspace: cleanThread.Workspace, Channel: cleanThread.Channel}
+
 // forceOn puts the person's :fire: on the last post to the thread, as on the notice of what keeps
 // the session.
 func forceOn(c *usecase.SessionCleaner, e *cleanEnv) error {
-	return c.ForceClean(context.Background(), dev.Name, person, domain.Conversation{}, e.notifier.lastMessage(existingID))
+	return c.ForceClean(context.Background(), dev.Name, person, channel, e.notifier.lastMessage(existingID))
 }
 
 // A person asks in the thread: the session is judged now, however recently it was used.
@@ -130,6 +133,7 @@ func TestSessionCleaner_ForceCleanOnlyOnTheNotice(t *testing.T) {
 	for name, tt := range map[string]struct {
 		by      domain.Requester
 		agent   domain.AgentName
+		where   domain.Conversation
 		message func(e *cleanEnv, notice string) string
 		later   time.Duration
 		restart bool
@@ -137,6 +141,8 @@ func TestSessionCleaner_ForceCleanOnlyOnTheNotice(t *testing.T) {
 		"on another message":           {by: person, agent: dev.Name, message: func(*cleanEnv, string) string { return "1700000000.999999" }},
 		"by someone else":              {by: other, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }},
 		"heard by another agent's bot": {by: person, agent: "reviewer", message: func(_ *cleanEnv, n string) string { return n }},
+		"in another channel":           {by: person, agent: dev.Name, where: domain.Conversation{Platform: "slack", Workspace: "T1", Channel: "C2"}, message: func(_ *cleanEnv, n string) string { return n }},
+		"in another workspace":         {by: person, agent: dev.Name, where: domain.Conversation{Platform: "slack", Workspace: "T2", Channel: "C1"}, message: func(_ *cleanEnv, n string) string { return n }},
 		"past the hour":                {by: person, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }, later: time.Hour + time.Second},
 		"after a restart":              {by: person, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }, restart: true},
 		"on a notice told again since": {by: person, agent: dev.Name, message: func(e *cleanEnv, n string) string {
@@ -163,7 +169,11 @@ func TestSessionCleaner_ForceCleanOnlyOnTheNotice(t *testing.T) {
 					Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
 				}, retention, func() time.Time { return e.now })
 			}
-			if err := cleaner.ForceClean(context.Background(), tt.agent, tt.by, domain.Conversation{}, message); err != nil {
+			where := channel
+			if tt.where != (domain.Conversation{}) {
+				where = tt.where
+			}
+			if err := cleaner.ForceClean(context.Background(), tt.agent, tt.by, where, message); err != nil {
 				t.Fatal(err)
 			}
 			if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != told {
@@ -562,7 +572,7 @@ func TestSessionCleaner_ForceCleanAfterTheRetentionsNotice(t *testing.T) {
 	}
 	told := len(e.notifier.posts[existingID])
 	for _, message := range []string{notice, e.notifier.lastMessage(existingID)} {
-		if err := e.cleaner.ForceClean(context.Background(), dev.Name, person, domain.Conversation{}, message); err != nil {
+		if err := e.cleaner.ForceClean(context.Background(), dev.Name, person, channel, message); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -585,6 +595,10 @@ func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
 	e.now = e.now.Add(time.Minute)
 	if err := forceOn(e.cleaner, e); err != nil || len(e.files.removed) != 0 {
 		t.Fatalf("forced with the pull request open = %v, removed %v; want kept", err, e.files.removed)
+	}
+	// The :fire: put again on the first notice no longer counts: the one told again says so.
+	if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "この知らせに :fire:") {
+		t.Errorf("told %q, want the :fire: asked on the notice told again", posts[len(posts)-1])
 	}
 	// Gone, the pull request no longer keeps it: :fire: on the notice told again forces, with no new
 	// :wastebasket:.
