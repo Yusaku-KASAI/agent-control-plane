@@ -344,8 +344,9 @@ func readFacts(ctx context.Context, workspaces SessionWorkspace, branches Sessio
 // session, so a new session with the same ID cannot start beside remains of the old one. It looks
 // for reasons to keep it again under the lock, as the agent may have pushed or a pull request may have
 // been opened meanwhile.
-// remove marks the removed session cleaned under the lock, so that a session made after in the same
-// thread, which takes the mark off, finds it there; failing to mark (marking) does not undo the removal.
+// remove marks the session cleaned before removing its record, while the lock still keeps a new
+// session with the same ID from being made: that one, which takes the mark off, finds it there.
+// Failing to mark (marking) does not stop the removal.
 func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id domain.SessionID, creds domain.Credentials, unused func(domain.Session) bool, force bool, told []string) (branches []string, discarded []reason, marking, err error) {
 	unlock, err := c.sessions.Lock(ctx, id)
 	if err != nil {
@@ -376,11 +377,13 @@ func (c *SessionCleaner) remove(ctx context.Context, agent domain.Agent, id doma
 	if err := c.files.Remove(ctx, agent.Name, id); err != nil {
 		return nil, nil, nil, fmt.Errorf("remove agent files: %w", err)
 	}
-	if err := c.sessions.Remove(ctx, id); err != nil {
-		return nil, nil, nil, fmt.Errorf("remove session: %w", err)
-	}
+	// Removing the record lets the lock go. Should it fail, the record left is retried; with its
+	// credentials and conversation gone, the session is cleaned anyway.
 	if err := c.notifier.MarkCleaned(ctx, s); err != nil {
 		marking = fmt.Errorf("mark removal: %w", err)
+	}
+	if err := c.sessions.Remove(ctx, id); err != nil {
+		return nil, nil, nil, fmt.Errorf("remove session: %w", err)
 	}
 	return branches, rs, marking, nil
 }

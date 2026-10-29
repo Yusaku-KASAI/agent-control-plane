@@ -611,8 +611,9 @@ func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
 	}
 }
 
-// A session removed, by retention or as asked, is marked cleaned where it started, under its lock:
-// a session made after in the thread, which takes the mark off, finds it there. One kept is not.
+// A session removed, by retention or as asked, is marked cleaned where it started, before its
+// record is removed, which lets the lock go: a session made after in the thread, which takes the
+// mark off, finds it there. One kept is not.
 func TestSessionCleaner_MarksTheRemoved(t *testing.T) {
 	for name, tt := range map[string]struct {
 		lastUsed   time.Duration
@@ -632,8 +633,8 @@ func TestSessionCleaner_MarksTheRemoved(t *testing.T) {
 			e.notifier.onMark = func(id domain.SessionID) {
 				e.sessions.mu.Lock()
 				defer e.sessions.mu.Unlock()
-				if e.sessions.locks[id] == 0 {
-					t.Error("marked without the session's lock")
+				if _, saved := e.sessions.saved[id]; !saved || e.sessions.locks[id] == 0 {
+					t.Error("marked after the record was removed, or without the lock")
 				}
 			}
 			var err error
@@ -663,5 +664,17 @@ func TestSessionCleaner_CleanNowFailingToMark(t *testing.T) {
 	}
 	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "片付けました") {
 		t.Errorf("told %q, want only that it was cleaned", posts)
+	}
+}
+
+// Failing to mark a session removed by retention is a failure of the cleaning, yet the session is
+// removed.
+func TestSessionCleaner_CleanFailingToMark(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-2*retention))
+	e.notifier.markErr = errors.New("slack down")
+	report, err := e.cleaner.Clean(context.Background())
+	if err == nil || len(report.Removed) != 1 || report.Removed[0] != existingID {
+		t.Errorf("Clean() = %+v, %v; want removed and the failure to mark", report, err)
 	}
 }
