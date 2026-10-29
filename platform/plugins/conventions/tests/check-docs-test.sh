@@ -256,6 +256,13 @@ put p/docs/guides/sub/y.md '# Y
 add p/docs/README.md '- [y](guides/sub/y.md)'
 fails "a common procedure under guides/ that points to another procedure fails" "p/docs/guides/sub/y.md: a common procedure points to another procedure ../do.md"
 fresh
+put p/docs/guides/sub/z.md '# Z
+
+共通の手順で、目的の手順の段の中で使う。'
+add p/docs/README.md '- [z](guides/sub/z.md)'
+add p/docs/guides/part.md '2. **引く**：[下の文書](sub/) を引く。'
+passes "a common procedure that points to a directory under guides/ passes"
+fresh
 add p/docs/guides/part.md '2. **戻る**：[この手順](part.md) の 1 に戻る。'
 passes "a common procedure that points into itself passes"
 fresh
@@ -336,6 +343,19 @@ fresh
 add .claude/agents/helper.md '
 ## 読むもの'
 passes "a repository's helper agent is not held to a role's form"
+fresh
+put p/agents/role.md '---
+name: role
+---
+
+## 受け持つ手順
+
+- 答える。
+
+## 固有の振る舞い
+
+書ける範囲：なし。'
+fails "a role that tells what it may write outside 受け持つ手順 fails" "p/agents/role.md: '## 受け持つ手順' tells what the role may write"
 fresh
 add .claude/agents/helper.md '
 ```
@@ -530,6 +550,16 @@ fails "a link to an anchor that does not exist fails" "docs/reference/r.md: no a
 fresh
 add docs/reference/r.md '[x](#節)'
 fails "a link to a heading outside ASCII fails" "docs/reference/r.md: link #節 with an <a id>"
+fresh
+add docs/reference/r.md '
+## Hello, World!
+
+[x](#hello-world)'
+passes "a link to an ASCII heading with punctuation passes"
+fresh
+put docs/reference/s.txt 'x'
+add docs/reference/r.md '[s](s.txt#L1)'
+passes "a link into a file that is not Markdown has its fragment unchecked"
 fresh
 add docs/reference/r.md '[x](#part) [y](#plain-heading) [z](r.md#part)'
 passes "links to an <a id> and to an ASCII heading pass"
@@ -899,6 +929,30 @@ add docs/reference/r.md '<!-->
 
 [x](missing.md)'
 fails "<!--> is a whole HTML comment" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '<!--
+x
+--> tail
+
+[x](missing.md)'
+fails "a link after a comment closed before the end of a line is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '## Heading
+    [x](missing.md)'
+passes "a line indented four columns right after a heading is indented code"
+fresh
+add docs/reference/r.md 'Title
+=====
+    [x](missing.md)'
+passes "a line indented four columns right after a setext heading is indented code"
+fresh
+add docs/reference/r.md '* * *
+
+    [x](missing.md)'
+passes "a thematic break is no list item"
+fresh
+add docs/reference/r.md '-     [x](missing.md)'
+passes "five spaces after a marker start indented code on the marker line"
 fresh
 add docs/reference/r.md 'text
     <!--
