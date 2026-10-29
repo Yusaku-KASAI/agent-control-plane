@@ -300,6 +300,17 @@ func (o *sessionObserver) Notify(ctx context.Context, s domain.Session, text str
 	return bot.PostMessage(ctx, s.Conversation, text)
 }
 
+// MarkCleaned marks the session's Slack thread as cleaned. Sessions started elsewhere have no place to mark.
+func (o *sessionObserver) MarkCleaned(ctx context.Context, s domain.Session) error {
+	o.mu.Lock()
+	bot, ok := o.bots[s.AgentName]
+	o.mu.Unlock()
+	if !ok || s.Conversation.Platform != "slack" {
+		return nil
+	}
+	return bot.MarkCleaned(ctx, s.Conversation)
+}
+
 // credentialIssuers merges what each issuer grants the agent.
 type credentialIssuers []usecase.CredentialIssuer
 

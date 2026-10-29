@@ -34,6 +34,9 @@ type Bot struct {
 	webMu    sync.Mutex
 	webToken string
 	webAPI   *slack.Client
+	// markTimeout bounds putting the cleaned mark, which the cleaner does holding the session's lock,
+	// and taking it off.
+	markTimeout time.Duration
 
 	statusMu sync.Mutex
 	status   map[domain.SessionID]*statusMessage
@@ -74,6 +77,8 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		requests:  newRequestMessages(requestMemory),
 		heldGrace: heldAnswerGrace,
 		releases:  make(map[*time.Timer]func()),
+
+		markTimeout: 30 * time.Second,
 	}
 	b.post = b.postAsync
 	b.handler = usecase.NewHandleMessage(turns, cleanup, policy, b)
@@ -201,12 +206,60 @@ func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEv
 	}
 }
 
-// Observe follows the agent's sessions with a status message in their thread.
+// Observe follows the agent's sessions with a status message in their thread. A session made
+// in a thread takes the cleaned mark off it: the thread goes on (docs/adr/app/0057).
 func (b *Bot) Observe(s domain.Session, e usecase.SessionEvent) {
 	if s.Conversation.Platform != platform {
 		return
 	}
+	if e.Kind == usecase.SessionCreated {
+		// Observe must return quickly; the mark is seldom there, and a failure only leaves it.
+		go func() {
+			if err := b.unmarkCleaned(context.Background(), s.Conversation); err != nil {
+				b.log.Warn("unmark cleaned failed", "session", s.ID, "err", err)
+			}
+		}()
+		return
+	}
 	b.observe(s, e)
+}
+
+// cleanedReaction, on the message that started a thread, tells that the thread's session was
+// cleaned. It differs from the reactions on requests, as the message is often the first request,
+// and from the person's :wastebasket:, which asks and does not tell.
+const cleanedReaction = "broom"
+
+// MarkCleaned puts the cleaned mark on the message that started the conversation's thread. It gives
+// up after markTimeout: the session's lock is held meanwhile, refusing the thread's requests.
+func (b *Bot) MarkCleaned(ctx context.Context, c domain.Conversation) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), b.markTimeout)
+	defer cancel()
+	api, err := b.web(ctx)
+	if err != nil {
+		return err
+	}
+	return ignoreSlackError(api.AddReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "already_reacted")
+}
+
+// unmarkCleaned takes the cleaned mark off. It gives up after markTimeout too: held up long, it
+// could come after the mark of a later cleaning and take that off.
+func (b *Bot) unmarkCleaned(ctx context.Context, c domain.Conversation) error {
+	ctx, cancel := context.WithTimeout(ctx, b.markTimeout)
+	defer cancel()
+	api, err := b.web(ctx)
+	if err != nil {
+		return err
+	}
+	return ignoreSlackError(api.RemoveReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "no_reaction")
+}
+
+// ignoreSlackError drops the Slack error named code, which leaves things as wanted.
+func ignoreSlackError(err error, code string) error {
+	var resp slack.SlackErrorResponse
+	if errors.As(err, &resp) && resp.Err == code {
+		return nil
+	}
+	return err
 }
 
 func messageFromMention(agent domain.AgentName, team string, e *slackevents.AppMentionEvent, botUserID string) (usecase.IncomingMessage, bool) {

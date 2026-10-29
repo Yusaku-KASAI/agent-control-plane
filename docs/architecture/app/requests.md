@@ -51,6 +51,10 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 | 中断の知らせ | `slackbot.Bot` | 待っている依頼がないのに進めていた処理を、control-plane が止まるときや起動したときに止めた |
 | 片付けの知らせ | `SessionCleaner` | 保持期間を過ぎて判定したか、人がスレッドの最初のメッセージへのリアクションで頼んだ。何を知らせるかは[片付け](cleanup.md#cleaner "在りか")にある |
 
+スレッドの最初のメッセージには、片付けで消したら `:broom:` が付き、同じスレッドでセッションを作ったら外れる
+（`SessionCleaner` が `SessionNotifier.MarkCleaned` で付け、`slackbot.Bot` が `SessionCreated` で外す。
+[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。
+
 ## 構成要素
 
 ### `slackbot.Bot`（`bot.go`）
@@ -87,6 +91,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     （`platform/plugins/slack/tests/markdown-cases.json`）の文を直し、直した文を確かめ、その文でプラグインの
     `check-markdown` が裸の URL とすぐ上が文字の行の表を知らせないことも確かめる（[ADR 0051](../../adr/app/0051-own-markdown-scan-checked-by-shared-cases.md)）。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
+  - 片付けで消したスレッドの最初のメッセージに `:broom:` を付け（`MarkCleaned`）、そのスレッドでセッションが作られた
+    （`SessionCreated`）ら外す。もう付いている（`already_reacted`）、付いていない（`no_reaction`）は失敗にしない
+    （[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。
 - **関係**：`ChatResponder` を満たす。Bot のトークンは毎回 `slackauth.Source` から受け取る。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Slack の受け方と書き方
   だけを持ち、依頼の扱いは `HandleMessage` に任せる。Slack に固有のこと（記号、ブロック、文字数の上限）はここに
@@ -194,6 +201,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 - **関係**：`SessionObserver` と `SessionNotifier` を満たす。Slack のスレッドから始まったセッションだけを Bot に
   渡し、それ以外は自分で始めたターンの回答をログに書くだけにする。知らせは、投稿したメッセージの ts を返す
   （Slack のスレッドで始まっていないセッションには空を返す）。片付けが、残す理由の知らせへの `:fire:` を見分けるのに使う。
+  片付けたことの印（`MarkCleaned`）も、Slack のスレッドで始まったセッションだけを Bot に渡す。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：ユースケースは
   知らせる先を知らず、組み立ての場所で入口と結ぶ。
 
