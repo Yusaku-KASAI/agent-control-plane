@@ -290,14 +290,14 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 }
 
 // Notify posts to the session's Slack thread. Sessions started elsewhere have no place to tell.
-func (o *sessionObserver) Notify(ctx context.Context, s domain.Session, text string) error {
+func (o *sessionObserver) Notify(ctx context.Context, s domain.Session, text string) (string, error) {
 	o.mu.Lock()
 	bot, ok := o.bots[s.AgentName]
 	o.mu.Unlock()
 	if !ok || s.Conversation.Platform != "slack" {
-		return nil
+		return "", nil
 	}
-	return bot.Post(ctx, s.Conversation, text)
+	return bot.PostMessage(ctx, s.Conversation, text)
 }
 
 // credentialIssuers merges what each issuer grants the agent.

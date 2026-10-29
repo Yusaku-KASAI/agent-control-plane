@@ -2,9 +2,9 @@ package slackbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -155,22 +155,36 @@ func (b *Bot) team(evt socketmode.Event) string {
 	return api.TeamID
 }
 
-// handleReaction takes a stop reaction on a request's message as stopping that request, and a
-// clean reaction on the message that started a thread as cleaning the thread's session now
-// (docs/adr/app/0046). The bot's own reactions, such as the stop mark it puts on stopped
-// requests, are not instructions.
+// handleReaction takes a stop reaction on a request's message as stopping that request, a clean
+// reaction on the message that started a thread as cleaning the thread's session now, and a force
+// reaction on a notice of what keeps a session as cleaning it despite that (docs/adr/app/0046,
+// 0056). The bot's own reactions, such as the stop mark it puts on stopped requests, are not
+// instructions.
 func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEvent, botUserID, team string) {
 	if e.Item.Type != "message" || e.User == botUserID {
 		return
 	}
-	if force := e.Reaction == usecase.ForceCleanReaction; force || e.Reaction == usecase.CleanReaction {
+	by := domain.Requester{Platform: platform, ID: e.User}
+	switch e.Reaction {
+	case usecase.CleanReaction:
 		// The thread is named by the message that started it, so a reaction there names the
 		// session without asking Slack, and still does after a restart.
 		c := domain.Conversation{Platform: platform, Workspace: team, Channel: e.Item.Channel, Thread: e.Item.Timestamp}
 		// Shutting down cancels it: removing goes in an order a later run can resume (docs/adr/app/0026).
 		go func() {
-			if err := b.handler.CleanSession(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, force, slackTime(e.EventTimestamp)); err != nil {
-				b.log.Warn("clean failed", "session", c.SessionID(b.agent), "user", e.User, "force", force, "err", err)
+			if err := b.handler.CleanSession(ctx, b.agent, by, c); err != nil {
+				b.log.Warn("clean failed", "session", c.SessionID(b.agent), "user", e.User, "err", err)
+			}
+		}()
+		return
+	case usecase.ForceCleanReaction:
+		// The notice is named by its channel and ts; the cleaner knows which session it told.
+		c := domain.Conversation{Platform: platform, Workspace: team, Channel: e.Item.Channel}
+		go func() {
+			err := b.handler.ForceCleanSession(ctx, b.agent, by, c, e.Item.Timestamp)
+			// A :fire: is mostly praise, put by anyone on any message: only a failure to clean is worth a log.
+			if err != nil && !errors.Is(err, domain.ErrRequesterNotAllowed) {
+				b.log.Warn("forced clean failed", "channel", c.Channel, "message", e.Item.Timestamp, "user", e.User, "err", err)
 			}
 		}()
 		return
@@ -182,7 +196,7 @@ func (b *Bot) handleReaction(ctx context.Context, e *slackevents.ReactionAddedEv
 	if !ok {
 		return
 	}
-	if err := b.handler.StopRequest(ctx, b.agent, domain.Requester{Platform: platform, ID: e.User}, c, e.Item.Timestamp); err != nil {
+	if err := b.handler.StopRequest(ctx, b.agent, by, c, e.Item.Timestamp); err != nil {
 		b.log.Warn("stop failed", "session", c.SessionID(b.agent), "message", e.Item.Timestamp, "user", e.User, "err", err)
 	}
 }
@@ -290,18 +304,24 @@ func (b *Bot) Reply(ctx context.Context, msg usecase.IncomingMessage, text strin
 
 // Post writes text to the conversation's thread.
 func (b *Bot) Post(ctx context.Context, c domain.Conversation, text string) error {
+	_, err := b.PostMessage(ctx, c, text)
+	return err
+}
+
+// PostMessage writes text to the conversation's thread and returns the posted message's ts.
+func (b *Bot) PostMessage(ctx context.Context, c domain.Conversation, text string) (string, error) {
 	// A turn cancelled by shutdown should still be able to say so.
 	ctx = context.WithoutCancel(ctx)
 	api, err := b.web(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, _, err = api.PostMessageContext(ctx, c.Channel,
+	_, ts, err := api.PostMessageContext(ctx, c.Channel,
 		slack.MsgOptionTS(c.Thread),
 		slack.MsgOptionText(fallbackText(text), false),
 		slack.MsgOptionBlocks(markdownBlock(text)),
 	)
-	return err
+	return ts, err
 }
 
 // Slack caps a markdown block at 12,000 characters and the notification text at 40,000.
@@ -331,20 +351,4 @@ func truncate(s string, limit int, suffix string) string {
 		return s
 	}
 	return string(r[:limit]) + suffix
-}
-
-// slackTime reads a Slack timestamp ("1700000000.000100"), or gives the zero time, which no notice
-// precedes, for one it cannot read.
-func slackTime(ts string) time.Time {
-	sec, frac, _ := strings.Cut(ts, ".")
-	s, err := strconv.ParseInt(sec, 10, 64)
-	if err != nil {
-		return time.Time{}
-	}
-	frac = (frac + "000000")[:6]
-	us, err := strconv.ParseInt(frac, 10, 64)
-	if err != nil {
-		return time.Time{}
-	}
-	return time.Unix(s, us*1000)
 }

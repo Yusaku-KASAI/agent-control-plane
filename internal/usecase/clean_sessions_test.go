@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -98,17 +99,33 @@ func (f *fakeFiles) Remove(_ context.Context, _ domain.AgentName, id domain.Sess
 type fakeNotifier struct {
 	err   error
 	posts map[domain.SessionID][]string
+	// messages are the IDs of the posts, in the same order.
+	messages map[domain.SessionID][]string
+	sent     int
 }
 
-func (f *fakeNotifier) Notify(_ context.Context, s domain.Session, text string) error {
+func (f *fakeNotifier) Notify(_ context.Context, s domain.Session, text string) (string, error) {
 	if f.err != nil {
-		return f.err
+		return "", f.err
 	}
 	if f.posts == nil {
 		f.posts = make(map[domain.SessionID][]string)
+		f.messages = make(map[domain.SessionID][]string)
 	}
+	f.sent++
+	message := fmt.Sprintf("1700000000.%06d", f.sent)
 	f.posts[s.ID] = append(f.posts[s.ID], text)
-	return nil
+	f.messages[s.ID] = append(f.messages[s.ID], message)
+	return message, nil
+}
+
+// lastMessage is the ID of the last post to the session's thread.
+func (f *fakeNotifier) lastMessage(id domain.SessionID) string {
+	ms := f.messages[id]
+	if len(ms) == 0 {
+		return ""
+	}
+	return ms[len(ms)-1]
 }
 
 type cleanEnv struct {

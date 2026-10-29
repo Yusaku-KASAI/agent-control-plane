@@ -15,15 +15,21 @@ import (
 // person puts the reactions in the tests.
 var person = domain.Requester{Platform: "slack", ID: "U_ALICE"}
 
+// forceOn puts the person's :fire: on the last post to the thread, as on the notice of what keeps
+// the session.
+func forceOn(c *usecase.SessionCleaner, e *cleanEnv) error {
+	return c.ForceClean(context.Background(), dev.Name, person, domain.Conversation{}, e.notifier.lastMessage(existingID))
+}
+
 // A person asks in the thread: the session is judged now, however recently it was used.
 func TestSessionCleaner_CleanNow(t *testing.T) {
 	recently := func(e *cleanEnv) { e.save(existingID, dev.Name, e.now.Add(-1)) }
 	// told has the thread told of the reasons, as by :wastebasket:, before the test's reaction.
 	told := func(e *cleanEnv) {
-		if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 			panic(err)
 		}
-		e.notifier.posts = nil
+		e.notifier.posts = map[domain.SessionID][]string{}
 	}
 	pull := usecase.PullRequest{Number: 7, Title: "fix", URL: "https://example.com/7"}
 	tests := map[string]struct {
@@ -38,9 +44,9 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 		},
 		"work keeps it": {
 			arrange:  func(e *cleanEnv) { e.branches.remote["acp/0f8fad5b"] = unmerged("acp/0f8fad5b") },
-			wantText: ":fire:",
+			wantText: "この知らせに :fire:",
 		},
-		"forced once told, the work is let go": {
+		"forced on the notice, the work is let go": {
 			arrange: func(e *cleanEnv) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
 				told(e)
@@ -48,7 +54,7 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			force:       true,
 			wantRemoved: true, wantText: "承知のうえで捨てたもの",
 		},
-		"forced after being used since told, it only tells again": {
+		"forced after being used since told, it tells again": {
 			arrange: func(e *cleanEnv) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
 				told(e)
@@ -57,30 +63,16 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 				e.sessions.saved[existingID] = s
 			},
 			force:    true,
-			wantText: ":fire:",
+			wantText: "この知らせに :fire:",
 		},
-		"forced with nothing keeping it, as in praise, it removes nothing": {
-			arrange:  func(e *cleanEnv) { e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b") },
-			force:    true,
-			wantText: ":wastebasket:",
-		},
-		"forced before the notice, as in a burst of reactions, it only tells": {
+		"forced once nothing keeps it any more, it is removed": {
 			arrange: func(e *cleanEnv) {
 				e.work[existingID] = usecase.WorkspaceState{Changes: true}
-				// The :wastebasket: put an hour after the :fire: to come, as when the reactions came
-				// in the other order.
-				if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Hour)); err != nil {
-					panic(err)
-				}
-				e.notifier.posts = nil
+				told(e)
+				e.work[existingID] = usecase.WorkspaceState{}
 			},
-			force:    true,
-			wantText: ":fire:",
-		},
-		"forced before being told, it only tells": {
-			arrange:  func(e *cleanEnv) { e.work[existingID] = usecase.WorkspaceState{Changes: true} },
-			force:    true,
-			wantText: ":fire:",
+			force:       true,
+			wantRemoved: true, wantText: "片付けました",
 		},
 		"forced, a pull request into its branch still keeps it": {
 			arrange: func(e *cleanEnv) {
@@ -110,7 +102,13 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			tt.arrange(e)
 			e.now = e.now.Add(time.Minute)
 
-			if err := e.cleaner.CleanNow(context.Background(), existingID, tt.force, person, e.now); err != nil {
+			var err error
+			if tt.force {
+				err = forceOn(e.cleaner, e)
+			} else {
+				err = e.cleaner.CleanNow(context.Background(), existingID, person)
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 
@@ -120,6 +118,56 @@ func TestSessionCleaner_CleanNow(t *testing.T) {
 			posts := e.notifier.posts[existingID]
 			if len(posts) != 1 || !strings.Contains(posts[0], tt.wantText) {
 				t.Errorf("told %q, want one message with %q", posts, tt.wantText)
+			}
+		})
+	}
+}
+
+// A :fire: anywhere but on a notice the person was told within the hour, by this agent, does
+// nothing and tells nothing: it may be praise.
+func TestSessionCleaner_ForceCleanOnlyOnTheNotice(t *testing.T) {
+	other := domain.Requester{Platform: "slack", ID: "U_BOB"}
+	for name, tt := range map[string]struct {
+		by      domain.Requester
+		agent   domain.AgentName
+		message func(e *cleanEnv, notice string) string
+		later   time.Duration
+		restart bool
+	}{
+		"on another message":           {by: person, agent: dev.Name, message: func(*cleanEnv, string) string { return "1700000000.999999" }},
+		"by someone else":              {by: other, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }},
+		"heard by another agent's bot": {by: person, agent: "reviewer", message: func(_ *cleanEnv, n string) string { return n }},
+		"past the hour":                {by: person, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }, later: time.Hour + time.Second},
+		"after a restart":              {by: person, agent: dev.Name, message: func(_ *cleanEnv, n string) string { return n }, restart: true},
+		"on a notice told again since": {by: person, agent: dev.Name, message: func(e *cleanEnv, n string) string {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
+				panic(err)
+			}
+			return n
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newCleanEnv()
+			e.save(existingID, dev.Name, e.now.Add(-1))
+			e.work[existingID] = usecase.WorkspaceState{Changes: true}
+			if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
+				t.Fatal(err)
+			}
+			message := tt.message(e, e.notifier.messages[existingID][0])
+			told := len(e.notifier.posts[existingID])
+			e.now = e.now.Add(time.Minute + tt.later)
+			cleaner := e.cleaner
+			if tt.restart {
+				cleaner = usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
+					Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &fakeIssuer{},
+					Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
+				}, retention, func() time.Time { return e.now })
+			}
+			if err := cleaner.ForceClean(context.Background(), tt.agent, tt.by, domain.Conversation{}, message); err != nil {
+				t.Fatal(err)
+			}
+			if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != told {
+				t.Errorf("removed %v, told %q; want nothing done", e.files.removed, posts[told:])
 			}
 		})
 	}
@@ -136,7 +184,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 		s.LastUsedAt = e.now.Add(-1).Add(time.Nanosecond)
 		e.sessions.saved[id] = s
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != 1 || !strings.Contains(posts[0], "使われた") {
@@ -147,7 +195,7 @@ func TestSessionCleaner_CleanNowKeepsSessionUsedMeanwhile(t *testing.T) {
 // A thread with no session, such as one already cleaned, is left alone.
 func TestSessionCleaner_CleanNowWithoutSession(t *testing.T) {
 	e := newCleanEnv()
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -182,7 +230,7 @@ func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
 		cleaner := e.withHolder(&fakeHolder{idle: idle})
 		e.save(existingID, dev.Name, e.now.Add(-1))
 
-		if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil {
+		if err := cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 			t.Fatal(err)
 		}
 
@@ -196,24 +244,30 @@ func TestSessionCleaner_CleanNowLetsGoOfIdleAgents(t *testing.T) {
 	}
 }
 
-// A session that is not to be removed leaves its agent be: a :fire: in praise or a :wastebasket:
-// on kept work does not stop the container the next request would use.
+// A session that is not to be removed leaves its agent be: a :wastebasket: on kept work, or a
+// :fire: that tells again, does not stop the container the next request would use.
 func TestSessionCleaner_CleanNowLetsGoOnlyToRemove(t *testing.T) {
 	for name, tt := range map[string]struct {
 		force bool
 		work  usecase.WorkspaceState
 	}{
-		"kept for its work": {work: usecase.WorkspaceState{Changes: true}},
-		"praised":           {force: true},
+		"kept for its work":   {work: usecase.WorkspaceState{Changes: true}},
+		"told again on force": {force: true, work: usecase.WorkspaceState{Changes: true, Stash: true}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newCleanEnv()
 			holder := &fakeHolder{idle: true}
 			cleaner := e.withHolder(holder)
 			e.save(existingID, dev.Name, e.now.Add(-1))
-			e.work[existingID] = tt.work
-			if err := cleaner.CleanNow(context.Background(), existingID, tt.force, person, e.now.Add(time.Minute)); err != nil {
+			e.work[existingID] = usecase.WorkspaceState{Changes: true}
+			if err := cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 				t.Fatal(err)
+			}
+			e.work[existingID] = tt.work
+			if tt.force {
+				if err := forceOn(cleaner, e); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if len(holder.asked) != 0 || len(e.files.removed) != 0 {
 				t.Errorf("let go of %v, removed %v; want the agent left be", holder.asked, e.files.removed)
@@ -228,7 +282,7 @@ func TestSessionCleaner_CleanNowTellsAFailure(t *testing.T) {
 	e := newCleanEnv()
 	cleaner := e.withHolder(&fakeHolder{err: errors.New("docker down")})
 	e.save(existingID, dev.Name, e.now.Add(-1))
-	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err == nil {
+	if err := cleaner.CleanNow(context.Background(), existingID, person); err == nil {
 		t.Error("CleanNow() = nil, want the failure")
 	}
 	if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != 1 || !strings.Contains(posts[0], "判定できませんでした") {
@@ -242,7 +296,7 @@ func TestSessionCleaner_CleanNowTellsAFailure(t *testing.T) {
 		Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &fakeIssuer{},
 		Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: failing,
 	}, retention, func() time.Time { return e.now })
-	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err == nil || failing.calls != 1 {
+	if err := cleaner.CleanNow(context.Background(), existingID, person); err == nil || failing.calls != 1 {
 		t.Errorf("CleanNow() = %v after %d posts, want the failure after one", err, failing.calls)
 	}
 }
@@ -252,9 +306,9 @@ type countingNotifier struct {
 	calls int
 }
 
-func (f *countingNotifier) Notify(context.Context, domain.Session, string) error {
+func (f *countingNotifier) Notify(context.Context, domain.Session, string) (string, error) {
 	f.calls++
-	return f.err
+	return "", f.err
 }
 
 // Taken by another cleaning meanwhile, the session is gone: nothing contradicts that.
@@ -265,7 +319,7 @@ func TestSessionCleaner_CleanNowAfterAnotherCleaning(t *testing.T) {
 		e.sessions.onLock = nil
 		delete(e.sessions.saved, id)
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil || len(e.notifier.posts) != 0 {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil || len(e.notifier.posts) != 0 {
 		t.Errorf("CleanNow() = %v, told %v; want nothing", err, e.notifier.posts)
 	}
 }
@@ -283,7 +337,7 @@ func TestSessionCleaner_CleanNowTwiceAtOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil {
+			if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 				t.Error(err)
 			}
 		})
@@ -301,7 +355,7 @@ func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
 		e := newCleanEnv()
 		e.save(existingID, dev.Name, e.now.Add(-1))
 		e.work[existingID] = usecase.WorkspaceState{Changes: true}
-		if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+		if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 			t.Fatal(err)
 		}
 		more := func() { e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true} }
@@ -311,26 +365,22 @@ func TestSessionCleaner_CleanNowForcedKeepsWhatWasNotTold(t *testing.T) {
 			more()
 		}
 		e.now = e.now.Add(time.Minute)
-		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+		if err := forceOn(e.cleaner, e); err != nil {
 			t.Fatal(err)
 		}
 		if len(e.files.removed) != 0 {
 			t.Errorf("under the lock %v: removed with a stash the thread was not told of", underLock)
 		}
-		// Found before the reaction or under the lock, the stash is told, and the person is asked to
-		// see it on their :wastebasket: first; once they have, it can be forced.
+		// Found before the reaction or under the lock, the stash is told in a new notice; a :fire:
+		// on that one forces.
 		if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") ||
-			!strings.Contains(posts[len(posts)-1], "まず :fire: を外し") {
-			t.Errorf("under the lock %v: told %q, want the stash told and :wastebasket: asked first", underLock, posts[len(posts)-1])
+			!strings.Contains(posts[len(posts)-1], "この知らせに :fire:") {
+			t.Errorf("under the lock %v: told %q, want the stash told in a notice to force", underLock, posts[len(posts)-1])
 		}
 		e.sessions.onLock = nil
-		e.now = e.now.Add(time.Hour)
-		if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
-			t.Fatal(err)
-		}
 		e.now = e.now.Add(time.Minute)
-		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
-			t.Errorf("under the lock %v: forced once told of the stash = %v, removed %v; want removed", underLock, err, e.files.removed)
+		if err := forceOn(e.cleaner, e); err != nil || len(e.files.removed) == 0 {
+			t.Errorf("under the lock %v: forced on the new notice = %v, removed %v; want removed", underLock, err, e.files.removed)
 		}
 	}
 }
@@ -357,76 +407,12 @@ func TestSessionCleaner_CleanNowWhileCleaningByRetention(t *testing.T) {
 		}
 	})
 	<-removing
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(time.Minute)); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Error(err)
 	}
 	wg.Wait()
 	if posts := e.notifier.posts[existingID]; len(posts) != 1 || !strings.Contains(posts[0], "片付けました") {
 		t.Errorf("told %q, want only that it was cleaned", posts)
-	}
-}
-
-// The :fire: is weighed against the time the person was told on the chat's clock, which the
-// reactions carry, not on the control plane's, which may be behind or ahead of it.
-func TestSessionCleaner_CleanNowForcedOnTheChatsClock(t *testing.T) {
-	for name, tt := range map[string]struct {
-		ahead      time.Duration
-		after      time.Duration
-		wantForced bool
-	}{
-		"a burst, with the control plane behind":      {ahead: -time.Minute, after: 2 * time.Second},
-		"a while after, with the control plane ahead": {ahead: 2 * time.Hour, after: time.Minute, wantForced: true},
-	} {
-		t.Run(name, func(t *testing.T) {
-			e := newCleanEnv()
-			e.save(existingID, dev.Name, e.now.Add(-1))
-			e.work[existingID] = usecase.WorkspaceState{Changes: true}
-			chat := e.now.Add(-tt.ahead)
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, chat); err != nil {
-				t.Fatal(err)
-			}
-			e.now = e.now.Add(tt.after)
-			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, chat.Add(tt.after)); err != nil {
-				t.Fatal(err)
-			}
-			if forced := len(e.files.removed) > 0; forced != tt.wantForced {
-				t.Errorf("forced %v, want %v", forced, tt.wantForced)
-			}
-		})
-	}
-}
-
-// The notice is as late on the chat's clock as the judgement took, and the :fire: must come a while
-// after it on both clocks: reactions put a minute apart may come together after a delay.
-func TestSessionCleaner_CleanNowForcedAfterReadingTheNotice(t *testing.T) {
-	for name, tt := range map[string]struct {
-		put, came  time.Duration
-		wantForced bool
-	}{
-		"put before the notice, the judgement being slow": {put: 15 * time.Second, came: time.Minute},
-		"put a while after the notice":                    {put: time.Minute, came: time.Minute, wantForced: true},
-		"come together with the :wastebasket:":            {put: time.Minute, came: time.Second},
-	} {
-		t.Run(name, func(t *testing.T) {
-			e := newCleanEnv()
-			e.save(existingID, dev.Name, e.now.Add(-1))
-			e.work[existingID] = usecase.WorkspaceState{Changes: true}
-			cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
-				Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: slowIssuer{e},
-				Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
-			}, retention, func() time.Time { return e.now })
-			put := e.now
-			if err := cleaner.CleanNow(context.Background(), existingID, false, person, put); err != nil {
-				t.Fatal(err)
-			}
-			e.now = e.now.Add(tt.came)
-			if err := cleaner.CleanNow(context.Background(), existingID, true, person, put.Add(tt.put)); err != nil {
-				t.Fatal(err)
-			}
-			if forced := len(e.files.removed) > 0; forced != tt.wantForced {
-				t.Errorf("forced %v, want %v", forced, tt.wantForced)
-			}
-		})
 	}
 }
 
@@ -440,11 +426,11 @@ func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWhileJudged(t *testing.T) {
 		Agents: fakeRegistry{dev.Name: dev}, Sessions: e.sessions, Credentials: &usingIssuer{e: e},
 		Workspaces: e.work, Branches: e.branches, Files: e.files, Notifier: e.notifier,
 	}, retention, func() time.Time { return e.now })
-	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	e.now = e.now.Add(time.Minute)
-	if err := cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+	if err := forceOn(cleaner, e); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.files.removed) != 0 {
@@ -457,7 +443,7 @@ func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWithTheClockSetBack(t *testin
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-time.Hour))
 	e.work[existingID] = usecase.WorkspaceState{Changes: true}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	e.now = e.now.Add(time.Minute)
@@ -467,31 +453,11 @@ func TestSessionCleaner_CleanNowForcedKeepsWorkDoneWithTheClockSetBack(t *testin
 		s.LastUsedAt = s.LastUsedAt.Add(-time.Second)
 		e.sessions.saved[id] = s
 	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
+	if err := forceOn(e.cleaner, e); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.files.removed) != 0 {
 		t.Error("removed a session used while the :fire: was judged")
-	}
-}
-
-// A :fire: in praise, taken as nothing to force, forgets the notice: a later :fire: is praise too.
-func TestSessionCleaner_CleanNowPraiseForgetsTheNotice(t *testing.T) {
-	e := newCleanEnv()
-	e.save(existingID, dev.Name, e.now.Add(-1))
-	e.work[existingID] = usecase.WorkspaceState{Changes: true}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
-		t.Fatal(err)
-	}
-	e.work[existingID] = usecase.WorkspaceState{}
-	for _, after := range []time.Duration{time.Second, time.Minute} {
-		e.now = e.now.Add(after)
-		if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if len(e.files.removed) != 0 {
-		t.Error("removed on a :fire: after one in praise")
 	}
 }
 
@@ -500,7 +466,7 @@ func TestSessionCleaner_CleanNowForcedTellsWhatItDiscarded(t *testing.T) {
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-1))
 	e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	e.work[existingID] = usecase.WorkspaceState{Changes: true}
@@ -509,7 +475,7 @@ func TestSessionCleaner_CleanNowForcedTellsWhatItDiscarded(t *testing.T) {
 		e.work[existingID] = usecase.WorkspaceState{Changes: true, Stash: true}
 	}
 	e.now = e.now.Add(time.Minute)
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
+	if err := forceOn(e.cleaner, e); err != nil || len(e.files.removed) == 0 {
 		t.Fatalf("forced = %v, removed %v; want removed", err, e.files.removed)
 	}
 	if posts := e.notifier.posts[existingID]; !strings.Contains(posts[len(posts)-1], "stash") {
@@ -536,14 +502,6 @@ func (u *usingIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, 
 	return domain.Credentials{GitHubToken: "token"}, nil
 }
 
-// slowIssuer has the judgement take 30 seconds.
-type slowIssuer struct{ e *cleanEnv }
-
-func (s slowIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, error) {
-	s.e.now = s.e.now.Add(30 * time.Second)
-	return domain.Credentials{GitHubToken: "token"}, nil
-}
-
 // An agent waiting idle holds the session's lock: the :wastebasket: does not let go of it, nor
 // need to, for the person to force once told.
 func TestSessionCleaner_CleanNowForcedWhileTheAgentWaits(t *testing.T) {
@@ -553,31 +511,15 @@ func TestSessionCleaner_CleanNowForcedWhileTheAgentWaits(t *testing.T) {
 	e.sessions.held = map[domain.SessionID]bool{existingID: true}
 	holder := &fakeHolder{idle: true, onRelease: func() { e.sessions.held = nil }}
 	cleaner := e.withHolder(holder)
-	if err := cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	if len(holder.asked) != 0 {
 		t.Errorf("let go of %v on :wastebasket:, want the agent left be", holder.asked)
 	}
 	e.now = e.now.Add(time.Minute)
-	if err := cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
+	if err := forceOn(cleaner, e); err != nil || len(e.files.removed) == 0 {
 		t.Errorf("forced = %v, removed %v; want removed", err, e.files.removed)
-	}
-}
-
-// A :fire: within moments of the notice, as in a burst of reactions, is not taken as read.
-func TestSessionCleaner_CleanNowForcedRightAfterTheNotice(t *testing.T) {
-	e := newCleanEnv()
-	e.save(existingID, dev.Name, e.now.Add(-1))
-	e.work[existingID] = usecase.WorkspaceState{Changes: true}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(2*time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	if len(e.files.removed) != 0 {
-		t.Error("removed by a :fire: put right after the notice")
 	}
 }
 
@@ -586,14 +528,14 @@ func TestSessionCleaner_CleanNowForcedKeepsABranchPushedSinceTold(t *testing.T) 
 	e := newCleanEnv()
 	e.save(existingID, dev.Name, e.now.Add(-1))
 	e.branches.remote["acp/0f8fad5b"] = unmerged("acp/0f8fad5b")
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	b := unmerged("acp/0f8fad5b")
 	b.Tip = "pushed-by-someone"
 	b.Commits = map[string]usecase.CommitPlaces{b.Tip: {InBranch: true}}
 	e.branches.remote["acp/0f8fad5b"] = b
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Minute)); err != nil {
+	if err := forceOn(e.cleaner, e); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.files.removed) != 0 || len(e.branches.removed) != 0 {
@@ -601,65 +543,31 @@ func TestSessionCleaner_CleanNowForcedKeepsABranchPushedSinceTold(t *testing.T) 
 	}
 }
 
-// :fire: forces only for the person who put :wastebasket: and was told the reasons: not for
-// someone else, nor after the cleanup told them of itself.
-func TestSessionCleaner_CleanNowForcedOnlyByWhoAsked(t *testing.T) {
-	other := domain.Requester{Platform: "slack", ID: "U_BOB"}
-	for name, tell := range map[string]func(e *cleanEnv){
-		"told on another's :wastebasket:": func(e *cleanEnv) {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, other, e.now); err != nil {
-				t.Fatal(err)
-			}
-		},
-		"told by the retention's notice after one's own :wastebasket:": func(e *cleanEnv) {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
-				t.Fatal(err)
-			}
-			s := e.sessions.saved[existingID]
-			s.LastUsedAt = e.now.Add(-2 * retention)
-			s.KeptNotifiedAt = e.now.Add(-2 * retention)
-			e.sessions.saved[existingID] = s
-			if _, err := e.cleaner.Clean(context.Background()); err != nil {
-				t.Fatal(err)
-			}
-		},
-		"told on one's own :wastebasket: long before": func(e *cleanEnv) {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now.Add(-2*time.Hour)); err != nil {
-				t.Fatal(err)
-			}
-			s := e.sessions.saved[existingID]
-			s.LastUsedAt = e.now.Add(-3 * time.Hour)
-			s.KeptNotifiedAt = e.now.Add(-2 * time.Hour)
-			e.sessions.saved[existingID] = s
-		},
-		"told again on one's own :fire: put too soon after": func(e *cleanEnv) {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
-				t.Fatal(err)
-			}
-			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now.Add(time.Second)); err != nil {
-				t.Fatal(err)
-			}
-		},
-		"told on a :fire: of one's own": func(e *cleanEnv) {
-			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
-				t.Fatal(err)
-			}
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			e := newCleanEnv()
-			e.save(existingID, dev.Name, e.now.Add(-1))
-			e.work[existingID] = usecase.WorkspaceState{Changes: true}
-			tell(e)
-			e.now = e.now.Add(time.Minute)
-			if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil {
-				t.Fatal(err)
-			}
-			posts := e.notifier.posts[existingID]
-			if len(e.files.removed) != 0 || !strings.Contains(posts[len(posts)-1], "まず :fire: を外し") {
-				t.Errorf("removed %v, told %q; want kept and told to put :wastebasket: first", e.files.removed, posts[len(posts)-1])
-			}
-		})
+// The retention's notice after one's own :wastebasket: forgets the notice: a :fire: on either does
+// nothing.
+func TestSessionCleaner_ForceCleanAfterTheRetentionsNotice(t *testing.T) {
+	e := newCleanEnv()
+	e.save(existingID, dev.Name, e.now.Add(-1))
+	e.work[existingID] = usecase.WorkspaceState{Changes: true}
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
+		t.Fatal(err)
+	}
+	notice := e.notifier.lastMessage(existingID)
+	s := e.sessions.saved[existingID]
+	s.LastUsedAt = e.now.Add(-2 * retention)
+	s.KeptNotifiedAt = e.now.Add(-2 * retention)
+	e.sessions.saved[existingID] = s
+	if _, err := e.cleaner.Clean(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	told := len(e.notifier.posts[existingID])
+	for _, message := range []string{notice, e.notifier.lastMessage(existingID)} {
+		if err := e.cleaner.ForceClean(context.Background(), dev.Name, person, domain.Conversation{}, message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if posts := e.notifier.posts[existingID]; len(e.files.removed) != 0 || len(posts) != told {
+		t.Errorf("removed %v, told %q; want nothing done", e.files.removed, posts[told:])
 	}
 }
 
@@ -671,17 +579,18 @@ func TestSessionCleaner_CleanNowForcedAgainAfterThePullRequest(t *testing.T) {
 	b := merged("acp/0f8fad5b")
 	b.OpenHead = []usecase.PullRequest{{Number: 7}}
 	e.branches.remote["acp/0f8fad5b"] = b
-	if err := e.cleaner.CleanNow(context.Background(), existingID, false, person, e.now); err != nil {
+	if err := e.cleaner.CleanNow(context.Background(), existingID, person); err != nil {
 		t.Fatal(err)
 	}
 	e.now = e.now.Add(time.Minute)
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) != 0 {
+	if err := forceOn(e.cleaner, e); err != nil || len(e.files.removed) != 0 {
 		t.Fatalf("forced with the pull request open = %v, removed %v; want kept", err, e.files.removed)
 	}
-	// Gone, the pull request no longer keeps it: :fire: put again forces, with no new :wastebasket:.
+	// Gone, the pull request no longer keeps it: :fire: on the notice told again forces, with no new
+	// :wastebasket:.
 	e.branches.remote["acp/0f8fad5b"] = merged("acp/0f8fad5b")
 	e.now = e.now.Add(time.Minute)
-	if err := e.cleaner.CleanNow(context.Background(), existingID, true, person, e.now); err != nil || len(e.files.removed) == 0 {
+	if err := forceOn(e.cleaner, e); err != nil || len(e.files.removed) == 0 {
 		t.Errorf("forced again once the pull request was gone = %v, removed %v; want removed", err, e.files.removed)
 	}
 }

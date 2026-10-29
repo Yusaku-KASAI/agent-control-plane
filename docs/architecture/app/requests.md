@@ -70,10 +70,11 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     メッセージがどのスレッドのものかはメモリに 24 時間覚え、覚えていないメッセージ（再起動の前の依頼、依頼でない
     メッセージ）へのリアクションは何もしない。依頼できる人の指示だけが効く
     （[ADR 0039](../../adr/app/0039-stop-by-reacting-to-request-messages.md)）。
-  - スレッドの最初のメッセージ（ルート）への `:wastebasket:` と `:fire:` を、そのスレッドのセッションを今すぐ片付ける指示
-    （`:fire:` は失われるものを承知で）として `HandleMessage.CleanSession` に渡す。最初のメッセージの ts がスレッドの
-    ts なので、覚えていなくてもセッションが決まり、再起動のあとでも効く。依頼できる人の指示だけが効く。止まるときは
-    取り消す（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
+  - スレッドの最初のメッセージ（ルート）への `:wastebasket:` を、そのスレッドのセッションを今すぐ片付ける指示として
+    `HandleMessage.CleanSession` に渡す。最初のメッセージの ts がスレッドの ts なので、覚えていなくてもセッションが
+    決まり、再起動のあとでも効く。どのメッセージへの `:fire:` も、チャンネルとメッセージの ts を添えて
+    `HandleMessage.ForceCleanSession` に渡し、それが残す理由の知らせかは `SessionCleaner` が決める。依頼できる人の
+    指示だけが効く。止まるときは取り消す（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)、[0056](../../adr/app/0056-force-cleaning-on-the-notice.md)）。
   - 依頼ごとにゴルーチンで `HandleMessage` を動かす。サーバーが止まるときも依頼の処理は取り消さず、
     `Dispatcher` が閉じて依頼が終わるのを待つ。
   - 返事と状態メッセージは、Slack の markdown ブロックが標準の Markdown と違って読む形のうち、意味を変えずに直せる

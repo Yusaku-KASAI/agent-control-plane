@@ -114,9 +114,10 @@ type SessionBranches interface {
 }
 
 type SessionNotifier interface {
-	// Notify posts text where the session started. It does nothing for a session that did not
+	// Notify posts text where the session started and returns the posted message's ID, by which
+	// a reaction on it is told apart. It does nothing, and returns "", for a session that did not
 	// start in a chat.
-	Notify(ctx context.Context, s domain.Session, text string) error
+	Notify(ctx context.Context, s domain.Session, text string) (string, error)
 }
 
 type SessionFiles interface {

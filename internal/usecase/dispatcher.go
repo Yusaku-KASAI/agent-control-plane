@@ -853,7 +853,7 @@ func (w *worker) refreshCredentials() {
 }
 
 // markUsed records that the agent may have changed the work now: a turn begins, one ends without
-// finishTurn, or a background task ends. SessionCleaner forces only what it told of since (CleanNow). Failing to save leaves
+// finishTurn, or a background task ends. SessionCleaner forces only what it told of since (ForceClean). Failing to save leaves
 // the time the turn began, or the one before.
 func (w *worker) markUsed() {
 	w.session.LastUsedAt = time.Now()
