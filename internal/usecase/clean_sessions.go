@@ -749,8 +749,9 @@ func (c *SessionCleaner) noticeAt(agent domain.AgentName, where domain.Conversat
 	defer c.toldMu.Unlock()
 	for id, n := range c.told {
 		// Every agent's bot in the channel hears the reaction; each takes only its own notices.
-		if n.message == message && n.agent == agent && n.where.Platform == where.Platform &&
-			n.where.Workspace == where.Workspace && n.where.Channel == where.Channel {
+		in := n.where
+		in.Thread = ""
+		if n.message == message && n.agent == agent && in == where {
 			return id, true
 		}
 	}

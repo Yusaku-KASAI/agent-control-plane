@@ -149,7 +149,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   依頼のメッセージへの停止の指示を、依頼できる人か確かめてから、その依頼の停止として `Dispatcher.StopRequest` に渡す
   （[ADR 0039](../../adr/app/0039-stop-by-reacting-to-request-messages.md)）。スレッドの最初のメッセージへの片付けの
   指示を、依頼できる人か確かめてから、そのスレッドのセッションの今すぐの片付けとして `SessionCleaner.CleanNow` に渡す
-  （`CleanSession`、[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。
+  （`CleanSession`、[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)）。どのメッセージへの強制の片付けの
+  指示も、依頼できる人か確かめてから、チャンネルとメッセージの ts を添えて `SessionCleaner.ForceClean` に渡す
+  （`ForceCleanSession`、[ADR 0056](../../adr/app/0056-force-cleaning-on-the-notice.md)）。
 - **置くもの / 置かないもの**：結果ごとの合図と文面。
   - 許可されていない依頼者には、受け付けないと返す。依頼できるのは、エージェントごとの `allowed_users` に
     載っている人だけ。

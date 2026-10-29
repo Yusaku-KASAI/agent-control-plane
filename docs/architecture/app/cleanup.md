@@ -158,7 +158,8 @@ head コミットは、閉じたときの先頭）。
     なくなるので、強制でも残す）。消す手順は保持期間による片付けと同じで、ロックの下で判定し直し、その間に
     使われていれば消さずにそう知らせる（[ADR 0046](../../adr/app/0046-clean-a-session-now-by-reacting.md)、[0056](../../adr/app/0056-force-cleaning-on-the-notice.md)）。
   - 残した知らせ（保持期間ごとの促しと、今すぐの片付けの返事）は、エージェントに「締めて」と頼むことと、
-    `:wastebasket:` での片付けを案内する。
+    `:wastebasket:` での片付けを案内する。今すぐの片付けの返事は、加えて、`:wastebasket:` を付けた人が 1 時間のうちに
+    その知らせへ `:fire:` を付けることを案内する（開いている PR があれば、PR をマージするか閉じたあとに）。
 - **関係**：usecase のポート（`AgentRegistry`、`SessionRepository`、`CredentialIssuer`、`SessionWorkspace`、
   `SessionBranches`、`SessionFiles`、`SessionNotifier`、`SessionHolder`）だけに依存する。休んでいるワーカーを手放させるのは `SessionHolder`
   （`Dispatcher.Release`）。作業領域を読むのは `SessionWorkspace`（`internal/adapter/docker/workspace.go`。
