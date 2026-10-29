@@ -62,13 +62,13 @@ def closes(line, fence, base):
     return bool(re.fullmatch(rf" {{0,{base + 3}}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*", line))
 
 
-def opened(key, base, lines, index, unclosed):
+def opened(key, lines, index, unclosed):
     """An open fence or comment: how its closing line is told, the base it was opened at, and whether one comes later.
-    The key tells the kind of block, from which its closing line is told: "-->" for a comment, or the run that opened a
-    fence with the base it was opened at. unclosed holds, for each key, a line after which no closing line was found,
-    so that blocks that are never closed do not each read the rest of the document again."""
-    is_closing = ((lambda line: "-->" in line) if key == COMMENT_END
-                  else (lambda line: closes(line, key[0], key[1])))
+    The key is the kind of block with the base it was opened at: (COMMENT_END, base) for a comment, or (the run that
+    opened the fence, base). unclosed holds, for each key, a line after which no closing line was found, so that blocks
+    that are never closed do not each read the rest of the document again."""
+    mark, base = key
+    is_closing = ((lambda line: COMMENT_END in line) if mark == COMMENT_END else (lambda line: closes(line, mark, base)))
     if key in unclosed and unclosed[key] <= index:
         return is_closing, base, False
     later = any(is_closing(line) for line in lines[index + 1:])
@@ -87,8 +87,10 @@ def code_block_lines(text):
     the rest; one never closed ends where its list item ends, or runs to the end outside lists. A line indented four
     columns past where the text begins is indented code unless it continues a paragraph. Where the text of each open
     list item begins is taken from its marker line; a less indented line ends the items it is outside of. Lazy
-    continuation lines, block quotes, a second list marker on the marker line, headings and comments right after a
-    list marker, comments inside a line, other HTML blocks, tabs, and backslash escapes are not told apart."""
+    continuation lines, list markers that cannot interrupt a paragraph (an empty item, a number other than 1, a marker
+    indented four columns; a lone - after a paragraph is read as an empty item, not a heading's underline), block
+    quotes, a second list marker on the marker line, headings and comments right after a list marker, comments inside
+    a line, other HTML blocks, tabs, and backslash escapes are not told apart. Code spans are told by CODE_SPAN."""
     lines = text.split("\n")
     code, items, indented = set(), [], False
     # Whether the line before ends no paragraph that an indented line would continue.
@@ -118,10 +120,10 @@ def code_block_lines(text):
         if line.lstrip().startswith("<!--") and depth <= base + 3:
             code.add(index)
             # As in CommonMark, <!--> and <!---> are whole comments.
-            if "-->" in line[line.index("<!--") + 2:]:
+            if COMMENT_END in line[line.index("<!--") + 2:]:
                 after_block = True
             else:
-                block = opened(COMMENT_END, base, lines, index, unclosed)
+                block = opened((COMMENT_END, base), lines, index, unclosed)
             continue
         if depth <= base + 3 and (HEADING.match(line[depth:]) or BREAK.fullmatch(line[depth:])):
             after_block = True
@@ -145,7 +147,7 @@ def code_block_lines(text):
         if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
             code.add(index)
             fence = m.group(2)
-            block = opened((fence, base), base, lines, index, unclosed)
+            block = opened((fence, base), lines, index, unclosed)
     return code
 
 

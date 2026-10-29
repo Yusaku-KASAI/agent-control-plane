@@ -194,6 +194,15 @@ put docs/architecture/a.md '# A
 ```'
 fails "a 構成要素 heading in fenced code does not count" "docs/architecture/a.md: no '## 構成要素' section"
 fresh
+put docs/architecture/a.md '# A
+
+## 構成要素
+
+### `x/`
+
+- **関係**：x を前提にする。'
+fails "a component headed by a code span without 責務 fails" "docs/architecture/a.md: component '\`x/\`' has no 責務"
+fresh
 add docs/architecture/a.md '
 ### y
 
@@ -769,7 +778,8 @@ x
   [x](missing.md)'
 fails "a fence that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
 fresh
-add docs/reference/r.md '- <!--
+add docs/reference/r.md '- 項目
+  <!--
 x
   [x](missing.md)'
 fails "a comment that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
@@ -902,6 +912,13 @@ add docs/reference/r.md '<!-- note -->
 
 [x](missing.md)'
 fails "a link after a one-line HTML comment is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '<!-- [x](missing.md)
+-->'
+passes "the line that opens an HTML comment is code"
+fresh
+add docs/reference/r.md '<!-- [x](missing.md) -->'
+passes "a one-line HTML comment is code"
 fresh
 add docs/reference/r.md 'text
 
