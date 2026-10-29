@@ -39,7 +39,8 @@ case $args in
   *" --jq .node_id "*) echo N1 ;;
   *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
-  *" pr view 1 "*) cat "$dir/pr.json" ;;
+  # Only the fields asked for, as gh does.
+  *" pr view 1 "*) jq --arg f "$(sed -E 's/.* --json ([^ ]+) .*/\1/' <<<"$args")" '. as $pr | reduce ($f | split(","))[] as $k ({}; .[$k] = $pr[$k])' "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
   *" -X PATCH "*"/pulls/"*)
     for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-edit"; done
@@ -468,6 +469,9 @@ set_pr "$c7"
 out=$(cd "$wt" || exit; "$prctl" worktree pr 1)
 check "the worktree is made again from inside it" "$(git -C "$wt" rev-parse HEAD)" "$c7"
 check "the worktree tells when the body names no issue" "$out" "issue: none"
+jq '.body = "Closes #3\ncloses #3\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "the worktree tells an issue named twice once" "$("$prctl" worktree pr 1)" $'\nissue: #3\n'
+set_pr "$c7"
 (cd "$wt" || exit; "$prctl" worktree remove pr 1)
 [[ ! -e $wt ]] || { echo "FAIL the worktree is left after a remove from inside it"; failures=$((failures + 1)); }
 check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
@@ -641,6 +645,10 @@ for line in 'Closes #1, #2' 'Closes #1 and fixes owner/repo#2'; do
   # shellcheck disable=SC2001 # a line-wise edit of a sample body
   check "\"$line\" is refused as naming more issues than the request" \
     "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|$line|" <<<"$good")" 2>&1 || true)" "a line of Closes or Refs names more issues than the request"
+done
+for line in 'Closes #2 についても直した' 'Closes #2.' '- Refs #2'; do
+  check "\"$line\" names its issue, whatever follows" "$("$prctl" create t - <<<"$good"$'\n'"$line" 2>&1 || true)" \
+    "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"
 done
 check "lines naming two issues are refused" "$("$prctl" create t - <<<"$good"$'\nRefs #2' 2>&1 || true)" \
   "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"

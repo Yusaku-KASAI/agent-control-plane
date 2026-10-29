@@ -69,12 +69,13 @@ readonly review_mark=prctl-review answers_mark=prctl-answers
 forms=$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd) || forms=/nonexistent
 readonly forms
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
-# A line that closes or refers to an issue (writing.md: PR), by any of GitHub's keywords, in any case,
-# and nothing else on the line: the one form both the body's check and the reading of a PR's request
-# issue go by. Matched as a jq regex with the flag "i".
-readonly issue_line_re='^\s*(?<word>close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)\s*$'
-# The start of such a line, to tell a line that names more issues than one.
-readonly issue_start_re='^\s*(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *([\w.-]+/[\w.-]+)?#[0-9]+'
+# The start of a line that closes or refers to an issue (writing.md: PR), by any of GitHub's keywords,
+# in any case, also as an item of a list: the one form both the body's check and the reading of a PR's
+# request issue go by, as GitHub closes the issue whatever follows. Matched as a jq regex with the
+# flag "i".
+readonly issue_start_re='^\s*([-*+]\s+)?(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
+# Such a line with nothing after the issue, which is not what is written under a section.
+readonly issue_line_re=$issue_start_re'\s*$'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -576,11 +577,6 @@ cmd_review() {
     head=$(pr_head "$pr")
     git merge-base --is-ancestor "$commit" "$head" || die "${commit:0:12} is not in the PR (head ${head:0:12})"
     base=$(jq -r .baseRefName <<<"$pr")
-    # Only the title and the request issue: the rest of the body is the intent, read after the
-    # alternatives are thought of (review.md).
-    echo "title: $(jq -r .title <<<"$pr")"
-    issues=$(request_issues "$(jq -r '.body // ""' <<<"$pr")" | paste -sd ' ' -)
-    echo "issue: ${issues:-none (no line of Closes or Refs)}"
     from=$(git merge-base "origin/$base" "$commit") || die "no origin/$base here; fetch it first"
   else
     b=$(branch) || die "not on a branch"
@@ -671,14 +667,16 @@ readonly body_lines='def body_lines: [foreach (split("\n")[]) as $l ({fence: fal
     else .line = $l | .code = .fence | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
     {line, head, code})];'
 
-# request_issues <body>: the issues the lines of Closes or Refs of the body name, one to a line.
+# request_issues <body>: the issues the lines of Closes or Refs of the body name, each once, one to a line.
 request_issues() {
-  jq -Rrs --arg line "$issue_line_re" "$body_lines"' body_lines[] | select(.code | not) | .line | capture($line; "i").issue' <<<"$1"
+  jq -Rrs --arg start "$issue_start_re" "$body_lines"' [body_lines[] | select(.code | not) | .line | capture($start; "i").issue]
+    | reduce .[] as $i ([]; if any(.[]; ascii_downcase == ($i | ascii_downcase)) then . else . + [$i] end) | .[]' <<<"$1"
 }
 
 # body_check <body>: die unless the body has the sections, in order, once each, none of them empty,
-# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR). Lines
-# in code blocks are not headings, and name no issue. Such lines, the attribution line and the old
+# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR), whatever
+# follows it on the line. Lines in code blocks are not headings, and name no issue. Such lines with
+# nothing after the issue, the attribution line and the old
 # marker of the head, which the body loses when it is written, do not count as what is written under
 # a section.
 body_check() {
@@ -702,7 +700,7 @@ body_check() {
          then "the sections are not in the order: \($want | join(", "))" else empty end),
         ($prose[] | select(test($start; "i") and (test($line; "i") | not) and (sub($start; ""; "i") | test("#[0-9]+")))
          | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
-        ([$prose[] | capture($line; "i").issue | ascii_downcase] | unique
+        ([$prose[] | capture($start; "i").issue | ascii_downcase] | unique
          | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end) ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
