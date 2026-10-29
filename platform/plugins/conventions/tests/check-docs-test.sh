@@ -1259,13 +1259,15 @@ fresh
 add CLAUDE.md "\`[$(wide 126)](docs/README.md)\`"
 fails "the parentheses of a link in a code span are counted" "CLAUDE.md:5: 146 columns wide"
 fresh
+for i in $(seq 54); do add CLAUDE.md "- $i"; done
 add CLAUDE.md "\`\`\`
 [$(wide 126)](docs/README.md)
 \`\`\`"
-fails "the parentheses of a link in fenced code are counted" "CLAUDE.md:6: 144 columns wide"
+fails "the parentheses of a link in fenced code are counted" "CLAUDE.md: 61 lines, more than the 60 lines"
 fresh
+for i in $(seq 56); do add CLAUDE.md "- $i"; done
 add CLAUDE.md "\`\`\`[$(wide 126)](docs/README.md)"
-fails "the line that opens a fence is counted as code" "CLAUDE.md:5: 147 columns wide"
+fails "the line that opens a fence is counted as code" "CLAUDE.md: 61 lines, more than the 60 lines"
 fresh
 add CLAUDE.md "$(wide 128)→→"
 passes "a character of ambiguous width counts one column"
@@ -1308,6 +1310,114 @@ fails "rules are held to the width" "p/rules/rule.md:4: 131 columns wide"
 fresh
 add docs/reference/r.md "$(wide 200)"
 passes "a document not read at every start is not held to the width"
+fresh
+add CLAUDE.md "| $(wide 200) |"
+passes "a row of a table is not held to the width"
+fresh
+add CLAUDE.md '```'
+add CLAUDE.md "$(wide 200)"
+add CLAUDE.md '```'
+passes "a line of fenced code is not held to the width"
+fresh
+for i in $(seq 56); do add CLAUDE.md "- $i"; done
+add CLAUDE.md "| $(wide 126) |"
+passes "a row of a table 130 columns wide counts one line"
+fresh
+for i in $(seq 56); do add CLAUDE.md "- $i"; done
+add CLAUDE.md "| $(wide 127) |"
+fails "a row of a table wider than 130 columns counts the lines it takes wrapped" "CLAUDE.md: 61 lines, more than the 60 lines"
+fresh
+for i in $(seq 54); do add CLAUDE.md "- $i"; done
+add CLAUDE.md '```'
+add CLAUDE.md "$(wide 131)"
+add CLAUDE.md '```'
+fails "a line of code wider than 130 columns counts the lines it takes wrapped" "CLAUDE.md: 61 lines, more than the 60 lines"
+read_first() { add p/rules/rule.md "
+## 始めに読む
+
+- [r]($1)"; }
+fresh
+read_first '../../docs/reference/r.md "在りか"'
+add docs/reference/r.md "$(wide 131)"
+fails "a document the rules tell to read first is held to the width" "docs/reference/r.md:8: 131 columns wide"
+fresh
+read_first '../../docs/reference/r.md#part "在りか"'
+add docs/reference/r.md "$(wide 131)"
+passes "a section the rules tell to read first does not hold its document to the width"
+fresh
+read_first '../../docs/reference/r.md "在りか"'
+add p/rules/rule.md '
+## 振り分け
+
+- [g](../../docs/guides/g.md "在りか")'
+add docs/guides/g.md "$(wide 131)"
+passes "a document linked from another section of the rules is not held to the width"
+fresh
+read_first '../../docs/reference/r.md "在りか"'
+for i in $(seq 146); do add docs/reference/r.md "- $i"; done
+passes "documents to read first of 150 lines pass"
+add docs/reference/r.md '- 147'
+fails "documents to read first of 151 lines fail" "始めに読む: 151 lines, more than the 150 lines"
+fresh
+read_first '../../docs/reference/r.md "在りか"'
+add p/rules/rule.md '- [g](../../docs/guides/g.md "在りか")'
+for i in $(seq 144); do add docs/reference/r.md "- $i"; done
+fails "documents to read first are counted together" "始めに読む: 151 lines, more than the 150 lines"
+role_described() { put p/agents/role.md "---
+name: role
+description: $1
+---
+
+## 受け持つ手順
+
+書ける範囲：なし。
+
+## 固有の振る舞い"; }
+fresh
+role_described "$(wide 390)"
+passes "a description 390 columns wide passes"
+fresh
+role_described "$(wide 391)"
+fails "a description 391 columns wide fails" "p/agents/role.md: a description 391 columns wide, more than the 390"
+fresh
+role_described "$(wide 200)
+  $(wide 190)"
+fails "a description is folded into one line" "p/agents/role.md: a description 391 columns wide"
+fresh
+role_described ">-
+  $(wide 390)"
+passes "the indicator of a folded description is not counted"
+fresh
+put .claude/agents/helper.md "---
+name: helper
+description: $(wide 391)
+---
+
+補助のエージェント。"
+fails "a repository's agent is held to the width of a description" ".claude/agents/helper.md: a description 391 columns wide"
+fresh
+put p/skills/s/SKILL.md "---
+name: s
+description: $(wide 391)
+---
+
+# S"
+fails "a plugin's skill is held to the width of a description" "p/skills/s/SKILL.md: a description 391 columns wide"
+fresh
+put .claude/skills/s/SKILL.md "---
+name: s
+description: $(wide 391)
+---
+
+# S"
+fails "a repository's skill is held to the width of a description" ".claude/skills/s/SKILL.md: a description 391 columns wide"
+fresh
+put docs/reference/s.md "---
+description: $(wide 391)
+---
+
+# S"
+fails "a document neither a role nor a skill is not held to the width of a description" "docs/reference/s.md: not listed in docs/README.md"
 
 echo "# 地図"
 top='<a id="map-top"></a>
