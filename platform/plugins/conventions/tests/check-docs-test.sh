@@ -272,6 +272,27 @@ put docs/guides/g.md '# G
 1. **書く**：書く。'
 fails "a procedure outside plugins that tells its layer keeps that layer's form" "docs/guides/g.md: a purpose procedure starts with the step"
 fresh
+add p/docs/guides/do.md '
+```
+1. x
+```'
+passes "a numbered line in fenced code is no step"
+fresh
+put p/docs/guides/do.md '# Do
+
+目的の手順で、新しい依頼は振り分けから入る。
+
+1. **作る**：作る。
+2. **始めに読む**：読む。'
+fails "a purpose procedure that reads in a later step fails" "p/docs/guides/do.md: a purpose procedure starts with the step"
+fresh
+put p/docs/guides/do.md '# Do
+
+目的の手順で、振り分けから入る。
+
+1. **始めに読む**：新しい依頼を読む。'
+fails "a purpose procedure that tells a new request only in its steps fails" "p/docs/guides/do.md: a purpose procedure tells, before its steps,"
+fresh
 add p/docs/guides/do.md '3. 名前のない段。'
 fails "a step without a bold name fails" "p/docs/guides/do.md: a step is numbered and named in bold"
 
@@ -315,6 +336,26 @@ fresh
 add .claude/agents/helper.md '
 ## 読むもの'
 passes "a repository's helper agent is not held to a role's form"
+fresh
+add .claude/agents/helper.md '
+```
+reviewer ロールとして
+```
+
+## 読むもの'
+passes "an agent that says it is a role only in fenced code is no role"
+fresh
+add .claude/agents/helper.md '
+## 読むもの
+
+reviewer ロールとして読む。'
+passes "an agent that says it is a role only after its first section is no role"
+fresh
+add p/agents/role.md '
+```
+## 使う決まり
+```'
+passes "a heading in fenced code is no section of a role"
 
 echo "# ADR"
 adr() { put "docs/adr/$1" "$2"; }
@@ -389,6 +430,14 @@ date: 2026-01-01
 
 # First'
 fails "an ADR whose title lacks its number fails" "docs/adr/0001-first.md: the title must be the first heading"
+fresh
+adr 0001-first.md '---
+status: accepted
+date: 2026-01-01
+---
+
+# 0002. First'
+fails "an ADR whose title has another number fails" "docs/adr/0001-first.md: the title must be the first heading and start with '# 0001. '"
 fresh
 adr 0001-first.md '---
 status: accepted
@@ -670,9 +719,92 @@ add docs/reference/r.md '  - 項目
 fails "a link after a fence closed in a nested list item is checked" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '- ```
+[x](missing.md)'
+fails "a fence in a list item that nothing closes ends where the item ends" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- 例：
+
+  ```sh
+  cat <<X
 [x](missing.md)
+X
+  ```'
+passes "a fence closed later keeps less indented lines as code"
+fresh
+add docs/reference/r.md '- 例：
+
+  ```sh
+  cat <<X
+X
+  ```
+
+[x](missing.md)'
+fails "a link after a fence with less indented lines is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '```
+x
+````
+
+[x](missing.md)'
+fails "a longer line closes a fence" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '   ```
+   x
+   ```
+
+[x](missing.md)'
+fails "a link after a fence closed three columns deep is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- 項目
+
+  ```
+  a
+
+  [x](missing.md)
+  ```'
+passes "a blank line in a fence in a list item keeps the fence"
+fresh
+add docs/reference/r.md '- 項目
+
+  ```
+  a
+
+  [x](missing.md)'
+passes "a blank line in a fence in a list item that nothing closes keeps the fence"
+fresh
+add docs/reference/r.md '~~~ a`b
+[x](missing.md)
+~~~'
+passes "a tilde fence may hold a backtick in its info string"
+fresh
+add docs/reference/r.md '<!--
+```
+-->
+
+[x](missing.md)'
+fails "a fence line in an HTML comment opens nothing" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '1) 項目
+
+    [x](missing.md)'
+fails "a paragraph in an item numbered with a parenthesis is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '   [x]: missing.md'
+fails "a link reference definition indented three columns is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '```
+<a id="only"></a>
+```
+
+[x](#only)'
+fails "an <a id> in fenced code is no anchor" "docs/reference/r.md: no anchor #only"
+fresh
+add docs/reference/r.md '```
+<a id="map-x"></a>
+
+| a | b |
 ```'
-fails "a fence in a list item closes where the item ends" "docs/reference/r.md: broken link missing.md"
+passes "a map anchor in fenced code starts no map"
 fresh
 add docs/reference/r.md '- a
   - b
@@ -814,6 +946,21 @@ ${top/top/p}
 | p-guides | p | \`guides/\` | |"
 passes "an item inside an item is mapped in that item's overview"
 fresh
+put p/docs/overview.md "# P
+
+${top/top/p}
+| p-guides | p | \`guides/\` | |"
+add p/docs/guides/do.md '3. **引く**：[全体](../overview.md) を引く。'
+passes "an item inside an item may rely on the whole of its parent"
+fresh
+put p/docs/overview.md "# P
+
+[do](guides/do.md)
+
+${top/top/p}
+| p-guides | p | \`guides/\` | |"
+fails "the whole of an item may not rely on an item inside it" "p/docs/overview.md: relies on guides/do.md, but p may not rely on p-guides"
+fresh
 add docs/overview.md '| p-guides | p | `../p/docs/guides/` | |'
 fails "an item inside an item mapped above it fails" "docs/overview.md: item p-guides belongs in a map in p's own documents"
 fresh
@@ -908,6 +1055,16 @@ add CLAUDE.md '[o](other.md)'
 passes "a repository without maps has no map checks"
 
 echo "# 検査する文書"
+commit() { git -C "$repo" add -A && git -C "$repo" -c user.name=t -c user.email=t@example.com commit --quiet -m c; }
+fresh
+add docs/reference/r.md '[x](missing.md)'
+commit
+fails "a committed document is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+put docs/adr/0002-gone.md '[x](missing.md)'
+commit
+rm "$repo/docs/adr/0002-gone.md"
+passes "a committed document removed from the work tree is not checked"
 fresh
 printf 'ignored/\n' >"$repo/.gitignore"
 put ignored/x.md '[x](missing.md)'
