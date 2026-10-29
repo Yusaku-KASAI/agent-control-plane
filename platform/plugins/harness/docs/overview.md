@@ -9,7 +9,7 @@ harness/
   scripts/foreground   control-plane 経由のとき、サブエージェントをフォアグラウンドで動かす
   scripts/detach       control-plane 経由のとき、処理を手放す Bash と、Monitor、ScheduleWakeup、CronCreate を断る
   scripts/watch-tree   control-plane 経由のとき、サブエージェントの間に作業領域が変わったら知らせる
-  tests/               scripts/foreground、scripts/detach、scripts/watch-tree の試験
+  tests/               scripts/context、scripts/foreground、scripts/detach、scripts/watch-tree の試験
   skills/harness/      詰まったときに、どこの問題かを切り分ける手順
 ```
 
@@ -30,7 +30,8 @@ harness/
   事実や細部（環境変数の一覧など）は書かない。ブランチは、どのブランチで作業するか（既存の PR を続けるときを
   含む）までを書き、別の PR に分けるときやほかの PR に重ねるときの切り方は書かない。
 - **関係**：文書のパスは、マーケットプレイスの中でプラグインの隣にある `docs/` から決める。プラグインが別の場所に
-  写されていて見つからなければ、ターゲットがマーケットプレイスを宣言する `/workspace/agent-platform/docs` を使う。
+  写されていて見つからなければ、ターゲットがマーケットプレイスを宣言する `/workspace/agent-platform/docs` を使う。試験は
+  `tests/context-test.sh`（動き方ごとの要約、伝える文書のパスがあること、hook のイベントの名前）。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../principles/docs/reference/patterns.md#published-language)：control-plane のリポジトリを読めない
   エージェントにも、契約の在りかを届ける。[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：常に読み込まれるので、
   中身ではなく行き先を渡す。

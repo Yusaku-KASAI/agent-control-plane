@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks the context scripts/context injects: the rules link their sources relative to rules/, and
-# every link to a file must reach the reader as an absolute path that exists.
+# every link to a file must reach the reader as an absolute path that exists. So must the paths of the
+# last line, which tells where the documents are without links, and the output must name the hook's event.
 set -euo pipefail
 
 plugin=$(cd "$(dirname "$0")/.." && pwd)
@@ -34,9 +35,17 @@ relative() { targets "$1" | grep -vE '^(/|[a-z]+:|$)' || true; }
 # The absolute targets that do not exist.
 missing() { targets "$1" | grep '^/' | while read -r f; do [[ -e $f ]] || echo "$f"; done; }
 
+# The paths the last line tells, one per line: the documents of this plugin, then those of principles.
+told() { tail -n 1 <<<"$1" | sed -n 's/^文書の在りか：決まりは \(.*\)、原則とパターンは \(.*\)。$/\1\n\2/p'; }
+
 ctx=$(context "$plugin")
 check "no link is left relative" "" "$(relative "$ctx")"
 check "every path the context links to exists" "" "$(missing "$ctx")"
+check "the last line tells where the documents of conventions and principles are" \
+  "$plugin/docs/README.md
+$(dirname "$plugin")/principles/docs/README.md" "$(told "$ctx")"
+check "the output names the event it was called for" "SubagentStart" \
+  "$("$plugin/scripts/context" SubagentStart | jq -r .hookSpecificOutput.hookEventName)"
 
 # Copies whose rules are broken in one way each must have that reported.
 tmp=$(mktemp -d)
@@ -56,5 +65,12 @@ check "a link to a missing document is reported" "$tmp/plugins/conventions/docs/
 copy '- [書き換えられない](other.md)'
 broken=$(context "$tmp/plugins/conventions")
 check "a link not turned into a path is reported" "other.md" "$(relative "$broken")"
+
+copy ''
+rm -rf "$tmp/plugins/principles"
+broken=$(context "$tmp/plugins/conventions")
+check "a copy without principles beside it names where to look" \
+  "$tmp/plugins/conventions/docs/README.md
+同じマーケットプレイスの plugins/principles/docs/README.md" "$(told "$broken")"
 
 exit "$failed"
