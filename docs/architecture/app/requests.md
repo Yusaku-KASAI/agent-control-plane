@@ -231,7 +231,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     （`CreateIfMissing`。`HandleMessage` が付ける）だけ作る（[ライフサイクル](sessions.md#lifecycle "在りか")）。ワーカーが記録を読み直したときに
     記録が消えていれば（片付けと入れ違えば）、`CreateIfMissing` なら同じ ID でセッションを作り直してから送り直し、ほかは
     セッションがないと返す。ワーカーがなければ作る。
-  - **停止の受け口**（`Stop`、`StopRequest`）：ワーカーに渡し、何を止めるかは[依頼とターンの状態](#states)で決まる。依頼ごとの停止で、止める依頼がまだ受け取り待ちなら、ワーカーに渡さずにここで取り消す。
+  - **停止の受け口**（`Stop`、`StopRequest`）：ワーカーに渡し、何を止めるかは[依頼とターンの状態](#states)で決まる。依頼ごとの停止で、止める依頼がまだ受け取り待ちなら、ワーカーに渡さずにここで取り消す。ほかの依頼ごとの停止は 32 件までワーカーを待ち、ワーカーが受け取れない間にそれを超えた停止は捨てる。
   - **手放す**（`Release`）：休める状態のワーカーを、その場で休ませる（[片付け](cleanup.md "在りか")が使う）。
   - **止まると起動**（`Close`、`Recover`）：[停止と再起動の知らせ](#shutdown)。
 - **関係**：`TurnExecutor`（`HandleMessage` から）と `SessionHolder`（`SessionCleaner` から）を満たし、HTTP API からも

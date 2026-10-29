@@ -514,8 +514,13 @@ func (w *worker) run() {
 		}
 		select {
 		case <-w.arrived:
-			// Sending between takes lets an injected request join the turn the one before began.
-			for r, ok := w.d.takeArrival(w); ok; r, ok = w.d.takeArrival(w) {
+			// Sending between takes lets an injected request join the turn the one before began. Once
+			// the dispatcher is closing, the rest are left for shutdown to answer as cut short.
+			for w.d.ctx.Err() == nil {
+				r, ok := w.d.takeArrival(w)
+				if !ok {
+					break
+				}
 				w.accept(r)
 				w.sendNext()
 			}

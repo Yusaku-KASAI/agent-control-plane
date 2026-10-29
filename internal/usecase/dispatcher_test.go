@@ -373,18 +373,23 @@ type fakeRunner struct {
 	holdPrompts bool
 	// gate, when set, keeps Start from returning until it is closed.
 	gate chan struct{}
+	// honorCtx makes Start fail once its context is done, as the real one does.
+	honorCtx bool
 }
 
 func newFakeRunner() *fakeRunner { return &fakeRunner{procs: make(chan *fakeProcess, 8)} }
 
-func (f *fakeRunner) Start(_ context.Context, r usecase.StartRequest) (usecase.Process, error) {
+func (f *fakeRunner) Start(ctx context.Context, r usecase.StartRequest) (usecase.Process, error) {
 	f.mu.Lock()
 	p := &fakeProcess{events: make(chan usecase.ProcessEvent, 8), holdPrompts: f.holdPrompts}
 	f.started = append(f.started, r)
-	gate := f.gate
+	gate, honorCtx := f.gate, f.honorCtx
 	f.mu.Unlock()
 	if gate != nil {
 		<-gate
+	}
+	if honorCtx && ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 	f.procs <- p
 	return p, nil
@@ -965,18 +970,18 @@ func TestDispatcher_StopInjectedRequestNotTakenYet(t *testing.T) {
 		if o := wait(t, stopped); !errors.Is(o.err, usecase.ErrStopped) {
 			t.Errorf("stopped request = %+v, %v; want ErrStopped", o.out, o.err)
 		}
-		p.mu.Lock()
-		interrupted := p.interrupted
-		p.mu.Unlock()
-		if interrupted {
-			t.Error("withdrawing a request the worker had not taken stopped the agent's work")
-		}
 		eventually(t, func() bool { return len(p.sent()) == 2 })
 		p.finish("both")
 		for name, ch := range map[string]<-chan outcome{"running": running, "held": held} {
 			if o := wait(t, ch); o.err != nil || o.out.Interrupted {
 				t.Errorf("%s request = %+v, %v; want it answered", name, o.out, o.err)
 			}
+		}
+		p.mu.Lock()
+		interrupted := p.interrupted
+		p.mu.Unlock()
+		if interrupted || slices.Contains(p.sent(), "never mind") {
+			t.Error("withdrawing a request the worker had not taken sent it or stopped the agent's work")
 		}
 	}
 }
@@ -1098,6 +1103,36 @@ func TestDispatcher_QueueHasNoLimit(t *testing.T) {
 		if o := wait(t, ch); o.err != nil {
 			t.Fatalf("request %d waiting behind a turn: %v", i, o.err)
 		}
+	}
+}
+
+// A request still waiting for the worker when the dispatcher closes is answered as cut short by the
+// shutdown, not with the failure of starting the agent on the way out.
+func TestDispatcher_ShutdownAnswersArrivals(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	e.runner.gate = make(chan struct{})
+	e.runner.honorCtx = true
+	release := sync.OnceFunc(func() { close(e.runner.gate) })
+	t.Cleanup(release)
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+	waiting := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "waiting"})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 1 })
+	closed := make(chan struct{})
+	go func() { e.d.Close(); close(closed) }()
+	// A request refused as shutting down tells the dispatcher is closing; one taken before waits
+	// only briefly here, and is answered by the shutdown too.
+	eventually(t, func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		_, err := e.d.Execute(ctx, usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "late"})
+		return errors.Is(err, usecase.ErrShuttingDown)
+	})
+	release()
+	<-closed
+	wait(t, first)
+	if o := wait(t, waiting); !errors.Is(o.err, usecase.ErrShuttingDown) {
+		t.Errorf("waiting request = %+v, %v; want ErrShuttingDown", o.out, o.err)
 	}
 }
 
