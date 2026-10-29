@@ -646,8 +646,8 @@ add docs/reference/r.md '- 項目
       ```'
 passes "lines indented four columns past the text of a list item are indented code"
 fresh
-add docs/reference/r.md '  - 項目
-
+add docs/reference/r.md '- a
+  - 項目
     ```
     [x](missing.md)
     ```'
@@ -679,7 +679,8 @@ add docs/reference/r.md 'text
     [x](missing.md)'
 fails "a line indented four columns right after a paragraph is no code" "docs/reference/r.md: broken link missing.md"
 fresh
-add docs/reference/r.md '  - 項目
+add docs/reference/r.md '- a
+  - 項目
 
     [x](missing.md)'
 fails "a paragraph in a nested list item is no code" "docs/reference/r.md: broken link missing.md"
@@ -760,7 +761,8 @@ fresh
 add docs/reference/r.md 'a ``` [x](missing.md) `` b'
 fails "runs of backticks of other lengths make no code span" "docs/reference/r.md: broken link missing.md"
 fresh
-add docs/reference/r.md '  - 項目
+add docs/reference/r.md '- a
+  - 項目
 
     ```
     x
@@ -784,7 +786,8 @@ x
   [x](missing.md)'
 fails "a comment that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
 fresh
-add docs/reference/r.md '  - item
+add docs/reference/r.md '- a
+  - item
     <!--
     [x](missing.md)
     -->'
@@ -848,6 +851,19 @@ add docs/reference/r.md '-
 
       [x](missing.md)'
 passes "a line six columns deep under an item that begins with blanks is indented code"
+fresh
+add docs/reference/r.md '-
+
+    [x](missing.md)'
+passes "an item that begins with a blank line ends at a second one"
+fresh
+add docs/reference/r.md '`` <a id="only"></a> ` ``
+
+[x](#only)'
+fails "an <a id> in a code span of two backticks is no anchor" "docs/reference/r.md: no anchor #only"
+fresh
+add docs/reference/r.md 'The form `` <a id="map-x"></a> ` `` starts a map.'
+passes "a map anchor in a code span of two backticks starts no map"
 fresh
 add docs/reference/r.md '- 例：
 
@@ -1187,6 +1203,9 @@ fresh
 add CLAUDE.md "[$(wide 120)](docs/README.md \"在りか\") \`x\`"
 passes "the parentheses of a link before a code span are not counted"
 fresh
+add CLAUDE.md "\`\` [$(wide 120)](docs/README.md) \` \`\`"
+fails "the parentheses of a link in a code span of two backticks are counted" "CLAUDE.md:5: 146 columns wide"
+fresh
 add CLAUDE.md "\`[$(wide 126)](docs/README.md)\`"
 fails "the parentheses of a link in a code span are counted" "CLAUDE.md:5: 146 columns wide"
 fresh
@@ -1359,6 +1378,18 @@ x
 ```
 | q | | `../missing.md` | |'
 passes "a code block ends a map's table"
+fresh
+add docs/reference/r.md '
+<a id="map-r"></a>
+
+## a
+
+## b
+
+| 項目 | 親 | 置き場所 | 前提にする |
+| --- | --- | --- | --- |
+| q | | | |'
+fails "a map anchor with two headings before the table finds no map" "docs/reference/r.md: the map after <a id=\"map-r\"></a> needs a table with the columns"
 fresh
 add docs/reference/r.md '
 <a id="map-r"></a>

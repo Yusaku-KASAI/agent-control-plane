@@ -92,7 +92,7 @@ def code_block_lines(text):
     quotes, a second list marker on the marker line, headings and comments right after a list marker, comments inside
     a line, other HTML blocks, tabs, and backslash escapes are not told apart. Code spans are told by CODE_SPAN."""
     lines = text.split("\n")
-    code, items, indented = set(), [], False
+    code, items, indented, empty_item = set(), [], False, False
     # Whether the line before ends no paragraph that an indented line would continue.
     after_block = True
     block, unclosed = None, {}
@@ -107,8 +107,13 @@ def code_block_lines(text):
                 continue
             block = None
         if not line.strip():
+            if empty_item:
+                # An item that begins with a blank line ends at a second one.
+                items.pop()
+                empty_item = False
             after_block = True
             continue
+        empty_item = False
         while items and items[-1] > depth:
             items.pop()
         base = items[-1] if items else 0
@@ -133,6 +138,7 @@ def code_block_lines(text):
             if not line[item.end():].strip():
                 # An item that begins with a blank line has its text one space after the marker.
                 items.append(item.start(1) + 1)
+                empty_item = True
             elif len(item.group(1)) < 5:
                 items.append(item.end())
             else:
