@@ -88,7 +88,9 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 
 - **責務**：エージェントごとの GitHub App のインストールトークンを、発行のたびに新しく作る。
 - **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256。時計のずれに備えて発行時刻を 1 分戻し、期限は 9 分後）で
-  `POST /app/installations/<ID>/access_tokens` を呼ぶこと。トークンは 1 時間で失効し、手元には持ち続けない。
+  `POST /app/installations/<ID>/access_tokens` を呼ぶこと。リポジトリと権限は絞らずに発行するので、届く範囲は
+  インストールの範囲と App の権限で決まる（[ADR 0053](../../adr/app/0053-limit-github-app-reach-by-installation.md)）。
+  トークンは 1 時間で失効し、手元には持ち続けない。
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
   （[ADR 0011](../../adr/app/0011-github-access-via-per-agent-apps.md)）。同じパッケージの `branches.go` は、
