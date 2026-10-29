@@ -19,6 +19,9 @@
    そこに残してから進め、なければ PR を作るときに本文に書く（[どの Issue にも当たること](../reference/issues.md#general)）。
 3. **範囲を決める**：取りかかる前に、範囲の中の項目と PR を付け合わせ（[範囲の項目と PR の付け合わせ](../reference/issues.md#scope-items)）、
    依頼の範囲（範囲の中と範囲の外）を今の依頼に合わせて、依頼の Issue の本文に書く（[依頼の範囲](../reference/issues.md#scope)）。
+   続けて、範囲の中の項目を何本の PR で扱うかを決める。項目の目的が別々か、一つの項目が大きくてほかの項目を待たせうる
+   なら、一つの目的ごとに分ける（[一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change)）。
+   分けたときの依頼の Issue と PR の扱いは[依頼の範囲](../reference/issues.md#scope)にある（[ADR 0052](../adr/0052-decide-pr-split-before-starting.md)）。
    作業の途中で出た直しとレビューの指摘は、それに照らして振り分ける（[済んでいないものの置き場所](../reference/issues.md#append)）。
 4. **今の姿を確かめる**：変更が関わる仕組みの今の姿と前提を、文書、ADR、コードで確かめる。
 5. **形を選び、壊れうる場面を挙げる**：形を決める前に、ほかの形（目的に立ち返った別の手段、より単純な形、一つ上の
@@ -28,8 +31,8 @@
    そのうえで、選んだ形で壊れうる場面を挙げて確かめる。たとえば、同じものを作り直すとき、再起動や失敗の途中、同時に
    動くとき、すでにあるデータや設定との組み合わせ。変更の種類に応じて[変更とパターン](../reference/changes.md#patterns)の
    表からパターンを選んで当てはめる。
-6. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、一つの目的ごとに分ける。依頼の範囲の中を何本かの PR に
-   分けるときの依頼の Issue の扱いは[依頼の範囲](../reference/issues.md#scope)にある（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
+6. **作る**：案を練り直すたびに範囲を見直し、最初の PR は小さく保つ。広がったら、3 段の分け方を見直し、一つの目的ごとに
+   分ける（[小さく試して確かめる](../../../principles/docs/reference/principles.md#small-experiments)、[変更とパターン](../reference/changes.md#patterns)）。
    文書を足したり書き換えたりするときは、共通の手順の[文書を書く](write-docs.md "在りか")に沿う。コミットの前と
    push の前は[検査と履歴](../reference/changes.md#checks)に、コミットメッセージと PR の本文は[書き方](../reference/writing.md "在りか")に
    沿う。
