@@ -106,7 +106,7 @@ func TestHandleReactionCleansTheSession(t *testing.T) {
 	b := New("dev", "", nil, &stopRecorder{}, cleanup, allowAll{}, 0, slog.New(slog.DiscardHandler))
 	thread := domain.Conversation{Platform: platform, Workspace: "T1", Channel: "C1", Thread: "1.0"}
 	reaction := func(name, user, ts string) *slackevents.ReactionAddedEvent {
-		return &slackevents.ReactionAddedEvent{Reaction: name, User: user, EventTimestamp: "1700000000.000100",
+		return &slackevents.ReactionAddedEvent{Reaction: name, User: user,
 			Item: slackevents.Item{Type: "message", Channel: "C1", Timestamp: ts}}
 	}
 
