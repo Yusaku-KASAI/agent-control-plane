@@ -100,7 +100,11 @@ func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, to
 	if err != nil {
 		return err
 	}
-	target, _ := parseRepo(origin)
+	target, ok := parseRepo(origin)
+	if !ok {
+		return fmt.Errorf("github app %d of agent %q: the target has no GitHub origin to hold the installation to; point the target's origin at its GitHub repository, or drop the agent's github app",
+			app.ID, agent.Name)
+	}
 	repos, err := i.installationRepos(ctx, token)
 	if err != nil {
 		return err
@@ -113,11 +117,8 @@ func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, to
 }
 
 // reachOnly tells why a token whose installation has selection and repos reaches more than target
-// ("owner/name", "" when the target has no GitHub origin), or nil when it reaches the target alone.
+// ("owner/name"), or nil when it reaches the target alone.
 func reachOnly(target, selection string, repos []string) error {
-	if target == "" {
-		return errors.New("the target has no GitHub origin to hold the installation to")
-	}
 	if selection != "selected" {
 		return fmt.Errorf("the installation reaches %q repositories, not selected ones", selection)
 	}

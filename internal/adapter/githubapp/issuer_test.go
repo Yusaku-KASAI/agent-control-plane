@@ -132,23 +132,23 @@ func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
 	for name, tt := range map[string]struct {
 		origin, selection string
 		repos             []string
-		want              string
+		want, fix         string
 	}{
-		"all repositories":             {"https://github.com/owner/repo.git", "all", []string{"owner/repo"}, `"all"`},
-		"another repository selected":  {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/other"}, "owner/other"},
-		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "owner/other"},
-		"more than a page":             {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/a", "owner/b"}, "1 more"},
-		"no selection in the response": {"https://github.com/owner/repo.git", "", []string{"owner/repo"}, `""`},
-		"a target without GitHub":      {"/srv/git/repo.git", "selected", []string{"owner/repo"}, "no GitHub origin"},
-		"a target without an origin":   {"", "selected", []string{"owner/repo"}, "no GitHub origin"},
+		"all repositories":             {"https://github.com/owner/repo.git", "all", []string{"owner/repo"}, `"all"`, "Repository access"},
+		"another repository selected":  {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/other"}, "owner/other", "Repository access"},
+		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "not owner/repo alone", "Repository access"},
+		"more than a page":             {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/a", "owner/b"}, "1 more", "Repository access"},
+		"no selection in the response": {"https://github.com/owner/repo.git", "", []string{"owner/repo"}, `""`, "Repository access"},
+		"a target without GitHub":      {"/srv/git/repo.git", "selected", []string{"owner/repo"}, "no GitHub origin", "origin at its GitHub repository"},
+		"a target without an origin":   {"", "selected", []string{"owner/repo"}, "no GitHub origin", "origin at its GitHub repository"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := installationAPI(t, tt.selection, tt.repos...)
 			issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
 				originOf(tt.origin))
 			got, err := issuer.Issue(context.Background(), dev)
-			if err == nil || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), "Repository access") {
-				t.Errorf("Issue() error = %v, want one naming %s and telling where to fix it", err, tt.want)
+			if err == nil || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), tt.fix) {
+				t.Errorf("Issue() error = %v, want one naming %s and telling to fix %s", err, tt.want, tt.fix)
 			}
 			if got != (domain.Credentials{}) {
 				t.Errorf("Issue() = %+v, want no credentials", got)
