@@ -242,7 +242,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 ### 依頼とターンの対応（`request_turns.go` の `requestTurns`）
 
 - **責務**：一つのセッションの[依頼とターンの状態](#states)を持ち、出来事ごとに、どの依頼を送り、どの依頼に結果を返し、
-  どれを取り消すかを決める（[ADR 0054](../../adr/app/0054-request-turns-apart-from-the-process.md)）。
+  どれを取り消すかを決める（[ADR 0058](../../adr/app/0058-request-turns-apart-from-the-process.md)）。
 - **置くもの / 置かないもの**：状態の軸の値（ターンの種類、待ち行列、送った依頼、取り込まれた依頼、バックグラウンドの
   処理）と、遷移の判定。ターンの依頼者（コミットの co-author と、使用量の記録の `requesters`。[使用量の記録](sessions.md#usage "在りか")）も、
   どの依頼がターンに入ったかから決める。プロセスは知らず、送ること、止めること、知らせることは置かない。
