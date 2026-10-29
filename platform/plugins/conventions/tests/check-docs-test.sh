@@ -780,6 +780,12 @@ x
   [x](missing.md)'
 fails "a fence that its list item ended does not take later lines back" "docs/reference/r.md: broken link missing.md"
 fresh
+add docs/reference/r.md '- a
+  ```
+  x
+[x](missing.md)'
+fails "a fence line is not its own closing line" "docs/reference/r.md: broken link missing.md"
+fresh
 add docs/reference/r.md '- 項目
   <!--
 x
@@ -856,6 +862,12 @@ add docs/reference/r.md '-
 
     [x](missing.md)'
 passes "an item that begins with a blank line ends at a second one"
+fresh
+add docs/reference/r.md '-
+  foo
+-
+      [x](missing.md)'
+passes "the first line of an item that begins with a blank line may be indented code"
 fresh
 add docs/reference/r.md '`` <a id="only"></a> ` ``
 
@@ -943,6 +955,11 @@ fresh
 add docs/reference/r.md '<!-- [x](missing.md)
 -->'
 passes "the line that opens an HTML comment is code"
+fresh
+add docs/reference/r.md '<!--
+x
+[x](missing.md) -->'
+passes "the line that closes an HTML comment is code"
 fresh
 add docs/reference/r.md '<!-- [x](missing.md) -->'
 passes "a one-line HTML comment is code"

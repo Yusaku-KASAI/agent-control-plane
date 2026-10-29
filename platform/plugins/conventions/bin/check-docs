@@ -138,7 +138,9 @@ def code_block_lines(text):
             if not line[item.end():].strip():
                 # An item that begins with a blank line has its text one space after the marker.
                 items.append(item.start(1) + 1)
-                empty_item = True
+                # Its first line, right below, may already be indented code.
+                empty_item, after_block = True, True
+                continue
             elif len(item.group(1)) < 5:
                 items.append(item.end())
             else:
