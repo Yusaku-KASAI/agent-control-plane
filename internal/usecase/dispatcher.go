@@ -1,11 +1,9 @@
 package usecase
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -189,7 +187,7 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 }
 
 // StopRequest stops one request of the session, by how far it has come, as
-// docs/architecture/app/sessions.md#worker tells. The worker takes in the requests still in the inbox
+// docs/architecture/app/requests.md#states tells. The worker takes in the requests still in the inbox
 // channel before it looks for the request, so an injected one is sent to the agent if a turn runs.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
@@ -437,7 +435,9 @@ type turnReply struct {
 	err     error
 }
 
-// worker owns one session: its process, its queue and the requests waiting on the running turn.
+// worker owns one session: its process, the requests of its turns, its credentials and what it
+// tells the observer. Which request a turn answers is kept by turns, which knows nothing of the
+// process.
 type worker struct {
 	d       *Dispatcher
 	agent   domain.Agent
@@ -453,27 +453,11 @@ type worker struct {
 	// done is closed once the worker has given up the session's lock.
 	done chan struct{}
 
-	proc Process
-	// running is true from a prompt or a turn start until the turn's result; current may be
-	// empty when the agent started the turn by itself. forPrompts tells that the running turn was
-	// started for sent prompts rather than by the agent.
-	running    bool
-	forPrompts bool
-	// turn counts the turns started, so a prompt injected into one can tell whether the agent
-	// took it into that turn.
-	turn       int
-	startedAt  time.Time
-	activity   string
-	background []string
-	queue      []request
-	// sent holds prompts the agent has not taken in yet, by prompt ID; current holds those taken
-	// into the running turn.
-	sent    map[string]request
-	current []request
-	// requesters are credited with the process's turns that have no requests of their own: those
-	// of the latest turn that had requests, or of the prompts held when the process began with
-	// a turn of its own.
-	requesters []domain.Requester
+	proc  Process
+	turns requestTurns
+	// startedAt and activity are those of the running turn; the agent may start one by itself.
+	startedAt time.Time
+	activity  string
 }
 
 func (w *worker) run() {
@@ -509,7 +493,7 @@ func (w *worker) run() {
 		case id := <-w.requestStops:
 			w.stopRequest(id)
 		case answer := <-w.releases:
-			if w.idle() && w.d.retire(w) {
+			if w.turns.idle() && w.d.retire(w) {
 				released = answer
 				w.stopProcess(nil)
 				return
@@ -518,7 +502,7 @@ func (w *worker) run() {
 		case <-refresh.C:
 			w.refreshCredentials()
 		case <-idle.C:
-			if w.idle() && w.d.retire(w) {
+			if w.turns.idle() && w.d.retire(w) {
 				w.stopProcess(nil)
 				return
 			}
@@ -527,10 +511,8 @@ func (w *worker) run() {
 			w.shutdown()
 			return
 		}
-		if !w.running {
-			w.sendNext()
-		}
-		if w.idle() {
+		w.sendNext()
+		if w.turns.idle() {
 			idle.Reset(w.d.opts.IdleTimeout)
 		} else {
 			idle.Stop()
@@ -538,70 +520,58 @@ func (w *worker) run() {
 	}
 }
 
-// idle is true when nothing would be lost by closing the process: no turn, no queued prompt,
-// and no background task whose completion would start a turn.
-func (w *worker) idle() bool {
-	return !w.running && len(w.queue) == 0 && len(w.background) == 0
-}
-
 func (w *worker) handle(e ProcessEvent) {
 	switch e.Kind {
 	case EventTurnStarted:
-		if !w.running {
-			w.startTurn(true)
+		if w.turns.agentStarts() {
+			w.turnStarted(agentTurn)
 		}
 	case EventTurnFinished:
 		w.finishTurn(e.Result)
 	case EventBackgroundTasks:
 		// A task that ended, stopped or not, may have changed the work, with no turn to tell it.
-		ended := slices.ContainsFunc(w.background, func(id string) bool { return !slices.Contains(e.BackgroundTasks, id) })
-		w.background = e.BackgroundTasks
-		if ended {
+		if w.turns.setBackground(e.BackgroundTasks) {
 			w.markUsed()
 		}
 		w.notifyStatus()
 	case EventActivity:
-		if w.running {
+		if w.turns.running() {
 			if e.Activity != "" {
 				w.activity = e.Activity
 			}
 			w.observe(SessionEvent{Kind: SessionTurnUpdated, Remark: e.Remark})
 		}
 	case EventPromptAccepted:
-		if r, ok := w.sent[e.PromptID]; ok {
-			delete(w.sent, e.PromptID)
-			if w.running && r.injectedInto == w.turn && r.injectedInto != 0 {
-				r.tellTaken(TakenIntoRunningTurn)
-			} else {
-				r.tellTaken(TakenIntoNewTurn)
-			}
-			w.current = append(w.current, r)
-			if !w.running {
-				w.startTurn(false)
-			}
-			w.creditRequesters()
+		r, uptake, started, ok := w.turns.take(e.PromptID)
+		if !ok {
+			return
 		}
+		r.tellTaken(uptake)
+		if started {
+			w.turnStarted(requestsTurn)
+		}
+		w.creditRequesters()
 	}
 }
 
 func (w *worker) accept(r request) {
-	if w.running && r.inject {
-		r.injectedInto = w.turn
+	if r, now := w.turns.arrive(r); now {
 		if err := w.send(r); err != nil {
 			r.answer(w.reply(TurnResult{}, err))
 		}
 		return
 	}
-	w.queue = append(w.queue, r)
-	if w.running {
+	if w.turns.running() {
 		w.notifyStatus()
 	}
 }
 
 func (w *worker) sendNext() {
-	for len(w.queue) > 0 {
-		r := w.queue[0]
-		w.queue = w.queue[1:]
+	for {
+		r, ok := w.turns.next()
+		if !ok {
+			return
+		}
 		if err := w.ensureProcess(); err != nil {
 			r.answer(w.reply(TurnResult{}, err))
 			continue
@@ -611,7 +581,7 @@ func (w *worker) sendNext() {
 			w.stopProcess(nil)
 			continue
 		}
-		w.startTurn(false)
+		w.startTurn(requestsTurn)
 		return
 	}
 }
@@ -621,23 +591,25 @@ func (w *worker) send(r request) error {
 	if err := w.proc.Send(w.d.ctx, id, r.prompt); err != nil {
 		return fmt.Errorf("send prompt: %w", err)
 	}
-	if w.sent == nil {
-		w.sent = make(map[string]request)
-	}
-	w.sent[id] = r
+	w.turns.hand(id, r)
 	return nil
 }
 
-func (w *worker) startTurn(agentStarted bool) {
-	w.turn++
-	w.running, w.forPrompts, w.startedAt, w.activity = true, !agentStarted, time.Now(), ""
+func (w *worker) startTurn(k turnKind) {
+	w.turns.start(k)
+	w.turnStarted(k)
+}
+
+// turnStarted tells of the turn that turns started.
+func (w *worker) turnStarted(k turnKind) {
+	w.startedAt, w.activity = time.Now(), ""
 	w.markUsed()
-	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: agentStarted})
+	w.observe(SessionEvent{Kind: SessionTurnStarted, AgentStarted: k == agentTurn})
 }
 
 func (w *worker) notifyStatus() {
 	kind := SessionUpdated
-	if w.running {
+	if w.turns.running() {
 		kind = SessionTurnUpdated
 	}
 	w.observe(SessionEvent{Kind: kind})
@@ -645,21 +617,20 @@ func (w *worker) notifyStatus() {
 
 func (w *worker) observe(e SessionEvent) {
 	e.Status = SessionStatus{
-		Running:         w.running,
+		Running:         w.turns.running(),
 		TurnStartedAt:   w.startedAt,
 		Activity:        w.activity,
-		Queued:          len(w.queue),
-		BackgroundTasks: len(w.background),
+		Queued:          w.turns.queued(),
+		BackgroundTasks: len(w.turns.backgroundTasks()),
 	}
 	w.d.observer.Observe(w.session, e)
 }
 
 // creditRequesters makes the people who asked for the running turn co-authors of its commits.
-// A turn the agent starts by itself keeps crediting the previous requesters, whose work it continues.
 func (w *worker) creditRequesters() {
 	var people []domain.GitIdentity
-	for _, r := range w.current {
-		id, ok := w.d.people.GitIdentity(r.requester)
+	for _, r := range w.turns.coAuthors() {
+		id, ok := w.d.people.GitIdentity(r)
 		if ok && !slices.Contains(people, id) {
 			people = append(people, id)
 		}
@@ -694,19 +665,26 @@ func (w *worker) finishTurn(res TurnResult) {
 	if err != nil {
 		err = fmt.Errorf("save session: %w", err)
 	}
-	w.recordUsage(res, turnUsage)
+	end := w.turns.finish()
+	w.d.usage.Record(w.d.ctx, TurnRecord{
+		Agent:        w.agent.Name,
+		Session:      w.session.ID,
+		Conversation: w.session.Conversation,
+		StartedAt:    w.startedAt,
+		FinishedAt:   w.session.LastUsedAt,
+		Requesters:   end.requesters,
+		AgentStarted: end.unrequested,
+		Result:       res,
+		Usage:        turnUsage,
+	})
 	spent := &Spent{Turn: turnUsage, Session: total}
-	if w.forPrompts && len(w.current) == 0 && len(w.sent) > 0 {
-		// The agent ran a turn of its own before taking in the prompts sent for this one, as a
-		// resumed session does to report the background tasks its previous process left. The
-		// requests' turn is still to come and its answer replaces this one, so it keeps running.
+	if end.hidden {
 		w.startedAt, w.activity = time.Now(), ""
 		w.observe(SessionEvent{Kind: SessionTurnUpdated, Spent: spent})
 		return
 	}
-	w.running = false
-	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: len(w.current) == 0, Spent: spent})
-	for i, r := range w.current {
+	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: end.unrequested, Spent: spent})
+	for i, r := range end.answered {
 		if err != nil {
 			r.answer(w.reply(TurnResult{}, err))
 			continue
@@ -715,46 +693,9 @@ func (w *worker) finishTurn(res TurnResult) {
 		reply.shared = i > 0
 		r.answer(reply)
 	}
-	w.current = nil
-	if len(w.sent) > 0 {
-		// The agent holds prompts it will take into its next turn.
-		w.startTurn(false)
+	if end.next {
+		w.startTurn(requestsTurn)
 	}
-}
-
-func (w *worker) recordUsage(res TurnResult, usage *domain.Usage) {
-	switch {
-	case len(w.current) > 0:
-		w.requesters = requesters(w.current)
-	case len(w.requesters) == 0:
-		// A new process's own turn continues the work of the prompts it holds, from the same thread.
-		w.requesters = requesters(slices.Collect(maps.Values(w.sent)))
-	}
-	w.d.usage.Record(w.d.ctx, TurnRecord{
-		Agent:        w.agent.Name,
-		Session:      w.session.ID,
-		Conversation: w.session.Conversation,
-		StartedAt:    w.startedAt,
-		FinishedAt:   w.session.LastUsedAt,
-		Requesters:   slices.Clone(w.requesters),
-		AgentStarted: len(w.current) == 0,
-		Result:       res,
-		Usage:        usage,
-	})
-}
-
-func requesters(rs []request) []domain.Requester {
-	var people []domain.Requester
-	for _, r := range rs {
-		if !slices.Contains(people, r.requester) {
-			people = append(people, r.requester)
-		}
-	}
-	// Held prompts come in no order; the same people are listed the same way.
-	slices.SortFunc(people, func(a, b domain.Requester) int {
-		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.ID, b.ID))
-	})
-	return people
 }
 
 // forgetUsage marks the session's total as unknown, for a process that may not have saved it for
@@ -768,10 +709,9 @@ func (w *worker) forgetUsage() error {
 }
 
 func (w *worker) stop() {
-	for _, r := range w.queue {
+	for _, r := range w.turns.cancelQueued() {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
-	w.queue = nil
 	w.stopWork()
 }
 
@@ -785,43 +725,28 @@ func (w *worker) stopRequest(id string) {
 			drained = true
 		}
 	}
-	if i := slices.IndexFunc(w.queue, func(r request) bool { return r.id == id }); i >= 0 {
-		r := w.queue[i]
-		w.queue = slices.Delete(w.queue, i, i+1)
+	switch action, r := w.turns.stopRequest(id); action {
+	case stopQueued:
 		r.answer(w.reply(TurnResult{}, ErrStopped))
 		w.notifyStatus()
-		return
-	}
-	has := func(r request) bool { return r.id == id }
-	if slices.ContainsFunc(w.current, has) || slices.ContainsFunc(slices.Collect(maps.Values(w.sent)), has) || w.workingOnItsOwn() {
+	case stopAgentWork:
 		w.stopWork()
 	}
 }
 
-// workingOnItsOwn tells that the agent works with no request in a turn: in a turn it started by
-// itself, or on background tasks between turns. A turn the agent runs before taking in the prompts
-// sent for it belongs to those requests (docs/adr/app/0031).
-func (w *worker) workingOnItsOwn() bool {
-	if w.running {
-		return !w.forPrompts && len(w.current) == 0
-	}
-	return len(w.background) > 0
-}
-
 // stopWork stops what the agent is doing, leaving the requests waiting in the inbox channel or the queue.
 func (w *worker) stopWork() {
-	for _, r := range w.sent {
+	for _, r := range w.turns.cancelSent() {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
 	}
-	w.sent = nil
 	if w.proc == nil {
 		return
 	}
 	var err error
-	for _, id := range w.background {
+	for _, id := range w.turns.backgroundTasks() {
 		err = errors.Join(err, w.proc.StopTask(w.d.ctx, id))
 	}
-	if w.running {
+	if w.turns.running() {
 		err = errors.Join(err, w.proc.Interrupt(w.d.ctx))
 	}
 	if err != nil {
@@ -861,7 +786,7 @@ func (w *worker) markUsed() {
 	_ = w.d.sessions.Save(context.WithoutCancel(w.d.ctx), w.session)
 }
 
-// stopProcess closes the process. With cause, the running turn fails with it.
+// stopProcess closes the process. With cause, the requests the agent held fail with it.
 func (w *worker) stopProcess(cause error) {
 	if w.proc == nil {
 		return
@@ -873,8 +798,8 @@ func (w *worker) stopProcess(cause error) {
 		_ = w.forgetUsage()
 	}
 	w.proc = nil
-	wasRunning, hadBackground := w.running, len(w.background) > 0
-	w.running, w.background, w.requesters = false, nil, nil
+	agentStarted := w.turns.unrequested()
+	wasRunning, hadBackground := w.turns.endProcess()
 	if wasRunning || hadBackground {
 		w.markUsed()
 	}
@@ -883,44 +808,40 @@ func (w *worker) stopProcess(cause error) {
 	}
 	switch {
 	case wasRunning:
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: len(w.current) == 0})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: agentStarted})
 	case hadBackground:
 		w.observe(SessionEvent{Kind: SessionUpdated})
 	}
-	for _, r := range w.current {
+	for _, r := range w.turns.dropHeld() {
 		r.answer(w.reply(TurnResult{}, cause))
 	}
-	for _, r := range w.sent {
-		r.answer(w.reply(TurnResult{}, cause))
-	}
-	w.current, w.sent = nil, nil
 }
 
 // shutdown ends the session's process for good. The conversation stays resumable, so a later
 // request continues it in a new process.
 func (w *worker) shutdown() {
-	if w.proc != nil && w.running {
+	running := w.turns.running()
+	if w.proc != nil && running {
 		// Lets the agent record the turn as interrupted before its input closes.
 		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
 	}
-	waiting := len(w.current)+len(w.sent)+len(w.queue)+len(w.inbox) > 0
-	if !waiting && (w.running || len(w.background) > 0) {
+	waiting := w.turns.waiting() || len(w.inbox) > 0
+	if !waiting && (running || len(w.turns.backgroundTasks()) > 0) {
 		w.observe(SessionEvent{Kind: SessionAbandoned})
 	}
-	if w.running {
-		w.running = false
+	if running {
+		unrequested := w.turns.endTurn()
 		w.markUsed()
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: len(w.current) == 0})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: unrequested})
 	}
 	w.stopProcess(ErrShuttingDown)
 	w.failAll(ErrShuttingDown)
 }
 
 func (w *worker) failAll(err error) {
-	for _, r := range append(w.current, w.queue...) {
+	for _, r := range append(w.turns.dropHeld(), w.turns.cancelQueued()...) {
 		r.answer(w.reply(TurnResult{}, err))
 	}
-	w.current, w.queue = nil, nil
 	for {
 		select {
 		case r := <-w.inbox:
