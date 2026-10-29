@@ -514,8 +514,10 @@ func (w *worker) run() {
 		}
 		select {
 		case <-w.arrived:
+			// Sending between takes lets an injected request join the turn the one before began.
 			for r, ok := w.d.takeArrival(w); ok; r, ok = w.d.takeArrival(w) {
 				w.accept(r)
+				w.sendNext()
 			}
 		case e, ok := <-events:
 			if !ok {

@@ -296,12 +296,32 @@ func (p *fakeProcess) isClosed() bool {
 type fakeObserver struct {
 	mu     sync.Mutex
 	events []usecase.SessionEvent
+	// finishGate, when set, holds the worker in telling of a finished turn until it is closed.
+	finishGate chan struct{}
 }
 
 func (f *fakeObserver) Observe(_ domain.Session, e usecase.SessionEvent) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.events = append(f.events, e)
+	gate := f.finishGate
+	f.mu.Unlock()
+	if gate != nil && e.Kind == usecase.SessionTurnFinished {
+		<-gate
+	}
+}
+
+// holdFinishes holds the worker in telling of a finished turn until the returned func is called.
+func (f *fakeObserver) holdFinishes() func() {
+	gate := make(chan struct{})
+	f.mu.Lock()
+	f.finishGate = gate
+	f.mu.Unlock()
+	return sync.OnceFunc(func() {
+		f.mu.Lock()
+		f.finishGate = nil
+		f.mu.Unlock()
+		close(gate)
+	})
 }
 
 func (f *fakeObserver) of(kind usecase.SessionEventKind) []usecase.SessionEvent {
@@ -977,6 +997,7 @@ func TestDispatcher_StopInjectedRequestWaitingBehindASend(t *testing.T) {
 	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true, RequestID: "1.5"})
 	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.blockedSends == 1 })
 	second := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "and this", Inject: true, RequestID: "2.0"})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 1 })
 	stopped := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "never mind", Inject: true, RequestID: "3.0"})
 	eventually(t, func() bool { return e.d.Arrivals(existingID) == 2 })
 	gate <- struct{}{} // lets the first send through; the worker then holds in the second's
@@ -994,6 +1015,33 @@ func TestDispatcher_StopInjectedRequestWaitingBehindASend(t *testing.T) {
 		if o := wait(t, ch); o.err != nil || o.out.Interrupted {
 			t.Errorf("%s request = %+v, %v; want it answered", name, o.out, o.err)
 		}
+	}
+}
+
+// Requests that arrived together with no turn running are sent in between: an injected one joins
+// the turn the request before it began.
+func TestDispatcher_InjectedRequestArrivingBehindAnother(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	release := e.observer.holdFinishes()
+	t.Cleanup(release)
+	p.finish("one")
+	eventually(t, func() bool { return len(e.observer.of(usecase.SessionTurnFinished)) == 1 })
+	a := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "A"})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 1 })
+	b := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "B", Inject: true})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 2 })
+	release()
+	wait(t, first)
+	eventually(t, func() bool { return len(p.sent()) == 3 })
+	p.finish("both")
+	if o := wait(t, a); o.err != nil || o.out.Output != "both" {
+		t.Errorf("A = %+v, %v; want the turn's answer", o.out, o.err)
+	}
+	if o := wait(t, b); o.err != nil || !o.out.Shared {
+		t.Errorf("B = %+v, %v; want it answered by A's turn", o.out, o.err)
 	}
 }
 

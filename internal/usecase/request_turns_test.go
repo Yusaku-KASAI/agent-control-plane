@@ -334,11 +334,12 @@ func TestRequestTurns_EndTurn(t *testing.T) {
 		turn          turnKind
 		current, sent bool
 		unrequested   bool
+		held          int
 	}{
-		{"a requests' turn with requests taken in", requestsTurn, true, false, false},
-		{"a requests' turn with requests only sent", requestsTurn, false, true, true},
-		{"the agent's own turn", agentTurn, false, false, true},
-		{"the agent's own turn with an injected request taken in", agentTurn, true, false, false},
+		{"a requests' turn with requests taken in", requestsTurn, true, false, false, 1},
+		{"a requests' turn with requests only sent", requestsTurn, false, true, true, 1},
+		{"the agent's own turn", agentTurn, false, false, true, 0},
+		{"the agent's own turn with an injected request taken in", agentTurn, true, false, false, 1},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			turns := turnsIn(c.turn, c.current, c.sent, false, false)
@@ -348,7 +349,7 @@ func TestRequestTurns_EndTurn(t *testing.T) {
 			if turns.running() {
 				t.Error("the turn outlived endTurn")
 			}
-			if held := turns.dropHeld(); len(held) != map[bool]int{true: 1, false: 0}[c.current]+map[bool]int{true: 1, false: 0}[c.sent] {
+			if held := turns.dropHeld(); len(held) != c.held {
 				t.Errorf("dropHeld returned %d after endTurn, want the requests held", len(held))
 			}
 		})
