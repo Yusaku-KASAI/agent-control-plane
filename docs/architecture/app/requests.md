@@ -51,6 +51,10 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 | 中断の知らせ | `slackbot.Bot` | 待っている依頼がないのに進めていた処理を、control-plane が止まるときや起動したときに止めた |
 | 片付けの知らせ | `SessionCleaner` | 保持期間を過ぎて判定したか、人がスレッドの最初のメッセージへのリアクションで頼んだ。何を知らせるかは[片付け](cleanup.md#cleaner "在りか")にある |
 
+スレッドの最初のメッセージには、片付けで消したら `:broom:` が付き、同じスレッドでセッションを作ったら外れる
+（`SessionCleaner` が `SessionNotifier.MarkCleaned` で付け、`slackbot.Bot` が `SessionCreated` で外す。
+[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。
+
 ## 構成要素
 
 ### `slackbot.Bot`（`bot.go`）

@@ -102,6 +102,16 @@ type fakeNotifier struct {
 	// messages are the IDs of the posts, in the same order.
 	messages map[domain.SessionID][]string
 	sent     int
+	marked   []domain.SessionID
+	markErr  error
+}
+
+func (f *fakeNotifier) MarkCleaned(_ context.Context, s domain.Session) error {
+	if f.markErr != nil {
+		return f.markErr
+	}
+	f.marked = append(f.marked, s.ID)
+	return nil
 }
 
 func (f *fakeNotifier) Notify(_ context.Context, s domain.Session, text string) (string, error) {

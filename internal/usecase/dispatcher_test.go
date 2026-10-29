@@ -1480,6 +1480,10 @@ func TestDispatcher_CreateIfMissing(t *testing.T) {
 	if o := wait(t, second); o.err != nil || e.workspaces.prepared != 1 {
 		t.Fatalf("second = %+v, %v (prepared %d), want the same session", o.out, o.err, e.workspaces.prepared)
 	}
+	// Made once, the session is told as made once: its thread, cleaned before, no longer is.
+	if created := e.observer.of(usecase.SessionCreated); len(created) != 1 {
+		t.Errorf("told created %d times, want once", len(created))
+	}
 }
 
 func TestDispatcher_AgentStartedTurn(t *testing.T) {

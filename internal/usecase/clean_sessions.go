@@ -281,10 +281,14 @@ func (c *SessionCleaner) clean(ctx context.Context, id domain.SessionID) (remove
 	if err != nil {
 		return false, err
 	}
+	var errs error
 	if _, err := c.notifier.Notify(ctx, s, c.removedText(s, branches)); err != nil {
-		return true, fmt.Errorf("notify removal: %w", err)
+		errs = fmt.Errorf("notify removal: %w", err)
 	}
-	return true, nil
+	if err := c.notifier.MarkCleaned(ctx, s); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("mark removal: %w", err))
+	}
+	return true, errs
 }
 
 // readFacts reads the workspace and asks the remote about the branches the session pushed or
@@ -688,7 +692,12 @@ func (c *SessionCleaner) cleanNow(ctx context.Context, s domain.Session, q clean
 		return err
 	}
 	c.setTold(s.ID, nil)
-	return c.tell(ctx, s, removedNowText(branches, discarded))
+	err = c.tell(ctx, s, removedNowText(branches, discarded))
+	if merr := c.notifier.MarkCleaned(ctx, s); merr != nil {
+		// Marking again would not mend it either; the thread was told, or failed to be, already.
+		err = errors.Join(err, fmt.Errorf("%w: mark removal: %w", errNotTold, merr))
+	}
+	return err
 }
 
 func (c *SessionCleaner) tell(ctx context.Context, s domain.Session, text string) error {
