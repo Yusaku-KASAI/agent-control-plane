@@ -16,7 +16,7 @@ conventions/
   skills/          届け方：docs/guides/ の手順への入口
   bin/check-docs   届け方（検査）：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
   actions/         届け方（検査）：文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
-  tests/           読み込ませる hook、ターンの終わりの文書の検査、文書の一覧の試験
+  tests/           読み込ませる hook、ターンの終わりの文書の検査、文書の検査、文書の一覧の試験
 ```
 
 - 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。何をどう確かめるかは、
@@ -95,7 +95,7 @@ conventions/
   principles の文書の在りかを読み込ませる。
 - **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通の
   ルールの相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/context-test.sh`（読み込ませる文のファイルへのリンク先が
-  絶対パスになり、どれもあること）。
+  絶対パスになり、どれもあること、最後の行の文書の在りかのパスと、hook のイベントの名前）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### ターンの終わりの文書の検査（`hooks/`、[`scripts/check-docs-at-stop`](../scripts/check-docs-at-stop "在りか")）
@@ -136,7 +136,8 @@ conventions/
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や、文書が
   述べること（中身。[形式：検査の範囲](reference/formats.md#check-scope "在りか")）は確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
-  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。一覧の試験は
+  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。検査の試験は
+  `tests/check-docs-test.sh`（形式の各節の「検査」ごとに、守った文書で通り、破った文書で落ちること）、一覧の試験は
   `tests/check-docs-catalog-test.sh`。CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの
   選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
