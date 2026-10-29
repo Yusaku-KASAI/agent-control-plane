@@ -90,6 +90,9 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 - **置くもの / 置かないもの**：秘密鍵で署名した JWT（RS256。時計のずれに備えて発行時刻を 1 分戻し、期限は 9 分後）で
   `POST /app/installations/<ID>/access_tokens` を呼ぶこと。リポジトリと権限は絞らずに発行するので、届く範囲は
   インストールの範囲と App の権限で決まる（[ADR 0053](../../adr/app/0053-limit-github-app-reach-by-installation.md)）。
+  発行したトークンで `GET /installation/repositories` を読み、インストールが「Only select repositories」で、届くのが
+  ターゲットの `origin` のリポジトリだけのときにだけ渡す。ほかは、直す所（Repository access）を添えたエラーにする
+  （[ADR 0054](../../adr/app/0054-refuse-a-token-that-reaches-beyond-the-target.md)）。
   トークンは 1 時間で失効し、手元には持ち続けない。
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる

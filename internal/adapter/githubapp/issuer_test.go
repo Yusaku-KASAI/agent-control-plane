@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,41 @@ import (
 	"github.com/Yusaku-KASAI/agent-control-plane/internal/domain"
 )
 
-var dev = domain.Agent{Name: "repo-dev", Role: "developer"}
+var dev = domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: "/targets/repo"}}
+
+func originOf(url string) func(context.Context, string) (string, error) {
+	return func(context.Context, string) (string, error) { return url, nil }
+}
+
+// installationAPI answers the token request with selection, and the repository list with repos.
+func installationAPI(t *testing.T, selection string, repos ...string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/app/installations/99/access_tokens":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"token": "ghs_abc", "repository_selection": selection})
+		case r.Method == http.MethodGet && r.URL.Path == "/installation/repositories":
+			if r.Header.Get("Authorization") != "Bearer ghs_abc" {
+				http.Error(w, "wrong token", http.StatusUnauthorized)
+				return
+			}
+			page := repos
+			if n, err := strconv.Atoi(r.URL.Query().Get("per_page")); err == nil && n < len(page) {
+				page = page[:n]
+			}
+			list := []map[string]string{}
+			for _, name := range page {
+				list = append(list, map[string]string{"full_name": name})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_count": len(repos), "repositories": list})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
 
 func newKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
@@ -70,14 +105,17 @@ func TestAppJWT(t *testing.T) {
 func TestIssuer_Issue(t *testing.T) {
 	key := newKey(t)
 	var gotPath, gotAuth string
+	api := installationAPI(t, "selected", "Owner/Repo")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"token":"ghs_abc","expires_at":"2030-01-01T00:00:00Z"}`))
+		if r.Method == http.MethodPost {
+			gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		}
+		api.Config.Handler.ServeHTTP(w, r)
 	}))
 	defer srv.Close()
 
-	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: key}}, srv.URL, srv.Client())
+	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: key}}, srv.URL, srv.Client(),
+		originOf("git@github.com:owner/repo.git"))
 	got, err := issuer.Issue(context.Background(), dev)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
@@ -90,12 +128,42 @@ func TestIssuer_Issue(t *testing.T) {
 	}
 }
 
+func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
+	for name, tt := range map[string]struct {
+		origin, selection string
+		repos             []string
+		want              string
+	}{
+		"all repositories":             {"https://github.com/owner/repo.git", "all", []string{"owner/repo"}, `"all"`},
+		"another repository selected":  {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/other"}, "owner/other"},
+		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "owner/other"},
+		"more than a page":             {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/a", "owner/b"}, "1 more"},
+		"no selection in the response": {"https://github.com/owner/repo.git", "", []string{"owner/repo"}, `""`},
+		"a target without GitHub":      {"/srv/git/repo.git", "selected", []string{"owner/repo"}, "no GitHub origin"},
+		"a target without an origin":   {"", "selected", []string{"owner/repo"}, "no GitHub origin"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := installationAPI(t, tt.selection, tt.repos...)
+			issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
+				originOf(tt.origin))
+			got, err := issuer.Issue(context.Background(), dev)
+			if err == nil || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), "Repository access") {
+				t.Errorf("Issue() error = %v, want one naming %s and telling where to fix it", err, tt.want)
+			}
+			if got != (domain.Credentials{}) {
+				t.Errorf("Issue() = %+v, want no credentials", got)
+			}
+		})
+	}
+}
+
 func TestIssuer_Issue_Failures(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, `{"message":"Bad credentials"}`, http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client())
+	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
+		originOf("https://github.com/owner/repo.git"))
 
 	if _, err := issuer.Issue(context.Background(), dev); err == nil || !strings.Contains(err.Error(), "Bad credentials") {
 		t.Errorf("Issue() error = %v, want the GitHub message", err)
