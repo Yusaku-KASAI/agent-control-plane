@@ -800,10 +800,10 @@ in_time() {
   fresh
   for _ in $(seq 30000); do printf -- '%b\n' "$line"; done >>"$repo/docs/reference/r.md"
   (cd "$repo" && timeout 10 "$bin" >/dev/null 2>&1) || status=$?
-  if [[ $status != 124 ]]; then
+  if [[ $status == 0 ]]; then
     echo "ok   $name"
   else
-    echo "FAIL $name: it took more than 10 seconds"
+    echo "FAIL $name: it ended with $status (124 is more than 10 seconds)"
     failed=1
   fi
 }
@@ -837,6 +837,17 @@ add docs/reference/r.md '-
 
      [x](missing.md)'
 fails "a paragraph in an item that begins with a blank line is no code" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '-   
+  foo
+
+    [x](missing.md)'
+fails "the text of an item that begins with blanks after its marker begins one space after it" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '-  
+
+      [x](missing.md)'
+passes "a line six columns deep under an item that begins with blanks is indented code"
 fresh
 add docs/reference/r.md '- 例：
 
