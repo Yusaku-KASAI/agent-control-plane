@@ -33,7 +33,7 @@ func TestRun_ExitCodes(t *testing.T) {
 		{"interrupted", answer(http.StatusOK, httpapi.TurnResponse{Interrupted: true}), 0, "interrupted"},
 		{"ended on an error", answer(http.StatusOK, httpapi.TurnResponse{Output: "API Error", Error: true}), 1, "ended on an error"},
 		{"stopped at the usage limit", answer(http.StatusOK, httpapi.TurnResponse{Error: true, UsageLimited: true}), 1, "usage limit"},
-		{"refused", answer(http.StatusTooManyRequests, httpapi.ErrorResponse{Code: httpapi.CodeInboxFull, Message: "full"}), 2, ""},
+		{"refused", answer(http.StatusConflict, httpapi.ErrorResponse{Code: httpapi.CodeSessionBusy, Message: "busy"}), 2, ""},
 		{"failed in the server", answer(http.StatusInternalServerError, httpapi.ErrorResponse{Code: httpapi.CodeInternal, Message: "boom"}), 1, ""},
 		{"shutting down", answer(http.StatusServiceUnavailable, httpapi.ErrorResponse{Code: httpapi.CodeUnavailable, Message: "restart"}), 1, ""},
 	}

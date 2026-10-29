@@ -10,8 +10,8 @@ platform と target-template の文書は、それぞれ [platform/docs/README.m
 | --- | --- | --- |
 | [overview.md](overview.md) | 解説 | 狙い、考え方、全体の構成と地図、目指す姿 |
 | [architecture/app/components.md](architecture/app/components.md) | 解説 | control-plane の構成：プロセス、部品、依頼の流れ |
-| [architecture/app/requests.md](architecture/app/requests.md) | 解説 | 依頼と知らせ：Slack、HTTP API、状態メッセージ、再起動の知らせ |
-| [architecture/app/sessions.md](architecture/app/sessions.md) | 解説 | セッション：ライフサイクル、記録、ロック、ワーカー（依頼の順番）、使用量の記録 |
+| [architecture/app/requests.md](architecture/app/requests.md) | 解説 | 依頼と知らせ：依頼とターンの状態、Slack、HTTP API、状態メッセージ、再起動の知らせ |
+| [architecture/app/sessions.md](architecture/app/sessions.md) | 解説 | セッション：ライフサイクル、記録、ロック、ワーカー、使用量の記録 |
 | [architecture/app/cleanup.md](architecture/app/cleanup.md) | 解説 | 片付け：状態の軸と判定、作業領域と GitHub から読む事実 |
 | [architecture/app/workspace.md](architecture/app/workspace.md) | 解説 | 作業領域とブランチ：clone、セッションのブランチ、git のフック |
 | [architecture/app/credentials.md](architecture/app/credentials.md) | 解説 | 認証情報：Claude、GitHub App、Slack の発行と更新、セッションごとの置き場所 |

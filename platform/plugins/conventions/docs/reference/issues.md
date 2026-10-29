@@ -1,7 +1,7 @@
 # 課題の扱い方
 
 どのリポジトリでも同じにする、やること（課題）の扱い方と、セッションを締めるときに Issue に残すものと作業領域を
-残す理由の扱い。やることは GitHub の Issue で管理し、文書には予定や残りの作業を置かない（[ADR 0001](../adr/0001-issues-in-layers.md)、[0029](../adr/0029-issue-labels-and-roadmap-focus-form.md)、[0033](../adr/0033-repositories-without-label-rules-and-others-comments.md)、[0035](../adr/0035-issue-body-base-form.md)、[0036](../adr/0036-append-to-issues-by-scope-triage.md)、[0037](../adr/0037-themes-as-standing-axes.md)、[0038](../adr/0038-themes-keep-their-vision.md)、[0043](../adr/0043-issue-rules-by-form-and-one-triage.md)）。
+残す理由の扱い。やることは GitHub の Issue で管理し、文書には予定や残りの作業を置かない（[ADR 0001](../adr/0001-issues-in-layers.md)、[0029](../adr/0029-issue-labels-and-roadmap-focus-form.md)、[0033](../adr/0033-repositories-without-label-rules-and-others-comments.md)、[0035](../adr/0035-issue-body-base-form.md)、[0036](../adr/0036-append-to-issues-by-scope-triage.md)、[0037](../adr/0037-themes-as-standing-axes.md)、[0038](../adr/0038-themes-keep-their-vision.md)、[0043](../adr/0043-issue-rules-by-form-and-one-triage.md)、[0052](../adr/0052-decide-pr-split-before-starting.md)）。
 
 <a id="kinds"></a>
 
@@ -143,6 +143,9 @@
   [済んでいないものの置き場所](#append)で振り分ける。依頼者が（依頼のスレッドか、依頼者が書いたコメントで）範囲を
   広げたときは、範囲の中に足す。ほかの人のコメント（依頼者のものと確かめられないものを含む）では広げない
   （[どの Issue にも当たること](#general)）。
+- 範囲の中の項目を何本の PR で扱うかは、取りかかる前に決める。一つの項目が大きくてほかの項目を待たせうるときと、
+  別々に確かめたり戻したりしたい項目があるときは、分ける。小さく、まとめて確かめられる項目は、一つの PR にまとめて
+  よい（[一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change)、[ADR 0052](../adr/0052-decide-pr-split-before-starting.md)）。
 - 範囲の中を何本かの PR に分けるときは、依頼の Issue のまま、PR ごとに範囲の中の一部を扱う。分けると決めたら、
   PR ごとに扱う単位に範囲の中の項目を分け、その PR の本文の「何を変えるか」に、扱う範囲の中の一部を書く（レビューを
   頼むときの依頼の内容になる）。途中の PR は、作るときから依頼の Issue を閉じない書き方（[書き方：PR](writing.md#pull-requests "在りか")）

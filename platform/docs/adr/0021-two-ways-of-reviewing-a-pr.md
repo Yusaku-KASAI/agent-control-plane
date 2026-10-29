@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-19
 amends: [5, 9, 11, 14]
-amended_by: [25]
+amended_by: [25, "../../plugins/conventions/docs/adr/0051-thorough-reviews-only-on-request.md"]
 ---
 
 # 0021. PR の差分のレビューを、通常と念入りの二つの回し方に分け、PR のラベルで見分ける

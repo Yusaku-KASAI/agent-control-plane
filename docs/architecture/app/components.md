@@ -14,7 +14,7 @@ Slack ──Socket Mode──▶ slackbot.Bot ──▶ usecase.HandleMessage �
 acp run / stop ──HTTP──▶ httpapi ───────────────────────────────┤
                                                                 ▼
                                                       usecase.Dispatcher
-                                                        └ worker（セッションごと、受信箱と待ち行列）
+                                                        └ worker（セッションごと。依頼とターンの対応は requestTurns）
                                                               │ Runner
                                                               ▼
                                        docker.Runner ──▶ docker-proxy ──▶ エージェントのコンテナ
@@ -29,8 +29,8 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 - **入口**（`slackbot`、`httpapi`。コードの層ではアダプター）は依頼を受け取って、ユースケースの入力に直すだけ。チャットからの依頼は受信方式に依存しない
   `HandleMessage` が受け、HTTP API は `Dispatcher` を直接呼ぶ。
 - **ユースケース**は判定と手順を持ち、外部とはポート（インターフェース）越しにだけ話す。`Dispatcher` は
-  セッションごとにワーカーを一つ作り、ワーカーが Claude Code のプロセスと依頼の順番を持つ
-  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)、[セッションのワーカー](sessions.md#worker "在りか")）。
+  セッションごとにワーカーを一つ作り、ワーカーが Claude Code のプロセスと、依頼とターンの対応を持つ
+  （[ADR 0017](../../adr/app/0017-long-lived-session-process.md)、[セッションのワーカー](sessions.md#worker "在りか")、[依頼とターンの状態](requests.md#states "在りか")）。
   片付けは[片付け](cleanup.md "在りか")にある。
 - **ほかのアダプター**はポートを一つの技術で実装する。どのポートをどれで満たすかは `cmd/acp/serve.go` が決める。
 - **知らせ**は、依頼への返事なら入口が返し、依頼のないところで起きたことは `sessionObserver` が Bot に渡す

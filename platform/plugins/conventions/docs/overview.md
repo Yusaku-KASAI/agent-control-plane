@@ -16,7 +16,7 @@ conventions/
   skills/          届け方：docs/guides/ の手順への入口
   bin/check-docs   届け方（検査）：構造の決まりのうち検査にしたものを確かめるコマンド。地図と文書の一覧も出す
   actions/         届け方（検査）：文書の検査を CI で回す GitHub Actions の複合アクション（check-docs）
-  tests/           読み込ませる hook、ターンの終わりの文書の検査、文書の一覧の試験
+  tests/           読み込ませる hook、ターンの終わりの文書の検査、文書の検査、文書の一覧の試験
 ```
 
 - 文書の構造の決まりのうち検査にしたもの（形式の各節の「検査」）は、このプラグインのコマンド `check-docs` が確かめる。何をどう確かめるかは、
@@ -93,9 +93,11 @@ conventions/
 
 - **責務**：セッションとサブエージェントの始めに、共通のルールと、その在りか（途中で立ち返るため）と、conventions と
   principles の文書の在りかを読み込ませる。
-- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。共通の
-  ルールの相対リンクは、読み込ませるときに絶対パスに書き換える。試験は `tests/context-test.sh`（読み込ませる文のファイルへのリンク先が
-  絶対パスになり、どれもあること）。
+- **関係**：文書の在りかは、このプラグインの場所と、同じマーケットプレイスにある principles の場所から決める。
+  principles が隣に見つからなければ（プラグインが別の場所に写されたとき）、「同じマーケットプレイスの
+  plugins/principles/docs/README.md」と探す所を伝える。共通のルールの相対リンクは、読み込ませるときに絶対パスに
+  書き換える。試験は `tests/context-test.sh`（読み込ませる文のファイルへのリンク先が絶対パスになり、どれもあること、
+  最後の行の文書の在りかのパスがあることと、principles が隣にない写しでの文、hook が渡すイベントの名前）。
 - **当てはめた原則・パターン**：[段階的な開示](../../principles/docs/reference/principles.md#progressive-disclosure)：中身ではなく在りかを渡す。
 
 ### ターンの終わりの文書の検査（`hooks/`、[`scripts/check-docs-at-stop`](../scripts/check-docs-at-stop "在りか")）
@@ -127,18 +129,24 @@ conventions/
 ### 文書の検査（`bin/check-docs`）
 
 - **責務**：文書の構造の決まりのうち、検査にしたもの（形式の各節の「検査」に挙げたもの）を、作業ディレクトリを含む
-  リポジトリの Markdown について確かめる。`--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの
-  属性（区分、タイトル、版と更新日（作業ツリーで書き換えていれば版に `+`）、ADR の状態、地図の項目、前提にする文書と
-  在りかを示すだけの文書）を、一次の情報（置き場所、見出し、git の履歴、ADR の frontmatter、地図、リンク）から導いて、
-  タブ区切りの一覧に出す。前提をリンクでなくパスで書きうる文書（役割ごとの指示とスキル）の行は、リンクから導けない
-  前提がありうることを示すため、前提と在りかの末尾に `?` を付ける。属性は文書に手で書かず、導く
-  （[ADR 0026](adr/0026-derive-document-catalog.md)）。
+  リポジトリの Markdown（git が無視するものを除く。git の外では、作業ディレクトリの下の `.git` と `node_modules` の
+  ほかのすべて）について確かめる。コードブロック（行の始めの HTML のコメントを含む）とコードスパンは、CommonMark に
+  倣って行ごとに見分ける。リンクと `<a id>`（地図の印を含む）はどちらの中も読まず、見出しから作る id、地図の表、
+  手順の段と層、ロールの節と名乗り、構成要素の節、文書の一覧のタイトルはコードブロックの中を読まない。行の表示幅
+  では、コードの中のリンクの括弧も数える。見分ける規則と見分けない形は `bin/check-docs` の `code_block_lines` と
+  `CODE_SPAN` にあり、判断の理由は [ADR 0050](adr/0050-check-docs-reads-code-by-a-commonmark-like-scan.md) にある。
+  `--map` で、すべての地図から設計構造行列を出す。`--catalog` で、文書ごとの属性（区分、タイトル、版と更新日（作業
+  ツリーで書き換えていれば版に `+`）、ADR の状態、地図の項目、前提にする文書と在りかを示すだけの文書）を、一次の
+  情報（置き場所、見出し、git の履歴、ADR の frontmatter、地図、リンク）から導いて、タブ区切りの一覧に出す。前提を
+  リンクでなくパスで書きうる文書（役割ごとの指示とスキル）の行は、リンクから導けない前提がありうることを示すため、
+  前提と在りかの末尾に `?` を付ける。属性は文書に手で書かず、導く（[ADR 0026](adr/0026-derive-document-catalog.md)）。
 - **置くもの / 置かないもの**：何を確かめるかは[形式](reference/formats.md "在りか")の各節の「検査」にある。文の書き方や、文書が
   述べること（中身。[形式：検査の範囲](reference/formats.md#check-scope "在りか")）は確かめない（レビューの観点に任せる）。
 - **関係**：形式に沿う。プラグインの `bin/` なので、エージェントは `check-docs` で呼べる。人はマーケットプレイスの
-  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。一覧の試験は
-  `tests/check-docs-catalog-test.sh`。CI では複合アクションが回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの
-  選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
+  `plugins/conventions/bin/check-docs` を、確かめるリポジトリの中で実行する。ターンの終わりの hook が回す。検査の試験は
+  `tests/check-docs-test.sh`（形式の各節の「検査」ごとに、守った文書で通り、破った文書で落ちること。どの文書を
+  読み、どの行をコードと見分けるかも）、一覧の試験は `tests/check-docs-catalog-test.sh`。CI では複合アクションが
+  回す。リポジトリが自分の `make` から呼ぶのは、そのリポジトリの選択（[ADR 0019](adr/0019-document-check-as-plugin-command.md)）。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)、[Docs as Code](../../principles/docs/reference/patterns.md#docs-as-code)。
 
 ### CI の文書の検査（[`actions/check-docs/`](../actions/check-docs/action.yml "在りか")）
