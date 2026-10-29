@@ -1365,12 +1365,12 @@ read_first '../../docs/reference/r.md "在りか"'
 for i in $(seq 145); do add docs/reference/r.md "- $i"; done
 passes "documents to read first of 150 lines pass"
 add docs/reference/r.md '- 146'
-fails "documents to read first of 151 lines fail" "始めに読む: 151 lines, more than the 150 lines"
+fails "documents to read first of 151 lines fail" "始めに読む (docs/reference/r.md, p/docs/overview.md): 151 lines, more than the 150 lines"
 fresh
 read_first '../../docs/reference/r.md "在りか"'
 add p/rules/rule.md '- [g](../../docs/guides/g.md "在りか")'
 for i in $(seq 143); do add docs/reference/r.md "- $i"; done
-fails "documents to read first are counted together" "始めに読む: 151 lines, more than the 150 lines"
+fails "documents to read first are counted together" "始めに読む (docs/guides/g.md, docs/reference/r.md, p/docs/overview.md): 151 lines"
 role_described() { put p/agents/role.md "---
 name: role
 description: $1
@@ -1395,6 +1395,12 @@ fresh
 role_described ">-
   $(wide 390)"
 passes "the indicator of a folded description is not counted"
+fresh
+role_described ">-
+  a
+
+  $(wide 389)"
+fails "the paragraphs of a description parted by a blank line are folded into one line" "p/agents/role.md: a description 391 columns wide"
 fresh
 put .claude/agents/helper.md "---
 name: helper

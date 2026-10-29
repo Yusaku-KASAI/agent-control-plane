@@ -493,7 +493,8 @@ def check_sizes(paths, errors):
         groups = {}
         for path in paths:
             if matches(path):
-                key = {"file": path, "directory": os.path.dirname(path), "together": READ_FIRST}[unit]
+                key = {"file": path, "directory": os.path.dirname(path),
+                       "together": f"{READ_FIRST} ({', '.join(sorted(p for p in paths if matches(p)))})"}[unit]
                 groups[key] = groups.get(key, 0) + content_lines(path)
         for key, lines in sorted(groups.items()):
             if lines > limit:
@@ -520,9 +521,10 @@ def is_skill(path):
 def description(path):
     """The description in the frontmatter, its lines folded into one."""
     m = re.match(r"---\n(.*?)\n---\n", read(path), re.S)
-    d = re.search(r"(?m)^description:[ \t]*(.*(?:\n[ \t]+.*)*)", m.group(1)) if m else None
+    # A block value goes on up to the next line that is neither indented nor blank, as in YAML.
+    d = re.search(r"(?m)^description:[ \t]*(.*(?:\n(?:[ \t]+.*|[ \t]*$))*)", m.group(1) + "\n") if m else None
     value = re.sub(r"^[>|][-+]?[ \t]*\n", "", d.group(1)) if d else ""
-    return " ".join(part.strip() for part in value.split("\n")).strip()
+    return " ".join(part.strip() for part in value.split("\n") if part.strip())
 
 
 def check_descriptions(paths, errors):
