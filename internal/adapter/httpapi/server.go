@@ -123,8 +123,6 @@ func classify(err error) (int, string) {
 		return http.StatusConflict, CodeSessionAgentMismatch
 	case errors.Is(err, domain.ErrSessionBusy):
 		return http.StatusConflict, CodeSessionBusy
-	case errors.Is(err, usecase.ErrInboxFull):
-		return http.StatusTooManyRequests, CodeInboxFull
 	case errors.Is(err, usecase.ErrShuttingDown):
 		return http.StatusServiceUnavailable, CodeUnavailable
 	default:

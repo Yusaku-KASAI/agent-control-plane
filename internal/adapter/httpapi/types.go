@@ -42,7 +42,6 @@ const (
 	CodeSessionNotFound      = "session_not_found"
 	CodeSessionAgentMismatch = "session_agent_mismatch"
 	CodeSessionBusy          = "session_busy"
-	CodeInboxFull            = "inbox_full"
 	CodeUnavailable          = "unavailable"
 	CodeInternal             = "internal"
 )

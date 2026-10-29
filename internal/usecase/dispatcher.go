@@ -14,7 +14,6 @@ import (
 
 var (
 	ErrEmptyPrompt   = errors.New("prompt is empty")
-	ErrInboxFull     = errors.New("too many requests arrived before the session could take them in")
 	ErrShuttingDown  = errors.New("control plane is shutting down")
 	ErrStopped       = errors.New("the session was stopped")
 	errProcessExited = errors.New("agent process exited")
@@ -164,9 +163,8 @@ func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
-// would resume after, and the prompts waiting in the queue. A request still in the inbox channel,
-// as while the worker starts the agent, may stay and be sent later. It does nothing to an idle
-// session.
+// would resume after, and the prompts waiting in the queue. A request the worker has not taken yet,
+// as while it starts the agent, may stay and be sent later. It does nothing to an idle session.
 func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
 	s, err := d.sessions.Find(ctx, id)
 	if err != nil {
@@ -187,8 +185,7 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 }
 
 // StopRequest stops one request of the session, by how far it has come, as
-// docs/architecture/app/requests.md#states tells. The worker takes in the requests still in the inbox
-// channel before it looks for the request, so an injected one is sent to the agent if a turn runs.
+// docs/architecture/app/requests.md#states tells. One the worker has not taken yet is withdrawn alone.
 func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName, id domain.SessionID, requestID string) error {
 	if requestID == "" {
 		return nil
@@ -202,11 +199,21 @@ func (d *Dispatcher) StopRequest(ctx context.Context, agentName domain.AgentName
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if w, ok := d.workers[id]; ok {
-		select {
-		case w.requestStops <- requestID:
-		default:
-		}
+	w, ok := d.workers[id]
+	if !ok {
+		return nil
+	}
+	// A request the worker has not taken yet, as while it starts the agent, is withdrawn here alone,
+	// before the worker could send an injected one and so stop the agent's work with it.
+	if i := slices.IndexFunc(w.arrivals, func(r request) bool { return r.id == requestID }); i >= 0 {
+		r := w.arrivals[i]
+		w.arrivals = slices.Delete(w.arrivals, i, i+1)
+		r.answer(turnReply{session: s, err: ErrStopped})
+		return nil
+	}
+	select {
+	case w.requestStops <- requestID:
+	default:
 	}
 	return nil
 }
@@ -344,7 +351,8 @@ func (d *Dispatcher) makeSession(ctx context.Context, agent domain.Agent, id dom
 	return s, nil
 }
 
-const inboxSize = 32
+// requestStopsSize bounds the stops of single requests waiting for the worker; one past it is dropped.
+const requestStopsSize = 32
 
 func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Session, r request) error {
 	d.mu.Lock()
@@ -373,25 +381,34 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 		s = current
 		w = &worker{
 			d: d, agent: agent, session: s, unlock: unlock,
-			inbox: make(chan request, inboxSize), stops: make(chan struct{}, 1), requestStops: make(chan string, inboxSize),
+			arrived: make(chan struct{}, 1), stops: make(chan struct{}, 1), requestStops: make(chan string, requestStopsSize),
 			releases: make(chan chan bool), done: make(chan struct{}),
 		}
 		d.workers[s.ID] = w
 		d.wg.Go(w.run)
 	}
+	w.arrivals = append(w.arrivals, r)
 	select {
-	case w.inbox <- r:
-		return nil
+	case w.arrived <- struct{}{}:
 	default:
-		return ErrInboxFull
 	}
+	return nil
+}
+
+// takeArrivals hands the worker the requests that arrived for it, in the order they arrived.
+func (d *Dispatcher) takeArrivals(w *worker) []request {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	rs := w.arrivals
+	w.arrivals = nil
+	return rs
 }
 
 // retire removes the worker unless a prompt arrived meanwhile; prompts are only sent under d.mu.
 func (d *Dispatcher) retire(w *worker) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if len(w.inbox) > 0 && d.ctx.Err() == nil {
+	if len(w.arrivals) > 0 && d.ctx.Err() == nil {
 		return false
 	}
 	delete(d.workers, w.session.ID)
@@ -442,8 +459,12 @@ type worker struct {
 	agent   domain.Agent
 	session domain.Session
 	unlock  func()
-	inbox   chan request
-	stops   chan struct{}
+	// arrivals are the requests the dispatcher handed over that the worker has not taken yet, guarded
+	// by the dispatcher's mu; arrived tells that some came. They have no limit, so a request is
+	// never refused while the worker cannot take them, as while it starts the agent.
+	arrivals []request
+	arrived  chan struct{}
+	stops    chan struct{}
 	// requestStops carries the IDs of requests to stop alone.
 	requestStops chan string
 	// releases asks the worker to retire now if it is idle; it answers on the channel it is
@@ -479,8 +500,10 @@ func (w *worker) run() {
 			events = w.proc.Events()
 		}
 		select {
-		case r := <-w.inbox:
-			w.accept(r)
+		case <-w.arrived:
+			for _, r := range w.d.takeArrivals(w) {
+				w.accept(r)
+			}
 		case e, ok := <-events:
 			if !ok {
 				w.processExited()
@@ -555,9 +578,12 @@ func (w *worker) handle(e ProcessEvent) {
 
 func (w *worker) accept(r request) {
 	if r, now := w.turns.arrive(r); now {
-		if err := w.send(r); err != nil {
+		id, err := w.send(r)
+		if err != nil {
 			r.answer(w.reply(TurnResult{}, err))
+			return
 		}
+		w.turns.hand(id, r)
 		return
 	}
 	if w.turns.running() {
@@ -575,28 +601,25 @@ func (w *worker) sendNext() {
 			r.answer(w.reply(TurnResult{}, err))
 			continue
 		}
-		if err := w.send(r); err != nil {
+		id, err := w.send(r)
+		if err != nil {
 			r.answer(w.reply(TurnResult{}, err))
 			w.stopProcess(nil)
 			continue
 		}
-		w.startTurn(requestsTurn)
+		w.turns.handFirst(id, r)
+		w.turnStarted(requestsTurn)
 		return
 	}
 }
 
-func (w *worker) send(r request) error {
+// send delivers the request's prompt to the agent and returns the prompt's ID.
+func (w *worker) send(r request) (string, error) {
 	id := string(domain.NewRandomSessionID())
 	if err := w.proc.Send(w.d.ctx, id, r.prompt); err != nil {
-		return fmt.Errorf("send prompt: %w", err)
+		return "", fmt.Errorf("send prompt: %w", err)
 	}
-	w.turns.hand(id, r)
-	return nil
-}
-
-func (w *worker) startTurn(k turnKind) {
-	w.turns.start(k)
-	w.turnStarted(k)
+	return id, nil
 }
 
 // turnStarted tells of the turn that turns started.
@@ -693,7 +716,8 @@ func (w *worker) finishTurn(res TurnResult) {
 		r.answer(reply)
 	}
 	if end.next {
-		w.startTurn(requestsTurn)
+		w.turns.startHeld()
+		w.turnStarted(requestsTurn)
 	}
 }
 
@@ -715,15 +739,6 @@ func (w *worker) stop() {
 }
 
 func (w *worker) stopRequest(id string) {
-	// A request may still wait in the inbox channel, as while the worker started a process.
-	for drained := false; !drained; {
-		select {
-		case r := <-w.inbox:
-			w.accept(r)
-		default:
-			drained = true
-		}
-	}
 	switch action, r := w.turns.stopRequest(id); action {
 	case stopQueued:
 		r.answer(w.reply(TurnResult{}, ErrStopped))
@@ -733,7 +748,7 @@ func (w *worker) stopRequest(id string) {
 	}
 }
 
-// stopWork stops what the agent is doing, leaving the requests waiting in the inbox channel or the queue.
+// stopWork stops what the agent is doing, leaving the requests not taken yet or queued.
 func (w *worker) stopWork() {
 	for _, r := range w.turns.cancelSent() {
 		r.answer(w.reply(TurnResult{}, ErrStopped))
@@ -824,7 +839,8 @@ func (w *worker) shutdown() {
 		// Lets the agent record the turn as interrupted before its input closes.
 		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
 	}
-	waiting := w.turns.waiting() || len(w.inbox) > 0
+	arrivals := w.d.takeArrivals(w)
+	waiting := w.turns.waiting() || len(arrivals) > 0
 	if !waiting && (running || len(w.turns.backgroundTasks()) > 0) {
 		w.observe(SessionEvent{Kind: SessionAbandoned})
 	}
@@ -834,20 +850,8 @@ func (w *worker) shutdown() {
 		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: unrequested})
 	}
 	w.stopProcess(ErrShuttingDown)
-	w.failAll(ErrShuttingDown)
-}
-
-func (w *worker) failAll(err error) {
-	for _, r := range append(w.turns.dropHeld(), w.turns.cancelQueued()...) {
-		r.answer(w.reply(TurnResult{}, err))
-	}
-	for {
-		select {
-		case r := <-w.inbox:
-			r.answer(w.reply(TurnResult{}, err))
-		default:
-			return
-		}
+	for _, r := range append(append(w.turns.dropHeld(), w.turns.cancelQueued()...), arrivals...) {
+		r.answer(w.reply(TurnResult{}, ErrShuttingDown))
 	}
 }
 
