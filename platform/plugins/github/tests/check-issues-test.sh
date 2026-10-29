@@ -143,4 +143,13 @@ reset
 touch "$state/fail-list"
 check "issues that cannot be read stop with 2" 2 "$(run)"
 
+# The sections asked of a theme issue are those of the conventions (issues.md: テーマ, the item of
+# its body), read by the anchor so that a heading may be renamed.
+issues_md=$(dirname "$cmd")/../../conventions/docs/reference/issues.md
+# shellcheck disable=SC2016 # awk programs and backquotes of Markdown
+check "the sections of a theme are those of the conventions" \
+  "$(awk '$0 == "<a id=\"theme\"></a>" { on = 1; next } on && /^<a id="/ { exit } on' "$issues_md" |
+    awk '/^- 本文は、/ { on = 1 } on && /^- / && !/^- 本文は、/ { exit } on' | grep -o '`## [^`]*`' | sed 's/`## //; s/`//' | paste -sd ' ' -)" \
+  "$(sed -n 's/^theme_sections=(\(.*\))$/\1/p' "$cmd")"
+
 exit "$failures"
