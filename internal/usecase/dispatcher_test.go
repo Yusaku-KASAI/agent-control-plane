@@ -939,6 +939,14 @@ func TestDispatcher_StopRequestNotTakenYet(t *testing.T) {
 		eventually(t, func() bool { return len(p.sent()) == 1 })
 		p.finish("one")
 		wait(t, first)
+		// A request sent after the stop goes next, so the withdrawn one would have been sent first.
+		after := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "after"})
+		eventually(t, func() bool { return len(p.sent()) == 2 })
+		if got := p.sent()[1]; got != "after" {
+			t.Fatalf("sent %q after the stop; want the withdrawn request never sent", got)
+		}
+		p.finish("two")
+		wait(t, after)
 	}
 }
 

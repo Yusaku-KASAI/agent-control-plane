@@ -833,7 +833,7 @@ func (w *worker) stopProcess(cause error) {
 		_ = w.forgetUsage()
 	}
 	w.proc = nil
-	agentStarted := w.turns.unrequested()
+	unrequested := w.turns.unrequested()
 	wasRunning, hadBackground := w.turns.endProcess()
 	if wasRunning || hadBackground {
 		w.markUsed()
@@ -843,7 +843,7 @@ func (w *worker) stopProcess(cause error) {
 	}
 	switch {
 	case wasRunning:
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: agentStarted})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: unrequested})
 	case hadBackground:
 		w.observe(SessionEvent{Kind: SessionUpdated})
 	}

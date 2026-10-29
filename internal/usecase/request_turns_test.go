@@ -127,6 +127,7 @@ func TestRequestTurns_Finish(t *testing.T) {
 		{"a requests' turn answers its requests", requestsTurn, true, false, false, 1, false},
 		{"the agent's turn before taking in the sent requests is hidden", requestsTurn, false, true, true, 0, false},
 		{"a turn leaving sent requests begins the next", requestsTurn, true, true, false, 1, true},
+		{"a requests' turn that lost its sent requests to a stop ends", requestsTurn, false, false, false, 0, false},
 		{"the agent's own turn answers no one", agentTurn, false, false, false, 0, false},
 		{"the agent's own turn leaving an injected request begins the next", agentTurn, false, true, false, 0, true},
 		{"the agent's own turn with an injected request answers it", agentTurn, true, false, false, 1, false},
@@ -201,7 +202,7 @@ func TestRequestTurns_Credit(t *testing.T) {
 	turns.start(requestsTurn)
 	turns.hand("p", request{requester: bob})
 	if got := turns.credit(); len(got) != 1 || got[0] != bob {
-		t.Fatalf("a new process's own turn credits %v, want the held request's %v", got, bob)
+		t.Fatalf("a turn with only a sent request credits %v, want that request's %v", got, bob)
 	}
 	turns.take("p")
 	turns.current = append(turns.current, request{requester: alice})
