@@ -784,16 +784,49 @@ add docs/reference/r.md '10. 項目
 
      [x](missing.md)'
 fails "a paragraph in an item numbered with two digits is no code" "docs/reference/r.md: broken link missing.md"
+# Blocks never closed, repeated: each must not read the rest of the document again.
+in_time() {
+  local name=$1 line=$2 status=0
+  fresh
+  for _ in $(seq 30000); do printf -- '%b\n' "$line"; done >>"$repo/docs/reference/r.md"
+  (cd "$repo" && timeout 10 "$bin" >/dev/null 2>&1) || status=$?
+  if [[ $status != 124 ]]; then
+    echo "ok   $name"
+  else
+    echo "FAIL $name: it took more than 10 seconds"
+    failed=1
+  fi
+}
+in_time "fences that are never closed are read in time" '- ```x'
+in_time "HTML comments that are never closed are read in time" '- a\n  <!--'
 fresh
-for _ in $(seq 12000); do printf -- '- ```x\n'; done >>"$repo/docs/reference/r.md"
-status=0
-(cd "$repo" && timeout 10 "$bin" >/dev/null 2>&1) || status=$?
-if [[ $status != 124 ]]; then
-  echo "ok   fences that are never closed are read in time"
-else
-  echo "FAIL fences that are never closed are read in time: it took more than 10 seconds"
-  failed=1
-fi
+add docs/reference/r.md '- a
+  - ```
+    x
+- b
+    - ```
+[x](missing.md)
+        ```'
+passes "a fence never closed in a shallower item does not hide that a deeper one closes"
+fresh
+add docs/reference/r.md '- ````
+  x
+- ```
+[x](missing.md)
+  ```'
+passes "a longer fence never closed does not hide that a shorter one closes"
+fresh
+add docs/reference/r.md '-
+     ```
+     [x](missing.md)
+     ```'
+passes "the text of an item that begins with a blank line begins one space after its marker"
+fresh
+add docs/reference/r.md '-
+  foo
+
+     [x](missing.md)'
+fails "a paragraph in an item that begins with a blank line is no code" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '- 例：
 

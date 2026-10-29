@@ -27,6 +27,7 @@ MAP_ANCHOR = re.compile(r'<a id="map-[a-z0-9-]+"></a>')
 MAP_COLUMNS = ["項目", "親", "置き場所", "前提にする"]
 TOP_MAP = "docs/overview.md"
 FENCE_OPENING = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
+COMMENT_END = "-->"
 HEADING = re.compile(r"#{1,6}( |$)|=+ *$|-{2,} *$")
 BREAK = re.compile(r"([-*_])( *\1){2,} *")
 LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)])( +|$)")
@@ -61,10 +62,13 @@ def closes(line, fence, base):
     return bool(re.fullmatch(rf" {{0,{base + 3}}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*", line))
 
 
-def opened(is_closing, base, lines, index, unclosed, key):
-    """An open fence or comment: what tells its closing line, the base it was opened at, and whether one comes later.
-    unclosed holds, for each kind of block (key), a line after which no closing line was found, so that blocks that are
-    never closed do not each read the rest of the document again."""
+def opened(key, base, lines, index, unclosed):
+    """An open fence or comment: how its closing line is told, the base it was opened at, and whether one comes later.
+    The key tells the kind of block, from which its closing line is told: "-->" for a comment, or the run that opened a
+    fence with the base it was opened at. unclosed holds, for each key, a line after which no closing line was found,
+    so that blocks that are never closed do not each read the rest of the document again."""
+    is_closing = ((lambda line: "-->" in line) if key == COMMENT_END
+                  else (lambda line: closes(line, key[0], key[1])))
     if key in unclosed and unclosed[key] <= index:
         return is_closing, base, False
     later = any(is_closing(line) for line in lines[index + 1:])
@@ -117,14 +121,17 @@ def code_block_lines(text):
             if "-->" in line[line.index("<!--") + 2:]:
                 after_block = True
             else:
-                block = opened(lambda later: "-->" in later, base, lines, index, unclosed, "-->")
+                block = opened(COMMENT_END, base, lines, index, unclosed)
             continue
         if depth <= base + 3 and (HEADING.match(line[depth:]) or BREAK.fullmatch(line[depth:])):
             after_block = True
             continue
         item = LIST_ITEM.match(line)
         if item:
-            if len(item.group(1)) < 5:
+            if not line[item.end():].strip():
+                # An item that begins with a blank line has its text one space after the marker.
+                items.append(item.start(1) + 1)
+            elif len(item.group(1)) < 5:
                 items.append(item.end())
             else:
                 # Five spaces or more after the marker start indented code: the text then begins one space after it.
@@ -138,8 +145,7 @@ def code_block_lines(text):
         if m and len(m.group(1)) <= base + 3 and not (m.group(2)[0] == "`" and "`" in m.group(3)):
             code.add(index)
             fence = m.group(2)
-            block = opened(lambda later, fence=fence, base=base: closes(later, fence, base), base, lines, index, unclosed,
-                           (fence, base))
+            block = opened((fence, base), base, lines, index, unclosed)
     return code
 
 
