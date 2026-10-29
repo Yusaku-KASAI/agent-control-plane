@@ -173,6 +173,10 @@ put CLAUDE.md '# r
 
 [docs](docs/README.md)'
 fails "a document not reachable from CLAUDE.md fails" "p/docs/README.md: not reachable by links from CLAUDE.md"
+fresh
+rm "$repo/CLAUDE.md"
+sed -i 's|, `../CLAUDE.md`||' "$repo/docs/overview.md"
+passes "a repository without CLAUDE.md is checked from README.md alone"
 
 echo "# 構成要素の説明"
 fresh
@@ -1005,6 +1009,48 @@ add docs/reference/r.md '- a
   [x](missing.md)'
 fails "a less indented line goes back to the text of the item it is in" "docs/reference/r.md: broken link missing.md"
 fresh
+add docs/reference/r.md '`[x](missing.md)`` b'
+fails "a longer run of backticks does not close a code span" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '`` [x](missing.md) ``` b'
+fails "a run of backticks after a backtick does not close a code span" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- a
+  - b
+    - c
+
+  d
+
+      [x](missing.md)'
+passes "a line that leaves two nested items at once is judged against the item it stays in"
+fresh
+add docs/reference/r.md 'text
+#tag
+    [x](missing.md)'
+fails "a hash without a space after it is no heading" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md 'text
+    # h
+    [x](missing.md)'
+fails "a hash indented four columns in a paragraph is no heading" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '+ 項目
+
+    [x](missing.md)'
+fails "a plus sign marks a list item" "docs/reference/r.md: broken link missing.md"
+fresh
+put docs/reference/r.md '    [x](missing.md)'
+passes "a line indented four columns at the start of a document is indented code"
+fresh
+add docs/reference/r.md 'Title
+--
+    [x](missing.md)'
+passes "a line indented four columns right after a setext heading of dashes is indented code"
+fresh
+add docs/reference/r.md '-     [x](missing.md)
+      [y](missing.md)'
+passes "indented code that begins on a marker line goes on in the next line"
+fresh
 add docs/reference/r.md '`` [x](missing.md)'
 fails "two backticks never closed make no code span" "docs/reference/r.md: broken link missing.md"
 fresh
@@ -1208,6 +1254,12 @@ fresh
 add docs/reference/r.md 'The form `<a id="map-x"></a>` starts a map.'
 passes "a map anchor in a code span starts no map"
 fresh
+add docs/overview.md '```
+x
+```
+| q | | `../missing.md` | |'
+passes "a code block ends a map's table"
+fresh
 add docs/reference/r.md '
 <a id="map-r"></a>
 
@@ -1247,7 +1299,12 @@ add CLAUDE.md '[o](other.md)'
 passes "a repository without maps has no map checks"
 
 echo "# 検査する文書"
-commit() { git -C "$repo" add -A && git -C "$repo" -c user.name=t -c user.email=t@example.com commit --quiet -m c; }
+# Without the signing and hooks of the git configuration of whoever runs the test.
+commit() {
+  git -C "$repo" add -A
+  git -C "$repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+    commit --quiet -m c
+}
 fresh
 add docs/reference/r.md '[x](missing.md)'
 commit
