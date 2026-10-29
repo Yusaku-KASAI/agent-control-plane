@@ -50,6 +50,7 @@ SessionCleaner ──SessionHolder──▶ Dispatcher（休んでいるワー�
 | `SessionFiles` | `ports.go` | `docker.SessionFiles` |
 | `SessionBranches` | `ports.go` | `githubapp.Branches` |
 | `SessionObserver` | `ports.go` | `usecase.AgentAnswers` と、それが包む `serve.go` の `sessionObserver` |
+| `ObserverFlusher` | `ports.go` | `usecase.AgentAnswers`（`Dispatcher.Close` が最後に呼ぶ） |
 | `SessionNotifier` | `ports.go` | `serve.go` の `sessionObserver` |
 | `UsageLog` | `ports.go` | `usagelog.Log` |
 | `ChatResponder` | `handle_message.go` | `slackbot.Bot` |

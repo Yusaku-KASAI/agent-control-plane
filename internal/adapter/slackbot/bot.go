@@ -112,8 +112,8 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
-// Wait waits for every write outside a request. Call it after the dispatcher is closed and the
-// held answers are flushed (usecase.AgentAnswers.Flush), so that no session event comes afterwards.
+// Wait waits for every write outside a request. Call it after the dispatcher is closed, which
+// flushes the held answers (usecase.AgentAnswers), so that no session event comes afterwards.
 func (b *Bot) Wait() {
 	b.writes.Wait()
 }
