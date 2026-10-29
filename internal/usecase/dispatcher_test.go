@@ -1448,6 +1448,9 @@ func TestDispatcher_FailedCreationLeavesNothing(t *testing.T) {
 			if e.sessions.isLocked(id) {
 				t.Error("the failed creation kept the lock")
 			}
+			if created := e.observer.of(usecase.SessionCreated); len(created) != 0 {
+				t.Error("told created for a failed creation")
+			}
 
 			tt.fix(e)
 			retry := e.execute(in)

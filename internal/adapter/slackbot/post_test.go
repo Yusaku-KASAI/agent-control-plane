@@ -53,9 +53,11 @@ func TestCleanedMark(t *testing.T) {
 	var answer string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+		// Read before telling the test of the call, after which it may set the next answer.
+		a := answer
 		calls <- call{r.URL.Path, r.Form.Get("name"), r.Form.Get("channel"), r.Form.Get("timestamp")}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(answer))
+		_, _ = w.Write([]byte(a))
 	}))
 	defer srv.Close()
 	b := New("dev", "", fixedToken("xoxb-test"), &stopRecorder{}, nil, allowAll{}, 0, slog.New(slog.DiscardHandler))
@@ -99,7 +101,8 @@ func TestCleanedMark(t *testing.T) {
 	want("/reactions.remove")
 }
 
-// Slack not answering, putting the mark gives up, for the cleaner holds the session's lock meanwhile.
+// Slack not answering, putting the mark gives up, for the cleaner holds the session's lock meanwhile;
+// so does taking it off, which held up could come after a later mark.
 func TestMarkCleanedGivesUp(t *testing.T) {
 	stuck := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-stuck }))
@@ -108,16 +111,20 @@ func TestMarkCleanedGivesUp(t *testing.T) {
 	b := New("dev", "", fixedToken("xoxb-test"), &stopRecorder{}, nil, allowAll{}, 0, slog.New(slog.DiscardHandler))
 	b.webToken, b.webAPI = "xoxb-test", slack.New("xoxb-test", slack.OptionAPIURL(srv.URL+"/"))
 	b.markTimeout = 50 * time.Millisecond
-	done := make(chan error, 1)
-	go func() {
-		done <- b.MarkCleaned(context.Background(), domain.Conversation{Platform: platform, Channel: "C1", Thread: "1.0"})
-	}()
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Error("MarkCleaned() = nil, want the timeout")
+	c := domain.Conversation{Platform: platform, Channel: "C1", Thread: "1.0"}
+	for name, call := range map[string]func() error{
+		"MarkCleaned":   func() error { return b.MarkCleaned(context.Background(), c) },
+		"unmarkCleaned": func() error { return b.unmarkCleaned(context.Background(), c) },
+	} {
+		done := make(chan error, 1)
+		go func() { done <- call() }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%s() = nil, want the timeout", name)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s() did not give up", name)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("MarkCleaned() did not give up")
 	}
 }

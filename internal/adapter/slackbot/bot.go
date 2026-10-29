@@ -34,7 +34,8 @@ type Bot struct {
 	webMu    sync.Mutex
 	webToken string
 	webAPI   *slack.Client
-	// markTimeout bounds putting the cleaned mark, which the cleaner does holding the session's lock.
+	// markTimeout bounds putting the cleaned mark, which the cleaner does holding the session's lock,
+	// and taking it off.
 	markTimeout time.Duration
 
 	statusMu sync.Mutex
@@ -240,7 +241,11 @@ func (b *Bot) MarkCleaned(ctx context.Context, c domain.Conversation) error {
 	return ignoreSlackError(api.AddReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "already_reacted")
 }
 
+// unmarkCleaned takes the cleaned mark off. It gives up after markTimeout too: held up long, it
+// could come after the mark of a later cleaning and take that off.
 func (b *Bot) unmarkCleaned(ctx context.Context, c domain.Conversation) error {
+	ctx, cancel := context.WithTimeout(ctx, b.markTimeout)
+	defer cancel()
 	api, err := b.web(ctx)
 	if err != nil {
 		return err
