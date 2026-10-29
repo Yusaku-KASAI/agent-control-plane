@@ -19,10 +19,8 @@
    そこに残してから進め、なければ PR を作るときに本文に書く（[どの Issue にも当たること](../reference/issues.md#general)）。
 3. **範囲を決める**：取りかかる前に、範囲の中の項目と PR を付け合わせ（[範囲の項目と PR の付け合わせ](../reference/issues.md#scope-items)）、
    依頼の範囲（範囲の中と範囲の外）を今の依頼に合わせて、依頼の Issue の本文に書く（[依頼の範囲](../reference/issues.md#scope)）。
-   続けて、範囲の中の項目を何本の PR で扱うかを決める。項目の目的が別々か、一つの項目が大きくてほかの項目を待たせうる
-   なら、一つの目的ごとに分ける（[一つの目的の小さな変更](../../../principles/docs/reference/patterns.md#small-change)）。
-   分けたときの依頼の Issue と PR の扱いは[依頼の範囲](../reference/issues.md#scope)にある（[ADR 0052](../adr/0052-decide-pr-split-before-starting.md)）。
-   作業の途中で出た直しとレビューの指摘は、それに照らして振り分ける（[済んでいないものの置き場所](../reference/issues.md#append)）。
+   作業の途中で出た直しとレビューの指摘は、依頼の範囲に照らして振り分ける（[済んでいないものの置き場所](../reference/issues.md#append)）。
+   続けて、範囲の中の項目を何本の PR で扱うかを決める（決め方と、分けたときの扱いは[依頼の範囲](../reference/issues.md#scope)）。
 4. **今の姿を確かめる**：変更が関わる仕組みの今の姿と前提を、文書、ADR、コードで確かめる。
 5. **形を選び、壊れうる場面を挙げる**：形を決める前に、ほかの形（目的に立ち返った別の手段、より単純な形、一つ上の
    枠組みでの解き方）を挙げ、選ぶ理由を決める（[前提を問い直す](../../../principles/docs/reference/principles.md#double-loop)）。
