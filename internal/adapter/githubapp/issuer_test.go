@@ -24,8 +24,14 @@ import (
 
 var dev = domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: "/targets/repo"}}
 
-func originOf(url string) func(context.Context, string) (string, error) {
-	return func(context.Context, string) (string, error) { return url, nil }
+// originOf answers the origin of dev's target with url, and fails the test for any other path.
+func originOf(t *testing.T, url string) func(context.Context, string) (string, error) {
+	return func(_ context.Context, path string) (string, error) {
+		if path != dev.Target.Path {
+			t.Errorf("origin(%q), want the target's path %q", path, dev.Target.Path)
+		}
+		return url, nil
+	}
 }
 
 // installationAPI answers the token request with selection, and the repository list with repos.
@@ -115,7 +121,7 @@ func TestIssuer_Issue(t *testing.T) {
 	defer srv.Close()
 
 	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: key}}, srv.URL, srv.Client(),
-		originOf("git@github.com:owner/repo.git"))
+		originOf(t, "git@github.com:owner/repo.git"))
 	got, err := issuer.Issue(context.Background(), dev)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
@@ -137,21 +143,33 @@ func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
 		"all repositories":             {"https://github.com/owner/repo.git", "all", []string{"owner/repo"}, `"all"`, "Repository access"},
 		"another repository selected":  {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/other"}, "owner/other", "Repository access"},
 		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "not owner/repo alone", "Repository access"},
+		"no repositories":              {"https://github.com/owner/repo.git", "selected", nil, "no repositories", "Repository access"},
 		"more than a page":             {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/a", "owner/b"}, "1 more", "Repository access"},
 		"no selection in the response": {"https://github.com/owner/repo.git", "", []string{"owner/repo"}, `""`, "Repository access"},
 		"a target without GitHub":      {"/srv/git/repo.git", "selected", []string{"owner/repo"}, "no GitHub origin", "origin at its GitHub repository"},
 		"a target without an origin":   {"", "selected", []string{"owner/repo"}, "no GitHub origin", "origin at its GitHub repository"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			srv := installationAPI(t, tt.selection, tt.repos...)
+			api := installationAPI(t, tt.selection, tt.repos...)
+			minted := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					minted++
+				}
+				api.Config.Handler.ServeHTTP(w, r)
+			}))
+			defer srv.Close()
 			issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
-				originOf(tt.origin))
+				originOf(t, tt.origin))
 			got, err := issuer.Issue(context.Background(), dev)
 			if err == nil || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), tt.fix) {
 				t.Errorf("Issue() error = %v, want one naming %s and telling to fix %s", err, tt.want, tt.fix)
 			}
 			if got != (domain.Credentials{}) {
 				t.Errorf("Issue() = %+v, want no credentials", got)
+			}
+			if wantMinted := tt.fix == "Repository access"; (minted == 1) != wantMinted {
+				t.Errorf("minted %d tokens; want one only when the target has a GitHub origin", minted)
 			}
 		})
 	}
@@ -163,7 +181,7 @@ func TestIssuer_Issue_Failures(t *testing.T) {
 	}))
 	defer srv.Close()
 	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
-		originOf("https://github.com/owner/repo.git"))
+		originOf(t, "https://github.com/owner/repo.git"))
 
 	if _, err := issuer.Issue(context.Background(), dev); err == nil || !strings.Contains(err.Error(), "Bad credentials") {
 		t.Errorf("Issue() error = %v, want the GitHub message", err)

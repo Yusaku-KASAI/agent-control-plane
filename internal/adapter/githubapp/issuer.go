@@ -50,6 +50,10 @@ func (i *Issuer) Issue(ctx context.Context, agent domain.Agent) (domain.Credenti
 	if !ok {
 		return domain.Credentials{}, nil
 	}
+	target, err := i.targetRepo(ctx, app, agent)
+	if err != nil {
+		return domain.Credentials{}, err
+	}
 	jwt, err := appJWT(app, i.now())
 	if err != nil {
 		return domain.Credentials{}, err
@@ -87,24 +91,30 @@ func (i *Issuer) Issue(ctx context.Context, agent domain.Agent) (domain.Credenti
 	if token.Token == "" {
 		return domain.Credentials{}, errors.New("github returned an empty installation token")
 	}
-	if err := i.checkReach(ctx, app, agent, token.Token, token.RepositorySelection); err != nil {
+	if err := i.checkReach(ctx, app, agent, target, token.Token, token.RepositorySelection); err != nil {
 		return domain.Credentials{}, err
 	}
 	return domain.Credentials{GitHubToken: token.Token}, nil
 }
 
-// checkReach refuses a token that reaches more than the agent's target: the installation decides
-// the reach (ADR app/0054), so a wide one is told rather than narrowed.
-func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, token, selection string) error {
+// targetRepo returns "owner/name" of the target's origin, which the token's reach is held to. It
+// is known before minting, so a target without one costs no token.
+func (i *Issuer) targetRepo(ctx context.Context, app App, agent domain.Agent) (string, error) {
 	origin, err := i.origin(ctx, agent.Target.Path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	target, ok := parseRepo(origin)
 	if !ok {
-		return fmt.Errorf("github app %d of agent %q: the target has no GitHub origin to hold the installation to; point the target's origin at its GitHub repository, or drop the agent's github app",
+		return "", fmt.Errorf("github app %d of agent %q: the target has no GitHub origin to hold the installation to; point the target's origin at its GitHub repository, or drop the agent's github app",
 			app.ID, agent.Name)
 	}
+	return target, nil
+}
+
+// checkReach refuses a token that reaches more than the agent's target: the installation decides
+// the reach (ADR app/0054), so a wide one is told rather than narrowed.
+func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, target, token, selection string) error {
 	repos, err := i.installationRepos(ctx, token)
 	if err != nil {
 		return err
@@ -121,6 +131,9 @@ func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, to
 func reachOnly(target, selection string, repos []string) error {
 	if selection != "selected" {
 		return fmt.Errorf("the installation reaches %q repositories, not selected ones", selection)
+	}
+	if len(repos) == 0 {
+		return fmt.Errorf("the installation reaches no repositories, not %s", target)
 	}
 	if len(repos) != 1 || !strings.EqualFold(repos[0], target) {
 		return fmt.Errorf("the installation reaches %s, not %s alone", strings.Join(repos, ", "), target)
