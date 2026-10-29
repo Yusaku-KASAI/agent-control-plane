@@ -829,9 +829,9 @@ func (w *worker) shutdown() {
 		w.observe(SessionEvent{Kind: SessionAbandoned})
 	}
 	if running {
-		w.turns.endTurn()
+		unrequested := w.turns.endTurn()
 		w.markUsed()
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: w.turns.unrequested()})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: unrequested})
 	}
 	w.stopProcess(ErrShuttingDown)
 	w.failAll(ErrShuttingDown)

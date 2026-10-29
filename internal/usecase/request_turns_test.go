@@ -314,6 +314,7 @@ func TestRequestTurns_AgentStarts(t *testing.T) {
 	}{
 		{"no turn begins the agent's own", noTurn, true},
 		{"a requests' turn stays", requestsTurn, false},
+		{"the agent's own turn stays", agentTurn, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			turns := turnsIn(c.turn, false, false, false, false)

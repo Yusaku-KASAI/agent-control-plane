@@ -240,9 +240,11 @@ func (t *requestTurns) stopRequest(id string) (stopAction, request) {
 	return stopNothing, request{}
 }
 
-// endTurn forgets the running turn, which ended without the process reporting it.
-func (t *requestTurns) endTurn() {
+// endTurn forgets the running turn, which ended without the process reporting it, and tells
+// whether it was unrequested. The requests taken into it stay until dropHeld answers them.
+func (t *requestTurns) endTurn() (unrequested bool) {
 	t.turn = noTurn
+	return t.unrequested()
 }
 
 // endProcess forgets what the process that is gone was doing: its turn, its background tasks and
