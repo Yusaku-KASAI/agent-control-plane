@@ -127,6 +127,7 @@ func TestRequestTurns_Finish(t *testing.T) {
 		{"a requests' turn answers its requests", requestsTurn, true, false, false, 1, false},
 		{"the agent's turn before taking in the sent requests is hidden", requestsTurn, false, true, true, 0, false},
 		{"a turn leaving sent requests begins the next", requestsTurn, true, true, false, 1, true},
+		{"a requests' turn that lost its sent requests to a stop ends", requestsTurn, false, false, false, 0, false},
 		{"the agent's own turn answers no one", agentTurn, false, false, false, 0, false},
 		{"the agent's own turn leaving an injected request begins the next", agentTurn, false, true, false, 0, true},
 		{"the agent's own turn with an injected request answers it", agentTurn, true, false, false, 1, false},
@@ -201,7 +202,7 @@ func TestRequestTurns_Credit(t *testing.T) {
 	turns.start(requestsTurn)
 	turns.hand("p", request{requester: bob})
 	if got := turns.credit(); len(got) != 1 || got[0] != bob {
-		t.Fatalf("a new process's own turn credits %v, want the held request's %v", got, bob)
+		t.Fatalf("a turn with only a sent request credits %v, want that request's %v", got, bob)
 	}
 	turns.take("p")
 	turns.current = append(turns.current, request{requester: alice})
@@ -325,5 +326,50 @@ func TestRequestTurns_AgentStarts(t *testing.T) {
 				t.Errorf("turn = %v, want %v", turns.turn, want)
 			}
 		})
+	}
+}
+
+func TestRequestTurns_EndTurn(t *testing.T) {
+	for _, c := range []struct {
+		name          string
+		turn          turnKind
+		current, sent bool
+		unrequested   bool
+		held          int
+	}{
+		{"a requests' turn with requests taken in", requestsTurn, true, false, false, 1},
+		{"a requests' turn with requests only sent", requestsTurn, false, true, true, 1},
+		{"the agent's own turn", agentTurn, false, false, true, 0},
+		{"the agent's own turn with an injected request taken in", agentTurn, true, false, false, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			turns := turnsIn(c.turn, c.current, c.sent, false, false)
+			if got := turns.endTurn(); got != c.unrequested {
+				t.Errorf("endTurn = %v, want %v", got, c.unrequested)
+			}
+			if turns.running() {
+				t.Error("the turn outlived endTurn")
+			}
+			if held := turns.dropHeld(); len(held) != c.held {
+				t.Errorf("dropHeld returned %d after endTurn, want the requests held", len(held))
+			}
+		})
+	}
+}
+
+func TestRequestTurns_HandFirstAndStartHeld(t *testing.T) {
+	turns := turnsIn(noTurn, false, false, false, false)
+	turns.handFirst("p", request{id: "first"})
+	if turns.turn != requestsTurn || len(turns.sent) != 1 {
+		t.Fatalf("after handFirst: turn %v, sent %d; want a requests' turn holding the request", turns.turn, len(turns.sent))
+	}
+	turns.hand("q", request{id: "injected"})
+	turns.take("p")
+	if end := turns.finish(); !end.next || turns.running() {
+		t.Fatalf("finish = %+v, running %v; want the next turn to come, none running yet", end, turns.running())
+	}
+	turns.startHeld()
+	if turns.turn != requestsTurn {
+		t.Errorf("after startHeld: turn %v, want a requests' turn", turns.turn)
 	}
 }

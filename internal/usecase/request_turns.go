@@ -60,8 +60,8 @@ func (t *requestTurns) idle() bool {
 	return !t.running() && len(t.queue) == 0 && len(t.background) == 0
 }
 
-// waiting is true when some request still waits to be answered, apart from those not taken out of
-// the inbox channel yet.
+// waiting is true when some request still waits to be answered, apart from those the worker has
+// not taken from its arrivals yet.
 func (t *requestTurns) waiting() bool {
 	return len(t.current)+len(t.sent)+len(t.queue) > 0
 }
@@ -76,7 +76,7 @@ func (t *requestTurns) workingOnItsOwn() bool {
 	return len(t.background) > 0
 }
 
-// arrive takes in a request taken out of the inbox channel. An injected one is to be sent into the
+// arrive takes in a request the worker took from its arrivals. An injected one is to be sent into the
 // running turn now, which it returns marked with that turn; any other waits in the queue.
 func (t *requestTurns) arrive(r request) (request, bool) {
 	if t.running() && r.inject {
@@ -108,6 +108,18 @@ func (t *requestTurns) hand(id string, r request) {
 func (t *requestTurns) start(k turnKind) {
 	t.started++
 	t.turn = k
+}
+
+// handFirst records the request sent while no turn ran, which begins a requests' turn.
+func (t *requestTurns) handFirst(id string, r request) {
+	t.hand(id, r)
+	t.start(requestsTurn)
+}
+
+// startHeld begins the requests' turn for the requests the agent still holds after a turn ended
+// (turnEnd.next), once that turn is told.
+func (t *requestTurns) startHeld() {
+	t.start(requestsTurn)
 }
 
 // agentStarts takes in a turn the process reported as started: the agent's own, unless a turn

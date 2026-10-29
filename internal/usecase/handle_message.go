@@ -167,8 +167,6 @@ func failureText(s domain.Session, err error) string {
 	switch {
 	case errors.Is(err, domain.ErrSessionBusy):
 		return "このスレッドのセッションは、ほかの処理（セッションの作成、片付け、別の control-plane）が使っています。少し待ってからもう一度依頼してください。"
-	case errors.Is(err, ErrInboxFull):
-		return "このスレッドのセッションが受け取れていない依頼が多すぎます（エージェントの起動中など）。少し待ってからもう一度依頼してください。"
 	case errors.Is(err, ErrEmptyPrompt):
 		return "依頼の内容が空です。"
 	case s.ID != "":
