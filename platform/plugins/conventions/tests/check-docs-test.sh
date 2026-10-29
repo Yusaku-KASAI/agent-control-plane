@@ -813,15 +813,75 @@ add docs/reference/r.md '-      a
      [x](missing.md)'
 fails "after five spaces after a marker, the text of the item begins one space after it" "docs/reference/r.md: broken link missing.md"
 fresh
-add docs/reference/r.md '- a
-  ```sh
-  x
-- b [x](missing.md)
+add docs/reference/r.md '- step
 
-```
-y
-```'
-fails "a fence in a list item that nothing closes before the next item ends there" "docs/reference/r.md: broken link missing.md"
+  ```sh
+  cat > list.yaml <<X
+- name: [x](missing.md)
+X
+  ```'
+passes "a fence closed later keeps a less indented list marker line as code"
+fresh
+add docs/reference/r.md '- step
+
+  ```sh
+  cat > list.yaml <<X
+- name: a
+X
+  ```
+
+[x](missing.md)'
+fails "a link after a fence with a less indented list marker line in it is checked" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '-    a
+
+    [x](missing.md)'
+passes "a line less indented than the text of its item and four columns deep after a blank line is indented code"
+fresh
+add docs/reference/r.md '- a
+  -    b
+
+      [x](missing.md)'
+passes "a line that leaves a nested item is judged against the item it stays in"
+fresh
+add docs/reference/r.md 'a `x
+[x](missing.md)
+b` c'
+fails "a code span does not run across lines" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- a
+  ```
+<!--
+[x](missing.md)
+-->'
+passes "the line that ends a fence nothing closes is read again"
+fresh
+add docs/reference/r.md '```
+x
+```  
+
+[x](missing.md)'
+fails "a closing line may end with blanks" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- item
+  <!-- open
+  [p](p.md)
+- next [x](missing.md)'
+fails "an HTML comment in a list item that nothing closes ends with the item" "docs/reference/r.md: broken link missing.md"
+fresh
+add docs/reference/r.md '- item
+  <!--
+[x](missing.md)
+  -->'
+passes "an HTML comment closed later keeps less indented lines as code"
+fresh
+add docs/reference/r.md '- item
+  <!--
+x
+  -->
+
+[x](missing.md)'
+fails "a link after an HTML comment with less indented lines is checked" "docs/reference/r.md: broken link missing.md"
 fresh
 add docs/reference/r.md '1) 項目
 
@@ -887,6 +947,9 @@ fails "a line 131 columns wide fails" "CLAUDE.md:5: 131 columns wide, more than 
 fresh
 add CLAUDE.md "[$(wide 126)](docs/README.md \"在りか\")"
 passes "a line long only by the parentheses of a link passes"
+fresh
+add CLAUDE.md "[$(wide 120)](docs/README.md \"在りか\") \`x\`"
+passes "the parentheses of a link before a code span are not counted"
 fresh
 add CLAUDE.md "\`[$(wide 126)](docs/README.md)\`"
 fails "the parentheses of a link in a code span are counted" "CLAUDE.md:5: 146 columns wide"
