@@ -142,7 +142,7 @@ func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
 	}{
 		"all repositories":             {"https://github.com/owner/repo.git", "all", []string{"owner/repo"}, `"all"`, "Repository access"},
 		"another repository selected":  {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/other"}, "owner/other", "Repository access"},
-		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "not owner/repo alone", "Repository access"},
+		"only another one":             {"https://github.com/owner/repo.git", "selected", []string{"owner/other"}, "point the target's origin at it", "Repository access"},
 		"no repositories":              {"https://github.com/owner/repo.git", "selected", nil, "no repositories", "Repository access"},
 		"more than a page":             {"https://github.com/owner/repo.git", "selected", []string{"owner/repo", "owner/a", "owner/b"}, "1 more", "Repository access"},
 		"no selection in the response": {"https://github.com/owner/repo.git", "", []string{"owner/repo"}, `""`, "Repository access"},
@@ -172,6 +172,28 @@ func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
 				t.Errorf("minted %d tokens; want one only when the target has a GitHub origin", minted)
 			}
 		})
+	}
+}
+
+func TestIssuer_Issue_RefusesWhenTheReachCannotBeRead(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"token":"ghs_abc","repository_selection":"selected"}`))
+			return
+		}
+		http.Error(w, `{"message":"Resource not accessible by integration"}`, http.StatusForbidden)
+	}))
+	defer srv.Close()
+	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
+		originOf(t, "https://github.com/owner/repo.git"))
+
+	got, err := issuer.Issue(context.Background(), dev)
+	if err == nil || !strings.Contains(err.Error(), "403") {
+		t.Errorf("Issue() error = %v, want the status of the unread list", err)
+	}
+	if got != (domain.Credentials{}) {
+		t.Errorf("Issue() = %+v, want no credentials", got)
 	}
 }
 
