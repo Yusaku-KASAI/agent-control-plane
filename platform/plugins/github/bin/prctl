@@ -917,16 +917,17 @@ ci_message() {
   jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it if the PR can; a failure the PR cannot fix (such as the protection check unable to read the settings) is reported to the requester instead (see the github skill)."' <<<"$1"
 }
 
-# closing_message <pr>: the commits of the PR whose message closes an issue by a keyword, and its
+# closing_message <pr> <head>: the commits of the PR up to <head> whose message closes an issue by a keyword, and its
 # title, which the merge commit carries, if it does, or nothing. GitHub closes such an issue once the
 # commit reaches the default branch, whatever the body says, so an issue is closed by the line of
 # Closes in the body alone (writing.md: commit messages). The whole message is read, code or not, as
-# a commit message has no markup; the commits are the PR's as GitHub lists them, without those of
-# its base. Commits that cannot be read are told as such: whether they close an issue is not known.
+# a commit message has no markup; the commits are those from the PR's base to <head> as GitHub
+# compares them, not the PR's list, which GitHub updates a moment after a push. Commits that cannot be
+# read are told as such: whether they close an issue is not known.
 closing_message() {
   local commits found
-  if ! commits=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/commits" --paginate \
-    --jq '.[] | {sha, message: .commit.message} | tojson'); then
+  if ! commits=$(gh api "repos/{owner}/{repo}/compare/$(jq -r .baseRefName <<<"$1")...$2" --paginate \
+    --jq '.commits[] | {sha, message: .commit.message} | tojson'); then
     jq -r '"The commits of PR #\(.number) could not be read, so whether a commit message closes an issue is not known; it is checked again on the next push, the end of the next turn and prctl ready."' <<<"$1"
     return
   fi
@@ -951,7 +952,7 @@ pending_message() {
   fi
   msg=$(stack_message "$pr" "$head")
   [[ -z $msg ]] || msgs+=("$msg")
-  msg=$(closing_message "$pr")
+  msg=$(closing_message "$pr" "$head")
   [[ -z $msg ]] || msgs+=("$msg")
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')

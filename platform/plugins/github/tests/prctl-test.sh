@@ -37,11 +37,12 @@ case $args in
     [[ -f $dir/nopr-${head//\//-} ]] && exit 0
     [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
     ;;
-  # The PR's commits, as GitHub lists them (commits.json); fail-commits when they cannot be read.
-  # Before the PRs an issue's items name, whose pattern takes this path too.
-  *" repos/{owner}/{repo}/pulls/"[0-9]*"/commits "*)
+  # The commits from the base to a head, as GitHub compares them (commits.json); fail-commits when
+  # they cannot be read. The range asked for is kept in last-compare.
+  *" repos/{owner}/{repo}/compare/"*)
     [[ ! -f $dir/fail-commits ]] || exit 1
-    jq -r "${@: -1}" "$dir/commits.json"
+    sed -E 's|.* repos/\{owner\}/\{repo\}/compare/([^ ]+) .*|\1|' <<<"$args" >"$dir/last-compare"
+    jq '{commits: .}' "$dir/commits.json" | jq -r "${@: -1}"
     ;;
   *" --jq .node_id "*) echo N1 ;;
   *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
@@ -1079,6 +1080,7 @@ jq -n --arg c "$n2" '[{sha: $c, commit: {message: "直す\n\nこれは Fixes #7 
 out=$(stop_hook)
 check "a commit message closing an issue holds the turn" "$out" "commit ${n2:0:12} closes #7 by \\\"Fixes\\\"; commit ${n2:0:12} closes owner/repo#8 by \\\"closes\\\""
 check "a commit message closing an issue says how to reword it" "$out" "git commit --amend"
+check "the commits are read from the base up to the pushed head" "$(cat "$state/last-compare")" "main...$n2"
 lacks "a commit message touching an issue is let be" "$out" "closes #7" "0123456789ab"
 check "post-tool-use tells of a commit message closing an issue" "$(post)" "would close issues by a keyword in a commit message"
 echo '[]' >"$state/commits.json"
