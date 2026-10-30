@@ -95,7 +95,7 @@ remote_head() { git rev-parse --verify --quiet "refs/remotes/origin/$1"; }
 # open_pr <branch>: the open PR whose head is <branch>, as JSON, or nothing. Looked up by head
 # name: `gh pr view` without arguments resolves through the upstream, which can be another branch.
 open_pr() {
-  gh pr list --head "$1" --state open --limit 1 --json number,url,headRefOid,baseRefName,body,isDraft,labels \
+  gh pr list --head "$1" --state open --limit 1 --json number,url,headRefOid,baseRefName,title,body,isDraft,labels \
     --jq '.[0] // empty'
 }
 
@@ -814,7 +814,7 @@ cmd_ready() {
   [[ $(jq -r .headRefOid <<<"$pr") == "$head" ]] || die "GitHub has not caught up with the push yet; retry"
   [[ $(jq -r '.isDraft // false' <<<"$pr") == true ]] || { echo "PR #$(jq -r .number <<<"$pr") is not a draft"; return; }
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
-  msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews or the commits of the PR"
+  msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
   # Before the reviews are told settled, which starts their count afresh.
   msg=$(scope_message "$pr") || die "could not read the request issue of the PR, or a PR its scope names"
@@ -917,24 +917,29 @@ ci_message() {
   jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it if the PR can; a failure the PR cannot fix (such as the protection check unable to read the settings) is reported to the requester instead (see the github skill)."' <<<"$1"
 }
 
-# closing_message <pr>: the commits of the PR whose message closes an issue by a keyword, or nothing.
-# GitHub closes such an issue once the commit reaches the default branch, whatever the body says, so
-# an issue is closed by the line of Closes in the body alone (writing.md: commit messages). The whole
-# message is read, code or not, as a commit message has no markup; the commits are the PR's as GitHub
-# lists them, without those of its base.
+# closing_message <pr>: the commits of the PR whose message closes an issue by a keyword, and its
+# title, which the merge commit carries, if it does, or nothing. GitHub closes such an issue once the
+# commit reaches the default branch, whatever the body says, so an issue is closed by the line of
+# Closes in the body alone (writing.md: commit messages). The whole message is read, code or not, as
+# a commit message has no markup; the commits are the PR's as GitHub lists them, without those of
+# its base. Commits that cannot be read are told as such: whether they close an issue is not known.
 closing_message() {
   local commits found
-  commits=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/commits" --paginate \
-    --jq '.[] | {sha, message: .commit.message} | tojson') || return 1
-  found=$(jq -rs --arg closing "$closing_re" '[.[] | .sha[0:12] as $c | .message | capture($closing; "gi")
-    | "commit \($c) closes \(.issue) by \"\(.word)\""] | join("; ")' <<<"$commits")
+  if ! commits=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/commits" --paginate \
+    --jq '.[] | {sha, message: .commit.message} | tojson'); then
+    jq -r '"The commits of PR #\(.number) could not be read, so whether a commit message closes an issue is not known; it is checked again on the next push, the end of the next turn and prctl ready."' <<<"$1"
+    return
+  fi
+  found=$(jq -rs --arg closing "$closing_re" --arg title "$(jq -r '.title // ""' <<<"$1")" '
+    [(.[] | .sha[0:12] as $c | .message | capture($closing; "gi") | "commit \($c) closes \(.issue) by \"\(.word)\""),
+     ($title | capture($closing; "gi") | "the title closes \(.issue) by \"\(.word)\"")] | join("; ")' <<<"$commits")
   [[ -n $found ]] || return 0
-  jq -r --arg found "$found" '"Merging PR #\(.number) would close issues by a keyword in a commit message, as GitHub closes them once the commit reaches the default branch: \($found). Rewrite those messages without the keyword (git commit --amend for the last commit, git rebase for earlier ones; an issue is closed by the line of Closes in the body alone) and push them with --force-with-lease (see the github skill)."' <<<"$1"
+  jq -r --arg found "$found" '"Merging PR #\(.number) would close issues by a keyword in a commit message or in the title, which the merge commit carries, as GitHub closes them once the commit reaches the default branch: \($found). Rewrite them without the keyword (an issue is closed by the line of Closes in the body alone): a commit message by git commit --amend for the last commit, git rebase for earlier ones, then push with --force-with-lease; the title by prctl update --title (see the github skill)."' <<<"$1"
 }
 
 # pending_message <pr> <head> [<ci> [<review list>]]: what the PR still needs for this head, or nothing. Of the CI,
-# only a failure needs something: nobody waits for a running one. Fails when the reviews or the
-# commits cannot be read, so that a hook says nothing rather than something wrong.
+# only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
+# read, so that a hook says nothing rather than something wrong.
 pending_message() {
   local pr=$1 head=$2 state=${3:-} list rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
@@ -946,7 +951,7 @@ pending_message() {
   fi
   msg=$(stack_message "$pr" "$head")
   [[ -z $msg ]] || msgs+=("$msg")
-  msg=$(closing_message "$pr") || return 1
+  msg=$(closing_message "$pr")
   [[ -z $msg ]] || msgs+=("$msg")
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')

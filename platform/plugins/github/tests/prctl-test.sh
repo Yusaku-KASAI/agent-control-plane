@@ -1081,10 +1081,18 @@ check "a commit message closing an issue holds the turn" "$out" "commit ${n2:0:1
 check "a commit message closing an issue says how to reword it" "$out" "git commit --amend"
 lacks "a commit message touching an issue is let be" "$out" "closes #7" "0123456789ab"
 check "post-tool-use tells of a commit message closing an issue" "$(post)" "would close issues by a keyword in a commit message"
-touch "$state/fail-commits"
-check "commits that cannot be read leave the hook silent" "[$(stop_hook)]" "[]"
-rm -f "$state/fail-commits"
 echo '[]' >"$state/commits.json"
 check "commit messages closing nothing let the PR end" "[$(stop_hook)]" "[]"
+jq '.title = "fixes #3 の直し"' "$state/pr.json" >"$state/p.tmp" && mv "$state/p.tmp" "$state/pr.json"
+check "a title closing an issue, as changed on GitHub, holds the turn" "$(stop_hook)" "the title closes #3 by \\\"fixes\\\""
+jq '.title = "#3 の続き"' "$state/pr.json" >"$state/p.tmp" && mv "$state/p.tmp" "$state/pr.json"
+check "a title touching an issue lets the PR end" "[$(stop_hook)]" "[]"
+touch "$state/fail-commits"
+check "commits that cannot be read are told" "$(stop_hook)" "could not be read"
+n3=$(commit normal-c) && git push -q && set_pr "$n3"
+out=$(stop_hook)
+check "commits that cannot be read leave the rest told" "$out" "not reviewed up to ${n3:0:12}"
+check "commits that cannot be read are told with the rest" "$out" "could not be read"
+rm -f "$state/fail-commits"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }
