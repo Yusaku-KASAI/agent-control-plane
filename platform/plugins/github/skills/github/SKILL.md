@@ -51,6 +51,15 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   Issue を閉じるので、文の中では閉じるキーワードを使わない（閉じるなら `Closes` の行に書く）。それらの行が二つ以上の
   Issue を挙げるか、文の中の閉じるキーワードの後ろに Issue があれば、`prctl create` と `prctl update` が断る
   （読み方は [prctl の判定：本文](../../docs/reference/prctl.md#body "在りか")）。
+- GitHub は既定のブランチに入ったコミットのメッセージからも Issue を閉じるので、コミットメッセージと PR のタイトル
+  （merge commit のメッセージに入る）でも閉じるキーワードの後ろに Issue を書かない（[書き方：コミットメッセージ](../../../conventions/docs/reference/writing.md#commits)）。
+  タイトルは `prctl create` と `prctl update` が断り、PR のコミットと今のタイトルは push のあとの hook、ターンの終わりの hook、
+  `prctl ready` が知らせる（[prctl の判定：コミットメッセージとタイトル](../../docs/reference/prctl.md#commits "在りか")）。知らされたら、
+  メッセージを書き直して `--force-with-lease` で push し、タイトルは `prctl update --title` で直す。最後のコミットは
+  `git commit --amend` で、前のものはエディタを開かない `git rebase -i` で書き直す（`GIT_SEQUENCE_EDITOR="sed -i 's/^pick <コミット>/reword <コミット>/'"`
+  と `GIT_EDITOR="sed -i 's/fixes #7/#7 の続き/'"` を付けて `git -c core.abbrev=12 rebase -i --rebase-merges origin/<向き先>`。
+  `<コミット>` は知らせの 12 文字のコミットで、`core.abbrev=12` が作業リストの長さをそれにそろえる）。sed が当たらなくても
+  rebase は成功するので、書き直したあとに `git log` でメッセージが変わったことを確かめる。
 
 ## 差分のレビュー
 
