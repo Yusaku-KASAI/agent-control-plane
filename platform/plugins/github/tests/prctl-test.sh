@@ -90,6 +90,19 @@ case $args in
     mv "$dir/p.tmp" "$dir/pr.json"
     ;;
   *" -X DELETE "*"/issues/"*"/labels/"*) jq '.labels = []' "$dir/pr.json" >"$dir/p.tmp" && mv "$dir/p.tmp" "$dir/pr.json" ;;
+  # The request issue, and the PRs its items name: issue-<n>.json, pull-<n>.json. Last, as the
+  # paths of the reviews and comments start alike.
+  *" repos/{owner}/{repo}/issues/"[0-9]*" --jq "*)
+    n=${args#* repos/\{owner\}/\{repo\}/issues/}; n=${n%% *}
+    [[ -f $dir/issue-$n.json ]] || exit 1
+    jq -r "${@: -1}" "$dir/issue-$n.json"
+    ;;
+  *" repos/{owner}/{repo}/pulls/"[0-9]*" --jq "*)
+    n=${args#* repos/\{owner\}/\{repo\}/pulls/}; n=${n%% *}
+    [[ ! -f $dir/fail-pull-$n ]] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
+    [[ -f $dir/pull-$n.json ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    jq -r "${@: -1}" "$dir/pull-$n.json"
+    ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -812,6 +825,65 @@ check "being made ready counts afresh" "$(cat "$(git rev-parse --git-path prctl-
 check "being made ready goes through GraphQL" "$(cat "$state/last-graphql")" "markPullRequestReadyForReview"
 jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 check "a PR out of draft is told so" "$("$prctl" ready)" "is not a draft"
+
+# prctl ready holds a PR whose request issue's scope does not match the line of Closes or Refs.
+# with_request <line>: the PR, a draft that may end, with that line in its body.
+with_request() {
+  jq --arg l "$1" '.isDraft = true | .body = "x\n\n" + $l + "\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+}
+# scope <items>: the request issue #7, with those items (one to a line) in its scope.
+scope() { jq -n --arg s "$1" '{body: ("狙い\n\n## 今の姿\n\n- [ ] not an item\n\n## 範囲\n\n範囲の中：\n\n" + $s + "\n\n範囲の外：\n\n- other\n\n## 関係\n\n- [ ] not an item either")}' >"$state/issue-7.json"; }
+ready() { rm -f "$(git rev-parse --git-path prctl-handback-1)"; "$prctl" ready 2>&1 || true; }
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [x] b #3'
+check "a PR that handles what is left of its issue closes it" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] b\n- [ ] c #4\n- [ ] d #5'
+echo '{"merged_at": "2026-10-30T00:00:00Z"}' >"$state/pull-5.json"
+echo '{"merged_at": null}' >"$state/pull-4.json"
+rm -f "$state/last-graphql"
+out=$(ready)
+check "a PR that closes an issue with items left is held" "$out" "PR #1 closes #7, which still has items it does not handle: write Refs #7 instead"
+check "the items left are named, an open PR's among them" "$out" $'- b\n- c #4'
+lacks "an item of a merged PR is not left" "$out" "- c #4" "- d #5"
+check "the PR is left a draft" "[$(cat "$state/last-graphql" 2>/dev/null)]" "[]"
+check "a held PR does not start the count afresh" "[$(cat "$(git rev-parse --git-path prctl-handback-1)" 2>/dev/null)]" "[]"
+set_pr "$c21"
+with_request "Refs #7"
+check "a PR that refers to an issue with items left goes on" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Refs #7"
+scope $'- [ ] a #1\n- [x] b #3\n- [ ] d #5'
+check "a PR that only refers to an issue with nothing else left is held" "$(ready)" "nothing is left in the scope of #7 but what PR #1 handles: write Closes #7"
+touch "$state/fail-pull-5"
+check "a PR an item names that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
+rm "$state/fail-pull-5"
+scope $'- [ ] a #1\n- [ ] e #9'
+check "an item of a number that is no PR is left" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] f other/repo#5\n'"\`\`\`"$'\n- [ ] example #8\n'"\`\`\`"
+out=$(ready)
+check "an item of another repository's PR is left, not this one's" "$out" $'still has items it does not handle'
+check "the item of another repository is named" "$out" "- f other/repo#5"
+lacks "an item in a code block is not an item" "$out" "- f other/repo#5" "example"
+set_pr "$c21"
+with_request "Fixes #7"
+scope $'- [ ] a\n- [ ] b #2'
+check "a PR no item names is held" "$(ready)" "no item of the scope of #7 ends with #1"
+jq '.body = "狙い\n\n## 今の姿\n\n- [ ] a #1"' -n >"$state/issue-7.json"
+check "an issue without a scope is held" "$(ready)" "the request issue #7 has no section ## 範囲"
+rm "$state/issue-7.json"
+check "an issue that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
+set_pr "$c21"
+with_request "Closes other/repo#7"
+check "an issue of another repository is not read" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "a PR without a request issue goes on" "$(ready)" "https://example.invalid/pull/1"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 # Another review of the same commit is no change, and answers count for the review they answer.
 "$prctl" review "$c21" - <<<"$nothing" >/dev/null 2>&1 || true
 out=$(stop_hook)

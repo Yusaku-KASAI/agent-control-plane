@@ -33,7 +33,8 @@ github/
     細部の指摘への直しだけの範囲は、レビューせずに記録する（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
     結果と答えは決まった形の JSON で受ける（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。回し方はラベルで
     見分ける（[ADR 0021](../../../docs/adr/0021-two-ways-of-reviewing-a-pr.md)）。終える前に、PR 全体の差分のレビューが終えてよい
-    状態にしているかを確かめる（[ADR 0014](../../../docs/adr/0014-whole-pr-review-before-ending.md)）。
+    状態にしているかを確かめる（[ADR 0014](../../../docs/adr/0014-whole-pr-review-before-ending.md)）。下書きを外す前に、依頼の Issue の
+    範囲との付け合わせを確かめる（[ADR 0034](../../../docs/adr/0034-ready-checks-the-scope-of-the-request.md)）。
   - CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは
     一つのブランチに一つだけ（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。各 check の最新の run だけを数える
     （[ADR 0017](../../../docs/adr/0017-latest-check-run-across-suites.md)）。

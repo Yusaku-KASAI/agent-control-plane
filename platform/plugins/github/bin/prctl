@@ -41,7 +41,9 @@ usage:
                                       none in the head's history, or right after another such record
   prctl ready                         take the PR out of draft, once it may end: a review of the whole
                                       PR, nothing but fixes of nitpicks after it, no finding that must
-                                      be fixed, every finding answered (PRs are opened as drafts)
+                                      be fixed, every finding answered (PRs are opened as drafts); and
+                                      the scope of the request issue: an item ends with the PR's number,
+                                      and Closes only when nothing else is left (issues.md: scope)
   prctl mode [normal|thorough]        the way the PR is reviewed, or set it: normal (the default), or
                                       thorough, by the label 念入りのレビュー
   prctl draft                         put the PR back into draft, to go on with it
@@ -73,7 +75,7 @@ readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
 # in any case, also as an item of a list or in a quote: the one form both the body's check and the reading of a PR's
 # request issue go by, as GitHub closes the issue whatever follows. Matched as a jq regex with the
 # flag "i".
-readonly issue_start_re='^\s*([-*+]\s+|[0-9]+[.)]\s+|>\s*)*(close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
+readonly issue_start_re='^\s*([-*+]\s+|[0-9]+[.)]\s+|>\s*)*(?<word>close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
 # Such a line with nothing after the issue, which is not what is written under a section.
 readonly issue_line_re=$issue_start_re'\s*$'
 
@@ -665,6 +667,69 @@ request_issues() {
     | reduce .[] as $i ([]; if any(.[]; ascii_downcase == ($i | ascii_downcase)) then . else . + [$i] end) | .[]' <<<"$1"
 }
 
+# request_refs <body>: the lines of Closes or Refs of the body, as a JSON array of the issue each names
+# and whether it closes the issue, in the form of request_issues.
+request_refs() {
+  jq -Rcs -L "$forms" --arg start "$issue_start_re" 'include "markdown";
+    [body_lines[] | select(.code | not) | .line | capture($start; "i") | {issue, closes: (.word | test("^refs$"; "i") | not)}]' <<<"$1"
+}
+
+# scope_message <pr>: what keeps the PR from ending by the scope of its request issue (issues.md:
+# scope, scope-items), or nothing. The items of the scope are the task list of its section ## 範囲,
+# and the PR an item is handled by is the number of this repository at its end. What is left is an item not checked
+# whose PR is not this one and not merged. Without a line of Closes or Refs, or with an issue of
+# another repository, nothing is asked.
+scope_message() {
+  local pr=$1 number refs issue closes body items left mine m n merged err
+  number=$(jq -r .number <<<"$pr")
+  refs=$(request_refs "$(jq -r '.body // ""' <<<"$pr")")
+  issue=$(jq -r '.[0].issue // empty' <<<"$refs")
+  [[ $issue =~ ^#[0-9]+$ ]] || return 0
+  closes=$(jq -r 'any(.[]; .closes)' <<<"$refs")
+  body=$(gh api "repos/{owner}/{repo}/issues/${issue#\#}" --jq '.body // ""') || return 1
+  items=$(jq -Rcs -L "$forms" 'include "markdown";
+    body_lines as $lines
+    | ([$lines | to_entries[] | select(.value.head == "範囲") | .key] | first) as $at
+    | if $at == null then null else
+        ([$lines | to_entries[] | select(.key > $at and .value.head != null) | .key] | first // ($lines | length)) as $end
+        | [$lines[$at + 1:$end][] | select(.code | not) | .line
+           | capture("^\\s*[-*+] \\[(?<mark>[ xX])\\]\\s+(?<text>.*?)\\s*$")
+           | {done: (.mark != " "), text, pr: (.text | capture("(^|\\s)#(?<n>[0-9]+)$").n // null)}]
+      end' <<<"$body")
+  if [[ $items == null ]]; then
+    echo "the request issue $issue has no section ## 範囲; write its scope there (issues.md: scope)."
+    return 0
+  fi
+  mine=$(jq --arg n "$number" '[.[] | select(.pr == $n)] | length' <<<"$items")
+  if ((mine == 0)); then
+    echo "no item of the scope of $issue ends with #$number; add the number to the items this PR handles (issues.md: scope-items)."
+    return 0
+  fi
+  left=()
+  err=$(mktemp)
+  while IFS= read -r m; do
+    [[ -n $m ]] || continue
+    n=${m%%$'\t'*}
+    # An item of a merged PR is done, though not checked yet; of an open or closed one, or of a
+    # number that is no PR, it is left. A PR that cannot be read stops the check.
+    if [[ $n != - ]]; then
+      if merged=$(gh api "repos/{owner}/{repo}/pulls/$n" --jq '.merged_at != null' 2>"$err"); then
+        [[ $merged != true ]] || continue
+      elif ! grep -qE 'HTTP (404|410)' "$err"; then
+        rm -f "$err"; return 1
+      fi
+    fi
+    left+=("${m#*$'\t'}")
+  done < <(jq -r --arg n "$number" '.[] | select((.done | not) and .pr != $n) | "\(.pr // "-")\t\(.text)"' <<<"$items")
+  rm -f "$err"
+  if [[ $closes == true ]] && ((${#left[@]})); then
+    printf 'PR #%s closes %s, which still has items it does not handle: write Refs %s instead, unless they are to be handled here (issues.md: scope):\n' "$number" "$issue" "$issue"
+    printf -- '- %s\n' "${left[@]}"
+  elif [[ $closes != true ]] && ((${#left[@]} == 0)); then
+    echo "nothing is left in the scope of $issue but what PR #$number handles: write Closes $issue instead of Refs (issues.md: scope)."
+  fi
+}
+
 # body_check <body>: die unless the body has the sections, in order, once each, none of them empty,
 # and its lines that close or refer to an issue name one issue, the request's (writing.md: PR),
 # whatever follows it on the line. Lines in code blocks are not headings, and name no issue. Such
@@ -729,6 +794,9 @@ cmd_ready() {
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
+  # Before the reviews are told settled, which starts their count afresh.
+  msg=$(scope_message "$pr") || die "could not read the request issue of the PR, or a PR its scope names"
+  [[ -z $msg ]] || die "not ready: $msg"
   # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
   msg=$(final_message "$pr" "$head" "$list" settled) || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "$msg"
