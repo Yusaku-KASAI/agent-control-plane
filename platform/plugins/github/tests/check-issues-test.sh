@@ -16,7 +16,10 @@ dir=$FAKE_GH
 args=" $* "
 jq_filter() { local prev=; for a in "$@"; do [[ $prev == --jq ]] && { echo "$a"; return; }; prev=$a; done; echo .; }
 case $args in
-  *" issue list -R o/r "*) [[ ! -f $dir/fail-list ]] || exit 1; cat "$dir/issues.json" ;;
+  # Only the fields asked for, as gh does.
+  *" issue list -R o/r "*)
+    [[ ! -f $dir/fail-list ]] || exit 1
+    jq --arg f "$(sed -E 's/.* --json ([^ ]+) .*/\1/' <<<"$args")" 'map(. as $i | reduce ($f | split(","))[] as $k ({}; .[$k] = $i[$k]))' "$dir/issues.json" ;;
   *" label list -R o/r "*) jq -r "$(jq_filter "$@")" "$dir/labels.json" ;;
   *" api graphql "*) jq -r "$(jq_filter "$@")" "$dir/pinned.json" ;;
   *" api repos/o/r/issues/"*"/dependencies/blocked_by "*)
@@ -39,11 +42,14 @@ check() {
   local name=$1 want=$2 got=$3
   if [[ $got == "$want" ]]; then echo "ok   $name"; else echo "FAIL $name: got '$got', want '$want'"; failures=$((failures + 1)); fi
 }
-issue() { jq -nc --argjson n "$1" --arg labels "$2" '{number: $n, title: "t", labels: ($labels | split(",") | map(select(. != "")) | map({name: .}))}'; }
+issue() { jq -nc --argjson n "$1" --arg labels "$2" --arg body "${3:-}" '{number: $n, title: "t", body: $body, labels: ($labels | split(",") | map(select(. != "")) | map({name: .}))}'; }
+theme_body=$'## 狙い\n\na\n\n## 目指す姿\n\nb\n\n## 進め方\n\nc'
+# themes <body>: the issues of reset, with a theme issue of that body.
+themes() { { issue 1 app,theme:ops; issue 42 ""; issue 9 theme "$1"; } | jq -s . >"$state/issues.json"; }
 roadmap() { jq -n --arg body "$1" '{data: {repository: {pinnedIssues: {nodes: [{issue: {number: 42, title: "ロードマップ", body: $body}}]}}}}' >"$state/pinned.json"; }
 reset() {
   rm -f "$state"/*
-  { issue 1 app,theme:ops; issue 42 ""; issue 9 theme; } | jq -s . >"$state/issues.json"
+  themes "$theme_body"
   roadmap $'## 今の焦点\n\n1. #1 をする\n\n## その後\n\n- #5 は閉じた'
   echo '{"state": "open"}' >"$state/open.json"
   echo '[{"name": "bug", "isDefault": true}, {"name": "accessibility", "isDefault": true}, {"name": "app", "isDefault": false}]' >"$state/labels.json"
@@ -63,6 +69,24 @@ check "the issue and what it lacks are named" "NG   #1 theme:<名前> のラベ�
 reset
 { issue 1 theme:ops,canvas; issue 42 ""; } | jq -s . >"$state/issues.json"
 check "canvas is not a label of where" "NG   #1 どこを変えるか のラベルがない" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+
+reset
+themes $'## 狙い\n\na\n\n## 進め方\n\nc'
+check "a theme issue without a section of a theme fails" 1 "$(run)"
+check "the theme issue and the sections it has are named" \
+  "NG   #9 テーマの本文に ## 狙い、## 目指す姿、## 進め方 の節がこの順に一度ずつない（ある節：狙い、進め方）" "$(grep '^NG' "$tmp/out")"
+themes $'## 進め方\n\nc\n\n## 狙い\n\na\n\n## 目指す姿\n\nb'
+check "the sections of a theme out of order fail" 1 "$(run)"
+themes "$theme_body"$'\n\n## 狙い\n\nd'
+check "a section of a theme twice fails" 1 "$(run)"
+themes $'## 狙い\r\n\r\na\r\n## 目指す姿  \r\nb\r\n## 進め方\r\nc\r\n\r\n## 関係\r\n\r\n- #1'
+check "other sections, spaces after a heading and CRLF do not matter" 0 "$(run)"
+themes "$theme_body"$'\n\n```md\n## 狙い\n```'
+check "a heading in a code block is not a section" 0 "$(run)"
+themes ""
+check "a theme issue without a body fails" "NG   #9 テーマの本文に ## 狙い、## 目指す姿、## 進め方 の節がこの順に一度ずつない（ある節：なし）" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+{ issue 1 app,theme:ops "## 狙い"; issue 42 ""; } | jq -s . >"$state/issues.json"
+check "only theme issues are held to the sections" 0 "$(run)"
 
 reset
 echo '{"state": "closed"}' >"$state/issue-1.json"
@@ -118,5 +142,14 @@ NG   #1 is blocked by closed issues: #7" "$(grep '^NG' "$tmp/out")"
 reset
 touch "$state/fail-list"
 check "issues that cannot be read stop with 2" 2 "$(run)"
+
+# The sections asked of a theme issue are those of the conventions (issues.md: テーマ, the item of
+# its body), read by the anchor so that a heading may be renamed.
+issues_md=$(dirname "$cmd")/../../conventions/docs/reference/issues.md
+# shellcheck disable=SC2016 # awk programs and backquotes of Markdown
+check "the sections of a theme are those of the conventions" \
+  "$(awk '$0 == "<a id=\"theme\"></a>" { on = 1; next } on && /^<a id="/ { exit } on' "$issues_md" |
+    awk '/^- 本文は、/ { on = 1 } on && /^- / && !/^- 本文は、/ { exit } on' | grep -o '`## [^`]*`' | sed 's/`## //; s/`//' | paste -sd ' ' -)" \
+  "$(sed -n 's/^theme_sections=(\(.*\))$/\1/p' "$cmd")"
 
 exit "$failures"

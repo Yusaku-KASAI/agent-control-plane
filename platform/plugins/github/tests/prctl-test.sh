@@ -39,7 +39,8 @@ case $args in
   *" --jq .node_id "*) echo N1 ;;
   *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
-  *" pr view 1 "*) cat "$dir/pr.json" ;;
+  # Only the fields asked for, as gh does.
+  *" pr view 1 "*) jq --arg f "$(sed -E 's/.* --json ([^ ]+) .*/\1/' <<<"$args")" '. as $pr | reduce ($f | split(","))[] as $k ({}; .[$k] = $pr[$k])' "$dir/pr.json" ;;
   *" repo view "*) echo main ;;
   *" -X PATCH "*"/pulls/"*)
     for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-edit"; done
@@ -89,6 +90,19 @@ case $args in
     mv "$dir/p.tmp" "$dir/pr.json"
     ;;
   *" -X DELETE "*"/issues/"*"/labels/"*) jq '.labels = []' "$dir/pr.json" >"$dir/p.tmp" && mv "$dir/p.tmp" "$dir/pr.json" ;;
+  # The request issue, and the PRs its items name: issue-<n>.json, pull-<n>.json. Last, as the
+  # paths of the reviews and comments start alike.
+  *" repos/{owner}/{repo}/issues/"[0-9]*" --jq "*)
+    n=${args#* repos/\{owner\}/\{repo\}/issues/}; n=${n%% *}
+    [[ -f $dir/issue-$n.json ]] || exit 1
+    jq -r "${@: -1}" "$dir/issue-$n.json"
+    ;;
+  *" repos/{owner}/{repo}/pulls/"[0-9]*" --jq "*)
+    n=${args#* repos/\{owner\}/\{repo\}/pulls/}; n=${n%% *}
+    [[ ! -f $dir/fail-pull-$n ]] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
+    [[ -f $dir/pull-$n.json ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    jq -r "${@: -1}" "$dir/pull-$n.json"
+    ;;
   *) echo "fake gh: unexpected: $*" >&2; exit 1 ;;
 esac
 GH
@@ -448,7 +462,10 @@ set_pr "$c7"
 check "a new commit is not reviewed yet" "$("$prctl" unreviewed)" "range: $c6..$c7"
 git checkout -q main
 before=$(git symbolic-ref HEAD; git rev-parse HEAD)
+jq '.title = "t1" | .body = "x\n\nfixes: #3\n```\nCloses #4\n```\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 out=$("$prctl" worktree pr 1)
+check "the worktree tells the title of the PR" "$out" "title: t1"
+check "the worktree tells the issue of the request, by the form of the body's check" "$out" $'\nissue: #3\n'
 wt=$(sed -n 's/^path: //p' <<<"$out")
 check "the PR is checked out in a worktree" "$(git -C "$wt" rev-parse HEAD)" "$c7"
 check "the worktree leaves the work tree's HEAD" "$(git symbolic-ref HEAD; git rev-parse HEAD)" "$before"
@@ -461,8 +478,13 @@ check "a review of another's PR covers the whole PR" "$(cat "$state/last-body")"
 check "a review of another's PR counts for the author" "$("$prctl" unreviewed)" "reviewed up to the head"
 check "a commit outside another's PR is refused" \
   "$(cd "$wt" || exit; "$prctl" review --pr 1 "$other" - <<<"$whole" 2>&1 || true)" "is not in the PR"
+set_pr "$c7"
 out=$(cd "$wt" || exit; "$prctl" worktree pr 1)
 check "the worktree is made again from inside it" "$(git -C "$wt" rev-parse HEAD)" "$c7"
+check "the worktree tells when the body names no issue" "$out" "issue: none"
+jq '.body = "Closes #3\ncloses #3\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "the worktree tells an issue named twice once" "$("$prctl" worktree pr 1)" $'\nissue: #3\n'
+set_pr "$c7"
 (cd "$wt" || exit; "$prctl" worktree remove pr 1)
 [[ ! -e $wt ]] || { echo "FAIL the worktree is left after a remove from inside it"; failures=$((failures + 1)); }
 check "removing the worktree drops its ref" "[$(git for-each-ref refs/prctl)]" "[]"
@@ -597,11 +619,14 @@ check "a review over GitHub's limit is refused" \
 # The names the form takes are those of the conventions.
 reviews=$(dirname "$prctl")/../../conventions/docs/reference/reviews.md
 forms=$(dirname "$prctl")/../lib
-column() { sed -n "/^## $1/,/^## /p" "$reviews" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
-check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column 観点)"
-check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column 結果の形)"
+# section <file> <anchor>: the section of ## that the anchor marks, up to the next heading of ##, so
+# that a heading may be renamed.
+section() { awk -v id="$2" 'on && /^## / { if (seen) exit; seen = 1 } $0 == "<a id=\"" id "\"></a>" { on = 1 } on' "$1"; }
+column() { section "$reviews" "$1" | grep '^| ' | tail -n +3 | cut -d'|' -f2 | sed 's/^ *//; s/ *$//' | jq -Rsc 'split("\n") | map(select(. != ""))'; }
+check "the perspectives are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; perspectives')" "$(column perspectives)"
+check "the answers are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; actions')" "$(column record)"
 check "the severities are those of the conventions" "$(jq -nc -L "$forms" 'include "review"; severities')" \
-  "$(grep '^| 重さ |' "$reviews" | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
+  "$(section "$reviews" findings | grep '^| 重さ |' | grep -oP '(?<=\| 重さ \| |）、)[^、（）| ]+(?=（)' | jq -Rsc 'split("\n") | map(select(. != ""))')"
 
 # A PR body has its sections, in order, none empty; what is under them is free.
 good=$'## 何を変えるか\nx\n\n## 検討した別の形\nw\n\n## 当てはめた決まり\n- 仕組みで守る\n\n## どう確かめたか\ny\n\n## 確かめていないこと\nなし\n\nCloses #1'
@@ -627,6 +652,25 @@ for ref in 'Fixes owner/repo#1' 'Closes: #1'; do
     "$("$prctl" create t - <<<"$(sed "s|^なし$||; s|^Closes #1$|$ref|" <<<"$good")" 2>&1 || true)" "the section ## 確かめていないこと is empty"
 done
 # shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "a sentence after the issue fills the last section" \
+  "$("$prctl" create t - <<<"$(sed 's/^なし$//; s/^Closes #1$/Refs #1 の残りの項目は確かめていない/' <<<"$good")" 2>&1 || true)" "already has an open PR"
+for line in 'Closes #1, #2' 'Closes #1 and fixes owner/repo#2'; do
+  # shellcheck disable=SC2001 # a line-wise edit of a sample body
+  check "\"$line\" is refused as naming more issues than the request" \
+    "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|$line|" <<<"$good")" 2>&1 || true)" "a line of Closes or Refs names more issues than the request"
+done
+for line in 'Closes #2 についても直した' 'Closes #2.' '- Refs #2' '1. Refs #2' '> - Closes #2'; do
+  check "\"$line\" names its issue, whatever follows" "$("$prctl" create t - <<<"$good"$'\n'"$line" 2>&1 || true)" \
+    "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"
+done
+check "lines naming two issues are refused" "$("$prctl" create t - <<<"$good"$'\nRefs #2' 2>&1 || true)" \
+  "the lines of Closes or Refs name more issues than the request (mention others in a sentence): #1, #2"
+check "lines naming the issue twice go on" "$("$prctl" create t - <<<"$good"$'\ncloses #1' 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "an issue of another repository is the same in any case" \
+  "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|Closes Owner/Repo#1|" <<<"$good")"$'\nrefs owner/repo#1' 2>&1 || true)" "already has an open PR"
+check "a line in a code block names no issue" "$("$prctl" create t - <<<"$good"$'\n```\nRefs #2, #3\n```' 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
 check "the old marker of the head does not fill the last section" \
   "$("$prctl" update - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n<!-- prctl: head='"$(printf '%040d' 0)"' -->' 2>&1 || true)" "the section ## 確かめていないこと is empty"
 # shellcheck disable=SC2001,SC2016 # a line-wise edit of a sample body, with Markdown backquotes
@@ -641,7 +685,7 @@ writing=$(dirname "$prctl")/../../conventions/docs/reference/writing.md
 # shellcheck disable=SC2016 # backquotes of Markdown
 check "the body's sections are those of the conventions" \
   "$(sed -n 's/^readonly body_sections=(\(.*\))$/\1/p' "$prctl")" \
-  "$(sed -n '/^## PR$/,/^## /p' "$writing" | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
+  "$(section "$writing" pull-requests | grep -o '^  | `## [^`]*`' | sed 's/.*## //; s/`//' | paste -sd ' ' -)"
 
 # A PR is stacked on another PR's branch only when built on it, and only on an open PR.
 git checkout -q -b stacked
@@ -781,6 +825,65 @@ check "being made ready counts afresh" "$(cat "$(git rev-parse --git-path prctl-
 check "being made ready goes through GraphQL" "$(cat "$state/last-graphql")" "markPullRequestReadyForReview"
 jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 check "a PR out of draft is told so" "$("$prctl" ready)" "is not a draft"
+
+# prctl ready holds a PR whose request issue's scope does not match the line of Closes or Refs.
+# with_request <line>: the PR, a draft that may end, with that line in its body.
+with_request() {
+  jq --arg l "$1" '.isDraft = true | .body = "x\n\n" + $l + "\n" + .body' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+}
+# scope <items>: the request issue #7, with those items (one to a line) in its scope.
+scope() { jq -n --arg s "$1" '{body: ("狙い\n\n## 今の姿\n\n- [ ] not an item\n\n## 範囲\n\n範囲の中：\n\n" + $s + "\n\n範囲の外：\n\n- other\n\n## 関係\n\n- [ ] not an item either")}' >"$state/issue-7.json"; }
+ready() { rm -f "$(git rev-parse --git-path prctl-handback-1)"; "$prctl" ready 2>&1 || true; }
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [x] b #3'
+check "a PR that handles what is left of its issue closes it" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] b\n- [ ] c #4\n- [ ] d #5'
+echo '{"merged_at": "2026-10-30T00:00:00Z"}' >"$state/pull-5.json"
+echo '{"merged_at": null}' >"$state/pull-4.json"
+rm -f "$state/last-graphql"
+out=$(ready)
+check "a PR that closes an issue with items left is held" "$out" "PR #1 closes #7, which still has items it does not handle: write Refs #7 instead"
+check "the items left are named, an open PR's among them" "$out" $'- b\n- c #4'
+lacks "an item of a merged PR is not left" "$out" "- c #4" "- d #5"
+check "the PR is left a draft" "[$(cat "$state/last-graphql" 2>/dev/null)]" "[]"
+check "a held PR does not start the count afresh" "[$(cat "$(git rev-parse --git-path prctl-handback-1)" 2>/dev/null)]" "[]"
+set_pr "$c21"
+with_request "Refs #7"
+check "a PR that refers to an issue with items left goes on" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Refs #7"
+scope $'- [ ] a #1\n- [x] b #3\n- [ ] d #5'
+check "a PR that only refers to an issue with nothing else left is held" "$(ready)" "nothing is left in the scope of #7 but what PR #1 handles: write Closes #7"
+touch "$state/fail-pull-5"
+check "a PR an item names that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
+rm "$state/fail-pull-5"
+scope $'- [ ] a #1\n- [ ] e #9'
+check "an item of a number that is no PR is left" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] f other/repo#5\n'"\`\`\`"$'\n- [ ] example #8\n'"\`\`\`"
+out=$(ready)
+check "an item of another repository's PR is left, not this one's" "$out" $'still has items it does not handle'
+check "the item of another repository is named" "$out" "- f other/repo#5"
+lacks "an item in a code block is not an item" "$out" "- f other/repo#5" "example"
+set_pr "$c21"
+with_request "Fixes #7"
+scope $'- [ ] a\n- [ ] b #2'
+check "a PR no item names is held" "$(ready)" "no item of the scope of #7 ends with #1"
+jq '.body = "狙い\n\n## 今の姿\n\n- [ ] a #1"' -n >"$state/issue-7.json"
+check "an issue without a scope is held" "$(ready)" "the request issue #7 has no section ## 範囲"
+rm "$state/issue-7.json"
+check "an issue that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
+set_pr "$c21"
+with_request "Closes other/repo#7"
+check "an issue of another repository is not read" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+jq '.isDraft = true' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
+check "a PR without a request issue goes on" "$(ready)" "https://example.invalid/pull/1"
+jq '.isDraft = false' "$state/pr.json" >"$state/p" && mv "$state/p" "$state/pr.json"
 # Another review of the same commit is no change, and answers count for the review they answer.
 "$prctl" review "$c21" - <<<"$nothing" >/dev/null 2>&1 || true
 out=$(stop_hook)
