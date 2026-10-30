@@ -126,6 +126,12 @@ func TestAgentAnswers(t *testing.T) {
 		{"the control plane stops while an answer is held",
 			[]SessionEvent{started(false), started(true), finished("待ちます", 1), {Kind: SessionAbandoned, Status: SessionStatus{BackgroundTasks: 1}}, updated(0)},
 			[]string{ShutdownNotice}},
+		{"the control plane stops while an answer is held and a request waits",
+			[]SessionEvent{started(false), started(true), finished("待ちます", 1), started(true),
+				{Kind: SessionAbandoned, RequestsTold: true, Status: SessionStatus{Running: true, BackgroundTasks: 1}},
+				{Kind: SessionTurnFinished, Unrequested: true, Result: TurnResult{Interrupted: true}, Status: SessionStatus{BackgroundTasks: 1}},
+				updated(0)},
+			nil},
 		{"a restart abandons the work",
 			[]SessionEvent{{Kind: SessionAbandoned}},
 			[]string{restartNotice}},
@@ -190,6 +196,10 @@ func TestAgentAnswersFlush(t *testing.T) {
 			SessionEvent{Kind: SessionAbandoned, Status: SessionStatus{BackgroundTasks: 1}},
 			SessionEvent{Kind: SessionUpdated}),
 			[]string{ShutdownNotice}},
+		{"the control plane cuts the tasks short while a request waits", append(slices.Clone(held),
+			SessionEvent{Kind: SessionAbandoned, RequestsTold: true, Status: SessionStatus{BackgroundTasks: 1}},
+			SessionEvent{Kind: SessionUpdated}),
+			nil},
 	} {
 		next := &noticeRecorder{}
 		a := NewAgentAnswers(next)

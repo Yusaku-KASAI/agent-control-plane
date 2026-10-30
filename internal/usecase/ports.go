@@ -231,9 +231,9 @@ const (
 	// SessionCreated reports a session made for a conversation: one cleaned before in the same
 	// thread no longer is.
 	SessionCreated
-	// SessionAbandoned reports that the control plane stopped the session's process while no
-	// request was waiting to be told: on shutdown, with Status showing the work that was cut
-	// short, or after a restart, with an empty Status since that work is unknown.
+	// SessionAbandoned reports that the control plane cut short the work of the session's process:
+	// on shutdown, with Status showing that work, or after a restart, with an empty Status since
+	// that work is unknown.
 	SessionAbandoned
 	// SessionNotice carries a text to post to the session's conversation, which AgentAnswers decided
 	// from the events before: an answer of a turn no request waited for, or the notice of abandoned
@@ -260,6 +260,9 @@ type SessionEvent struct {
 	Spent *Spent
 	// Notice is set for SessionNotice.
 	Notice string
+	// RequestsTold is set for SessionAbandoned when requests were waiting, which their replies tell
+	// of the shutdown, so that the thread needs no notice of its own.
+	RequestsTold bool
 }
 
 // Spent is what a turn spent and the session's total after it.
