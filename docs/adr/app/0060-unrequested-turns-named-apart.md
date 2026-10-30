@@ -21,7 +21,8 @@ amends: [36, 58]
   （`SessionTurnFinished` だけに付ける）の別の項目で持つ。
 - `TurnRecord` の項目は `Unrequested`、`usage_log` の行の項目は `unrequested` にする。中身は変えない。
 - 今ある `usage_log` の行は書き換えない。変える前の行の `agent_started` は、変えたあとの `unrequested` と同じ中身として
-  読む（両方の行を集計するなら `.unrequested // .agent_started`）。
+  読む（両方の行を集計するなら `if has("unrequested") then .unrequested else .agent_started end`。jq の `//` は
+  `false` も置き換えるので使わない）。
 
 ## Alternatives
 
