@@ -48,8 +48,8 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - PR が依頼の Issue を閉じるときは `Closes #<番号>` を、範囲の中の残りか積んだ指摘が残って閉じないときは `Refs #<番号>` を
   本文に書く。`Closes` と `Refs` の行には依頼の Issue だけを置き、ほかの Issue には文の中で触れる
   （[書き方：PR](../../../conventions/docs/reference/writing.md#pull-requests)）。GitHub は文の中の閉じるキーワード（`fixes #7` など）でも
-  Issue を閉じるので、文の中でほかの Issue に触れるときは閉じるキーワードを使わない。それらの行が二つ以上の Issue を
-  挙げるか、文の中の閉じるキーワードが依頼の Issue でない Issue を挙げれば、`prctl create` と `prctl update` が断る
+  Issue を閉じるので、文の中では閉じるキーワードを使わない（閉じるなら `Closes` の行に書く）。それらの行が二つ以上の
+  Issue を挙げるか、文の中の閉じるキーワードの後ろに Issue があれば、`prctl create` と `prctl update` が断る
   （読み方は [prctl の判定：本文](../../docs/reference/prctl.md#body "在りか")）。
 
 ## 差分のレビュー
