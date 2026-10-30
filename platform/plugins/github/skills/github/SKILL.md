@@ -57,8 +57,9 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   `prctl ready` が知らせる（[prctl の判定：コミットメッセージとタイトル](../../docs/reference/prctl.md#commits "在りか")）。知らされたら、
   メッセージを書き直して `--force-with-lease` で push し、タイトルは `prctl update --title` で直す。最後のコミットは
   `git commit --amend` で、前のものはエディタを開かない `git rebase -i` で書き直す（`GIT_SEQUENCE_EDITOR="sed -i 's/^pick <コミット>/reword <コミット>/'"`
-  と `GIT_EDITOR="sed -i 's/fixes #7/#7 の続き/'"` を付けて `git rebase -i --rebase-merges origin/<向き先>`。`<コミット>` は
-  知らせの短いコミットと同じ長さで書く）。
+  と `GIT_EDITOR="sed -i 's/fixes #7/#7 の続き/'"` を付けて `git -c core.abbrev=12 rebase -i --rebase-merges origin/<向き先>`。
+  `<コミット>` は知らせの 12 文字のコミットで、`core.abbrev=12` が作業リストの長さをそれにそろえる）。sed が当たらなくても
+  rebase は成功するので、書き直したあとに `git log` でメッセージが変わったことを確かめる。
 
 ## 差分のレビュー
 
