@@ -1,10 +1,12 @@
 #!/bin/sh
 # Warns of a new remote branch outside the session's names, stops a push that would overwrite a
 # remote tip no reflog entry of the pushed ref reaches unless ACP_PUSH_OVERWRITE=1 says the
-# overwrite is meant, then runs the target's checks, make check. Neither the warning nor the stop
-# forbids anything: a requester may ask for another name or for the overwrite. The checks run on
-# the work tree, so they stand for the pushed commit only when that commit is HEAD and the work
-# tree has nothing beside it. Like commit-msg, it lives only in the workspace's .git.
+# overwrite is meant, stops a push of commits that carry a credential the container holds or a value
+# in a well-known form of one, then runs the target's checks, make check. The name and the overwrite
+# are the requester's to decide (the warning does not stop, the stop can be let through); a
+# credential cannot be let through from here.
+# The checks run on the work tree, so they stand for the pushed commit only when that commit is HEAD
+# and the work tree has nothing beside it. Like commit-msg, it lives only in the workspace's .git.
 
 # The control plane writes the session branch here on installing the hook.
 session_branch='@SESSION_BRANCH@'
@@ -35,6 +37,38 @@ REFS
 	done
 	say "注意：この push は $remote_ref のリモートの先頭 $remote_sha を、手元に取り込まないまま上書きする（ほかの書き手のコミットが消える）。ふつうは取り込んでから（git pull --rebase）push し直す。上書きすると決めたときだけ、ACP_PUSH_OVERWRITE=1 と --force を付けて push し直す（ハーネスの契約の「push」）。"
 	exit 1
+done <<REFS
+$refs
+REFS
+# Credentials: a commit to be pushed must not carry the value of a credential the container holds
+# (the GitHub App's token, the Slack bot's token), whose form may change, nor a value in a well-known
+# form of one. What the commits add and their messages are read; what they remove is not, nor commits
+# already on a remote branch, which pushing does not publish anew. The values stay in this shell's
+# memory, and the value found is not shown. gh's hosts.yml is read in the form the control plane
+# writes it (its test holds that form).
+values=
+if [ -n "${GH_CONFIG_DIR:-}" ] && [ -r "$GH_CONFIG_DIR/hosts.yml" ]; then
+	values=$(sed -n 's/^[[:space:]]*oauth_token:[[:space:]]*//p' "$GH_CONFIG_DIR/hosts.yml")
+fi
+if [ -n "${SLACK_BOT_TOKEN_FILE:-}" ] && [ -r "$SLACK_BOT_TOKEN_FILE" ]; then
+	values=$(printf '%s\n%s\n' "$values" "$(cat "$SLACK_BOT_TOKEN_FILE")")
+fi
+# Only values long enough to be no word of a text.
+values=$(printf '%s\n' "$values" | sed -n 's/[[:space:]]*$//; /^.\{20,\}$/p')
+forms='gh[oprsu]_[A-Za-z0-9._-]{36,}|github_pat_[A-Za-z0-9_]{60,}|xox[abeoprs]-[0-9]+-[0-9A-Za-z-]{10,}|xapp-[0-9]-[A-Za-z0-9-]{10,}|sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
+while read -r _ local_sha _ remote_sha; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	commits=$(git rev-list "$local_sha" --not --remotes) || exit 1
+	for c in $commits; do
+		added=$({ git log -1 --format=%B "$c"; git show --format= --no-color --no-ext-diff --no-textconv --text "$c" | sed -n 's/^+//p'; })
+		if { [ -n "$values" ] && printf '%s\n' "$added" | grep -qF -f /dev/fd/3 3<<VALUES
+$values
+VALUES
+		} || printf '%s\n' "$added" | grep -qE -e "$forms"; then
+			say "コミット $(git rev-parse --short "$c") に、認証情報の値か、その形の値（GitHub や Slack のトークン、鍵など）がある。push を止めた（値は出さない）。その値を消して、コミットを作り直してから（履歴から消す。git rebase などで直す）push し直す。認証情報でないものが当たったなら、依頼者に伝える（ハーネスの契約の「push」）。"
+			exit 1
+		fi
+	done
 done <<REFS
 $refs
 REFS

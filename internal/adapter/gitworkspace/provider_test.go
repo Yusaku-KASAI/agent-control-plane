@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -508,6 +509,165 @@ func TestProvider_Prepare_StopsOverwritingWhatWasNeverTaken(t *testing.T) {
 			// git refuses some of these pushes by itself, so a refusal counts only when the hook made it.
 			if !tt.wantPush && !strings.Contains(string(out), "acp pre-push:") {
 				t.Errorf("the push was refused, but not by the hook: %s", out)
+			}
+		})
+	}
+}
+
+func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
+	const branch = "acp/0f8fad5b"
+	// Built here so that this file carries no value in the form of a credential, which the hook
+	// would stop.
+	ghForm := "gh" + "s_" + strings.Repeat("A1", 18)
+	slackForm := "xo" + "xb-1234567890-" + strings.Repeat("a", 24)
+	keyForm := "-----BEGIN " + "RSA PRIVATE KEY-----"
+	// GitHub App installation tokens may come in a longer form, with . and _ in it.
+	ghLongForm := "gh" + "s_" + strings.Repeat("Ab3", 5) + "_" + strings.Repeat("x9", 20) + "." + strings.Repeat("Q", 10)
+	otherForms := []string{
+		"github" + "_pat_" + strings.Repeat("Z9_", 25),
+		"xa" + "pp-1-" + strings.Repeat("B", 20),
+		"sk" + "-ant-" + strings.Repeat("k", 30),
+		"AK" + "IA" + strings.Repeat("Q7", 8),
+	}
+	// plain commits content to file under a message that carries none of it, so that only the
+	// file's lines can stop the push.
+	plain := func(t *testing.T, ws, file, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(ws, file), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, ws, "add", "--all")
+		git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "plain")
+	}
+	appToken := strings.Repeat("v", 30) + "app-token"
+	botToken := strings.Repeat("w", 30) + "bot-token"
+	tests := []struct {
+		name string
+		// prepare runs in the workspace before the push, the branch already pushed once.
+		prepare func(t *testing.T, ws string)
+		// ref is the branch pushed to, when not the one pushed before.
+		ref      string
+		wantPush bool
+	}{
+		{name: "an ordinary commit", wantPush: true, prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "more.txt", "more")
+		}},
+		{name: "a token in the form of GitHub's", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghForm)
+		}},
+		{name: "a token in the form of Slack's", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token="+slackForm)
+		}},
+		{name: "a private key", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "key.pem", keyForm+"\nabc")
+		}},
+		{name: "the value of the GitHub App's token in the container", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "notes.txt", "it was "+appToken)
+		}},
+		{name: "the value of the Slack bot's token in the container", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "notes.txt", "it was "+botToken)
+		}},
+		{name: "a token in the message of a commit below the head", prepare: func(t *testing.T, ws string) {
+			if err := os.WriteFile(filepath.Join(ws, "a.txt"), []byte("a"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			git(t, ws, "add", "a.txt")
+			git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "use "+ghForm)
+			commit(t, ws, "b.txt", "b")
+		}},
+		{name: "a form in a file only", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.txt", "log: "+ghForm)
+		}},
+		{name: "a value of the container in a file only", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.txt", "log: "+appToken)
+		}},
+		{name: "a form in a file git takes for binary", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.bin", "\x00\x01 "+ghForm)
+		}},
+		{name: "a form in a file whose diff is turned off", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, ".gitattributes", "*.log -diff\n")
+			plain(t, ws, "run.log", "token "+ghForm)
+		}},
+		{name: "a token in the longer form of a GitHub App's", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghLongForm)
+		}},
+		{name: "a token pushed to a new branch", ref: branch + "-other", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghForm)
+		}},
+		{name: "a form already on the default branch, merged in", wantPush: true, prepare: func(t *testing.T, ws string) {
+			other := filepath.Join(t.TempDir(), "other")
+			git(t, "", "clone", "--quiet", gitOutput(t, ws, "remote", "get-url", "origin"), other)
+			commit(t, other, "example.txt", "the example key "+otherForms[3])
+			git(t, other, "push", "--quiet", "origin", "HEAD:main")
+			git(t, ws, "fetch", "--quiet", "origin")
+			git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "merge", "--quiet", "--no-edit", "origin/main")
+		}},
+		{name: "removing a token pushed before", wantPush: true, prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghForm)
+			git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/"+branch)
+			commit(t, ws, "conf.txt", "token: (read from the environment)")
+		}},
+		{name: "a short value of a credential file is no credential", wantPush: true, prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "notes.txt", "short")
+		}},
+	}
+	for i, v := range otherForms {
+		tests = append(tests, struct {
+			name     string
+			prepare  func(t *testing.T, ws string)
+			ref      string
+			wantPush bool
+		}{name: "a well-known form " + strconv.Itoa(i), prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "value: "+v)
+		}})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			agent := domain.Agent{Name: "repo-dev", Role: "developer", Target: domain.Target{Path: f.source, Image: "img"}}
+			ws, err := gitworkspace.NewProvider(t.TempDir()).Prepare(context.Background(), agent, sessionID, domain.Credentials{})
+			if err != nil {
+				t.Fatalf("Prepare() error = %v", err)
+			}
+			creds := t.TempDir()
+			hosts := "github.com:\n    users:\n        x-access-token:\n            oauth_token: " + appToken + "\n    oauth_token: " + appToken + "\n    user: x-access-token\nexample.com:\n    oauth_token: short\n"
+			if err := os.WriteFile(filepath.Join(creds, "hosts.yml"), []byte(hosts), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(creds, "bot-token"), []byte(botToken+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			commit(t, ws.Path, "change.txt", "agent work")
+			git(t, ws.Path, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
+			tt.prepare(t, ws.Path)
+
+			before := gitOutput(t, f.remote, "for-each-ref")
+			ref := branch
+			if tt.ref != "" {
+				ref = tt.ref
+			}
+			cmd := exec.Command("git", "push", "--quiet", "origin", "HEAD:refs/heads/"+ref)
+			cmd.Dir = ws.Path
+			cmd.Env = append(slices.DeleteFunc(os.Environ(), func(e string) bool {
+				return strings.HasPrefix(e, "GH_CONFIG_DIR=") || strings.HasPrefix(e, "SLACK_BOT_TOKEN_FILE=")
+			}), "GH_CONFIG_DIR="+creds, "SLACK_BOT_TOKEN_FILE="+filepath.Join(creds, "bot-token"))
+			out, err := cmd.CombinedOutput()
+			if pushed := err == nil; pushed != tt.wantPush {
+				t.Fatalf("push succeeded = %v, want %v: %s", pushed, tt.wantPush, out)
+			}
+			if tt.wantPush {
+				return
+			}
+			if gitOutput(t, f.remote, "for-each-ref") != before {
+				t.Errorf("a refused push changed the remote")
+			}
+			if !strings.Contains(string(out), "acp pre-push:") || !strings.Contains(string(out), "認証情報") {
+				t.Errorf("the push was refused, but not for a credential: %s", out)
+			}
+			for _, v := range append([]string{ghForm, ghLongForm, slackForm, appToken, botToken}, otherForms...) {
+				if strings.Contains(string(out), v) {
+					t.Errorf("the refusal shows the value it found: %s", out)
+				}
 			}
 		})
 	}

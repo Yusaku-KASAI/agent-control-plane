@@ -18,7 +18,7 @@ GitHub App のトークンは[認証情報](credentials.md "在りか")に、片
   refs/acp/target   = clone した時点のターゲットの HEAD
   acp/<ID の先頭8文字> = リモートの既定のブランチ（なければターゲットの HEAD）から切ったブランチ
   .git/hooks/commit-msg = 依頼者を Co-authored-by に足す
-  .git/hooks/pre-push   = push の前に、新しいブランチの名前を確かめ、取り込んでいないリモートの先頭の上書きを止め、make check を通す
+  .git/hooks/pre-push   = push の前に、新しいブランチの名前を確かめ、取り込んでいないリモートの先頭の上書きと認証情報を含むコミットを止め、make check を通す
   │ push（エージェント）
   ▼
 GitHub のブランチと PR
@@ -105,20 +105,25 @@ GitHub のブランチと PR
 - **責務**：push の前に、リモートに新しく作るブランチの名前を確かめ
   （[ADR 0040](../../adr/app/0040-warn-of-new-branch-names-before-push.md)）、取り込んだことのないリモートの先頭を
   上書きする push を注意して止め（[ADR 0041](../../adr/app/0041-warn-before-overwriting-remote-tips-never-taken.md)）、
-  ターゲットの検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
+  認証情報を含むコミットの push を止め（[ADR 0062](../../adr/app/0062-stop-pushing-credentials-in-workspace.md)）、ターゲットの検査（`make check`）を通す（[ADR 0032](../../adr/app/0032-check-before-push-in-workspace.md)）。
 - **置くもの / 置かないもの**：リモートにまだないブランチを作る push で、その名前が
   [セッションが作ったブランチ](#branch)の名前でなければ、注意を出す。push は断らない。セッションのブランチの名前は、
   作業領域を作るときにフックに埋める。リモートにある ref を fast-forward でなく上書きする push で、リモートの
   先頭が、push する手元の ref（`HEAD` ならそれが指すブランチ。ブランチやタグの名前でなければ見る reflog はない）の
   reflog のどの項目からもたどれなければ、注意を出して止める。`ACP_PUSH_OVERWRITE=1` を付けた push は止めない。
+  push するコミットのうちどのリモートのブランチにもないもののメッセージと足した行に、コンテナが持つ認証情報の値
+  （`GH_CONFIG_DIR` の `hosts.yml` の `oauth_token` と、`SLACK_BOT_TOKEN_FILE` の中身のうち 20 文字以上のもの。シェルの
+  変数にだけ持つ）か、よく知られた形の値（GitHub と Slack のトークン、Anthropic と AWS の鍵、秘密鍵）があれば、値を
+  出さずに止める。消した行は見ない。止めずに通す変数は持たない。`hosts.yml` の形は、`internal/adapter/docker` の
+  書く側の試験が持つ。
   そのあと、push する ref（消すものは除く）がどれも今の HEAD の
   コミットで、`git status` にコミットしていない変更も ignore されていない追跡していない
   ファイルもないときにだけ、作業ツリーの一番上で `make check` を回す。どれかを満たさないか、検査が落ちれば push を
-  断る。Makefile がなければ、名前の注意と上書きの確かめのほかは何も確かめない。検査の前に、`ACP_PUSH_OVERWRITE` と、git がフックに渡すリポジトリの場所の
+  断る。Makefile がなければ、名前の注意と上書きと認証情報の確かめのほかは何も確かめない。検査の前に、`ACP_PUSH_OVERWRITE` と、git がフックに渡すリポジトリの場所の
   変数（`GIT_DIR` など）を外し、`GIT_CONFIG_*` の設定は残す。作業領域の `.git/hooks/` にだけ置くので、ターゲット
   にはコミットされない。
 - **関係**：検査のコマンドは[ターゲットの契約の検査](../../../platform/docs/reference/target.md#checks "在りか")。
   エージェントから見た振る舞いは[ハーネスの契約](../../../platform/docs/reference/harness.md "在りか")にある。
 - **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：push の前に検査を
-  通すこと、新しいブランチの名前に気づかせること、取り込んでいないリモートの先頭の上書きに気づかせることを、決まりだけで
-  なく git のフックで守る。
+  通すこと、新しいブランチの名前に気づかせること、取り込んでいないリモートの先頭の上書きに気づかせること、認証情報の値を
+  push しないことを、決まりだけでなく git のフックで守る。
