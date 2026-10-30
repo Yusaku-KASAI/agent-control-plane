@@ -8,7 +8,8 @@ on:
   schedule:
     - cron: "0 0 * * 1"
 
-# Every job only reads the repository; a job without its own permissions gets these.
+# The default for jobs: read the repository only. A job's own permissions replace these, so a job
+# needing more lists everything it needs, contents: read included.
 permissions:
   contents: read
 
