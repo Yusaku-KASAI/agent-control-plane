@@ -670,6 +670,24 @@ check "lines naming the issue twice go on" "$("$prctl" create t - <<<"$good"$'\n
 check "an issue of another repository is the same in any case" \
   "$("$prctl" create t - <<<"$(sed "s|^Closes #1$|Closes Owner/Repo#1|" <<<"$good")"$'\nrefs owner/repo#1' 2>&1 || true)" "already has an open PR"
 check "a line in a code block names no issue" "$("$prctl" create t - <<<"$good"$'\n```\nRefs #2, #3\n```' 2>&1 || true)" "already has an open PR"
+# GitHub closes an issue after a keyword anywhere in the body, so a sentence may not close another.
+check "a sentence closing another issue is refused" "$("$prctl" create t - <<<"$good"$'\nこれは fixes #2 の続き' 2>&1 || true)" \
+  'a sentence closes #2 by "fixes", which is not the request issue (#1): do not use a closing keyword when mentioning other issues in a sentence'
+for said in 'Fixed: owner/repo#2' 'resolves https://github.com/owner/repo/issues/2'; do
+  check "a sentence closing another issue by \"$said\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"$said"' の続き' 2>&1 || true)" \
+    "a sentence closes ${said#* } by \"${said%%[: ]*}\", which is not the request issue (#1)"
+done
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "a sentence closing an issue is refused when the body has no request issue" \
+  "$("$prctl" create t - <<<"$(sed 's/^Closes #1$//' <<<"$good")"$'\nこれは fixes #2 の続き' 2>&1 || true)" "which is not the request issue (none)"
+check "a sentence closing the request issue goes on" "$("$prctl" create t - <<<"$good"$'\nこれは fixes #1 の続き' 2>&1 || true)" "already has an open PR"
+check "a URL of the request issue is read as owner/repo#N" \
+  "$("$prctl" create t - <<<"${good/Closes \#1/Closes Owner/Repo#1}"$'\nこれは fixes https://github.com/owner/repo/issues/1 の続き' 2>&1 || true)" "already has an open PR"
+# shellcheck disable=SC2016 # backquotes of Markdown
+for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書かない' 'これは ``a ` fixes #2`` と書かない' 'これは prefix #2 にも触れる'; do
+  check "\"$said\" closes no issue" "$("$prctl" create t - <<<"$good"$'\n'"$said" 2>&1 || true)" "already has an open PR"
+done
+check "a sentence in a code block closes no issue" "$("$prctl" create t - <<<"$good"$'\n```\nfixes #2\n```' 2>&1 || true)" "already has an open PR"
 # shellcheck disable=SC2001 # a line-wise edit of a sample body
 check "the old marker of the head does not fill the last section" \
   "$("$prctl" update - <<<"$(sed 's/^なし$//' <<<"$good")"$'\n\n<!-- prctl: head='"$(printf '%040d' 0)"' -->' 2>&1 || true)" "the section ## 確かめていないこと is empty"
