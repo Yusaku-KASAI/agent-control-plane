@@ -658,7 +658,7 @@ func TestDispatcher_InjectedPromptTakenIntoNextTurn(t *testing.T) {
 		t.Errorf("taken %v, want into a new turn: the agent left it for its next turn", steerTaken)
 	}
 	if got := e.observer.unrequestedTurns(); len(got) != 0 {
-		t.Errorf("observer got agent turns %+v, want none", got)
+		t.Errorf("observer got unrequested turns %+v, want none", got)
 	}
 }
 
@@ -690,7 +690,7 @@ func TestDispatcher_AgentTurnBeforeSentPrompt(t *testing.T) {
 				t.Fatalf("second = %+v, %v; want the answer of the turn that took the prompt in", o.out, o.err)
 			}
 			if got := e.observer.unrequestedTurns(); len(got) != 0 {
-				t.Errorf("observer got agent turns %+v, want none", got)
+				t.Errorf("observer got unrequested turns %+v, want none", got)
 			}
 			if started := e.observer.of(usecase.SessionTurnStarted); len(started) != 2 || started[1].AgentStarted {
 				t.Errorf("observed turn starts %+v, want one for each request", started)
@@ -765,7 +765,7 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 		t.Fatalf("injected = %+v, %v", o.out, o.err)
 	}
 	if got := e.observer.unrequestedTurns(); len(got) != 1 {
-		t.Errorf("observer got agent turns %+v, want only the one the prompt was injected into", got)
+		t.Errorf("observer got unrequested turns %+v, want only the one the prompt was injected into", got)
 	}
 	if !slices.Equal(steerTaken, uptakes{usecase.TakenIntoNewTurn}) {
 		t.Errorf("taken %v, want into a new turn: the agent's turn it was injected into ended without it", steerTaken)
