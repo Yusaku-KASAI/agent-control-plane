@@ -211,7 +211,11 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
   注意を出して止める（ほかの書き手のコミットが消えるため）。ふつうは取り込んでから（`git pull --rebase`）push し
   直す。上書きすると決めたときだけ、`ACP_PUSH_OVERWRITE=1` と `--force` を付けて push し直す
   （`ACP_PUSH_OVERWRITE=1 git push --force ...`）。この変数は検査（`make check`）には渡らない。
-- Makefile のないリポジトリでは、新しいブランチの名前と上書きだけを見て、検査は回さない。`core.hooksPath` を
+- push するコミットのメッセージか足した行に、コンテナが持つ認証情報の値（GitHub App と Slack の Bot のトークン）か、
+  よく知られた形の認証情報（GitHub と Slack のトークン、Anthropic と AWS の鍵、秘密鍵）があれば、フックが `acp pre-push:`
+  で始まる文を出して止める（値は出さない）。値を消してコミットを作り直し（履歴から消す）、push し直す。止めずに通す
+  変数はない。認証情報でないものが当たったら、依頼者に伝える（依頼者は作業領域の外から push できる）。
+- Makefile のないリポジトリでは、新しいブランチの名前と上書きと認証情報だけを見て、検査は回さない。`core.hooksPath` を
   設定しているターゲットでは、何も確かめない。
 
 ### Claude Code の設定

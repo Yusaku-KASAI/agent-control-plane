@@ -1,7 +1,8 @@
 #!/bin/sh
 # Warns of a new remote branch outside the session's names, stops a push that would overwrite a
 # remote tip no reflog entry of the pushed ref reaches unless ACP_PUSH_OVERWRITE=1 says the
-# overwrite is meant, then runs the target's checks, make check. Neither the warning nor the stop
+# overwrite is meant, stops a push of commits that carry a credential, then runs the target's checks,
+# make check. Neither the warning nor the stop
 # forbids anything: a requester may ask for another name or for the overwrite. The checks run on
 # the work tree, so they stand for the pushed commit only when that commit is HEAD and the work
 # tree has nothing beside it. Like commit-msg, it lives only in the workspace's .git.
@@ -35,6 +36,39 @@ REFS
 	done
 	say "注意：この push は $remote_ref のリモートの先頭 $remote_sha を、手元に取り込まないまま上書きする（ほかの書き手のコミットが消える）。ふつうは取り込んでから（git pull --rebase）push し直す。上書きすると決めたときだけ、ACP_PUSH_OVERWRITE=1 と --force を付けて push し直す（ハーネスの契約の「push」）。"
 	exit 1
+done <<REFS
+$refs
+REFS
+# Credentials: a commit to be pushed must not carry the value of a credential the container holds
+# (the GitHub App's token, the Slack bot's token), nor a value in a well-known form of one. What the
+# commits add and their messages are read; what they remove is not. The value found is not shown.
+values=$(mktemp) || exit 1
+trap 'rm -f "$values"' EXIT
+if [ -n "${GH_CONFIG_DIR:-}" ] && [ -r "$GH_CONFIG_DIR/hosts.yml" ]; then
+	sed -n 's/^[[:space:]]*oauth_token:[[:space:]]*//p' "$GH_CONFIG_DIR/hosts.yml" >>"$values"
+fi
+if [ -n "${SLACK_BOT_TOKEN_FILE:-}" ] && [ -r "$SLACK_BOT_TOKEN_FILE" ]; then
+	cat "$SLACK_BOT_TOKEN_FILE" >>"$values"
+	echo >>"$values"
+fi
+# Only values long enough to be no word of a text.
+sed -i -n 's/[[:space:]]*$//; /^.\{20,\}$/p' "$values"
+forms='gh[oprsu]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}|xox[abeoprs]-[0-9]+-[0-9A-Za-z-]{10,}|xapp-[0-9]-[A-Za-z0-9-]{10,}|sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
+while read -r _ local_sha _ remote_sha; do
+	case $local_sha in *[!0]*) ;; *) continue ;; esac
+	if case $remote_sha in *[!0]*) git cat-file -e "$remote_sha^{commit}" 2>/dev/null ;; *) false ;; esac; then
+		commits=$(git rev-list "$remote_sha..$local_sha") || exit 1
+	else
+		commits=$(git rev-list "$local_sha" --not --remotes) || exit 1
+	fi
+	for c in $commits; do
+		added=$({ git log -1 --format=%B "$c"; git show --format= --no-color --no-ext-diff "$c" | sed -n 's/^+//p'; })
+		if { [ -s "$values" ] && printf '%s\n' "$added" | grep -qF -f "$values"; } ||
+			printf '%s\n' "$added" | grep -qE -e "$forms"; then
+			say "コミット $(git rev-parse --short "$c") に、認証情報の値か、その形の値（GitHub や Slack のトークン、鍵など）がある。push を止めた（値は出さない）。その値を消して、コミットを作り直してから（履歴から消す。git rebase などで直す）push し直す。認証情報でないものが当たったなら、依頼者に伝える（ハーネスの契約の「push」）。"
+			exit 1
+		fi
+	done
 done <<REFS
 $refs
 REFS
