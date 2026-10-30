@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-22
-amended_by: [24, 33]
+amended_by: [24, 33, 36]
 ---
 
 # 0023. Issue の決まりのうち判断の要らないものを、github プラグインの check-issues で、整えるときと締めるときに確かめる

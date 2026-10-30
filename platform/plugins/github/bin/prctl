@@ -678,24 +678,23 @@ request_refs() {
 # scope, scope-items), or nothing. The items of the scope are the task list of its section ## 範囲,
 # and the PR an item is handled by is the number of this repository at its end. What is left is an item not checked
 # whose PR is not this one and not merged. Without a line of Closes or Refs, or with an issue of
-# another repository, nothing is asked.
+# another repository, nothing is asked; this repository's, written owner/repo#N, is read as #N.
 scope_message() {
   local pr=$1 number refs issue closes body items left mine m n merged err
   number=$(jq -r .number <<<"$pr")
   refs=$(request_refs "$(jq -r '.body // ""' <<<"$pr")")
   issue=$(jq -r '.[0].issue // empty' <<<"$refs")
+  # This repository's issue may be written owner/repo#N too; another repository's is not read.
+  if [[ $issue =~ ^([^#]+)#([0-9]+)$ ]]; then
+    local here
+    here=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || return 1
+    [[ ${BASH_REMATCH[1],,} == "${here,,}" ]] || return 0
+    issue=#${BASH_REMATCH[2]}
+  fi
   [[ $issue =~ ^#[0-9]+$ ]] || return 0
   closes=$(jq -r 'any(.[]; .closes)' <<<"$refs")
   body=$(gh api "repos/{owner}/{repo}/issues/${issue#\#}" --jq '.body // ""') || return 1
-  items=$(jq -Rcs -L "$forms" 'include "markdown";
-    body_lines as $lines
-    | ([$lines | to_entries[] | select(.value.head == "範囲") | .key] | first) as $at
-    | if $at == null then null else
-        ([$lines | to_entries[] | select(.key > $at and .value.head != null) | .key] | first // ($lines | length)) as $end
-        | [$lines[$at + 1:$end][] | select(.code | not) | .line
-           | capture("^\\s*[-*+] \\[(?<mark>[ xX])\\]\\s+(?<text>.*?)\\s*$")
-           | {done: (.mark != " "), text, pr: (.text | capture("(^|\\s)#(?<n>[0-9]+)$").n // null)}]
-      end' <<<"$body")
+  items=$(jq -Rcs -L "$forms" 'include "markdown"; scope_items' <<<"$body")
   if [[ $items == null ]]; then
     echo "the request issue $issue has no section ## 範囲; write its scope there (issues.md: scope)."
     return 0

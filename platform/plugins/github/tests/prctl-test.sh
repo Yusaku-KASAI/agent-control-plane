@@ -41,6 +41,7 @@ case $args in
   *" pr create "*) printf '%s\n' "$*" >"$dir/last-create"; echo "https://example.invalid/pull/2" ;;
   # Only the fields asked for, as gh does.
   *" pr view 1 "*) jq --arg f "$(sed -E 's/.* --json ([^ ]+) .*/\1/' <<<"$args")" '. as $pr | reduce ($f | split(","))[] as $k ({}; .[$k] = $pr[$k])' "$dir/pr.json" ;;
+  *" repo view "*"nameWithOwner"*) echo Owner/Repo ;;
   *" repo view "*) echo main ;;
   *" -X PATCH "*"/pulls/"*)
     for a in "$@"; do [[ $a != body=* ]] || printf '%s' "${a#body=}" >"$dir/last-edit"; done
@@ -877,6 +878,21 @@ jq '.body = "狙い\n\n## 今の姿\n\n- [ ] a #1"' -n >"$state/issue-7.json"
 check "an issue without a scope is held" "$(ready)" "the request issue #7 has no section ## 範囲"
 rm "$state/issue-7.json"
 check "an issue that cannot be read stops prctl ready" "$(ready)" "could not read the request issue of the PR, or a PR its scope names"
+set_pr "$c21"
+with_request "Closes owner/repo#7"
+scope $'- [ ] a #1\n- [ ] b'
+check "this repository's issue written owner/repo#N is read as #N" "$(ready)" "PR #1 closes #7, which still has items it does not handle"
+set_pr "$c21"
+with_request "Fixes #7"
+check "Fixes closes the issue, as Closes does" "$(ready)" "PR #1 closes #7, which still has items it does not handle"
+set_pr "$c21"
+with_request "resolves #7"
+scope $'- [ ] a（直す）#1\n- [x] b'
+check "the number right after a bracket is the item's PR" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] a #1\n- [ ] see x#5'
+check "a number right after a word is not the item's PR" "$(ready)" "- see x#5"
 set_pr "$c21"
 with_request "Closes other/repo#7"
 check "an issue of another repository is not read" "$(ready)" "https://example.invalid/pull/1"

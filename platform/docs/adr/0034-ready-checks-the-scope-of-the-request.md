@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-10-30
+amended_by: [36]
 ---
 
 # 0034. prctl ready は、依頼の Issue の範囲との付け合わせを確かめ、マージのときの付け合わせは仕組みにしない
