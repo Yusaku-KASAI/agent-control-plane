@@ -1,5 +1,8 @@
 # devcontainer の使い方
 
+devcontainer をホストに用意して、ビルド、起動、停止する手順。仕組み（イメージのステージ、compose、マウント）は
+[architecture/devcontainer.md](../architecture/devcontainer.md "在りか") にある。
+
 <a id="host"></a>
 
 ## ホストの準備

@@ -26,7 +26,10 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   違うのは、埋める部分（[ファイルの分類](../overview.md#files)）だけ。
 - コンテナは root を使わず、数値の UID と GID の `node` で動く（[ADR 0009](../adr/0009-containers-run-as-non-root.md)）。
   UID と GID は、ビルドのときにリポジトリの所有者の値（`.devcontainer/.env`）に合わせる。root での作業の仕方は[手順](../guides/devcontainer.md#root "在りか")にある。
-- マウントするもの：
+
+<a id="mounts"></a>
+
+- マウントするもの（ホストのファイルのうち、コンテナから読めるのも書けるのも、ここに挙げたものだけ）：
 
   | もの | 置き場所 | 理由 |
   | --- | --- | --- |
