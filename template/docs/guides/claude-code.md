@@ -8,13 +8,15 @@ devcontainer の中で、人が Claude Code を対話で使うときの手順。
 
 ## 権限の確認
 
-対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。コンテナから直に
-書けるホストのファイルは[マウントしたもの](../architecture/devcontainer.md#mounts)だけだが、確認を省くと、それを通して
-次のことが確認なしで起こりうる。受け入れられるときだけ省く。
+対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。確認は次のとおりに
+省ける。
 
 ```bash
 claude --dangerously-skip-permissions
 ```
+
+コンテナにマウントするホストのファイルは[マウント](../architecture/devcontainer.md#mounts)に挙げたものだけだが、確認を
+省くと、次のことが確認なしで起こりうる。受け入れられるときだけ省く。
 
 - **コンテナの中の認証情報でできること**：Claude Code 自身のログイン（`~/.claude` の下にいつもある）、`gh auth login` での
   ログイン、VS Code が attach したときに引き継ぐ git の認証情報や ssh-agent でできること（リポジトリの管理者なら、既定の
