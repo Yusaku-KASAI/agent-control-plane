@@ -41,13 +41,16 @@ usage:
                                       none in the head's history, or right after another such record
   prctl ready                         take the PR out of draft, once it may end: a review of the whole
                                       PR, nothing but fixes of nitpicks after it, no finding that must
-                                      be fixed, every finding answered (PRs are opened as drafts)
+                                      be fixed, every finding answered (PRs are opened as drafts); and
+                                      the scope of the request issue: an item ends with the PR's number,
+                                      and Closes only when nothing else is left (issues.md: scope)
   prctl mode [normal|thorough]        the way the PR is reviewed, or set it: normal (the default), or
                                       thorough, by the label 念入りのレビュー
   prctl draft                         put the PR back into draft, to go on with it
   prctl answer <commit> <answers-json|->
                                       answer every finding of the review of <commit>, in a comment
-  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree
+  prctl worktree pr <number>          fetch another's PR and check its head out, detached, in a worktree;
+                                      tell its title and the issue its line of Closes or Refs names
   prctl worktree default              the same for the head of the default branch (to review the whole)
   prctl worktree remove pr <number>|default
                                       remove that worktree
@@ -68,6 +71,13 @@ readonly review_mark=prctl-review answers_mark=prctl-answers
 forms=$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd) || forms=/nonexistent
 readonly forms
 readonly marker_re='<!-- prctl: head=([0-9a-f]{40}) -->'
+# The start of a line that closes or refers to an issue (writing.md: PR), by any of GitHub's keywords,
+# in any case, also as an item of a list or in a quote: the one form both the body's check and the reading of a PR's
+# request issue go by, as GitHub closes the issue whatever follows. Matched as a jq regex with the
+# flag "i".
+readonly issue_start_re='^\s*([-*+]\s+|[0-9]+[.)]\s+|>\s*)*(?<word>close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+)'
+# Such a line with nothing after the issue, which is not what is written under a section.
+readonly issue_line_re=$issue_start_re'\s*$'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -281,7 +291,7 @@ is_worktree() {
 # HEAD stays where it is, so neither the hooks meant for a PR's author nor the session's cleanup
 # take it for this session's work.
 cmd_worktree() {
-  local kind=$1 number=${2:-} name commit pr base path from
+  local kind=$1 number=${2:-} name commit pr base path from issues
   # From the main work tree: the worktree to be made again may be where this runs.
   cd "$(main_tree)"
   git worktree prune
@@ -289,7 +299,7 @@ cmd_worktree() {
     pr)
       [[ $number =~ ^[0-9]+$ ]] || usage
       name=pr-$number
-      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName) || die "no PR #$number"
+      pr=$(gh pr view "$number" --json number,headRefOid,baseRefName,title,body) || die "no PR #$number"
       base=$(jq -r .baseRefName <<<"$pr")
       git fetch -q origin "+refs/pull/$number/head:refs/prctl/$name" "+refs/heads/$base:refs/remotes/origin/$base"
       commit=$(git rev-parse "refs/prctl/$name")
@@ -312,6 +322,11 @@ cmd_worktree() {
   echo "path: $path"
   echo "head: $commit"
   if [[ $kind == pr ]]; then
+    # Only the title and the request issue: the rest of the body is the intent, read after the
+    # alternatives are thought of (review.md).
+    echo "title: $(jq -r .title <<<"$pr")"
+    issues=$(request_issues "$(jq -r '.body // ""' <<<"$pr")" | paste -sd ' ' -)
+    echo "issue: ${issues:-none (no line of Closes or Refs)}"
     from=$(git merge-base "origin/$base" "$commit")
     echo "range: $from..$commit (git -C $path diff $from $commit)"
     echo "after reviewing it: prctl review --pr $number $commit <review-json>"
@@ -646,31 +661,103 @@ cmd_answer() {
 # PR). What is written under them is free.
 readonly body_sections=(何を変えるか 検討した別の形 当てはめた決まり どう確かめたか 確かめていないこと)
 
-# body_check <body>: die unless the body has the sections, in order, once each, none of them empty.
-# Lines in code blocks are not headings. Lines that only close or refer to an issue (by any of
-# GitHub's keywords, in any case), the attribution line and the old marker of the head, which the
+# request_issues <body>: the issues the lines of Closes or Refs of the body name, each once, one to a line.
+request_issues() {
+  jq -Rrs -L "$forms" --arg start "$issue_start_re" 'include "markdown"; [body_lines[] | select(.code | not) | .line | capture($start; "i").issue]
+    | reduce .[] as $i ([]; if any(.[]; ascii_downcase == ($i | ascii_downcase)) then . else . + [$i] end) | .[]' <<<"$1"
+}
+
+# request_refs <body>: the lines of Closes or Refs of the body, as a JSON array of the issue each names
+# and whether it closes the issue, in the form of request_issues.
+request_refs() {
+  jq -Rcs -L "$forms" --arg start "$issue_start_re" 'include "markdown";
+    [body_lines[] | select(.code | not) | .line | capture($start; "i") | {issue, closes: (.word | test("^refs$"; "i") | not)}]' <<<"$1"
+}
+
+# scope_message <pr>: what keeps the PR from ending by the scope of its request issue (issues.md:
+# scope, scope-items), or nothing. The items of the scope are the task list of its section ## 範囲,
+# and the PR an item is handled by is the number of this repository at its end. What is left is an item not checked
+# whose PR is not this one and not merged. Without a line of Closes or Refs, or with an issue of
+# another repository, nothing is asked.
+scope_message() {
+  local pr=$1 number refs issue closes body items left mine m n merged err
+  number=$(jq -r .number <<<"$pr")
+  refs=$(request_refs "$(jq -r '.body // ""' <<<"$pr")")
+  issue=$(jq -r '.[0].issue // empty' <<<"$refs")
+  [[ $issue =~ ^#[0-9]+$ ]] || return 0
+  closes=$(jq -r 'any(.[]; .closes)' <<<"$refs")
+  body=$(gh api "repos/{owner}/{repo}/issues/${issue#\#}" --jq '.body // ""') || return 1
+  items=$(jq -Rcs -L "$forms" 'include "markdown";
+    body_lines as $lines
+    | ([$lines | to_entries[] | select(.value.head == "範囲") | .key] | first) as $at
+    | if $at == null then null else
+        ([$lines | to_entries[] | select(.key > $at and .value.head != null) | .key] | first // ($lines | length)) as $end
+        | [$lines[$at + 1:$end][] | select(.code | not) | .line
+           | capture("^\\s*[-*+] \\[(?<mark>[ xX])\\]\\s+(?<text>.*?)\\s*$")
+           | {done: (.mark != " "), text, pr: (.text | capture("(^|\\s)#(?<n>[0-9]+)$").n // null)}]
+      end' <<<"$body")
+  if [[ $items == null ]]; then
+    echo "the request issue $issue has no section ## 範囲; write its scope there (issues.md: scope)."
+    return 0
+  fi
+  mine=$(jq --arg n "$number" '[.[] | select(.pr == $n)] | length' <<<"$items")
+  if ((mine == 0)); then
+    echo "no item of the scope of $issue ends with #$number; add the number to the items this PR handles (issues.md: scope-items)."
+    return 0
+  fi
+  left=()
+  err=$(mktemp)
+  while IFS= read -r m; do
+    [[ -n $m ]] || continue
+    n=${m%%$'\t'*}
+    # An item of a merged PR is done, though not checked yet; of an open or closed one, or of a
+    # number that is no PR, it is left. A PR that cannot be read stops the check.
+    if [[ $n != - ]]; then
+      if merged=$(gh api "repos/{owner}/{repo}/pulls/$n" --jq '.merged_at != null' 2>"$err"); then
+        [[ $merged != true ]] || continue
+      elif ! grep -qE 'HTTP (404|410)' "$err"; then
+        rm -f "$err"; return 1
+      fi
+    fi
+    left+=("${m#*$'\t'}")
+  done < <(jq -r --arg n "$number" '.[] | select((.done | not) and .pr != $n) | "\(.pr // "-")\t\(.text)"' <<<"$items")
+  rm -f "$err"
+  if [[ $closes == true ]] && ((${#left[@]})); then
+    printf 'PR #%s closes %s, which still has items it does not handle: write Refs %s instead, unless they are to be handled here (issues.md: scope):\n' "$number" "$issue" "$issue"
+    printf -- '- %s\n' "${left[@]}"
+  elif [[ $closes != true ]] && ((${#left[@]} == 0)); then
+    echo "nothing is left in the scope of $issue but what PR #$number handles: write Closes $issue instead of Refs (issues.md: scope)."
+  fi
+}
+
+# body_check <body>: die unless the body has the sections, in order, once each, none of them empty,
+# and its lines that close or refer to an issue name one issue, the request's (writing.md: PR),
+# whatever follows it on the line. Lines in code blocks are not headings, and name no issue. Such
+# lines with nothing after the issue, the attribution line and the old marker of the head, which the
 # body loses when it is written, do not count as what is written under a section.
 body_check() {
   local errors
-  errors=$(jq -Rrs --args '
-    [foreach (split("\n")[]) as $l ({fence: false};
-        if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .line = $l | .head = null
-        else .line = $l | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
-        {line, head})] as $lines
+  errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --args 'include "markdown";
+    body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
+    | [$lines[] | select(.code | not) | .line] as $prose
     | [ ($want[] as $w
           | ($heads | map(select(.name == $w))) as $hs
           | if ($hs | length) == 0 then "no section ## \($w)"
             elif ($hs | length) > 1 then "the section ## \($w) appears \($hs | length) times"
             else ($heads | map(select(.at > $hs[0].at)) | first | .at // ($lines | length)) as $end
               | if [$lines[$hs[0].at + 1:$end][] | .line
-                    | select(test("\\S") and (test("^\\s*((close[sd]?|fix(e[sd])?|resolve[sd]?|refs):? *([\\w.-]+/[\\w.-]+)?#[0-9]+|🤖 )"; "i") | not))] | length == 0
+                    | select(test("\\S") and (test($line; "i") or test("^\\s*🤖 ") | not))] | length == 0
                 then "the section ## \($w) is empty" else empty end
             end),
         ([$heads[] | .name | select(IN($want[]))] as $got
          | if ($got | length) == ($want | length) and ($got | unique | length) == ($want | length) and $got != $want
-         then "the sections are not in the order: \($want | join(", "))" else empty end) ]
+         then "the sections are not in the order: \($want | join(", "))" else empty end),
+        ($prose[] | select(test($start; "i") and (test($line; "i") | not) and (sub($start; ""; "i") | test("#[0-9]+")))
+         | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
+        ([$prose[] | capture($start; "i").issue | ascii_downcase] | unique
+         | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end) ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }
@@ -707,6 +794,9 @@ cmd_ready() {
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
   msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
+  # Before the reviews are told settled, which starts their count afresh.
+  msg=$(scope_message "$pr") || die "could not read the request issue of the PR, or a PR its scope names"
+  [[ -z $msg ]] || die "not ready: $msg"
   # Going back to the requester is for the end of the turn to remember; here only a PR that may end.
   msg=$(final_message "$pr" "$head" "$list" settled) || die "could not read the reviews of the PR"
   [[ -z $msg ]] || die "$msg"

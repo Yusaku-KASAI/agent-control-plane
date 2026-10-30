@@ -6,6 +6,7 @@
 github/
   bin/prctl            PR の作成と本文の書き換え、レビューの記録、本文とレビューが head に追いついているかと CI の判定、hook の本体（判定は docs/reference/prctl.md）
   lib/review.jq        レビューの結果と答えの形の検査と、Markdown の表の作り方
+  lib/markdown.jq      PR と Issue の本文の行の読み方（見出しとコードブロック）
   tests/prctl-test.sh  prctl の振る舞いの検査
   bin/check-protection 既定のブランチの守り（ルールセットと CODEOWNERS）が外れていないかの検査
   actions/check-protection/  check-protection を CI で回す GitHub Actions の複合アクション
@@ -32,7 +33,8 @@ github/
     細部の指摘への直しだけの範囲は、レビューせずに記録する（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
     結果と答えは決まった形の JSON で受ける（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。回し方はラベルで
     見分ける（[ADR 0021](../../../docs/adr/0021-two-ways-of-reviewing-a-pr.md)）。終える前に、PR 全体の差分のレビューが終えてよい
-    状態にしているかを確かめる（[ADR 0014](../../../docs/adr/0014-whole-pr-review-before-ending.md)）。
+    状態にしているかを確かめる（[ADR 0014](../../../docs/adr/0014-whole-pr-review-before-ending.md)）。下書きを外す前に、依頼の Issue の
+    範囲との付け合わせを確かめる（[ADR 0034](../../../docs/adr/0034-ready-checks-the-scope-of-the-request.md)）。
   - CI は待たずに進み、失敗したまま終えない（[ADR 0006](../../../docs/adr/0006-ci-failures-stop-the-turn.md)）。CI を待つのは
     一つのブランチに一つだけ（[ADR 0010](../../../docs/adr/0010-one-ci-wait-per-branch.md)）。各 check の最新の run だけを数える
     （[ADR 0017](../../../docs/adr/0017-latest-check-run-across-suites.md)）。
@@ -56,6 +58,15 @@ github/
   記録させない（強制機能）。[単一の情報源](../../principles/docs/reference/principles.md#ssot)：表と隠した写しは、
   同じ JSON から作る。
 
+### `lib/markdown.jq`
+
+- **責務**：PR と Issue の本文の行を、コードブロックの中か、どの節の見出しかとともに読む（`body_lines`）。
+- **置くもの / 置かないもの**：行の読み方だけ。どの節を求めるか、どの行を数えるかは、使う側（`bin/prctl` の本文の検査と
+  依頼の Issue の取り出し、`bin/check-issues` のテーマの節）に置く。
+- **関係**：`bin/prctl` と `bin/check-issues` が `jq -L` で読み込む。
+- **当てはめた原則・パターン**：[単一の情報源](../../principles/docs/reference/principles.md#ssot)：PR の本文と Issue の本文で、
+  見出しとコードブロックの見分け方がずれない。
+
 ### `hooks/hooks.json`
 
 - **責務**：push のあと（Bash の PostToolUse）と、ターンの終わり（Stop）に、`prctl hook` を呼ぶ。
@@ -70,18 +81,22 @@ github/
   [課題の扱い方](../../conventions/docs/reference/issues.md#tidy)の「整っている状態」のうち、判断の要らないものを満たすかを確かめる。
   満たさない項目を `NG` の行で出し、終了コードは 0 が通過、1 がずれ、2 が GitHub を読めない。
 - **置くもの / 置かないもの**：
-  - 確かめるのは三つ。テーマの Issue（ラベル `theme`）とロードマップのほかの開いている Issue が、どこを変えるかのラベル
-    （`theme`、`theme:*`、`canvas`、GitHub の既定のラベル（`isDefault`。conventions の課題の扱い方が使わないとする）のほかのラベル）と `theme:<名前>` を一つ以上ずつ持つこと。ピン留めした「ロードマップ」の
+  - 確かめるのは四つ。テーマの Issue（ラベル `theme`）とロードマップのほかの開いている Issue が、どこを変えるかのラベル
+    （`theme`、`theme:*`、`canvas`、GitHub の既定のラベル（`isDefault`。conventions の課題の扱い方が使わないとする）のほかのラベル）と `theme:<名前>` を一つ以上ずつ持つこと。開いているテーマの Issue の本文が、
+    [テーマ](../../conventions/docs/reference/issues.md#theme)の節（`## 狙い`、`## 目指す姿`、`## 進め方`）をこの順に一度ずつ
+    持つこと（コードブロックの中の見出しは数えない。ほかの節はあってよい）。節の名前はテーマの節の写しで、そこを変えたら
+    ここも直す（試験が照らす）。ピン留めした「ロードマップ」の
     `## 今の焦点` の節が、このリポジトリの開いている Issue だけを挙げていること（閉じた Issue、PR、このリポジトリにない
     番号はずれ。`<リポジトリ>#<番号>` のほかのリポジトリへの参照は数えない）。その節がなければ、それもずれとする。
     開いている Issue が、閉じた Issue に blocked by されていないこと。
   - ラベルの確かめは、ラベルの決まりや当たるテーマの Issue があるかを見ない（決まりがあるかは参照の文書の中身で、
     判断が要る）。そのため、それらがないリポジトリでは、整っている状態のずれでない `NG` も出る（conventions の
     [ADR 0033](../../conventions/docs/adr/0033-repositories-without-label-rules-and-others-comments.md)）。
-  - 整っている状態のうち、上の三つのほかは確かめない（判断が要り、課題を整える手順に任せる）。
+  - 整っている状態のうち、上の四つのほかは確かめない（判断が要り、課題を整える手順に任せる。テーマの本文の中身が
+    メンバーや overview と合っているかも含む）。
   - Issue を書き換えない。読むだけ。CI では回さない（Issue は PR と関わりなく変わる）。課題を整えるときとセッションを
-    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)）。
-- **関係**：`gh` と `jq` を使う。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
+    締めるときに回す（[ADR 0023](../../../docs/adr/0023-check-issues-on-demand.md)、[0024](../../../docs/adr/0024-focus-lists-issues-only.md)、[0033](../../../docs/adr/0033-check-issues-checks-theme-sections.md)）。
+- **関係**：`gh` と `jq` を使い、本文の行は `lib/markdown.jq` で読む。振る舞いは `tests/check-issues-test.sh`（偽の `gh`）で確かめる。エージェントには github
   スキルの「Issue のずれを挙げる」が届ける。
 - **当てはめた原則・パターン**：[仕組みで守る](../../principles/docs/reference/principles.md#mechanisms)：ロードマップの今の焦点が古いまま残る
   ことを、人の気づきに頼らず見つける。

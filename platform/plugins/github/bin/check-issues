@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Checks the open issues of a repository against conventions' docs/reference/issues.md ("整っている
 # 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
-# theme:<name> label, the roadmap's "## 今の焦点" names only open issues of this repository (a closed
-# issue, a pull request, or a number that is neither here is a drift), and no issue is blocked by a
-# closed one. Only what needs no judgement is checked; the rest of the tidy state is left to the
-# procedure that tidies issues.
+# theme:<name> label, every theme issue has the sections of a theme ("テーマ"), in order, once each,
+# the roadmap's "## 今の焦点" names only open issues of this repository (a closed issue, a pull
+# request, or a number that is neither here is a drift), and no issue is blocked by a closed one.
+# Only what needs no judgement is checked; the rest of the tidy state is left to the procedure that
+# tidies issues.
 #
 # Usage: check-issues [<owner>/<repo>]
 #   The repository defaults to $GITHUB_REPOSITORY, else the one gh sees here.
@@ -23,7 +24,7 @@ ok() { echo "ok   $*"; }
 ng() { echo "NG   $*"; failed=1; }
 unreadable() { echo "check-issues: cannot read $1" >&2; exit 2; }
 
-issues=$(gh issue list -R "$repo" --state open --limit 1000 --json number,title,labels) || unreadable "the open issues"
+issues=$(gh issue list -R "$repo" --state open --limit 1000 --json number,title,labels,body) || unreadable "the open issues"
 # The $ are GraphQL variables, not the shell's.
 # shellcheck disable=SC2016
 roadmap=$(gh api graphql -f owner="$owner" -f name="$name" -f query='
@@ -51,6 +52,23 @@ if [[ -n $missing ]]; then
   while IFS= read -r line; do ng "$line"; done <<<"$missing"
 else
   ok "every open issue has the labels of where and what for"
+fi
+
+# The sections of a theme issue, read as prctl reads a PR's body: a copy of those of conventions'
+# issues.md ("テーマ"), to be changed with them (the test compares them).
+theme_sections=(狙い 目指す姿 進め方)
+lacking=$(jq -r -L "$(dirname "${BASH_SOURCE[0]}")/../lib" --args 'include "markdown"; .[]
+  | select(any(.labels[]; .name == "theme"))
+  | .number as $number
+  | [(.body // "") | body_lines[] | .head | select(. != null)] as $heads
+  | [$heads[] | select(IN($ARGS.positional[]))] as $got
+  | select($got != $ARGS.positional)
+  | "#\($number) テーマの本文に \($ARGS.positional | map("## \(.)") | join("、")) の節がこの順に一度ずつない（ある節：\(if $got == [] then "なし" else $got | join("、") end)）"' \
+  "${theme_sections[@]}" <<<"$issues")
+if [[ -n $lacking ]]; then
+  while IFS= read -r line; do ng "$line"; done <<<"$lacking"
+else
+  ok "every theme issue has the sections of a theme"
 fi
 
 # The roadmap's focus.
