@@ -1,24 +1,37 @@
 # Claude Code を対話で使う
 
 devcontainer の中で、人が Claude Code を対話で使うときの手順。設定の構成は
-[architecture/claude-code.md](../architecture/claude-code.md "在りか") にある。
+[architecture/claude-code.md](../architecture/claude-code.md "在りか") に、ターゲットが有効にした platform のプラグインを
+入れる準備は platform の[対話で使う準備](../../../platform/docs/guides/use-interactively.md "在りか")にある。
 
 <a id="permissions"></a>
 
 ## 権限の確認
 
-対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。ホストのファイルのうち
-コンテナから書けるのは、マウントしたリポジトリと、Claude Code と gh の状態とコマンドの履歴のディレクトリ（`compose.yaml`）だけなので、
-確認を省いて使ってもよい。リポジトリの `.git/hooks` や `.git/config` を書き換えられると、ホストで git を使ったときに
-動くことは残る。
+対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。確認は次のとおりに
+省ける。
 
 ```bash
 claude --dangerously-skip-permissions
 ```
 
-ただし、コンテナの中で使える認証情報（`gh auth login` でのログインのほか、VS Code が attach したときに引き継ぐ git の
-認証情報や ssh-agent）があるときは、それでできること（リポジトリの管理者なら、既定のブランチの守りのバイパスを含む）が
-確認なしで行われうる。確認を省くのは、そうした認証情報がないときか、権限を絞った認証情報を使うときにする。
+コンテナにマウントするホストのファイルは[マウント](../architecture/devcontainer.md#mounts)に挙げたものだけだが、確認を
+省くと、次のことが確認なしで起こりうる。受け入れられるときだけ省く。
+
+- **コンテナの中の認証情報でできること**：Claude Code 自身のログイン（`~/.claude` の下にいつもある）、`gh auth login` での
+  ログイン、VS Code が attach したときに引き継ぐ git の認証情報や ssh-agent でできること（リポジトリの管理者なら、既定の
+  ブランチの守りのバイパスを含む）。Claude Code のログインのほかの認証情報は、置かないか、権限を絞ったものにする。
+- **外への持ち出し**：外への通信は絞っていない（[ADR 0008](../adr/0008-no-in-container-firewall.md)）。コンテナから読める
+  もの（リポジトリ、隣のリポジトリ、上の認証情報）は、外に送られうる。
+- **ホストで動くものの書き換え**：書き換えられると、次にホストで使ったときに動くか読まれるものがある。PR の差分に
+  出ないもの（`.git/` の下の `hooks` や `config`、git が無視するファイル。マウントするホストのディレクトリを決める
+  `.devcontainer/.env` もその一つ）と、差分に出てもマージの前にホストで動かしうるもの（[devcontainer の構成](../architecture/devcontainer.md)の
+  `compose.yaml`、`init-host.sh`、`devcontainer.json` と、`.vscode/` の設定）。
+- **あとのセッションの設定の書き換え**：`~/.claude` の下と、`.claude/settings.local.json`、`CLAUDE.local.md`（git の管理に入れない）は、
+  あとで確認ありで使う対話のセッションの権限、hook、指示になり、PR の差分に出ない。
+
+確認を省いて使ったあとは、ホストで git、devcontainer、VS Code、ホストで動かすほかの道具を使う前と、次に Claude Code を
+使う前に、上の書き換えがないことを確かめる。
 
 <a id="copy"></a>
 

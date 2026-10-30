@@ -53,6 +53,7 @@ target-template の中の項目と前提の向き（[形式](../../platform/plug
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
 | devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
-| Claude Code の設定 | target-template | `architecture/claude-code.md`, `guides/claude-code.md` | |
+| Claude Code の設定 | target-template | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
 | CI | target-template | `architecture/ci.md` | devcontainer |
 | 既定のブランチの守り | target-template | `guides/protection.md` | CI |
+| 新しいターゲットの作り方 | target-template | `guides/new-target.md` | devcontainer, Claude Code の設定, CI, 既定のブランチの守り |

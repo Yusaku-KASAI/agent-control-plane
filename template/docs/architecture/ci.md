@@ -61,8 +61,8 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 - **責務**：`check-<関心>` ごとのジョブでステージをビルドし、文書の検査のジョブとあわせて、結果を `check` ジョブにまとめる。
 - **置くもの / 置かないもの**：
   - ワークフローの先頭の `permissions: contents: read`。ジョブに渡すトークンの権限を、既定ではリポジトリを読むことだけに
-    する（[最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)）。それより要るジョブは、ジョブの
-    `permissions` に、`contents: read` を含めて要る権限をすべて書く（ジョブの `permissions` はワークフローのものを置き換える）。
+    する。それより要るジョブは、ジョブの `permissions` に、`contents: read` を含めて要る権限をすべて書く（ジョブの
+    `permissions` はワークフローのものを置き換える）。
   - 行列のジョブ（`check-<関心>` と、ほかのイメージのビルド）。一つが失敗してもほかは最後まで動かす。
   - `check-docs` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main`
     の一つのステップだけを持つ（チェックアウトもアクションが行う）。中身は platform に置き、ターゲットには書かない。
@@ -81,3 +81,6 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 - **関係**：ターゲットごとに埋めるのは、行列のジョブと、キャッシュを使わない検査（[ファイルの分類](../overview.md#files)）。
 - **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：ruleset が知るのは
   `check` だけなので、ジョブを足しても ruleset は変えない。
+  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：ジョブのトークンは、要る権限だけを持つ。
+  [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`permissions` を書かないジョブも、
+  ワークフローの先頭の読むだけの権限になり、リポジトリの設定の既定に任せない。
