@@ -292,15 +292,15 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 
 ## 量の上限
 
-いつも読み込まれる文書と、どの作業でも始めに全体まで読む文書は、空行と frontmatter を除いて、次の行数までにする
-（[ADR 0010](../adr/0010-always-read-selection-and-size.md)、[0053](../adr/0053-size-limits-cover-the-documentation-and-descriptions.md)）。
+いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする（[ADR 0010](../adr/0010-always-read-selection-and-size.md)、
+[0053](../adr/0053-size-limits-cover-descriptions-not-the-documentation.md)）。どの作業でも始めに全体まで読む文書には当てない
+（[届け方の決まり：起点](delivery.md#starting-points "在りか")）。
 
 | 文書 | 上限 |
 | --- | --- |
 | リポジトリのルートの `CLAUDE.md` | 60 行 |
 | プラグインの `rules/` の文書（共通のルール。ディレクトリの合計） | 40 行 |
 | 役割ごとの指示（プラグインの `agents/` と、リポジトリの `.claude/agents/` の文書。一つずつ） | 50 行 |
-| 共通のルールの「始めに読む」の節が、節を指さないリンクで指す文書（どの作業でも始めに全体まで読む文書。合計。共通のルールがあれば、一つ以上） | 150 行 |
 
 - 表示幅：Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、コードの外のリンクの括弧の中（行き先と
   タイトル）は数えない（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。

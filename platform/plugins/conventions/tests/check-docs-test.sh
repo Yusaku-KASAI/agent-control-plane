@@ -132,11 +132,7 @@ description: 試すためのロール。
 - 答える。'
   put p/rules/rule.md '# Rule
 
-- 守る。
-
-## 始めに読む
-
-- [p](../docs/overview.md "在りか")'
+- 守る。'
 }
 
 # A line of the given display width: wide characters, and one narrow one when the width is odd.
@@ -1235,9 +1231,9 @@ passes "CLAUDE.md of 60 lines, blank lines not counted, passes"
 add CLAUDE.md '- 58'
 fails "CLAUDE.md of 61 lines fails" "CLAUDE.md: 61 lines, more than the 60 lines"
 fresh
-for i in $(seq 36); do add p/rules/more.md "- $i"; done
+for i in $(seq 38); do add p/rules/more.md "- $i"; done
 passes "rules of 40 lines in all pass"
-add p/rules/more.md '- 37'
+add p/rules/more.md '- 39'
 fails "rules of 41 lines in all fail" "p/rules: 41 lines, more than the 40 lines"
 fresh
 for i in $(seq 46); do add p/agents/role.md "- $i"; done
@@ -1310,7 +1306,7 @@ add .claude/agents/helper.md "$(wide 131)"
 fails "a repository's agent is held to the width" ".claude/agents/helper.md:6: 131 columns wide"
 fresh
 add p/rules/rule.md "$(wide 131)"
-fails "rules are held to the width" "p/rules/rule.md:8: 131 columns wide"
+fails "rules are held to the width" "p/rules/rule.md:4: 131 columns wide"
 fresh
 add docs/reference/r.md "$(wide 200)"
 passes "a document not read at every start is not held to the width"
@@ -1336,41 +1332,6 @@ add CLAUDE.md '```'
 add CLAUDE.md "$(wide 131)"
 add CLAUDE.md '```'
 fails "a line of code wider than 130 columns counts the lines it takes wrapped" "CLAUDE.md: 61 lines, more than the 60 lines"
-fresh
-sed -i 's/^## 始めに読む$/## 最初に読む/' "$repo/p/rules/rule.md"
-fails "rules without the section 始めに読む fail" "p/rules: no section '## 始めに読む' in the rules points to a whole document"
-fresh
-sed -i 's|(../docs/overview.md "在りか")|(../docs/overview.md#x "在りか")|' "$repo/p/rules/rule.md"
-add p/docs/overview.md '<a id="x"></a>'
-fails "rules that point to sections only from 始めに読む fail" "p/rules: no section '## 始めに読む' in the rules points to a whole document"
-read_first() { add p/rules/rule.md "- [r]($1)"; }
-fresh
-read_first '../../docs/reference/r.md "在りか"'
-add docs/reference/r.md "$(wide 131)"
-fails "a document the rules tell to read first is held to the width" "docs/reference/r.md:8: 131 columns wide"
-fresh
-read_first '../../docs/reference/r.md#part "在りか"'
-add docs/reference/r.md "$(wide 131)"
-passes "a section the rules tell to read first does not hold its document to the width"
-fresh
-read_first '../../docs/reference/r.md "在りか"'
-add p/rules/rule.md '
-## 振り分け
-
-- [g](../../docs/guides/g.md "在りか")'
-add docs/guides/g.md "$(wide 131)"
-passes "a document linked from another section of the rules is not held to the width"
-fresh
-read_first '../../docs/reference/r.md "在りか"'
-for i in $(seq 145); do add docs/reference/r.md "- $i"; done
-passes "documents to read first of 150 lines pass"
-add docs/reference/r.md '- 146'
-fails "documents to read first of 151 lines fail" "始めに読む (docs/reference/r.md, p/docs/overview.md): 151 lines, more than the 150 lines"
-fresh
-read_first '../../docs/reference/r.md "在りか"'
-add p/rules/rule.md '- [g](../../docs/guides/g.md "在りか")'
-for i in $(seq 143); do add docs/reference/r.md "- $i"; done
-fails "documents to read first are counted together" "始めに読む (docs/guides/g.md, docs/reference/r.md, p/docs/overview.md): 151 lines"
 role_described() { put p/agents/role.md "---
 name: role
 description: $1

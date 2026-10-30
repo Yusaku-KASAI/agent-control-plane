@@ -414,9 +414,6 @@ ALWAYS_READ = [
     (lambda p: in_plugin_dir(p, "rules"), 40, "directory"),
     (lambda p: in_plugin_dir(p, "agents") or in_project_agents(p), 50, "file"),
 ]
-# The documents the rules tell to read whole before any work, and how many lines they may hold in all.
-READ_FIRST = "始めに読む"
-READ_FIRST_LIMIT = 150
 
 
 # What a line's width counts is defined in formats.md, 量の上限.
@@ -464,37 +461,12 @@ def content_lines(path):
     return sum(1 if wraps else -(-columns // WIDTH_LIMIT) for _, columns, wraps in line_widths(path))
 
 
-def read_first(paths):
-    """The documents the 始めに読む section of the rules points to whole, by a link to no section of them."""
-    tracked, found = set(paths), set()
-    for path in paths:
-        if in_plugin_dir(path, "rules"):
-            section = re.search(rf"(?ms)^## {READ_FIRST}$(.*?)(?=^## |\Z)", without_code_blocks(read(path)))
-            for target, fragment, _ in links(section.group(1) if section else ""):
-                if target and not fragment and not is_external(target) and resolve(path, target) in tracked:
-                    found.add(resolve(path, target))
-    return found
-
-
-def check_read_first(paths, errors):
-    """Rules that point to no document whole from their 始めに読む section would leave it out of the size limits."""
-    rules = sorted({os.path.dirname(p) for p in paths if in_plugin_dir(p, "rules")})
-    if rules and not read_first(paths):
-        errors.append(f"{rules[0]}: no section '## {READ_FIRST}' in the rules points to a whole document by a link")
-
-
-def size_limits(paths):
-    first = read_first(paths)
-    return ALWAYS_READ + [(lambda p: p in first, READ_FIRST_LIMIT, "together")]
-
-
 def check_sizes(paths, errors):
-    for matches, limit, unit in size_limits(paths):
+    for matches, limit, unit in ALWAYS_READ:
         groups = {}
         for path in paths:
             if matches(path):
-                key = {"file": path, "directory": os.path.dirname(path),
-                       "together": f"{READ_FIRST} ({', '.join(sorted(p for p in paths if matches(p)))})"}[unit]
+                key = os.path.dirname(path) if unit == "directory" else path
                 groups[key] = groups.get(key, 0) + content_lines(path)
         for key, lines in sorted(groups.items()):
             if lines > limit:
@@ -502,9 +474,8 @@ def check_sizes(paths, errors):
 
 
 def check_widths(paths, errors):
-    limits = size_limits(paths)
     for path in paths:
-        if any(matches(path) for matches, _, _ in limits):
+        if any(matches(path) for matches, _, _ in ALWAYS_READ):
             for number, columns, wraps in line_widths(path):
                 if wraps and columns > WIDTH_LIMIT:
                     errors.append(f"{path}:{number}: {columns} columns wide, more than the "
@@ -886,7 +857,6 @@ def main():
         check_links(path, errors)
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
-    check_read_first(paths, errors)
     check_sizes(paths, errors)
     check_widths(paths, errors)
     check_descriptions(paths, errors)
