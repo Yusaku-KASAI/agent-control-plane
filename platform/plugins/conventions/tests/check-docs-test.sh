@@ -1327,6 +1327,10 @@ for i in $(seq 56); do add CLAUDE.md "- $i"; done
 add CLAUDE.md "| $(wide 127) |"
 fails "a row of a table wider than 130 columns counts the lines it takes wrapped" "CLAUDE.md: 61 lines, more than the 60 lines"
 fresh
+for i in $(seq 56); do add CLAUDE.md "- $i"; done
+add CLAUDE.md "| [$(wide 120)](docs/README.md \"在りか\") |"
+passes "the parentheses of a link in a row of a table are not counted"
+fresh
 for i in $(seq 54); do add CLAUDE.md "- $i"; done
 add CLAUDE.md '```'
 add CLAUDE.md "$(wide 131)"
