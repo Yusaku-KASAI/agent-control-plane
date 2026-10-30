@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-10-11
 amends: [2]
-amended_by: [4, 5]
+amended_by: [4, 5, "../../../../../target/template/docs/adr/0018-target-directory-as-the-copy-source.md"]
 ---
 
 # 0003. 文書は種類のディレクトリに置き、platform を全区切りが前提にしてよい共有の核にする

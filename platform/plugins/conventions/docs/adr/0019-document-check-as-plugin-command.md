@@ -26,7 +26,7 @@ date: 2026-10-17
   止めるのは一つのセッションで一度だけにし、通れば忘れる。止めたことを覚えられない（git dir に書けない）ときは
   止めない。ほかの Stop の hook で続けたターンの終わりにも回す。
 - CI 向けに、同じコマンドを回す GitHub Actions の複合アクション `actions/check-docs` を、このプラグインに置く。
-  ターゲットの CI での呼び方と版は、target-template の [ADR 0014](../../../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md) にある。
+  ターゲットの CI での呼び方と版は、target-template の [ADR 0014](../../../../../target/template/docs/adr/0014-target-independent-checks-as-platform-actions.md) にある。
 - ターゲットの契約からは、文書の検査を外す。ターゲットの `make check` は文書の検査を含まなくてよい。
 - platform を同じリポジトリに持つ control-plane は、`make check-docs` でもこのコマンドを呼ぶ。これは control-plane の
   リポジトリの選択で、契約ではない。

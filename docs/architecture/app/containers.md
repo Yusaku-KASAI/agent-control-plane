@@ -165,8 +165,8 @@ control-plane がエージェントを Docker のコンテナで動かす仕組�
     （`os.Root`）、待たずに開く。一つのコンテナのためには、マーケットプレイスを一度ずつ読み、合計 4 MiB までに
     する。断ったらコンテナを起こさない（[ADR 0044](../../adr/app/0044-read-workspace-files-confined.md)）。
   - どちらの設定の宣言を使うかは[ハーネスの契約](../../../platform/docs/reference/harness.md#work-area "在りか")のとおり。
-- **関係**：決まりの理由は [target-template ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)、
-  [0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
+- **関係**：決まりの理由は [target-template ADR 0004](../../../target/template/docs/adr/0004-plugins-declared-in-settings.md)、
+  [0007](../../../target/template/docs/adr/0007-marketplaces-beside-the-target.md) にある。
 - **当てはめた原則・パターン**：[使う側に届く契約](../../../platform/plugins/principles/docs/reference/patterns.md#published-language)：
   プラグインの宣言はターゲットの契約で、control-plane はそれを読んで動かすだけ
   （[ADR 0001](../../adr/app/0001-repository-centric-agents.md)、[0005](../../adr/app/0005-extensions-standard-first.md)）。

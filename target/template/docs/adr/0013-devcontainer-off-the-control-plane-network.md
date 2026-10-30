@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-17
-amends: ["../../../docs/adr/app/0014-control-plane-as-a-server.md"]
+amends: ["../../../../docs/adr/app/0014-control-plane-as-a-server.md"]
 ---
 
 # 0013. devcontainer を control-plane のネットワークに入れない
@@ -9,7 +9,7 @@ amends: ["../../../docs/adr/app/0014-control-plane-as-a-server.md"]
 ## Context
 
 ターゲットの devcontainer は、人が devcontainer から `acp run` で依頼できるよう、control-plane と外部の Docker
-ネットワーク `agent-control-plane-net` を共有し、`ACP_SERVER` で API を指していた（[app ADR 0014](../../../docs/adr/app/0014-control-plane-as-a-server.md)）。ところが
+ネットワーク `agent-control-plane-net` を共有し、`ACP_SERVER` で API を指していた（[app ADR 0014](../../../../docs/adr/app/0014-control-plane-as-a-server.md)）。ところが
 devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
 エージェントを起動できてしまうため。その結果、ほかのターゲットの devcontainer から `acp run` は使えず、
 ネットワークは使われていなかった。依頼は Slack と、ホストの `acp run` で足りている。

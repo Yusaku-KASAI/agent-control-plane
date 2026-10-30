@@ -7,7 +7,7 @@ devcontainer をホストに用意して、ビルド、起動、停止する手�
 
 ## ホストの準備
 
-ターゲットと platform のマーケットプレイスを、[ターゲットの契約の配置](../../../platform/docs/reference/target.md#host)のとおりに並べる。
+ターゲットと platform のマーケットプレイスを、[ターゲットの契約の配置](../../../../platform/docs/reference/target.md#host)のとおりに並べる。
 
 ## ビルド、起動、停止
 

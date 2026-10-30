@@ -3,7 +3,7 @@
 PR と main への push のたびと、毎週の定期実行で、devcontainer のイメージの中で `make check` と同じ検査を行う
 （[ADR 0005](../adr/0005-ci-runs-in-devcontainer-image.md)）。あわせて、ターゲットに依存しない文書の検査を、platform の
 複合アクションで devcontainer の外で行う（[ADR 0014](../adr/0014-target-independent-checks-as-platform-actions.md)）。既定のブランチの守りが外れていないことも、同じ形で確かめる
-（[ADR 0016](../adr/0016-protection-checked-in-ci.md)、[0017](../adr/0017-protection-check-follows-contract.md)）。ターゲットが用意する検査は[ターゲットの契約](../../../platform/docs/reference/target.md#checks)にある。
+（[ADR 0016](../adr/0016-protection-checked-in-ci.md)、[0017](../adr/0017-protection-check-follows-contract.md)）。ターゲットが用意する検査は[ターゲットの契約](../../../../platform/docs/reference/target.md#checks)にある。
 Makefile の `check-<関心>` のように `make` で実行する単位を、make のルール（以下、ルール）と呼ぶ。
 
 ## 構成
@@ -27,7 +27,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
 - CI のジョブの結果は `check` ジョブにまとまる。
 - 文書の形式の検査は conventions プラグインのコマンドで、`make check` には含めない。CI では `check-docs` ジョブが
   conventions の複合アクションを呼ぶ。エージェントが Markdown を変えたターンの終わりには、conventions の hook も回す
-  （[conventions の全体像](../../../platform/plugins/conventions/docs/overview.md "在りか")）。
+  （[conventions の全体像](../../../../platform/plugins/conventions/docs/overview.md "在りか")）。
 
 ## 構成要素
 
@@ -38,9 +38,9 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
   ターゲットの関心ごとの `check-<関心>`。手元の作業用のルールも置いてよいが、`check` には含めない。
 - **関係**：人も CI も同じルールを実行する。`check-target` はどのターゲットでも共通
   （[ファイルの分類](../overview.md#files)）。
-- **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：検査のコマンドはここにだけ書き、
+- **当てはめた原則・パターン**：[単一の情報源](../../../../platform/plugins/principles/docs/reference/principles.md#ssot)：検査のコマンドはここにだけ書き、
   Dockerfile と CI は `make` で呼ぶ。
-  [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：関心ごとに分け、読むファイルの範囲を区切る。
+  [関心の分離](../../../../platform/plugins/principles/docs/reference/principles.md#soc)：関心ごとに分け、読むファイルの範囲を区切る。
 
 ### `check-*` のステージ（`.devcontainer/Dockerfile`）
 
@@ -51,9 +51,9 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
   - ステージに見えるのはコピーしたファイルだけなので、コピーにないファイルは検査から読めず、変えてもキャッシュを
     外さない。読むファイルが変わらなければ層のキャッシュが当たり、検査は実行されない。
 - **関係**：ビルドの文脈は `Dockerfile.dockerignore` で決まる（[devcontainer](devcontainer.md "在りか")）。
-- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：検査と、それが読むファイルを
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：検査と、それが読むファイルを
   一つのステージにまとめ、ほかのファイルの変更がキャッシュを外さない。
-  [単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：devcontainer と同じイメージを元にするので、
+  [単一の情報源](../../../../platform/plugins/principles/docs/reference/principles.md#ssot)：devcontainer と同じイメージを元にするので、
   手元と CI で道具がずれない。
 
 ### `.github/workflows/ci.yml`
@@ -69,7 +69,7 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
     ほかのリポジトリのコードを動かすので、ジョブの `permissions` は `contents: read` だけにする。
   - `check-protection` ジョブ。`uses: Yusaku-KASAI/agent-control-plane/platform/plugins/github/actions/check-protection@main`
     の一つのステップだけを持ち、`permissions` は `contents: read` だけにする。リポジトリの設定と、確かめるコミットの CODEOWNERS を API で
-    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[ターゲットの契約](../../../platform/docs/reference/target.md#protection "在りか")の既定のブランチの守りで、手元での回し方は
+    読むので、設定が変われば PR の変更と関わりなく落ちる。何を確かめるかは[ターゲットの契約](../../../../platform/docs/reference/target.md#protection "在りか")の既定のブランチの守りで、手元での回し方は
     [既定のブランチの守りの用意](../guides/protection.md#verify "在りか")にある。
   - ビルドは `outputs: type=cacheonly` でイメージを書き出さない。キャッシュは GitHub Actions のキャッシュに、ジョブごとの
     scope で残す（同じ scope に書くジョブどうしが互いのキャッシュを上書きするため）。
@@ -79,8 +79,8 @@ check ─┬─ check-<関心>   ◀─ check-<関心>     ◀─ check-<関心>
     飛ばされたジョブは成功と数えられてしまうため。必須のチェックはこれだけ（[ADR 0011](../adr/0011-ci-checks-as-cached-build-stages.md)）。
   - 検査のコマンドは置かない。
 - **関係**：ターゲットごとに埋めるのは、行列のジョブと、キャッシュを使わない検査（[ファイルの分類](../overview.md#files)）。
-- **当てはめた原則・パターン**：[高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：ruleset が知るのは
+- **当てはめた原則・パターン**：[高凝集・疎結合](../../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：ruleset が知るのは
   `check` だけなので、ジョブを足しても ruleset は変えない。
-  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：ジョブのトークンは、要る権限だけを持つ。
-  [拒否を既定にする](../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`permissions` を書かないジョブも、
+  [最小権限](../../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：ジョブのトークンは、要る権限だけを持つ。
+  [拒否を既定にする](../../../../platform/plugins/principles/docs/reference/principles.md#fail-safe-defaults)：`permissions` を書かないジョブも、
   ワークフローの先頭の読むだけの権限になり、リポジトリの設定の既定に任せない。

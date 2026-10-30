@@ -19,7 +19,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   使うもの、その次のツールチェーンのステージはターゲット固有のツールチェーンとホストに依存する値を持つ。ツールチェーンの
   ステージは、そのために要るステージ（外のイメージに名前を付けるもの、ツールを切り離してビルドするもの）を前に
   置いてよい。devcontainer のイメージはツールチェーンのステージまでで、`<リポジトリ名>-devcontainer` という
-  名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../../../platform/docs/reference/target.md#image)）。
+  名前でビルドされる。エージェントも同じイメージで動く（[ターゲットの契約](../../../../platform/docs/reference/target.md#image)）。
   `check-*` のステージの説明は [ci.md](ci.md "在りか") にある。
 - ホストに依存する値（リポジトリ名、UID と GID、タイムゾーン、状態を置くディレクトリ）は、`init-host.sh` が
   `.devcontainer/.env` に書き、compose.yaml がそこから読む。compose.yaml と devcontainer.json でターゲットごとに
@@ -54,8 +54,8 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   固定するので、版を上げる変更は PR になり、CI がイメージのビルドと検査を通す。RUN は `pipefail` 付きの bash で動かし、
   パイプの途中の失敗（ダウンロードの失敗など）でビルドを止める。
 - **関係**：compose.yaml と CI がビルドする。ビルドの文脈は `Dockerfile.dockerignore` で決まる。Claude Code の版は
-  [ターゲットの契約のイメージ](../../../platform/docs/reference/target.md#image "在りか")が求めるものに合わせる。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：版の固定と `pipefail`、
+  [ターゲットの契約のイメージ](../../../../platform/docs/reference/target.md#image "在りか")が求めるものに合わせる。
+- **当てはめた原則・パターン**：[仕組みで守る](../../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：版の固定と `pipefail`、
   入れた Claude Code の版の確認で、意図しない版や途中の失敗をビルドで止める。
 
 ### Dockerfile の `uv-source` ステージ
@@ -76,13 +76,13 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
     マウントしたディレクトリの外（`~/.claude.json`）に残らないよう、`CLAUDE_CONFIG_DIR` を `~/.claude` にする。
   - git-delta は system の gitconfig で設定する。VS Code がホストから持ち込む `~/.gitconfig` に上書きされない。
 - **関係**：ツールチェーンのステージがこれを元にする。どのターゲットでも同じ内容（[ファイルの分類](../overview.md#files)）。
-- **当てはめた原則・パターン**：[依存の向き](../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：共有される中心なので、
+- **当てはめた原則・パターン**：[依存の向き](../../../../platform/plugins/principles/docs/reference/principles.md#dependency-rule)：共有される中心なので、
   リポジトリやホストを知らない。後段がこれに足す。
-  [高凝集・疎結合](../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくいものから層を重ね、変わりやすい
+  [高凝集・疎結合](../../../../platform/plugins/principles/docs/reference/principles.md#cohesion)：変わりにくいものから層を重ね、変わりやすい
   ものを変えても前の層のキャッシュが当たる。
-  [最小権限](../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが動く `node` には sudo を与えず、コンテナの前提（entrypoint など）を
+  [最小権限](../../../../platform/plugins/principles/docs/reference/principles.md#least-privilege)：エージェントが動く `node` には sudo を与えず、コンテナの前提（entrypoint など）を
   変えられないようにする。
-  [多層の防御](../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：コンテナの中で組む通信の制限
+  [多層の防御](../../../../platform/plugins/principles/docs/reference/principles.md#defense-in-depth)：コンテナの中で組む通信の制限
   （ファイアウォール）は、中で何でもできるエージェントが外せる前提で、守りの層に数えない。外への通信を絞るなら、コンテナの外に置く。
 
 ### Dockerfile のツールチェーンのステージ（`base` を元にするもの）
@@ -93,7 +93,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   `USER` にする（数値なので、プラットフォームが root でないことを確かめられる）。
 - **関係**：compose.yaml がこのステージをビルドする。`check-base` がこれを元にする。ターゲットごとに埋める部分
   （[ファイルの分類](../overview.md#files)）。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：ターゲットとホストに固有のものを、
+- **当てはめた原則・パターン**：[関心の分離](../../../../platform/plugins/principles/docs/reference/principles.md#soc)：ターゲットとホストに固有のものを、
   共有する base から分ける。
 
 ### `.devcontainer/compose.yaml`
@@ -103,10 +103,10 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：名前とパスは `.env` の値から決め、値そのものは置かない。値がなければ `init-host.sh`
   を実行するよう言って止まる。
   - ネットワークは compose のプロジェクトの既定のものだけにし、control-plane のネットワークには入らない
-    （[ターゲットの契約](../../../platform/docs/reference/target.md#control-plane)）。
+    （[ターゲットの契約](../../../../platform/docs/reference/target.md#control-plane)）。
 - **関係**：`.env` を読み、Dockerfile のツールチェーンのステージをビルドする。devcontainer.json がこれを参照する。
-- **当てはめた原則・パターン**：[単一の情報源](../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。
-  [関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：コンテナの振る舞いを VS Code の配線から分ける。
+- **当てはめた原則・パターン**：[単一の情報源](../../../../platform/plugins/principles/docs/reference/principles.md#ssot)：ホストの値は `.env` にだけ置く。
+  [関心の分離](../../../../platform/plugins/principles/docs/reference/principles.md#soc)：コンテナの振る舞いを VS Code の配線から分ける。
 
 ### `.devcontainer/devcontainer.json`
 
@@ -114,7 +114,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：ライフサイクルに関わらない設定（`overrideCommand: false`、`shutdownAction: none`、
   `runServices: []`）。VS Code が UID を変えないよう `updateRemoteUserUID: false` にする。コンテナの振る舞いは置かない。
 - **関係**：compose.yaml のサービスに attach する。エディタ設定は `.vscode/settings.json` と同じ内容にする。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：VS Code がなくてもコンテナは同じに
+- **当てはめた原則・パターン**：[関心の分離](../../../../platform/plugins/principles/docs/reference/principles.md#soc)：VS Code がなくてもコンテナは同じに
   動く（[ADR 0001](../adr/0001-devcontainer-independent-of-vscode.md)）。
 
 ### `.devcontainer/init-host.sh`
@@ -123,7 +123,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **置くもの / 置かないもの**：何度実行しても同じになる処理。`.env` にすでにある値は変えない。いつ実行するかは
   [手順](../guides/devcontainer.md "在りか")にある。
 - **関係**：`.env.example` の項目を `.env` に書く。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：状態のディレクトリを先に
+- **当てはめた原則・パターン**：[仕組みで守る](../../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：状態のディレクトリを先に
   作る。ないまま起動すると Docker が root の持ち物として作り、root でないコンテナから書き込めない。
 
 ### `.devcontainer/.env.example`
@@ -131,15 +131,15 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **責務**：compose.yaml が読む `.env` の項目とその意味を示す。
 - **置くもの / 置かないもの**：項目と例の値。実際の値は gitignore の対象の `.devcontainer/.env` に置く。
 - **関係**：`init-host.sh` が同じ項目を書き、compose.yaml が読む。
-- **当てはめた原則・パターン**：[スキーマを先に](../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：`.env` の形を例として
+- **当てはめた原則・パターン**：[スキーマを先に](../../../../platform/plugins/principles/docs/reference/principles.md#schema-first)：`.env` の形を例として
   先に置く。
 
 ### `.devcontainer/docker-entrypoint.sh`
 
 - **責務**：イメージのユーザーが作業ディレクトリに書き込めないときにそう知らせ、引数のコマンドを `exec` する。
 - **置くもの / 置かないもの**：知らせは stderr に出す。標準入力と stdout には触らない。
-- **関係**：[ターゲットの契約](../../../platform/docs/reference/target.md#image)のイメージの entrypoint の決まりに沿う。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：UID の食い違いを、ツールが
+- **関係**：[ターゲットの契約](../../../../platform/docs/reference/target.md#image)のイメージの entrypoint の決まりに沿う。
+- **当てはめた原則・パターン**：[仕組みで守る](../../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：UID の食い違いを、ツールが
   後で権限で失敗する前に知らせる。
 
 ### `.devcontainer/tmux.conf`
@@ -152,7 +152,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   - Claude Code のフルスクリーン表示では、マウスでの選択を Claude Code が扱い、離したときに自動でコピーする。
     止め方は[手順](../guides/claude-code.md#copy "在りか")にある。
   - ペインのベルは外の端末に届け、tmux にも表示する。Claude Code が対話で止まったときは、platform の bell プラグインが
-    ベルを鳴らす（[bell](../../../platform/plugins/bell/docs/overview.md "在りか")）。
+    ベルを鳴らす（[bell](../../../../platform/plugins/bell/docs/overview.md "在りか")）。
 - **関係**：base が `~/.tmux.conf` にコピーする。VS Code のターミナルのプロファイルが tmux を起動する。
 
 ### `.devcontainer/check-vscode-settings.py`
@@ -160,7 +160,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **責務**：devcontainer.json の `customizations.vscode.settings` と `.vscode/settings.json` が同じであることを確かめる。
 - **置くもの / 置かないもの**：JSONC なので、インデントと行全体のコメントを除いて行ごとに比べる。
 - **関係**：`make check-target` が実行する。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同じ設定を二か所に置く
+- **当てはめた原則・パターン**：[仕組みで守る](../../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：同じ設定を二か所に置く
   しかないので、食い違いを検査で見つける。
 
 ### `.devcontainer/Dockerfile.dockerignore`
@@ -168,7 +168,7 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
 - **責務**：この Dockerfile のビルドの文脈から、手元の秘密（`.env` など）とビルドの出力を除く。
 - **関係**：ルートの `.dockerignore` はこの Dockerfile には使われない（ターゲットにほかのイメージがあれば、そちらが
   使う）。`check-*` のステージはこの文脈からコピーする。
-- **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：イメージごとに文脈を分ける。
+- **当てはめた原則・パターン**：[関心の分離](../../../../platform/plugins/principles/docs/reference/principles.md#soc)：イメージごとに文脈を分ける。
 
 ### `.vscode/settings.json`
 
@@ -177,5 +177,5 @@ Dockerfile のステージ（矢印は元にするか、コピーする向き）
   ベル設定のように、片方だけだと効いたり効かなかったりするものがあるため。ツールチェーンの拡張機能の設定は埋める
   部分で、ツールはイメージで固定するので、拡張機能が自分でツールを入れる設定があれば切る。
 - **関係**：同じであることは `make check-target`（`check-vscode-settings.py`）で確かめる。
-- **当てはめた原則・パターン**：[仕組みで守る](../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：二か所に置く同じ設定を
+- **当てはめた原則・パターン**：[仕組みで守る](../../../../platform/plugins/principles/docs/reference/principles.md#mechanisms)：二か所に置く同じ設定を
   検査でそろえる。
