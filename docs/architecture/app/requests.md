@@ -191,7 +191,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
   - Web API の呼び出しは 1 回 30 秒で区切り、答えが返らなかったものとサーバーのエラーを、間を置いて 6 回まで、レート
     制限を `Retry-After` に従って再試行する。Slack が断ったものは再試行しない。区切ったあとに Slack が受け取っていれば、
-    同じメッセージが二度出ることがある（[ADR 0063](../../adr/app/0063-retry-slack-calls-and-tell-lost-replies.md)）。
+    同じメッセージが二度出る（状態メッセージなら、1 通目が途中の文面のまま残る）ことがある。依頼のメッセージへの
+    リアクションは、もう付いている（`already_reacted`）を失敗にしない（[ADR 0063](../../adr/app/0063-retry-slack-calls-and-tell-lost-replies.md)）。
   - 片付けで消したスレッドの最初のメッセージに `:broom:` を付け（`MarkCleaned`）、そのスレッドでセッションが作られた
     （`SessionCreated`）ら外す。もう付いている（`already_reacted`）、付いていない（`no_reaction`）は失敗にしない
     （[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。

@@ -308,20 +308,36 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 }
 
 // An answer that cannot be posted is told by a short notice, and the message is marked failed instead
-// of answered, so that it does not look answered (#348).
+// of its end, so that it does not look answered (#348). So is the answer of an interrupted turn.
 func TestHandleMessage_TellsAnAnswerNotPosted(t *testing.T) {
 	session := domain.Session{ID: "s-1"}
-	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done", Session: session}}
-	responder := &fakeResponder{refuse: "done"}
+	for _, tt := range []struct {
+		name        string
+		interrupted bool
+		refuse      string
+		marks       []string
+		replies     int
+	}{
+		{"answer posted", false, "", []string{"received", "reply", "answered"}, 1},
+		{"answer not posted", false, "done", []string{"received", "reply refused", "reply", "failed"}, 2},
+		{"interrupted answer posted", true, "", []string{"received", "reply", "stopped"}, 1},
+		{"interrupted answer not posted", true, "done", []string{"received", "reply refused", "reply", "failed"}, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done", Interrupted: tt.interrupted, Session: session}}
+			responder := &fakeResponder{refuse: tt.refuse}
 
-	if err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err == nil {
-		t.Error("Execute() = nil, want the reply's error for the log")
-	}
-	if !slices.Equal(responder.marks, []string{"received", "reply refused", "reply", "failed"}) {
-		t.Errorf("marks = %q, want the notice and the failed mark after the refused reply", responder.marks)
-	}
-	if len(responder.replies) != 2 || !strings.Contains(responder.replies[1], "投稿できませんでした") || !strings.Contains(responder.replies[1], "s-1") {
-		t.Errorf("replies = %q, want the notice naming the session after the reply", responder.replies)
+			err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message)
+			if (err != nil) != (tt.refuse != "") {
+				t.Errorf("Execute() = %v, want the reply's error for the log only when it was refused", err)
+			}
+			if !slices.Equal(responder.marks, tt.marks) || len(responder.replies) != tt.replies {
+				t.Fatalf("marks = %q, replies = %q; want %q and %d replies", responder.marks, responder.replies, tt.marks, tt.replies)
+			}
+			if tt.replies == 2 && (!strings.Contains(responder.replies[1], "投稿できませんでした") || !strings.Contains(responder.replies[1], "s-1")) {
+				t.Errorf("notice = %q, want it to tell the answer was not posted and name the session", responder.replies[1])
+			}
+		})
 	}
 }
 
