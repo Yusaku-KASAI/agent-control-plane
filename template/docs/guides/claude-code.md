@@ -22,10 +22,11 @@ claude --dangerously-skip-permissions
   ブランチの守りのバイパスを含む）。Claude Code のログインのほかの認証情報は、置かないか、権限を絞ったものにする。
 - **外への持ち出し**：外への通信は絞っていない（[ADR 0008](../adr/0008-no-in-container-firewall.md)）。コンテナから読める
   もの（リポジトリ、隣のリポジトリ、上の認証情報）は、外に送られうる。
-- **ホストで動くものの書き換え**：書き換えられると、次にホストで使ったときに動くものがある。PR の差分に出ないもの
-  （`.git/hooks`、`.git/config`、マウントするホストのディレクトリを決める `.devcontainer/.env`）と、差分に出ても
-  マージの前にホストで動かしうるもの（`.devcontainer/` の `compose.yaml` や `init-host.sh`、`.vscode/` の設定）。確認を
-  省いて使ったあとは、ホストで git、devcontainer、VS Code を使う前に、それらが変わっていないことを確かめる。
+- **ホストで動くものの書き換え**：書き換えられると、次にホストで使ったときに動くか読まれるものがある。PR の差分に
+  出ないもの（`.git/` の下の `hooks` や `config`、git が無視するファイル。マウントするホストのディレクトリを決める
+  `.devcontainer/.env` もその一つ）と、差分に出てもマージの前にホストで動かしうるもの（`.devcontainer/` の
+  `compose.yaml`、`init-host.sh`、`devcontainer.json`、`.vscode/` の設定）。確認を省いて使ったあとは、ホストで git、
+  devcontainer、VS Code、ホストで動かすほかの道具を使う前に、それらが変わっていないことを確かめる。
 
 <a id="copy"></a>
 

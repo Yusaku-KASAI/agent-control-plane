@@ -33,7 +33,7 @@ target-template のファイルから、新しいターゲットのリポジト�
 ## 5. 守りを用意し、CI を確かめる
 
 GitHub にリポジトリを作って push し、[既定のブランチの守りの用意](protection.md)のとおりに守りを用意して、その手順の
-「確かめる」のとおりに CI と守りを確かめる。
+「[確かめる](protection.md#verify)」のとおりに CI と守りを確かめる。
 
 ## 6. control-plane から動かす
 
