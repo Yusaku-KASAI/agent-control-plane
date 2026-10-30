@@ -8,8 +8,8 @@ amends: ["../../../../platform/plugins/conventions/docs/adr/0003-type-first-docs
 
 ## Context
 
-target-template は agent-control-plane に同居し、文書は最上位の `template/docs/` に、ひな形の実体（環境のファイル）は
-agent-control-plane のルートにあった（conventions の ADR 0003）。ルートのファイルは control-plane が自分のために埋めた
+target-template は agent-control-plane に同居し、文書は最上位の `template/docs/` に置き（conventions の ADR 0003）、
+ひな形の実体（環境のファイル）は agent-control-plane のルートにあった。ルートのファイルは control-plane が自分のために埋めた
 版で、共通の部分にも control-plane だけの形がある。新しいターゲットを作る人は、control-plane の文書を読んでその形を
 手で戻していた（#310）。
 
