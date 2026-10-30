@@ -39,7 +39,7 @@
 ## 確かめる
 
 github プラグインの `check-protection` が、契約の守り（上の設定はそれを満たす）と CODEOWNERS を確かめる。ターゲットの CI の `check-protection`
-ジョブが毎回回すので（[CI](../architecture/ci.md "在りか")）、守りを用意するまでは、そのジョブと、それを待つ必須のチェックの
+ジョブが毎回回すので（[CI](../architecture/ci.md)）、守りを用意するまでは、そのジョブと、それを待つ必須のチェックの
 `check` が落ちる。設定したあとは CI を回し直して、すべてのジョブが通ることを見る。手元では
 リポジトリの中で回す（エージェントは `check-protection`、人は platform の `plugins/github/bin/check-protection`）。
 

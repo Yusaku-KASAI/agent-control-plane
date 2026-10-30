@@ -8,14 +8,13 @@ devcontainer の中で、人が Claude Code を対話で使うときの手順。
 
 ## 権限の確認
 
-対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。コンテナから書ける
-ホストのファイルは[マウントしたもの](../architecture/devcontainer.md#mounts)だけで、確認を省いてもその外には届かない。
+対話の既定のモードと、確認せずに使えるツールの一覧は `.claude/settings.json` の `permissions` にある。コンテナから直に
+書けるホストのファイルは[マウントしたもの](../architecture/devcontainer.md#mounts)だけだが、確認を省くと、それを通して
+次のことが確認なしで起こりうる。受け入れられるときだけ省く。
 
 ```bash
 claude --dangerously-skip-permissions
 ```
-
-確認を省くと、次のことが確認なしで起こりうる。受け入れられるときだけ省く。
 
 - **コンテナの中の認証情報でできること**：Claude Code 自身のログイン（`~/.claude` の下にいつもある）、`gh auth login` での
   ログイン、VS Code が attach したときに引き継ぐ git の認証情報や ssh-agent でできること（リポジトリの管理者なら、既定の
@@ -24,9 +23,13 @@ claude --dangerously-skip-permissions
   もの（リポジトリ、隣のリポジトリ、上の認証情報）は、外に送られうる。
 - **ホストで動くものの書き換え**：書き換えられると、次にホストで使ったときに動くか読まれるものがある。PR の差分に
   出ないもの（`.git/` の下の `hooks` や `config`、git が無視するファイル。マウントするホストのディレクトリを決める
-  `.devcontainer/.env` もその一つ）と、差分に出てもマージの前にホストで動かしうるもの（`.devcontainer/` の
-  `compose.yaml`、`init-host.sh`、`devcontainer.json`、`.vscode/` の設定）。確認を省いて使ったあとは、ホストで git、
-  devcontainer、VS Code、ホストで動かすほかの道具を使う前に、それらが変わっていないことを確かめる。
+  `.devcontainer/.env` もその一つ）と、差分に出てもマージの前にホストで動かしうるもの（[devcontainer の構成](../architecture/devcontainer.md)の
+  `compose.yaml`、`init-host.sh`、`devcontainer.json` と、`.vscode/` の設定）。
+- **あとのセッションの設定の書き換え**：`~/.claude` の下と、`.claude/settings.local.json`、`CLAUDE.local.md`（git の管理に入れない）は、
+  あとで確認ありで使う対話のセッションの権限、hook、指示になり、PR の差分に出ない。
+
+確認を省いて使ったあとは、ホストで git、devcontainer、VS Code、ホストで動かすほかの道具を使う前と、次に Claude Code を
+使う前に、上の書き換えがないことを確かめる。
 
 <a id="copy"></a>
 
