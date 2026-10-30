@@ -529,6 +529,16 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 		"sk" + "-ant-" + strings.Repeat("k", 30),
 		"AK" + "IA" + strings.Repeat("Q7", 8),
 	}
+	// plain commits content to file under a message that carries none of it, so that only the
+	// file's lines can stop the push.
+	plain := func(t *testing.T, ws, file, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(ws, file), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, ws, "add", "--all")
+		git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "plain")
+	}
 	appToken := strings.Repeat("v", 30) + "app-token"
 	botToken := strings.Repeat("w", 30) + "bot-token"
 	tests := []struct {
@@ -564,6 +574,19 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 			git(t, ws, "add", "a.txt")
 			git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "use "+ghForm)
 			commit(t, ws, "b.txt", "b")
+		}},
+		{name: "a form in a file only", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.txt", "log: "+ghForm)
+		}},
+		{name: "a value of the container in a file only", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.txt", "log: "+appToken)
+		}},
+		{name: "a form in a file git takes for binary", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, "out.bin", "\x00\x01 "+ghForm)
+		}},
+		{name: "a form in a file whose diff is turned off", prepare: func(t *testing.T, ws string) {
+			plain(t, ws, ".gitattributes", "*.log -diff\n")
+			plain(t, ws, "run.log", "token "+ghForm)
 		}},
 		{name: "a token in the longer form of a GitHub App's", prepare: func(t *testing.T, ws string) {
 			commit(t, ws, "conf.txt", "token: "+ghLongForm)

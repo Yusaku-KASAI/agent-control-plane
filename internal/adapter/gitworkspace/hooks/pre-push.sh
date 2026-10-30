@@ -1,9 +1,10 @@
 #!/bin/sh
 # Warns of a new remote branch outside the session's names, stops a push that would overwrite a
 # remote tip no reflog entry of the pushed ref reaches unless ACP_PUSH_OVERWRITE=1 says the
-# overwrite is meant, stops a push of commits that carry a value in the form of a credential, then
-# runs the target's checks, make check. The name and the overwrite are the requester's to decide (the
-# warning does not stop, the stop can be let through); a credential cannot be let through from here.
+# overwrite is meant, stops a push of commits that carry a credential the container holds or a value
+# in a well-known form of one, then runs the target's checks, make check. The name and the overwrite
+# are the requester's to decide (the warning does not stop, the stop can be let through); a
+# credential cannot be let through from here.
 # The checks run on the work tree, so they stand for the pushed commit only when that commit is HEAD
 # and the work tree has nothing beside it. Like commit-msg, it lives only in the workspace's .git.
 
@@ -57,13 +58,9 @@ values=$(printf '%s\n' "$values" | sed -n 's/[[:space:]]*$//; /^.\{20,\}$/p')
 forms='gh[oprsu]_[A-Za-z0-9._-]{36,}|github_pat_[A-Za-z0-9_]{60,}|xox[abeoprs]-[0-9]+-[0-9A-Za-z-]{10,}|xapp-[0-9]-[A-Za-z0-9-]{10,}|sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
 while read -r _ local_sha _ remote_sha; do
 	case $local_sha in *[!0]*) ;; *) continue ;; esac
-	if case $remote_sha in *[!0]*) git cat-file -e "$remote_sha^{commit}" 2>/dev/null ;; *) false ;; esac; then
-		commits=$(git rev-list "$local_sha" "^$remote_sha" --not --remotes) || exit 1
-	else
-		commits=$(git rev-list "$local_sha" --not --remotes) || exit 1
-	fi
+	commits=$(git rev-list "$local_sha" --not --remotes) || exit 1
 	for c in $commits; do
-		added=$({ git log -1 --format=%B "$c"; git show --format= --no-color --no-ext-diff "$c" | sed -n 's/^+//p'; })
+		added=$({ git log -1 --format=%B "$c"; git show --format= --no-color --no-ext-diff --no-textconv --text "$c" | sed -n 's/^+//p'; })
 		if { [ -n "$values" ] && printf '%s\n' "$added" | grep -qF -f /dev/fd/3 3<<VALUES
 $values
 VALUES
