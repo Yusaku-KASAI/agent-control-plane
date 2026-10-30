@@ -13,7 +13,7 @@ import (
 
 var quickRetry = webRetry{timeout: 100 * time.Millisecond, retries: 3, initial: time.Millisecond, max: 5 * time.Millisecond}
 
-// A post that got no answer in time, or a server error, is tried again, so that a short outage does
+// A post that got no answer in time, a server error or a rate limit is tried again, so that a short outage does
 // not lose the answer (#348); Slack's refusal of the message is not.
 func TestWebClientRetries(t *testing.T) {
 	for _, tt := range []struct {
@@ -26,6 +26,10 @@ func TestWebClientRetries(t *testing.T) {
 		{"server error", 2, func(w http.ResponseWriter, _ <-chan struct{}) { w.WriteHeader(http.StatusBadGateway) }, 3, false},
 		{"no answer in time", 2, func(_ http.ResponseWriter, stuck <-chan struct{}) { <-stuck }, 3, false},
 		{"lasting outage", 10, func(w http.ResponseWriter, _ <-chan struct{}) { w.WriteHeader(http.StatusServiceUnavailable) }, 4, true},
+		{"rate limited", 1, func(w http.ResponseWriter, _ <-chan struct{}) {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+		}, 2, false},
 		{"refused", 10, func(w http.ResponseWriter, _ <-chan struct{}) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"ok":false,"error":"invalid_blocks"}`))

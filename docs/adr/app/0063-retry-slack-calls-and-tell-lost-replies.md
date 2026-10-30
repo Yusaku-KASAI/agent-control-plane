@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-30
 ---
 
-# 0063. Slack の Web API の呼び出しを時間で区切って再試行し、投稿できなかった返事は知らせる
+# 0063. Slack の Web API の呼び出しを時間で区切って再試行し、投稿できなかった回答は知らせる
 
 ## Context
 
@@ -28,8 +28,9 @@ connection refused、network is unreachable）。control-plane のログはエ�
 - 再試行は slack-go の `OptionRetryConfig` に任せ、どれを再試行するかの判定だけを自分で持つ。slack-go の接続の
   エラーの判定は、エラーの文面の `connection reset`、`connection refused`、`EOF` だけを見て、タイムアウトや
   届かないネットワークを再試行しない。
-- 再試行しても返事を投稿できなかったら、`HandleMessage` は、投稿できなかったことと、もう一度依頼すれば回答を書き直す
-  ことを短く投稿し、依頼のメッセージに `:warning:` を付ける。Slack が返事を断ったときは、短い知らせは通りうる。
+- 再試行してもターンの回答を投稿できなかったら、`HandleMessage` は、投稿できなかったことと、もう一度依頼すれば回答を
+  書き直すことを短く投稿し、依頼のメッセージに `:warning:` を付ける。Slack が回答を断ったときは、短い知らせは通りうる。
+  回答でない文面（失敗、停止や再起動での取り消し）は、書き直すものがないので知らせず、終わり方の合図もそのままにする。
 
 ## Alternatives
 
@@ -46,4 +47,6 @@ connection refused、network is unreachable）。control-plane のログはエ�
   残る。
 - Slack が受け取ったあとに答えが返らずに区切った呼び出しは、送り直すので、同じ返事が二度出ることがある。失うよりは
   よいとする。
+- 依頼の入らなかったターンの回答（`AgentAnswers` の知らせ）は、再試行しても投稿できなければログに残るだけで、スレッドでは
+  分からない（#354）。
 - 止めるとき（`stop_grace_period` は 1 分）に Slack とつながらなければ、返事の再試行の途中で止まることがある。

@@ -307,9 +307,9 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 	}
 }
 
-// A reply that cannot be posted is told by a short notice, and the message is marked failed instead
+// An answer that cannot be posted is told by a short notice, and the message is marked failed instead
 // of answered, so that it does not look answered (#348).
-func TestHandleMessage_TellsAReplyNotPosted(t *testing.T) {
+func TestHandleMessage_TellsAnAnswerNotPosted(t *testing.T) {
 	session := domain.Session{ID: "s-1"}
 	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done", Session: session}}
 	responder := &fakeResponder{refuse: "done"}
@@ -322,5 +322,17 @@ func TestHandleMessage_TellsAReplyNotPosted(t *testing.T) {
 	}
 	if len(responder.replies) != 2 || !strings.Contains(responder.replies[1], "投稿できませんでした") || !strings.Contains(responder.replies[1], "s-1") {
 		t.Errorf("replies = %q, want the notice naming the session after the reply", responder.replies)
+	}
+}
+
+// A notice that is no answer, such as that the request was stopped, has no answer to write again: one
+// that cannot be posted keeps its mark and adds no notice.
+func TestHandleMessage_KeepsTheMarkOfANoticeNotPosted(t *testing.T) {
+	turns := &fakeTurns{err: usecase.ErrStopped}
+	responder := &fakeResponder{refuse: "停止したため、この依頼は取り消しました。"}
+
+	_ = usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message)
+	if !slices.Equal(responder.marks, []string{"received", "reply refused", "stopped"}) {
+		t.Errorf("marks = %q, want the stopped mark after the refused notice", responder.marks)
 	}
 }

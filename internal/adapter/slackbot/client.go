@@ -41,9 +41,8 @@ func newWebClient(token, appToken string, r webRetry, opts ...slack.Option) *sla
 type unanswered webRetry
 
 func (u unanswered) ShouldRetry(state *slack.RetryState, req *http.Request, resp *http.Response, err error) (bool, time.Duration) {
-	failed := (resp == nil && err != nil) || (resp != nil && resp.StatusCode >= http.StatusInternalServerError)
-	replayable := req.Body == nil || req.GetBody != nil
-	if !failed || !replayable || state.Attempt >= state.MaxRetries {
+	// slack-go asks only while attempts remain and the request's body can be sent again.
+	if failed := (resp == nil && err != nil) || (resp != nil && resp.StatusCode >= http.StatusInternalServerError); !failed {
 		return false, 0
 	}
 	return true, min(u.initial<<state.Attempt, u.max)
