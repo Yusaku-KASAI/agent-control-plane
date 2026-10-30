@@ -3,7 +3,7 @@
 文書がほかの文書の中身に触れるときの書き方（要約と案内）と、決まり（定義）を起点（共通のルール、役割ごとの指示、
 スキル）に載せて届けるときの決まりと、起点から目的の手順に入るときの決まり。定義と届け方の仕組みは
 [文書の体系](../architecture/documentation.md#delivery "在りか")に、各文書の形は[形式](formats.md "在りか")に、
-判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0040](../adr/0040-no-read-whole-mark.md)、[0046](../adr/0046-purpose-procedures-own-their-ending.md) にある。
+判断の理由は ADR [0010](../adr/0010-always-read-selection-and-size.md)、[0015](../adr/0015-starting-points-and-reading-scope.md)、[0016](../adr/0016-summaries-guides-and-common-rules.md)、[0017](../adr/0017-procedures-in-guides-and-skills-deliver-them.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0022](../adr/0022-forms-of-procedures-and-role-instructions.md)、[0025](../adr/0025-consult-and-organize-issues.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0040](../adr/0040-no-read-whole-mark.md)、[0046](../adr/0046-purpose-procedures-own-their-ending.md)、[0053](../adr/0053-size-limits-cover-descriptions-not-the-documentation.md) にある。
 
 <a id="summaries-and-guides"></a>
 
@@ -54,6 +54,13 @@
 | 目的の手順に入ったとき | その手順の「始めに読む」の段に並べ、起点にはその段の文書を直に並べる（[目的の手順の読ませ方](#procedures)） |
 | スキルを使うとき | スキルの文で示す（形は[形式：スキル](formats.md#skill "在りか")） |
 
+- 全体まで読ませる文書は、要約でなく定義なので、量の上限を当てない。量で削ると内容が失われる。並べるかは、読むコストと、
+  その場面で前提になる効果とを比べて決める。
+- 全体まで読ませる文書は、長くなったら、内容を失わないように分けるか組み直してよい（仕組みの解説と決まりの細部を分ける
+  など）。そのときは全体まで読まれる範囲も変わる（分けた先を並べなければ、その中身はその場面で全体まで読まれなくなる）
+  ので、分けた先のどれを並べるかも、同じ比べ方で決め直し、並べた所（上の表の示し方の所。目的の手順の段なら、下の
+  起点への並べ方の所も）を直す。
+
 <a id="procedures"></a>
 
 ## 目的の手順の読ませ方
@@ -76,8 +83,9 @@
 - スキルは、共通の手順への入口として、使うと決めたときに読み込まれる。その役割で動いていない人が目的の手順に入るとき
   （たとえば役割を持たないセッションがレビューを頼まれたとき）の入口にもなる。
 
-目的の手順を足したり、役割の受け持ちや「始めに読む」の段を変えたりしたら、それを並べた所を直す：共通のルールの
-振り分け、各役割の指示の「受け持つ手順」と description、conventions の索引と、スキルを足すか消すときは全体像のスキルの表。
+目的の手順を足したり、役割の受け持ちや「始めに読む」の段（段に並べた文書を分けたり組み直したりしたときを含む）を
+変えたりしたら、それを並べた所を直す：共通のルールの振り分け、各役割の指示の「受け持つ手順」と description、
+conventions の索引と、スキルを足すか消すときは全体像のスキルの表。
 ほかの文書（ロールの全体像、用語集の例など）は、手順の一覧や受け持ちを書き写さず、指示の節や索引への案内にする。
 どの文書も索引から届くことは検査が確かめる。ほかは特定の節に何を並べるかで中身なので、検査にせず（[形式：検査の範囲](formats.md#check-scope)）、
 変える人とレビューする人がここから直す所を挙げる。

@@ -292,9 +292,9 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 
 ## 量の上限
 
-いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする。frontmatter のほかの行は、どの行も
-表示幅（Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、リンクの括弧の中（行き先とタイトル）は
-数えない）を 130 までにする（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。
+いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする（[ADR 0010](../adr/0010-always-read-selection-and-size.md)、
+[0053](../adr/0053-size-limits-cover-descriptions-not-the-documentation.md)）。全体まで読ませる文書（どの作業でも、目的の手順に
+入ったとき、スキルを使うとき）には当てない（[届け方の決まり：起点](delivery.md#starting-points "在りか")）。
 
 | 文書 | 上限 |
 | --- | --- |
@@ -302,9 +302,18 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 | プラグインの `rules/` の文書（共通のルール。ディレクトリの合計） | 40 行 |
 | 役割ごとの指示（プラグインの `agents/` と、リポジトリの `.claude/agents/` の文書。一つずつ） | 50 行 |
 
-- 表示幅を超えた行は折り返す。そのうえで行数の上限に当たったら、行を伸ばしたり言い回しを詰めたりして収めるのでは
-  なく、載せるものを減らすか、ほかの場所へ移すか、要約を案内に下げる（[起点](delivery.md#starting-points "在りか")）。
-- 検査：上の行数と、frontmatter のほかの行の表示幅を超えていないこと。
+- 表示幅：Unicode の East Asian Width が W か F の文字を 2、ほかを 1 として数え、コードの外のリンクの括弧の中（行き先と
+  タイトル）は数えない（[ADR 0049](../adr/0049-starting-points-limit-line-width.md)）。
+- 上の文書の、frontmatter のほかの行は、表示幅を 130 までにする。表の行（字下げのあとの `|` で始まる行）と
+  コードブロックの行（行の始めの HTML のコメントを含む。折り返せない行）は、幅の上限を当てず、かわりに 130 で
+  折り返したときの行数（切り上げ）で行数に数える。
+- 役割ごとの指示とスキル（プラグインの `skills/` と、リポジトリの `.claude/skills/` の `SKILL.md`）の frontmatter の
+  `description` は、一行に畳んで表示幅を 390（行の幅の上限の 3 行分）までにする。どのセッションでも、役割とスキルの
+  一覧として読み込まれる。
+- 表示幅を超えた行は折り返す。そのうえで行数か `description` の上限に当たったら、行を伸ばしたり言い回しを詰めたり
+  して収めるのではなく、載せるものを減らすか、ほかの場所へ移すか、要約を案内に下げる
+  （[起点](delivery.md#starting-points "在りか")）。
+- 検査：上の行数、折り返せる行の表示幅、`description` の表示幅を超えていないこと。
 
 <a id="map"></a>
 

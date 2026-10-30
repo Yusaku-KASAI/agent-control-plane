@@ -2,8 +2,8 @@
 """Checks the Markdown files of the repository holding the working directory against this plugin's
 docs/reference/formats.md: links and anchors, reachability from README.md and CLAUDE.md, ADR
 frontmatter and cross-references, the layout of each docs/ directory and its index, component descriptions
-in architecture docs, the form of purpose and common procedures in guides and of role instructions, the size of the documents read at every start (lines, and the display
-width of each line), and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
+in architecture docs, the form of purpose and common procedures in guides and of role instructions, the size of the documents read at every start (lines, the display
+width of each line that can be wrapped, and the width of the descriptions of roles and skills), and the maps of items with the prerequisite directions between them. With --map, prints the maps as a design structure matrix. With --catalog, prints the attributes derived for each document from
 where they are first held (heading, place, git history, ADR frontmatter, maps, links) as tab-separated lines."""
 
 import os
@@ -418,6 +418,9 @@ ALWAYS_READ = [
 
 # What a line's width counts is defined in formats.md, 量の上限.
 WIDTH_LIMIT = 130
+# A description is read as one line, in the list of roles and skills given at every start.
+DESCRIPTION_LIMIT = 3 * WIDTH_LIMIT
+TABLE_ROW = re.compile(r"\s*\|")
 
 
 def width(text):
@@ -441,8 +444,21 @@ def body(path):
     return (text[m.end():], text[:m.end()].count("\n")) if m else (text, 0)
 
 
+def line_widths(path):
+    """(number in the file, width, whether it can be wrapped) of each line after the frontmatter that is not blank.
+    A row of a table and a line of a code block cannot be wrapped."""
+    text, skipped = body(path)
+    code = code_block_lines(text)
+    for index, line in enumerate(text.split("\n")):
+        if line.strip():
+            in_code = index in code
+            yield (index + skipped + 1, width(line) if in_code else display_width(line),
+                   not in_code and not TABLE_ROW.match(line))
+
+
 def content_lines(path):
-    return sum(1 for line in body(path)[0].splitlines() if line.strip())
+    """A line that cannot be wrapped counts as the lines it takes when wrapped at the width limit."""
+    return sum(1 if wraps else -(-columns // WIDTH_LIMIT) for _, columns, wraps in line_widths(path))
 
 
 def check_sizes(paths, errors):
@@ -455,15 +471,40 @@ def check_sizes(paths, errors):
         for key, lines in sorted(groups.items()):
             if lines > limit:
                 errors.append(f"{key}: {lines} lines, more than the {limit} lines a document read at every start may hold")
+
+
+def check_widths(paths, errors):
     for path in paths:
         if any(matches(path) for matches, _, _ in ALWAYS_READ):
-            text, skipped = body(path)
-            code = code_block_lines(text)
-            for index, line in enumerate(text.split("\n")):
-                columns = width(line) if index in code else display_width(line)
-                if columns > WIDTH_LIMIT:
-                    errors.append(f"{path}:{index + skipped + 1}: {columns} columns wide, more than the "
+            for number, columns, wraps in line_widths(path):
+                if wraps and columns > WIDTH_LIMIT:
+                    errors.append(f"{path}:{number}: {columns} columns wide, more than the "
                                   f"{WIDTH_LIMIT} a document read at every start may stretch a line to")
+
+
+def is_skill(path):
+    parts = path.split(os.sep)
+    if parts[-1] != "SKILL.md" or len(parts) < 3:
+        return False
+    return parts[-4:-2] == [".claude", "skills"] or in_plugin_dir(os.path.dirname(path), "skills")
+
+
+def description(path):
+    """The description in the frontmatter, its lines folded into one."""
+    m = re.match(r"---\n(.*?)\n---\n", read(path), re.S)
+    # A block value goes on up to the next line that is neither indented nor blank, as in YAML.
+    d = re.search(r"(?m)^description:[ \t]*(.*(?:\n(?:[ \t]+.*|[ \t]*$))*)", m.group(1) + "\n") if m else None
+    value = re.sub(r"^[>|][-+]?[ \t]*\n", "", d.group(1)) if d else ""
+    return " ".join(part.strip() for part in value.split("\n") if part.strip())
+
+
+def check_descriptions(paths, errors):
+    for path in paths:
+        if in_plugin_dir(path, "agents") or in_project_agents(path) or is_skill(path):
+            columns = width(description(path))
+            if columns > DESCRIPTION_LIMIT:
+                errors.append(f"{path}: a description {columns} columns wide, more than the {DESCRIPTION_LIMIT} "
+                              "a description listed at every start may take")
 
 
 def is_role(path):
@@ -817,6 +858,8 @@ def main():
     check_adrs(paths, errors)
     check_docs_dirs(paths, errors)
     check_sizes(paths, errors)
+    check_widths(paths, errors)
+    check_descriptions(paths, errors)
     check_roles(paths, errors)
     check_reachable(paths, errors)
     if m is not None:
