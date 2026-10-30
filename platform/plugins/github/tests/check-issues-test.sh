@@ -22,6 +22,13 @@ case $args in
     jq --arg f "$(sed -E 's/.* --json ([^ ]+) .*/\1/' <<<"$args")" 'map(. as $i | reduce ($f | split(","))[] as $k ({}; .[$k] = $i[$k]))' "$dir/issues.json" ;;
   *" label list -R o/r "*) jq -r "$(jq_filter "$@")" "$dir/labels.json" ;;
   *" api graphql "*) jq -r "$(jq_filter "$@")" "$dir/pinned.json" ;;
+  # A pull request an item of a scope names: pull-<n>.json, or 404 without it; fail-pull-<n> when
+  # it cannot be read.
+  *" api repos/o/r/pulls/"*)
+    n=${args#* api repos/o/r/pulls/}; n=${n%% *}
+    [[ ! -f $dir/fail-pull-$n ]] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
+    [[ -f $dir/pull-$n.json ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    jq -r "$(jq_filter "$@")" "$dir/pull-$n.json" ;;
   *" api repos/o/r/issues/"*"/dependencies/blocked_by "*)
     n=${args#* api repos/o/r/issues/}; n=${n%%/*}
     jq -r "$(jq_filter "$@")" "$dir/blocked-$n.json" 2>/dev/null || echo "" ;;
@@ -138,6 +145,34 @@ check "a number in 今の焦点 that is no issue here fails" 1 "$(run)"
 check "the number is named and the dependencies are still checked" \
   "NG   the roadmap #42 names in 今の焦点 what is neither an issue nor a pull request here: #1
 NG   #1 is blocked by closed issues: #7" "$(grep '^NG' "$tmp/out")"
+
+# The scope of an issue against its pull requests (issues.md: scope-items).
+# scoped <items>: the issues of reset, and #3 with those items in its scope.
+scoped() {
+  { issue 1 app,theme:ops; issue 42 ""; issue 9 theme "$theme_body"
+    issue 3 app,theme:ops "$(printf '狙い\n\n## 今の姿\n\n- [ ] not an item #10\n\n## 範囲\n\n範囲の中：\n\n%s\n\n範囲の外：\n\n- x\n' "$1")"; } | jq -s . >"$state/issues.json"
+}
+reset
+echo '{"merged_at": "2026-10-30T00:00:00Z", "state": "closed"}' >"$state/pull-10.json"
+echo '{"merged_at": null, "state": "closed"}' >"$state/pull-11.json"
+echo '{"merged_at": null, "state": "open"}' >"$state/pull-12.json"
+cp "$state/pull-10.json" "$state/pull-13.json"
+scoped $'- [ ] a #10\n- [ ] b #11\n- [ ] c #12\n- [x] d #13\n- [ ] e other/r#13\n- [ ] f #99\n- [ ] g'
+check "items left behind by their pull requests fail" 1 "$(run)"
+check "an item of a merged PR not checked and the number of a PR closed unmerged are named" \
+  $'NG   #3 の範囲の中の、マージされた PR #10 の項目にチェックがない\nNG   #3 の範囲の中に、マージされずに閉じた PR #11 の番号が残っている' \
+  "$(grep '^NG' "$tmp/out")"
+scoped $'- [x] a #10\n- [x] b'
+check "an issue whose scope is all done is told open" "NG   #3 の範囲の中がすべて済んだのに開いている" "$(run >/dev/null; grep '^NG' "$tmp/out")"
+scoped $'- [ ] a #12\n- [x] b #10'
+check "a scope matched with its pull requests passes" 0 "$(run)"
+{ issue 1 app,theme:ops; issue 42 $'## 今の焦点\n\n1. #1\n\n## 範囲\n\n- [x] a'; issue 9 theme "$theme_body"$'\n\n## 範囲\n\n- [x] a'; } | jq -s . >"$state/issues.json"
+check "theme issues and the roadmap are not held to a scope" 0 "$(run)"
+{ issue 1 app,theme:ops; issue 42 ""; issue 7 app,theme:ops,canvas $'## 範囲\n\n- [x] a'; } | jq -s . >"$state/issues.json"
+check "a canvas is not held to a scope" 0 "$(run)"
+scoped $'- [ ] a #10'
+touch "$state/fail-pull-10"
+check "a pull request that cannot be read stops with 2" 2 "$(run)"
 
 reset
 touch "$state/fail-list"

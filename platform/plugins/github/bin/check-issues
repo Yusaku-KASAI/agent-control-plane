@@ -2,8 +2,10 @@
 # Checks the open issues of a repository against conventions' docs/reference/issues.md ("整っている
 # 状態"): every issue but the theme issues and the roadmap carries a label of where it changes and a
 # theme:<name> label, every theme issue has the sections of a theme ("テーマ"), in order, once each,
-# the roadmap's "## 今の焦点" names only open issues of this repository (a closed issue, a pull
-# request, or a number that is neither here is a drift), and no issue is blocked by a closed one.
+# every issue's scope is matched with its pull requests (no item of a merged or closed pull request
+# left unchecked or numbered, no issue open whose items are all checked), the roadmap's "## 今の焦点"
+# names only open issues of this repository (a closed issue, a pull request, or a number that is
+# neither here is a drift), and no issue is blocked by a closed one.
 # Only what needs no judgement is checked; the rest of the tidy state is left to the procedure that
 # tidies issues.
 #
@@ -22,7 +24,10 @@ owner=${repo%/*} name=${repo#*/}
 failed=0
 ok() { echo "ok   $*"; }
 ng() { echo "NG   $*"; failed=1; }
+tmp_err=$(mktemp)
+trap 'rm -f "$tmp_err"' EXIT
 unreadable() { echo "check-issues: cannot read $1" >&2; exit 2; }
+lib=$(dirname "${BASH_SOURCE[0]}")/../lib
 
 issues=$(gh issue list -R "$repo" --state open --limit 1000 --json number,title,labels,body) || unreadable "the open issues"
 # The $ are GraphQL variables, not the shell's.
@@ -57,7 +62,7 @@ fi
 # The sections of a theme issue, read as prctl reads a PR's body: a copy of those of conventions'
 # issues.md ("テーマ"), to be changed with them (the test compares them).
 theme_sections=(狙い 目指す姿 進め方)
-lacking=$(jq -r -L "$(dirname "${BASH_SOURCE[0]}")/../lib" --args 'include "markdown"; .[]
+lacking=$(jq -r -L "$lib" --args 'include "markdown"; .[]
   | select(any(.labels[]; .name == "theme"))
   | .number as $number
   | [(.body // "") | body_lines[] | .head | select(. != null)] as $heads
@@ -69,6 +74,37 @@ if [[ -n $lacking ]]; then
   while IFS= read -r line; do ng "$line"; done <<<"$lacking"
 else
   ok "every theme issue has the sections of a theme"
+fi
+
+# The scope against its PRs (conventions' issues.md: scope-items), as prctl reads it: an item not
+# checked whose PR was merged, or closed without being merged, is a matching left undone, and an
+# issue whose items are all checked is done but open. Theme issues, the roadmap and canvases have no
+# scope.
+scope_drifts=()
+while IFS=$'\t' read -r n items; do
+  [[ -n $n ]] || continue
+  if [[ $(jq 'length > 0 and all(.[]; .done)' <<<"$items") == true ]]; then
+    scope_drifts+=("#$n の範囲の中がすべて済んだのに開いている")
+    continue
+  fi
+  for m in $(jq -r '.[] | select((.done | not) and .pr != null) | .pr' <<<"$items" | sort -un); do
+    pr_state=$(gh api "repos/$repo/pulls/$m" --jq 'if .merged_at then "merged" else .state end' 2>"$tmp_err") || {
+      grep -qE 'HTTP (404|410)' "$tmp_err" && continue
+      unreadable "pull request #$m"
+    }
+    case $pr_state in
+      merged) scope_drifts+=("#$n の範囲の中の、マージされた PR #$m の項目にチェックがない") ;;
+      closed) scope_drifts+=("#$n の範囲の中に、マージされずに閉じた PR #$m の番号が残っている") ;;
+    esac
+  done
+done < <(jq -r -L "$lib" --arg roadmap "${roadmap_number:-0}" 'include "markdown"; .[]
+  | select((.number | tostring) != $roadmap and (any(.labels[]; .name == "theme" or .name == "canvas") | not))
+  | ((.body // "") | scope_items) as $items | select($items != null)
+  | "\(.number)\t\($items | tojson)"' <<<"$issues")
+if ((${#scope_drifts[@]})); then
+  for line in "${scope_drifts[@]}"; do ng "$line"; done
+else
+  ok "every open issue's scope is matched with its pull requests"
 fi
 
 # The roadmap's focus.
