@@ -22,7 +22,8 @@ github プラグインの `bin/prctl` が何をどう判定するか。サブコ
   文の中の閉じるキーワード（`Refs` は含めない）と後ろの Issue は、どの Issue でも断る。文は、上の行の始まりの部分、
   コードブロック、インラインのコードの外で、段落（空行かコードブロックまで）ごとに改行を空白にして一つにつないで読む。
   キーワードの前は行の始まりか英数字と `_` でない文字で、後ろに `:` と空白があってよく、Issue は `#N`、`owner/repo#N`、
-  `https://github.com/owner/repo/issues/N` のどれか（[ADR 0035](../../../../docs/adr/0035-body-check-reads-closing-keywords-in-sentences.md)）。
+  `https://github.com/owner/repo/issues/N` のどれか。Closes の行の Issue を URL で書くと、閉じるか触れる行と読まず、文と
+  して断る（Closes の行は `#N` か `owner/repo#N` で書く。[ADR 0035](../../../../docs/adr/0035-body-check-reads-closing-keywords-in-sentences.md)）。
 - `worktree pr` は、同じ形で読んだ依頼の Issue（重ねたものは一つに）とタイトルを出す。レビューする人が、本文の意図を
   読む前にそれだけを見るため。
 - 書き換えるとき、前の印から push があれば、その変更を説明するコメントを求め、なければ断る。push がなければコメントは

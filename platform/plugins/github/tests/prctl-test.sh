@@ -672,7 +672,7 @@ check "an issue of another repository is the same in any case" \
 check "a line in a code block names no issue" "$("$prctl" create t - <<<"$good"$'\n```\nRefs #2, #3\n```' 2>&1 || true)" "already has an open PR"
 # GitHub closes an issue after a keyword anywhere in the body, and the line of Closes alone closes one.
 check "a sentence closing another issue is refused" "$("$prctl" create t - <<<"$good"$'\nこれは fixes #2 の続き' 2>&1 || true)" \
-  'a sentence closes #2 by "fixes": do not use a closing keyword in a sentence; to close the issue, write it on the line of Closes'
+  'a sentence closes #2 by "fixes": do not use a closing keyword in a sentence; to close the issue, write Closes #N (or owner/repo#N) on a line of its own'
 for said in 'Fixed: owner/repo#2' 'resolves https://github.com/owner/repo/issues/2'; do
   check "a sentence closing an issue by \"$said\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"$said"' の続き' 2>&1 || true)" \
     "a sentence closes ${said#* } by \"${said%%[: ]*}\""
@@ -681,6 +681,10 @@ check "a sentence closing the request issue is refused" "$("$prctl" create t - <
   'a sentence closes #1 by "fixes"'
 check "a sentence closing the issue of Refs is refused" \
   "$("$prctl" create t - <<<"${good/Closes \#1/Refs \#1}"$'\nこれは fixes #1 の続き' 2>&1 || true)" 'a sentence closes #1 by "fixes"'
+# shellcheck disable=SC2001 # a line-wise edit of a sample body
+check "a line of Closes by a URL is refused as a sentence, telling the form of the line" \
+  "$("$prctl" create t - <<<"$(sed 's|^Closes #1$|Closes https://github.com/o/r/issues/1|' <<<"$good")" 2>&1 || true)" \
+  'write Closes #N (or owner/repo#N) on a line of its own'
 check "the rest of a line of Closes is a sentence" \
   "$("$prctl" create t - <<<"${good/Closes \#1/Closes \#1 と fixes https://github.com/owner/repo/issues/1}" 2>&1 || true)" 'a sentence closes https://github.com/owner/repo/issues/1 by "fixes"'
 check "a sentence across lines is read as one" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n#2 の続き' 2>&1 || true)" \

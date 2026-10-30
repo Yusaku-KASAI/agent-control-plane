@@ -769,7 +769,7 @@ body_check() {
         (reduce ($lines[] | if .code or (.line | test("^\\s*$")) then null else .line | sub($start; ""; "i") end) as $l
            ([""]; if $l == null then . + [""] else .[length - 1] += " " + $l end)
          | .[] | gsub("(?<q>`+).*?\\k<q>"; "") | capture($closing; "gi")
-         | "a sentence closes \(.issue) by \"\(.word)\": do not use a closing keyword in a sentence; to close the issue, write it on the line of Closes") ]
+         | "a sentence closes \(.issue) by \"\(.word)\": do not use a closing keyword in a sentence; to close the issue, write Closes #N (or owner/repo#N) on a line of its own") ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }
