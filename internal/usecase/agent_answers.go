@@ -31,7 +31,7 @@ type AgentAnswers struct {
 
 // heldAnswer is what AgentAnswers keeps for one session.
 type heldAnswer struct {
-	// text is the answer of the agent's own turn that ended while background work remained; gen
+	// text is the answer of an unrequested turn that ended while background work remained; gen
 	// numbers it, so that a release meant for an earlier answer does not post a later one.
 	text string
 	gen  int
@@ -156,7 +156,7 @@ func (h *heldAnswer) finished(e SessionEvent) answerDecision {
 		text := joinPosts(notice, h.text)
 		h.text = ""
 		return answerDecision{action: answerPost, text: text}
-	case !e.AgentStarted:
+	case !e.Unrequested:
 		// The reply to the request that joined the turn answers it.
 		h.text = ""
 		return answerDecision{}
@@ -181,14 +181,14 @@ func (h *heldAnswer) finished(e SessionEvent) answerDecision {
 	}
 }
 
-// errorNotice tells what to post for a turn the agent started by itself that ended on an error; it
-// is posted at once, even while background work remains. Once a stop at the usage limit is told,
-// the agent's own turns refused while the limit lasts, one for each background task that ends,
-// only show in the status message.
+// errorNotice tells what to post for an unrequested turn that ended on an error; it is posted at
+// once, even while background work remains. Once a stop at the usage limit is told, the unrequested
+// turns refused while the limit lasts, one for each background task that ends, only show in the
+// status message.
 func (h *heldAnswer) errorNotice(e SessionEvent) string {
 	told := h.limited
 	h.limited = e.Result.UsageLimited
-	if !e.AgentStarted || !e.Result.Error || (e.Result.UsageLimited && told) {
+	if !e.Unrequested || !e.Result.Error || (e.Result.UsageLimited && told) {
 		return ""
 	}
 	return TurnErrorText(e.Result.Output, e.Result.UsageLimited)

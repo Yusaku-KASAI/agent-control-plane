@@ -344,11 +344,11 @@ func (f *fakeObserver) of(kind usecase.SessionEventKind) []usecase.SessionEvent 
 	return out
 }
 
-// agentTurns are the finished turns no request waited for.
-func (f *fakeObserver) agentTurns() []usecase.TurnResult {
+// unrequestedTurns are the finished turns no request waited for.
+func (f *fakeObserver) unrequestedTurns() []usecase.TurnResult {
 	var out []usecase.TurnResult
 	for _, e := range f.of(usecase.SessionTurnFinished) {
-		if e.AgentStarted {
+		if e.Unrequested {
 			out = append(out, e.Result)
 		}
 	}
@@ -545,7 +545,7 @@ func TestDispatcher_NewSession(t *testing.T) {
 		t.Errorf("workspaces prepared = %d, want 1", e.workspaces.prepared)
 	}
 	started, finished := e.observer.of(usecase.SessionTurnStarted), e.observer.of(usecase.SessionTurnFinished)
-	if len(started) != 1 || !started[0].Status.Running || len(finished) != 1 || finished[0].AgentStarted {
+	if len(started) != 1 || !started[0].Status.Running || len(finished) != 1 || finished[0].Unrequested {
 		t.Errorf("observed started %+v, finished %+v", started, finished)
 	}
 }
@@ -657,7 +657,7 @@ func TestDispatcher_InjectedPromptTakenIntoNextTurn(t *testing.T) {
 	if !slices.Equal(steerTaken, uptakes{usecase.TakenIntoNewTurn}) {
 		t.Errorf("taken %v, want into a new turn: the agent left it for its next turn", steerTaken)
 	}
-	if got := e.observer.agentTurns(); len(got) != 0 {
+	if got := e.observer.unrequestedTurns(); len(got) != 0 {
 		t.Errorf("observer got agent turns %+v, want none", got)
 	}
 }
@@ -689,7 +689,7 @@ func TestDispatcher_AgentTurnBeforeSentPrompt(t *testing.T) {
 			if o := wait(t, second); o.err != nil || o.out.Output != "two" || o.out.Shared {
 				t.Fatalf("second = %+v, %v; want the answer of the turn that took the prompt in", o.out, o.err)
 			}
-			if got := e.observer.agentTurns(); len(got) != 0 {
+			if got := e.observer.unrequestedTurns(); len(got) != 0 {
 				t.Errorf("observer got agent turns %+v, want none", got)
 			}
 			if started := e.observer.of(usecase.SessionTurnStarted); len(started) != 2 || started[1].AgentStarted {
@@ -753,7 +753,7 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	steer := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "go version?", Inject: true, Taken: steerTaken.record})
 	eventually(t, func() bool { return len(p.sent()) == 2 })
 	p.finish("build passed")
-	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
+	eventually(t, func() bool { return len(e.observer.unrequestedTurns()) == 1 })
 
 	// Another turn of the agent's own before the prompt is taken in is hidden, as for any prompt.
 	p.startTurn()
@@ -764,7 +764,7 @@ func TestDispatcher_AgentTurnLeavesInjectedPrompt(t *testing.T) {
 	if o := wait(t, steer); o.err != nil || o.out.Output != "go1.27" {
 		t.Fatalf("injected = %+v, %v", o.out, o.err)
 	}
-	if got := e.observer.agentTurns(); len(got) != 1 {
+	if got := e.observer.unrequestedTurns(); len(got) != 1 {
 		t.Errorf("observer got agent turns %+v, want only the one the prompt was injected into", got)
 	}
 	if !slices.Equal(steerTaken, uptakes{usecase.TakenIntoNewTurn}) {
@@ -1631,8 +1631,8 @@ func TestDispatcher_AgentStartedTurn(t *testing.T) {
 		t.Fatalf("sent %q during the agent's own turn, want it queued", got)
 	}
 	p.finish("build passed")
-	eventually(t, func() bool { return len(e.observer.agentTurns()) == 1 })
-	if got := e.observer.agentTurns()[0].Output; got != "build passed" {
+	eventually(t, func() bool { return len(e.observer.unrequestedTurns()) == 1 })
+	if got := e.observer.unrequestedTurns()[0].Output; got != "build passed" {
 		t.Errorf("observer got %q", got)
 	}
 	if started := e.observer.of(usecase.SessionTurnStarted); len(started) < 2 || started[0].AgentStarted || !started[1].AgentStarted {
@@ -1890,9 +1890,9 @@ func TestDispatcher_RecordsTurnUsage(t *testing.T) {
 
 	got := e.usage.all()
 	want := []struct {
-		cost         float64
-		requesters   []domain.Requester
-		agentStarted bool
+		cost        float64
+		requesters  []domain.Requester
+		unrequested bool
 	}{
 		{0.5, []domain.Requester{alice}, false},
 		// A turn the agent starts by itself continues the previous requesters' work.
@@ -1904,9 +1904,9 @@ func TestDispatcher_RecordsTurnUsage(t *testing.T) {
 	}
 	for i, w := range want {
 		u := got[i]
-		if u.Usage == nil || u.Usage.CostUSD != w.cost || !slices.Equal(u.Requesters, w.requesters) || u.AgentStarted != w.agentStarted ||
+		if u.Usage == nil || u.Usage.CostUSD != w.cost || !slices.Equal(u.Requesters, w.requesters) || u.Unrequested != w.unrequested ||
 			u.Agent != dev.Name || u.Session != id || u.Conversation != thread || u.StartedAt.IsZero() || u.FinishedAt.Before(u.StartedAt) {
-			t.Errorf("turn %d = %+v, want cost %v by %v, agent started %v", i, u, w.cost, w.requesters, w.agentStarted)
+			t.Errorf("turn %d = %+v, want cost %v by %v, unrequested %v", i, u, w.cost, w.requesters, w.unrequested)
 		}
 	}
 	if s, _ := e.sessions.Find(context.Background(), id); s.ReportedUsage == nil || s.ReportedUsage.CostUSD != 2 {
@@ -2044,10 +2044,10 @@ func TestDispatcher_RecordsAgentTurnBeforeSentPrompt(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("recorded %d turns, want 3: %+v", len(got), got)
 	}
-	if own := got[1]; !own.AgentStarted || !slices.Equal(own.Requesters, []domain.Requester{bob}) || own.Usage == nil || own.Usage.CostUSD != 0.5 {
+	if own := got[1]; !own.Unrequested || !slices.Equal(own.Requesters, []domain.Requester{bob}) || own.Usage == nil || own.Usage.CostUSD != 0.5 {
 		t.Errorf("agent's own turn = %+v, want it credited to bob costing 0.5", own)
 	}
-	if req := got[2]; req.AgentStarted || req.StartedAt.Before(got[1].FinishedAt) {
+	if req := got[2]; req.Unrequested || req.StartedAt.Before(got[1].FinishedAt) {
 		t.Errorf("request's turn = %+v, want it to start after the agent's own turn finished at %v", req, got[1].FinishedAt)
 	}
 	// The observer is told what each turn spent, the hidden one included.
@@ -2101,7 +2101,7 @@ func TestDispatcher_RecordsAgentTurnInReplacedProcess(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("recorded %d turns, want 3: %+v", len(got), got)
 	}
-	if own := got[1]; !own.AgentStarted || !slices.Equal(own.Requesters, []domain.Requester{alice, bob}) {
+	if own := got[1]; !own.Unrequested || !slices.Equal(own.Requesters, []domain.Requester{alice, bob}) {
 		t.Errorf("agent's own turn = %+v, want it credited to alice and bob in order", own)
 	}
 }

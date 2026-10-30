@@ -44,7 +44,7 @@ func TestAgentAnswers(t *testing.T) {
 		return SessionEvent{Kind: SessionTurnStarted, AgentStarted: agent, Status: SessionStatus{Running: true}}
 	}
 	finished := func(output string, background int) SessionEvent {
-		return SessionEvent{Kind: SessionTurnFinished, AgentStarted: true,
+		return SessionEvent{Kind: SessionTurnFinished, Unrequested: true,
 			Result: TurnResult{Output: output}, Status: SessionStatus{BackgroundTasks: background}}
 	}
 	updated := func(background int) SessionEvent {
@@ -62,7 +62,7 @@ func TestAgentAnswers(t *testing.T) {
 			[]SessionEvent{started(false), started(true), finished(" \n", 0)},
 			nil},
 		{"a stopped turn's answer while tasks remain",
-			[]SessionEvent{started(false), started(true), {Kind: SessionTurnFinished, AgentStarted: true,
+			[]SessionEvent{started(false), started(true), {Kind: SessionTurnFinished, Unrequested: true,
 				Result: TurnResult{Output: "止めました", Interrupted: true}, Status: SessionStatus{BackgroundTasks: 1}}},
 			[]string{"止めました"}},
 		{"the next turn starts after the tasks run out",
@@ -91,12 +91,12 @@ func TestAgentAnswers(t *testing.T) {
 			[]SessionEvent{started(false), started(true), finished("A", 1), updated(0), started(true), finished("B", 1), updated(0)},
 			[]string{"B"}},
 		{"an error while background work remains",
-			[]SessionEvent{started(false), started(true), {Kind: SessionTurnFinished, AgentStarted: true,
+			[]SessionEvent{started(false), started(true), {Kind: SessionTurnFinished, Unrequested: true,
 				Result: TurnResult{Output: "API Error", Error: true}, Status: SessionStatus{BackgroundTasks: 1}}, updated(0)},
 			[]string{TurnErrorText("API Error", false)}},
 		{"the next turn stops at the usage limit",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
-				{Kind: SessionTurnFinished, AgentStarted: true, Result: TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
+				{Kind: SessionTurnFinished, Unrequested: true, Result: TurnResult{Output: "limit", Error: true, UsageLimited: true}}},
 			[]string{TurnErrorText("limit", true) + "\n\n---\n\nPR を作りました"}},
 		{"a turn with a request joined stops at the usage limit",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
@@ -104,7 +104,7 @@ func TestAgentAnswers(t *testing.T) {
 			[]string{"PR を作りました"}},
 		{"the next turn is stopped",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true),
-				{Kind: SessionTurnFinished, AgentStarted: true, Result: TurnResult{Interrupted: true}}, updated(0)},
+				{Kind: SessionTurnFinished, Unrequested: true, Result: TurnResult{Interrupted: true}}, updated(0)},
 			[]string{"PR を作りました"}},
 		{"the next turn ends without an answer while tasks remain",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), started(true), finished("", 1), updated(0)},
@@ -114,7 +114,7 @@ func TestAgentAnswers(t *testing.T) {
 			nil},
 		{"the next turn fails with the process",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true),
-				{Kind: SessionTurnFinished, AgentStarted: true, Result: TurnResult{Failed: true}}},
+				{Kind: SessionTurnFinished, Unrequested: true, Result: TurnResult{Failed: true}}},
 			[]string{"PR を作りました"}},
 		{"the next turn ends without an answer",
 			[]SessionEvent{started(false), started(true), finished("PR を作りました", 1), updated(0), started(true), finished("", 0)},
@@ -159,12 +159,12 @@ func TestAgentAnswersErrorNotice(t *testing.T) {
 		want  string
 	}{
 		{"a request stops at the limit", SessionEvent{Result: limit}, ""},
-		{"the agent's own turn at the same limit", SessionEvent{AgentStarted: true, Result: limit}, ""},
-		{"a turn passes", SessionEvent{AgentStarted: true, Result: TurnResult{Output: "ok"}}, ""},
-		{"the agent's own turn at the limit again", SessionEvent{AgentStarted: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
-		{"the agent's own turn on another error", SessionEvent{AgentStarted: true, Result: TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
-		{"the agent's own turn failing with the process", SessionEvent{AgentStarted: true, Result: TurnResult{Failed: true}}, ""},
-		{"the agent's own turn answering with blanks", SessionEvent{AgentStarted: true, Result: TurnResult{Output: " \n"}}, ""},
+		{"an unrequested turn at the same limit", SessionEvent{Unrequested: true, Result: limit}, ""},
+		{"a turn passes", SessionEvent{Unrequested: true, Result: TurnResult{Output: "ok"}}, ""},
+		{"an unrequested turn at the limit again", SessionEvent{Unrequested: true, Result: limit}, "> You've hit your session limit · resets 2pm"},
+		{"an unrequested turn on another error", SessionEvent{Unrequested: true, Result: TurnResult{Output: "API Error", Error: true}}, "エラーでターンが終わりました"},
+		{"an unrequested turn failing with the process", SessionEvent{Unrequested: true, Result: TurnResult{Failed: true}}, ""},
+		{"an unrequested turn answering with blanks", SessionEvent{Unrequested: true, Result: TurnResult{Output: " \n"}}, ""},
 	} {
 		text := h.errorNotice(st.event)
 		if (text != "") != (st.want != "") || !strings.Contains(text, st.want) {
@@ -177,7 +177,7 @@ func TestAgentAnswersFlush(t *testing.T) {
 	held := []SessionEvent{
 		{Kind: SessionTurnStarted},
 		{Kind: SessionTurnStarted, AgentStarted: true},
-		{Kind: SessionTurnFinished, AgentStarted: true, Result: TurnResult{Output: "最後の結果"}, Status: SessionStatus{BackgroundTasks: 1}},
+		{Kind: SessionTurnFinished, Unrequested: true, Result: TurnResult{Output: "最後の結果"}, Status: SessionStatus{BackgroundTasks: 1}},
 	}
 	for _, tc := range []struct {
 		name   string

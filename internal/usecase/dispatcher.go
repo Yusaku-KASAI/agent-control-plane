@@ -720,7 +720,7 @@ func (w *worker) finishTurn(res TurnResult) {
 		StartedAt:    w.startedAt,
 		FinishedAt:   w.session.LastUsedAt,
 		Requesters:   end.requesters,
-		AgentStarted: end.unrequested,
+		Unrequested:  end.unrequested,
 		Result:       res,
 		Usage:        turnUsage,
 	})
@@ -730,7 +730,7 @@ func (w *worker) finishTurn(res TurnResult) {
 		w.observe(SessionEvent{Kind: SessionTurnUpdated, Spent: spent})
 		return
 	}
-	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, AgentStarted: end.unrequested, Spent: spent})
+	w.observe(SessionEvent{Kind: SessionTurnFinished, Result: res, Unrequested: end.unrequested, Spent: spent})
 	for i, r := range end.answered {
 		if err != nil {
 			r.answer(w.reply(TurnResult{}, err))
@@ -847,7 +847,7 @@ func (w *worker) stopProcess(cause error) {
 	}
 	switch {
 	case wasRunning:
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, AgentStarted: unrequested})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Failed: true}, Unrequested: unrequested})
 	case hadBackground:
 		w.observe(SessionEvent{Kind: SessionUpdated})
 	}
@@ -872,7 +872,7 @@ func (w *worker) shutdown() {
 	if running {
 		unrequested := w.turns.endTurn()
 		w.markUsed()
-		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, AgentStarted: unrequested})
+		w.observe(SessionEvent{Kind: SessionTurnFinished, Result: TurnResult{Interrupted: true}, Unrequested: unrequested})
 	}
 	w.stopProcess(ErrShuttingDown)
 	for _, r := range append(append(w.turns.dropHeld(), w.turns.cancelQueued()...), arrivals...) {

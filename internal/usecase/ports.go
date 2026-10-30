@@ -176,11 +176,12 @@ type TurnRecord struct {
 	Conversation domain.Conversation
 	StartedAt    time.Time
 	FinishedAt   time.Time
-	// Requesters asked for the turn. For a turn the agent started by itself, they are those of the
-	// work it continues, as for co-authors, or in a new process those of the prompts it holds.
-	Requesters   []domain.Requester
-	AgentStarted bool
-	Result       TurnResult
+	// Requesters asked for the turn. For an unrequested turn, they are those of the work it
+	// continues, as for co-authors, or in a new process those of the prompts it holds.
+	Requesters []domain.Requester
+	// Unrequested is set when the turn ended with no request taken into it, however it started.
+	Unrequested bool
+	Result      TurnResult
 	// Usage is what the turn spent; nil when it cannot be told from the session's totals.
 	Usage *domain.Usage
 }
@@ -245,10 +246,12 @@ type SessionEvent struct {
 	Status SessionStatus
 	// Result is set for SessionTurnFinished.
 	Result TurnResult
-	// AgentStarted is set for SessionTurnStarted when the agent starts the turn by itself, and for
-	// SessionTurnFinished when no request waits for the turn's result, which then reaches people
-	// only through the observer. A prompt injected into the agent's own turn makes the two differ.
+	// AgentStarted is set for SessionTurnStarted when the agent starts the turn by itself.
 	AgentStarted bool
+	// Unrequested is set for SessionTurnFinished when no request waits for the turn's result, which
+	// then reaches people only through the observer. It differs from AgentStarted: the agent's own
+	// turn may take in an injected request, and a requests' turn may lose its requests first.
+	Unrequested bool
 	// Remark is set for SessionTurnUpdated when the agent said something to people as it works.
 	Remark string
 	// Spent is set when a turn ended with the agent's result: for SessionTurnFinished, and for the
