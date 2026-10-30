@@ -1,7 +1,7 @@
 # target-template
 
 ターゲットに共通の環境のファイルと、その説明。このリポジトリがひな形を兼ね、環境のファイルはルートにある。
-target-template の区切りは写す元の `target/` で、文書はその `template/docs/` にある（[ADR 0018](adr/0018-target-directory-as-the-copy-source.md)）。
+target-template の区切りは `target/` で、文書はその `template/docs/` にある（[ADR 0018](adr/0018-target-directory-as-the-copy-source.md)）。
 ターゲットが用意するものは[ターゲットの契約](../../../platform/docs/reference/target.md "在りか")にある。文書の分け方は conventions の
 [文書の体系](../../../platform/plugins/conventions/docs/architecture/documentation.md "在りか")にある。
 
