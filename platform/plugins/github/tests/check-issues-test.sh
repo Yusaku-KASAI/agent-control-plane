@@ -166,6 +166,8 @@ scoped $'- [x] a #10\n- [x] b'
 check "an issue whose scope is all done is told open" "NG   #3 の範囲の中がすべて済んだのに開いている" "$(run >/dev/null; grep '^NG' "$tmp/out")"
 scoped $'- [ ] a #12\n- [x] b #10'
 check "a scope matched with its pull requests passes" 0 "$(run)"
+{ issue 1 app,theme:ops; issue 42 $'## 今の焦点\n\n1. #1\n\n## 範囲\n\n- [x] a'; issue 9 theme "$theme_body"$'\n\n## 範囲\n\n- [x] a'; } | jq -s . >"$state/issues.json"
+check "theme issues and the roadmap are not held to a scope" 0 "$(run)"
 { issue 1 app,theme:ops; issue 42 ""; issue 7 app,theme:ops,canvas $'## 範囲\n\n- [x] a'; } | jq -s . >"$state/issues.json"
 check "a canvas is not held to a scope" 0 "$(run)"
 scoped $'- [ ] a #10'

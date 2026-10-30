@@ -894,6 +894,10 @@ with_request "Closes #7"
 scope $'- [ ] a #1\n- [ ] see x#5'
 check "a number right after a word is not the item's PR" "$(ready)" "- see x#5"
 set_pr "$c21"
+with_request "Closes #7"
+scope $'- [ ] 直す#1\n- [x] b'
+check "a number right after a Japanese word is the item's PR" "$(ready)" "https://example.invalid/pull/1"
+set_pr "$c21"
 with_request "Closes other/repo#7"
 check "an issue of another repository is not read" "$(ready)" "https://example.invalid/pull/1"
 set_pr "$c21"

@@ -21,5 +21,5 @@ def scope_items:
       ([$lines | to_entries[] | select(.key > $at and .value.head != null) | .key] | first // ($lines | length)) as $end
       | [$lines[$at + 1:$end][] | select(.code | not) | .line
          | capture("^\\s*[-*+] \\[(?<mark>[ xX])\\]\\s+(?<text>.*?)\\s*$")
-         | {done: (.mark != " "), text, pr: (.text | capture("(^|[^\\w/.-])#(?<n>[0-9]+)$").n // null)}]
+         | {done: (.mark != " "), text, pr: (.text | capture("(^|[^A-Za-z0-9_/.-])#(?<n>[0-9]+)$").n // null)}]
     end;
