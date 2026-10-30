@@ -293,8 +293,8 @@ superseded_by: [15]     # この ADR を置き換えた ADR（status: superseded
 ## 量の上限
 
 いつも読み込まれる文書は、空行と frontmatter を除いて、次の行数までにする（[ADR 0010](../adr/0010-always-read-selection-and-size.md)、
-[0053](../adr/0053-size-limits-cover-descriptions-not-the-documentation.md)）。どの作業でも始めに全体まで読む文書には当てない
-（[届け方の決まり：起点](delivery.md#starting-points "在りか")）。
+[0053](../adr/0053-size-limits-cover-descriptions-not-the-documentation.md)）。全体まで読ませる文書（どの作業でも、目的の手順に
+入ったとき、スキルを使うとき）には当てない（[届け方の決まり：起点](delivery.md#starting-points "在りか")）。
 
 | 文書 | 上限 |
 | --- | --- |

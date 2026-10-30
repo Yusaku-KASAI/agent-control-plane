@@ -1331,6 +1331,11 @@ for i in $(seq 56); do add CLAUDE.md "- $i"; done
 add CLAUDE.md "| [$(wide 120)](docs/README.md \"在りか\") |"
 passes "the parentheses of a link in a row of a table are not counted"
 fresh
+add CLAUDE.md '- 項目'
+add CLAUDE.md ''
+add CLAUDE.md "  | $(wide 200) |"
+passes "an indented row of a table is not held to the width"
+fresh
 for i in $(seq 54); do add CLAUDE.md "- $i"; done
 add CLAUDE.md '```'
 add CLAUDE.md "$(wide 131)"
