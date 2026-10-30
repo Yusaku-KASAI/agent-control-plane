@@ -28,7 +28,8 @@ github/
   中身は置かず、スキルと conventions に任せる。判断は次の ADR にある。
   - 本文は今のブランチの姿に合わせて書き換え、push ごとの変更はコメントにする（[ADR 0002](../../../docs/adr/0002-pr-body-tracks-head.md)）。
     本文は決まった節を持つ（[ADR 0012](../../../docs/adr/0012-pr-body-sections.md)）。まだマージされていない PR に重ねて作れる
-    （[ADR 0013](../../../docs/adr/0013-stacked-prs.md)）。
+    （[ADR 0013](../../../docs/adr/0013-stacked-prs.md)）。文の中の閉じるキーワードで Issue を閉じる本文を断る
+    （[ADR 0035](../../../docs/adr/0035-body-check-reads-closing-keywords-in-sentences.md)）。
   - 差分のレビューは head に追いつかせ、PR のレビューとして残す（[ADR 0005](../../../docs/adr/0005-self-review-tracks-head.md)）。
     細部の指摘への直しだけの範囲は、レビューせずに記録する（[ADR 0009](../../../docs/adr/0009-minor-fixes-recorded-without-review.md)）。
     結果と答えは決まった形の JSON で受ける（[ADR 0011](../../../docs/adr/0011-review-records-from-json.md)）。回し方はラベルで
