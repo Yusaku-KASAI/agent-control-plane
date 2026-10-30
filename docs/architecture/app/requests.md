@@ -37,7 +37,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 | `:eyes:` | エージェントが依頼を取り込み、取りかかった |
 | `:zap:` | 流し込んだ依頼を、エージェントが実行中のそのターンに取り込んだ。本文を `:zap:` で始めても、実行中のターンがなかったときと、エージェントが次のターンに回したときは `:eyes:` になる。依頼のターンが隠すターン（[依頼とターンの状態](#turn-names)）は、依頼のターンの一部として数える |
 | `:white_check_mark:` | 答えた。回答を返した、または同じターンのほかの依頼への回答がこの依頼の答えも兼ねている |
-| `:warning:` | エラー（使用上限を含む）や失敗で終わった |
+| `:warning:` | エラー（使用上限を含む）や失敗で終わった、返事をスレッドに投稿できなかった |
 | `:no_entry_sign:` | 依頼が停止で取り消された、ターンが中断された、再起動で中断された |
 
 スレッドに投稿されるもの：
@@ -189,6 +189,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     （`platform/plugins/slack/tests/markdown-cases.json`）の文を直し、直した文を確かめ、その文でプラグインの
     `check-markdown` が裸の URL とすぐ上が文字の行の表を知らせないことも確かめる（[ADR 0051](../../adr/app/0051-own-markdown-scan-checked-by-shared-cases.md)）。
   - 返事は Slack の markdown ブロックの上限（12,000 文字）に収まるよう、11,000 文字で切り詰めて省いたことを書き添える。
+  - Web API の呼び出しは 1 回 30 秒で区切り、答えが返らなかったものとサーバーのエラーを、間を置いて 6 回まで、レート
+    制限を `Retry-After` に従って再試行する。Slack が断ったものは再試行しない。区切ったあとに Slack が受け取っていれば、
+    同じメッセージが二度出ることがある（[ADR 0063](../../adr/app/0063-retry-slack-calls-and-tell-lost-replies.md)）。
   - 片付けで消したスレッドの最初のメッセージに `:broom:` を付け（`MarkCleaned`）、そのスレッドでセッションが作られた
     （`SessionCreated`）ら外す。もう付いている（`already_reacted`）、付いていない（`no_reaction`）は失敗にしない
     （[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。
@@ -250,6 +253,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   - 停止と再起動で取り消された依頼には、そう返す。
   - 失敗には、セッションが使用中、内容が空、それ以外の失敗
     （セッション ID とエラー）を書き分けて返す。
+  - 返事を投稿できなかったら、終わり方の合図のかわりに、投稿できなかったことともう一度依頼すれば回答を書き直すことを
+    短く返し、`:warning:` を付ける（[ADR 0063](../../adr/app/0063-retry-slack-calls-and-tell-lost-replies.md)）。
 - **関係**：スレッドからセッション ID を決め、なければ作るよう `Dispatcher` に頼む。
 - **当てはめた原則・パターン**：[層に分けた構成](../../../platform/plugins/principles/docs/reference/patterns.md#layered-architecture)：返事の手段は
   `ChatResponder` で、Slack 以外の受け方も同じユースケースを使える（[ADR 0016](../../adr/app/0016-chat-entry-point.md)）。

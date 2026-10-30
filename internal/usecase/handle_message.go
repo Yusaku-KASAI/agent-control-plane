@@ -98,25 +98,46 @@ func (u *HandleMessage) Execute(ctx context.Context, msg IncomingMessage) error 
 	// Each outcome replies first and then marks the message, so the mark follows its reply.
 	switch {
 	case errors.Is(err, ErrStopped):
-		return errors.Join(markErr, u.responder.Reply(ctx, msg, "停止したため、この依頼は取り消しました。"), u.responder.MarkStopped(ctx, msg))
+		return errors.Join(markErr, u.reply(ctx, msg, out.Session, "停止したため、この依頼は取り消しました。", u.responder.MarkStopped))
 	case errors.Is(err, ErrShuttingDown):
-		return errors.Join(markErr, u.responder.Reply(ctx, msg, ShutdownNotice), u.responder.MarkStopped(ctx, msg))
+		return errors.Join(markErr, u.reply(ctx, msg, out.Session, ShutdownNotice, u.responder.MarkStopped))
 	case err != nil:
-		return errors.Join(err, markErr, u.responder.Reply(ctx, msg, failureText(out.Session, err)), u.responder.MarkFailed(ctx, msg))
+		return errors.Join(err, markErr, u.reply(ctx, msg, out.Session, failureText(out.Session, err), u.responder.MarkFailed))
 	case out.Interrupted:
 		text := "依頼を中断しました。"
 		if strings.TrimSpace(out.Output) != "" {
 			text = out.Output
 		}
-		return errors.Join(markErr, u.responder.Reply(ctx, msg, text), u.responder.MarkStopped(ctx, msg))
+		return errors.Join(markErr, u.reply(ctx, msg, out.Session, text, u.responder.MarkStopped))
 	case out.Error && out.Shared:
 		return errors.Join(markErr, u.responder.MarkFailed(ctx, msg))
 	case out.Error:
-		return errors.Join(markErr, u.responder.Reply(ctx, msg, TurnErrorText(out.Output, out.UsageLimited)), u.responder.MarkFailed(ctx, msg))
+		return errors.Join(markErr, u.reply(ctx, msg, out.Session, TurnErrorText(out.Output, out.UsageLimited), u.responder.MarkFailed))
 	case out.Shared:
 		return errors.Join(markErr, u.responder.MarkAnswered(ctx, msg))
 	}
-	return errors.Join(markErr, u.responder.Reply(ctx, msg, out.Output), u.responder.MarkAnswered(ctx, msg))
+	return errors.Join(markErr, u.reply(ctx, msg, out.Session, out.Output, u.responder.MarkAnswered))
+}
+
+// reply posts text and then marks the message. A reply that cannot be posted, after the responder
+// gave up retrying, is told by a short notice, which may still get through where the reply did not
+// (a reply Slack refuses), and the message is marked failed instead, so that it does not look answered.
+func (u *HandleMessage) reply(ctx context.Context, msg IncomingMessage, s domain.Session, text string, mark func(context.Context, IncomingMessage) error) error {
+	err := u.responder.Reply(ctx, msg, text)
+	if err == nil {
+		return mark(ctx, msg)
+	}
+	return errors.Join(err, u.responder.Reply(ctx, msg, lostReplyText(s)), u.responder.MarkFailed(ctx, msg))
+}
+
+// lostReplyText tells that the reply could not be posted. The agent's answer stays in the session,
+// so asking again in the thread has it written again.
+func lostReplyText(s domain.Session) string {
+	text := "⚠️ 回答をこのスレッドに投稿できませんでした。もう一度依頼すると、エージェントが回答を書き直します。"
+	if s.ID != "" {
+		text += fmt.Sprintf("（セッション %s）", s.ID)
+	}
+	return text
 }
 
 // TurnErrorText tells that the agent ended a turn on an error, quoting the agent's message, which

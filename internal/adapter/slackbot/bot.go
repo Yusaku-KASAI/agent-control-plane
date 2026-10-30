@@ -34,6 +34,7 @@ type Bot struct {
 	webMu    sync.Mutex
 	webToken string
 	webAPI   *slack.Client
+	webRetry webRetry
 	// markTimeout bounds putting the cleaned mark, which the cleaner does holding the session's lock,
 	// and taking it off.
 	markTimeout time.Duration
@@ -67,6 +68,7 @@ func New(agent domain.AgentName, appToken string, botTokens TokenSource, turns u
 		mentions: newSeenMessages(time.Hour),
 		requests: newRequestMessages(requestMemory),
 
+		webRetry:    defaultWebRetry,
 		markTimeout: 30 * time.Second,
 	}
 	b.post = b.postAsync
@@ -334,7 +336,7 @@ func (b *Bot) web(ctx context.Context) (*slack.Client, error) {
 	b.webMu.Lock()
 	defer b.webMu.Unlock()
 	if token != b.webToken {
-		b.webToken, b.webAPI = token, slack.New(token, slack.OptionAppLevelToken(b.appToken))
+		b.webToken, b.webAPI = token, newWebClient(token, b.appToken, b.webRetry)
 	}
 	return b.webAPI, nil
 }

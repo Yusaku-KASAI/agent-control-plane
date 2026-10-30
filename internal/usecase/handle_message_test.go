@@ -47,6 +47,8 @@ func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return 
 type fakeResponder struct {
 	marks   []string
 	replies []string
+	// refuse makes a reply with this text fail, after recording it.
+	refuse string
 }
 
 func (f *fakeResponder) mark(name string) error {
@@ -80,6 +82,10 @@ func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) er
 
 func (f *fakeResponder) Reply(_ context.Context, _ usecase.IncomingMessage, text string) error {
 	f.replies = append(f.replies, text)
+	if text == f.refuse {
+		f.marks = append(f.marks, "reply refused")
+		return errors.New("refused")
+	}
 	return f.mark("reply")
 }
 
@@ -298,5 +304,23 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 	}
 	if err := h.ForceCleanSession(context.Background(), "dev", alice, c, "2.0"); err != nil || !slices.Equal(cleanup.forced, []string{"2.0"}) {
 		t.Errorf("ForceCleanSession() = %v, forced %v; want the notice", err, cleanup.forced)
+	}
+}
+
+// A reply that cannot be posted is told by a short notice, and the message is marked failed instead
+// of answered, so that it does not look answered (#348).
+func TestHandleMessage_TellsAReplyNotPosted(t *testing.T) {
+	session := domain.Session{ID: "s-1"}
+	turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done", Session: session}}
+	responder := &fakeResponder{refuse: "done"}
+
+	if err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message); err == nil {
+		t.Error("Execute() = nil, want the reply's error for the log")
+	}
+	if !slices.Equal(responder.marks, []string{"received", "reply refused", "reply", "failed"}) {
+		t.Errorf("marks = %q, want the notice and the failed mark after the refused reply", responder.marks)
+	}
+	if len(responder.replies) != 2 || !strings.Contains(responder.replies[1], "投稿できませんでした") || !strings.Contains(responder.replies[1], "s-1") {
+		t.Errorf("replies = %q, want the notice naming the session after the reply", responder.replies)
 	}
 }
