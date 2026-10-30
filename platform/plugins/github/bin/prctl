@@ -934,7 +934,7 @@ closing_message() {
     [(.[] | .sha[0:12] as $c | .message | capture($closing; "gi") | "commit \($c) closes \(.issue) by \"\(.word)\""),
      ($title | capture($closing; "gi") | "the title closes \(.issue) by \"\(.word)\"")] | join("; ")' <<<"$commits")
   [[ -n $found ]] || return 0
-  jq -r --arg found "$found" '"Merging PR #\(.number) would close issues by a keyword in a commit message or in the title, which the merge commit carries, as GitHub closes them once the commit reaches the default branch: \($found). Rewrite them without the keyword (an issue is closed by the line of Closes in the body alone): a commit message by git commit --amend for the last commit, git rebase for earlier ones, then push with --force-with-lease; the title by prctl update --title (see the github skill)."' <<<"$1"
+  jq -r --arg found "$found" '"Merging PR #\(.number) would close issues by a keyword in a commit message or in the title, which the merge commit carries, as GitHub closes them once the commit reaches the default branch: \($found). Rewrite them without the keyword (an issue is closed by the line of Closes in the body alone): a commit message by git commit --amend for the last commit, by git rebase -i with sed as the editors for earlier ones, then push with --force-with-lease; the title by prctl update --title (see the github skill)."' <<<"$1"
 }
 
 # pending_message <pr> <head> [<ci> [<review list>]]: what the PR still needs for this head, or nothing. Of the CI,

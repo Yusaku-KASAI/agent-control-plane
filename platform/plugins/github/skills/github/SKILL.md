@@ -55,8 +55,10 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   （merge commit のメッセージに入る）でも閉じるキーワードの後ろに Issue を書かない（[書き方：コミットメッセージ](../../../conventions/docs/reference/writing.md#commits)）。
   タイトルは `prctl create` と `prctl update` が断り、PR のコミットと今のタイトルは push のあとの hook、ターンの終わりの hook、
   `prctl ready` が知らせる（[prctl の判定：コミットメッセージとタイトル](../../docs/reference/prctl.md#commits "在りか")）。知らされたら、
-  メッセージを書き直して（最後のコミットは `git commit --amend`、前のものは `git rebase`）`--force-with-lease` で push し、
-  タイトルは `prctl update --title` で直す。
+  メッセージを書き直して `--force-with-lease` で push し、タイトルは `prctl update --title` で直す。最後のコミットは
+  `git commit --amend` で、前のものはエディタを開かない `git rebase -i` で書き直す（`GIT_SEQUENCE_EDITOR="sed -i 's/^pick <コミット>/reword <コミット>/'"`
+  と `GIT_EDITOR="sed -i 's/fixes #7/#7 の続き/'"` を付けて `git rebase -i --rebase-merges origin/<向き先>`。`<コミット>` は
+  知らせの短いコミットと同じ長さで書く）。
 
 ## 差分のレビュー
 
