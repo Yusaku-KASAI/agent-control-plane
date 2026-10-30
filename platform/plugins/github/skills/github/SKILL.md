@@ -51,6 +51,11 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
   Issue を閉じるので、文の中では閉じるキーワードを使わない（閉じるなら `Closes` の行に書く）。それらの行が二つ以上の
   Issue を挙げるか、文の中の閉じるキーワードの後ろに Issue があれば、`prctl create` と `prctl update` が断る
   （読み方は [prctl の判定：本文](../../docs/reference/prctl.md#body "在りか")）。
+- GitHub は既定のブランチに入ったコミットのメッセージからも Issue を閉じるので、コミットメッセージと PR のタイトル
+  （merge commit のメッセージに入る）でも閉じるキーワードの後ろに Issue を書かない（[書き方：コミットメッセージ](../../../conventions/docs/reference/writing.md#commits)）。
+  タイトルは `prctl create` と `prctl update` が断り、PR のコミットは push のあとの hook、ターンの終わりの hook、
+  `prctl ready` が知らせる（[prctl の判定：コミットメッセージとタイトル](../../docs/reference/prctl.md#commits "在りか")）。知らされたら、
+  メッセージを書き直して（最後のコミットは `git commit --amend`、前のものは `git rebase`）`--force-with-lease` で push する。
 
 ## 差分のレビュー
 

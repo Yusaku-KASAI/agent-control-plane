@@ -14,6 +14,7 @@ mkdir -p "$state" "$tmp/bin"
 echo '[]' >"$state/reviews.json"
 echo '[]' >"$state/comments.json"
 echo '{"check_runs": []}' >"$state/checks.json"
+echo '[]' >"$state/commits.json"
 cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -35,6 +36,12 @@ case $args in
     [[ ! -f $dir/fail-prs-${head//\//-} ]] || exit 1
     [[ -f $dir/nopr-${head//\//-} ]] && exit 0
     [[ -f $dir/pr.json ]] && cat "$dir/pr.json"; exit 0
+    ;;
+  # The PR's commits, as GitHub lists them (commits.json); fail-commits when they cannot be read.
+  # Before the PRs an issue's items name, whose pattern takes this path too.
+  *" repos/{owner}/{repo}/pulls/"[0-9]*"/commits "*)
+    [[ ! -f $dir/fail-commits ]] || exit 1
+    jq -r "${@: -1}" "$dir/commits.json"
     ;;
   *" --jq .node_id "*) echo N1 ;;
   *" api graphql "*) printf '%s\n' "$*" >"$dir/last-graphql"; echo "https://example.invalid/pull/1" ;;
@@ -688,6 +695,12 @@ check "a line of Closes by a URL is refused as a sentence, telling the form of t
   'write Closes #N (or owner/repo#N) on a line of its own'
 check "the rest of a line of Closes is a sentence" \
   "$("$prctl" create t - <<<"${good/Closes \#1/Closes \#1 と fixes https://github.com/owner/repo/issues/1}" 2>&1 || true)" 'a sentence closes https://github.com/owner/repo/issues/1 by "fixes"'
+# The merge commit carries the title, so a title closes an issue by a keyword as a commit would.
+check "a title closing an issue is refused" "$("$prctl" create 'fixes #2 の直し' - <<<"$good" 2>&1 || true)" \
+  'the title closes #2 by "fixes", which the merge commit would close'
+check "a new title closing an issue is refused" "$("$prctl" update --title 'Resolves: #2' - <<<"$good" 2>&1 || true)" \
+  'the title closes #2 by "Resolves"'
+check "a title touching an issue goes on" "$("$prctl" create '#2 の続き' - <<<"$good" 2>&1 || true)" "already has an open PR"
 check "a sentence across lines is read as one" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n#2 の続き' 2>&1 || true)" \
   'a sentence closes #2 by "fixes"'
 # shellcheck disable=SC2016 # backquotes of Markdown
@@ -1058,5 +1071,20 @@ check "the label is made first" "$(cat "$state/labels-made")" "name=念入りの
 check "a labelled PR is reviewed the thorough way" "$("$prctl" mode)" "reviewed the thorough way"
 "$prctl" mode normal >/dev/null
 check "prctl mode normal takes the label off" "$(jq -c '[.labels[].name]' "$state/pr.json")" '[]'
+
+# GitHub closes an issue by a keyword in a commit message of the PR once the commit reaches the
+# default branch, whatever the body says.
+jq -n --arg c "$n2" '[{sha: $c, commit: {message: "直す\n\nこれは Fixes #7 の続きで、closes\nowner/repo#8 も"}},
+  {sha: "0123456789abcdef", commit: {message: "#7 の続き（prefix #9、Refs #9）"}}]' >"$state/commits.json"
+out=$(stop_hook)
+check "a commit message closing an issue holds the turn" "$out" "commit ${n2:0:12} closes #7 by \\\"Fixes\\\"; commit ${n2:0:12} closes owner/repo#8 by \\\"closes\\\""
+check "a commit message closing an issue says how to reword it" "$out" "git commit --amend"
+lacks "a commit message touching an issue is let be" "$out" "closes #7" "0123456789ab"
+check "post-tool-use tells of a commit message closing an issue" "$(post)" "would close issues by a keyword in a commit message"
+touch "$state/fail-commits"
+check "commits that cannot be read leave the hook silent" "[$(stop_hook)]" "[]"
+rm -f "$state/fail-commits"
+echo '[]' >"$state/commits.json"
+check "commit messages closing nothing let the PR end" "[$(stop_hook)]" "[]"
 
 ((failures == 0)) || { echo "$failures failed"; exit 1; }

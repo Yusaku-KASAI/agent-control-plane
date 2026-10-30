@@ -16,12 +16,14 @@ usage:
   prctl create [--base <branch>] <title> <body-file|->
                                       open a PR for the pushed branch, into the default branch or, to
                                       stack it on another PR, into that PR's branch; refused unless the
-                                      body has the sections of writing.md (PR), in order, none empty
+                                      body has the sections of writing.md (PR), in order, none empty,
+                                      or the title closes an issue by a keyword (as the merge commit
+                                      would)
   prctl update [--title <title>] <body-file|-> [<comment-file>]
                                       replace the body (and title) and comment on what was pushed
                                       since the last update; the comment is required when there is
-                                      such a push, and not posted when there is none; the body as for
-                                      create
+                                      such a push, and not posted when there is none; the body and
+                                      the title as for create
   prctl ci [--wait]                   the CI of the PR head; with --wait, until it has finished: "timeout"
                                       first after an hour, "none (...)" when no check run appears. One
                                       wait per branch, for the head of origin/<branch> here, also when it
@@ -773,9 +775,18 @@ body_check() {
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
 }
 
+# title_check <title>: die if the title closes an issue by a keyword: the merge commit carries the
+# title in its message, and GitHub closes the issue once it reaches the default branch.
+title_check() {
+  local found
+  found=$(jq -rn --arg t "$1" --arg closing "$closing_re" '[$t | capture($closing; "gi") | "\(.issue) by \"\(.word)\""] | join("; ")')
+  [[ -z $found ]] || die "the title closes $found, which the merge commit would close: do not use a closing keyword in the title; to close the issue, write Closes #N on a line of the body"
+}
+
 cmd_create() {
   local base=$1 title=$2 body b head
   body=$(read_input "$3")
+  title_check "$title"
   body_check "$body"
   b=$(branch) || die "not on a branch"
   head=$(pushed_head "$b")
@@ -803,7 +814,7 @@ cmd_ready() {
   [[ $(jq -r .headRefOid <<<"$pr") == "$head" ]] || die "GitHub has not caught up with the push yet; retry"
   [[ $(jq -r '.isDraft // false' <<<"$pr") == true ]] || { echo "PR #$(jq -r .number <<<"$pr") is not a draft"; return; }
   list=$(review_list "$pr") || die "could not read the reviews of the PR"
-  msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews of the PR"
+  msg=$(pending_message "$pr" "$head" "" "$list") || die "could not read the reviews or the commits of the PR"
   [[ -z $msg ]] || die "not ready: ${msg% }"
   # Before the reviews are told settled, which starts their count afresh.
   msg=$(scope_message "$pr") || die "could not read the request issue of the PR, or a PR its scope names"
@@ -862,6 +873,7 @@ draft_state() {
 cmd_update() {
   local title=$1 body comment="" b pr num head desc
   body=$(read_input "$2")
+  [[ -z $title ]] || title_check "$title"
   body_check "$body"
   [[ -z ${3:-} ]] || comment=$(read_input "$3")
   b=$(branch) || die "not on a branch"
@@ -905,9 +917,24 @@ ci_message() {
   jq -r --arg head "${2:0:12}" --arg failed "$3" '"CI failed on \($head) of PR #\(.number): \($failed). Read the failed logs (gh run view <run ID> --log-failed; the run ID is in the URL), find the cause, and fix it if the PR can; a failure the PR cannot fix (such as the protection check unable to read the settings) is reported to the requester instead (see the github skill)."' <<<"$1"
 }
 
+# closing_message <pr>: the commits of the PR whose message closes an issue by a keyword, or nothing.
+# GitHub closes such an issue once the commit reaches the default branch, whatever the body says, so
+# an issue is closed by the line of Closes in the body alone (writing.md: commit messages). The whole
+# message is read, code or not, as a commit message has no markup; the commits are the PR's as GitHub
+# lists them, without those of its base.
+closing_message() {
+  local commits found
+  commits=$(gh api "repos/{owner}/{repo}/pulls/$(jq -r .number <<<"$1")/commits" --paginate \
+    --jq '.[] | {sha, message: .commit.message} | tojson') || return 1
+  found=$(jq -rs --arg closing "$closing_re" '[.[] | .sha[0:12] as $c | .message | capture($closing; "gi")
+    | "commit \($c) closes \(.issue) by \"\(.word)\""] | join("; ")' <<<"$commits")
+  [[ -n $found ]] || return 0
+  jq -r --arg found "$found" '"Merging PR #\(.number) would close issues by a keyword in a commit message, as GitHub closes them once the commit reaches the default branch: \($found). Rewrite those messages without the keyword (git commit --amend for the last commit, git rebase for earlier ones; an issue is closed by the line of Closes in the body alone) and push them with --force-with-lease (see the github skill)."' <<<"$1"
+}
+
 # pending_message <pr> <head> [<ci> [<review list>]]: what the PR still needs for this head, or nothing. Of the CI,
-# only a failure needs something: nobody waits for a running one. Fails when the reviews cannot be
-# read, so that a hook says nothing rather than something wrong.
+# only a failure needs something: nobody waits for a running one. Fails when the reviews or the
+# commits cannot be read, so that a hook says nothing rather than something wrong.
 pending_message() {
   local pr=$1 head=$2 state=${3:-} list rev minor="" msg failed msgs=()
   [[ $(described "$pr") == "$head" ]] || msgs+=("$(body_message "$pr" "$head")")
@@ -918,6 +945,8 @@ pending_message() {
     msgs+=("$(review_message "$pr" "$head" "$minor")")
   fi
   msg=$(stack_message "$pr" "$head")
+  [[ -z $msg ]] || msgs+=("$msg")
+  msg=$(closing_message "$pr") || return 1
   [[ -z $msg ]] || msgs+=("$msg")
   if [[ ${state%%$'\n'*} == failed ]]; then
     failed=$(tail -n +2 <<<"$state" | jq -Rrs 'split("\n") | map(select(. != "")) | join("; ")')
