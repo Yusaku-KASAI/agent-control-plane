@@ -8,7 +8,7 @@ control-plane がコンテナに渡すものは、逆向きの契約として[�
 ## イメージ
 
 control-plane は、ターゲットのイメージ（ターゲットの devcontainer のイメージ）でエージェントの
-コンテナを作る。イメージは次を満たす（[target-template の ADR 0009](../../../template/docs/adr/0009-containers-run-as-non-root.md)）。
+コンテナを作る。イメージは次を満たす（[target-template の ADR 0009](../../../target/template/docs/adr/0009-containers-run-as-non-root.md)）。
 
 - イメージのユーザーは root でない `node` で、ホームは `/home/node`。作業ディレクトリ（リポジトリのマウント先）に書き込める。
   管理者の権限（sudo）を持たない。
@@ -38,9 +38,9 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 ## プラグイン、ロール、Claude Code の設定
 
 - 使うプラグインは `.claude/settings.json` の `extraKnownMarketplaces` と `enabledPlugins` で宣言する
-  （[target-template の ADR 0004](../../../template/docs/adr/0004-plugins-declared-in-settings.md)）。
+  （[target-template の ADR 0004](../../../target/template/docs/adr/0004-plugins-declared-in-settings.md)）。
   - `directory` のマーケットプレイスの場所は、devcontainer でのパス `/workspace/<リポジトリ>/...` で書く。platform は
-    `/workspace/agent-platform` で宣言する（[target-template の ADR 0007](../../../template/docs/adr/0007-marketplaces-beside-the-target.md)）。
+    `/workspace/agent-platform` で宣言する（[target-template の ADR 0007](../../../target/template/docs/adr/0007-marketplaces-beside-the-target.md)）。
   - 宣言したマーケットプレイスがエージェントにどう見え、どの宣言が効くかは[ハーネスの契約](harness.md#work-area "在りか")にある。
   - `.claude/settings.json` とマーケットプレイスの `.claude-plugin/marketplace.json` は、通常のファイルで、1 MiB 以内に
     する。シンボリックリンクは、相対パスで、リポジトリ（隣のマーケットプレイスならその中）の中に留まるものだけにする。control-plane
@@ -48,7 +48,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
     （[control-plane の ADR 0044](../../../docs/adr/app/0044-read-workspace-files-confined.md "在りか")）。
 - 有効にするプラグインが前提にするプラグインも有効にする（何を前提にするかは、各プラグインの文書にある）。
 - `.claude/settings.json` の `language` に、CLAUDE.md の言語の節で決めた回答の言語を書く。
-- ロールは Claude Code のカスタムエージェントとして定義する（[target-template の ADR 0003](../../../template/docs/adr/0003-roles-as-claude-code-agents.md)）。
+- ロールは Claude Code のカスタムエージェントとして定義する（[target-template の ADR 0003](../../../target/template/docs/adr/0003-roles-as-claude-code-agents.md)）。
   ターゲットの `.claude/agents/<ロール名>.md` に platform のロールと同名の定義を置くと、そちらが優先される。
   定義が見つからないロールで起動すると、エージェントはエラーで終了する。
 - ロールの定義には振る舞いだけを書き、ターゲット固有の事実や規約は CLAUDE.md に書く。定義の形は conventions の
@@ -67,7 +67,7 @@ control-plane は、ターゲットのイメージ（ターゲットの devconta
 ## devcontainer と control-plane
 
 ターゲットの devcontainer は、エージェントのコンテナと同じく、control-plane の Docker ネットワークに入らず、
-control-plane の API を指さない（[target-template の ADR 0013](../../../template/docs/adr/0013-devcontainer-off-the-control-plane-network.md)）。依頼は Slack と、
+control-plane の API を指さない（[target-template の ADR 0013](../../../target/template/docs/adr/0013-devcontainer-off-the-control-plane-network.md)）。依頼は Slack と、
 ホストの `acp run` から行う。
 
 - devcontainer には API のトークン（`ACP_API_TOKEN`）を渡さない。渡すと、そのコンテナから GitHub の認証情報を持つ
@@ -80,7 +80,7 @@ control-plane の API を指さない（[target-template の ADR 0013](../../../
 ターゲットのリポジトリは、既定のブランチをルールセットで守る（[app ADR 0025](../../../docs/adr/app/0025-pr-review-as-the-last-line.md)、
 [app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。エージェントの認証情報だけでは既定の
 ブランチに入れないことを、ロールと control-plane は前提にする。守りはリポジトリの管理者が用意する（手順は
-target-template の[既定のブランチの守りの用意](../../../template/docs/guides/protection.md "在りか")）。
+target-template の[既定のブランチの守りの用意](../../../target/template/docs/guides/protection.md "在りか")）。
 
 - 既定のブランチは消せず、force push できない。
 - 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に
@@ -93,7 +93,7 @@ target-template の[既定のブランチの守りの用意](../../../template/d
 
 ## CLAUDE.md
 
-エージェントに常に読み込まれる入口（[target-template の ADR 0012](../../../template/docs/adr/0012-claude-md-sections.md)）。次の節をこの順に持ち、どの節も
+エージェントに常に読み込まれる入口（[target-template の ADR 0012](../../../target/template/docs/adr/0012-claude-md-sections.md)）。次の節をこの順に持ち、どの節も
 短くして、詳しいことは文書へのリンクにする。当てはまらない節は「なし」と書いて残す。
 
 | 節 | 書くこと |

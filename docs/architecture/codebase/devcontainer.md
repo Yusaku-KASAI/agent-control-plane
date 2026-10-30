@@ -1,9 +1,9 @@
 # このリポジトリの devcontainer と検査
 
-target-template の環境のファイルのうち、このリポジトリが埋める部分（[ファイルの分類](../../../template/docs/overview.md#files)）。
+target-template の環境のファイルのうち、このリポジトリが埋める部分（[ファイルの分類](../../../target/template/docs/overview.md#files)）。
 Dockerfile の Go のツールチェーンと検査のステージ、Makefile の検査のルール、CI のジョブ、devcontainer.json と
 `.vscode/settings.json` の Go の部分を扱う。共通の部分の構成は target-template の
-[devcontainer](../../../template/docs/architecture/devcontainer.md "在りか") と [CI](../../../template/docs/architecture/ci.md) にあり、
+[devcontainer](../../../target/template/docs/architecture/devcontainer.md "在りか") と [CI](../../../target/template/docs/architecture/ci.md) にあり、
 ルール（make のルール）という言葉も CI の文書のとおりに使う。
 
 ## 構成
@@ -29,7 +29,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 - 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-docs` を足したもの。`check-docs` は、
   このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。手元では
   `make check-docs` で、CI ではターゲットと同じく conventions の複合アクションで回す。CI では `@main` ではなく
-  リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。`check-protection`
+  リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../target/template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。`check-protection`
   ジョブも同じく、リポジトリの中のパスで github の複合アクションを呼ぶ（中のパスで呼ぶため、チェックアウトしてから）。CI には、
   control-plane のイメージがビルドできることを確かめる `check-image` を足す。
 

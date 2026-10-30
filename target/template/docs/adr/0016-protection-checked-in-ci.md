@@ -10,7 +10,7 @@ amends: [14, 15]
 ## Context
 
 既定のブランチの守り（PR 経由、人の承認、push での取り消し、必須のチェック、バイパスの範囲）は、リポジトリの設定と
-CODEOWNERS で作る（[app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)、ADR 0015）。守りが外れても
+CODEOWNERS で作る（[app ADR 0027](../../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)、ADR 0015）。守りが外れても
 何も失敗しない。CODEOWNERS の誤った行は黙って無視され、持ち主のユーザー名が変わったり書き込みの権限を失ったり
 すると、ファイルを変えなくても外れる。ADR 0015 では、それを見つけるのは人が手順の確かめ方を回したときだけだった。
 
