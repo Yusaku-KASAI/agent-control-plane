@@ -111,10 +111,11 @@ GitHub のブランチと PR
   作業領域を作るときにフックに埋める。リモートにある ref を fast-forward でなく上書きする push で、リモートの
   先頭が、push する手元の ref（`HEAD` ならそれが指すブランチ。ブランチやタグの名前でなければ見る reflog はない）の
   reflog のどの項目からもたどれなければ、注意を出して止める。`ACP_PUSH_OVERWRITE=1` を付けた push は止めない。
-  push するコミット（リモートの先頭から先か、新しいブランチならどのリモートのブランチにもないもの）のメッセージと
-  足した行に、コンテナが持つ認証情報の値（`GH_CONFIG_DIR` の `hosts.yml` の `oauth_token` と、`SLACK_BOT_TOKEN_FILE` の
-  中身のうち 20 文字以上のもの）か、よく知られた形の値（GitHub と Slack のトークン、Anthropic と AWS の鍵、秘密鍵）が
-  あれば、値を出さずに止める。消した行は見ない。止めずに通す変数は持たない。
+  push するコミットのうちどのリモートのブランチにもないもののメッセージと足した行に、コンテナが持つ認証情報の値
+  （`GH_CONFIG_DIR` の `hosts.yml` の `oauth_token` と、`SLACK_BOT_TOKEN_FILE` の中身のうち 20 文字以上のもの。シェルの
+  変数にだけ持つ）か、よく知られた形の値（GitHub と Slack のトークン、Anthropic と AWS の鍵、秘密鍵）があれば、値を
+  出さずに止める。消した行は見ない。止めずに通す変数は持たない。`hosts.yml` の形は、`internal/adapter/docker` の
+  書く側の試験が持つ。
   そのあと、push する ref（消すものは除く）がどれも今の HEAD の
   コミットで、`git status` にコミットしていない変更も ignore されていない追跡していない
   ファイルもないときにだけ、作業ツリーの一番上で `make check` を回す。どれかを満たさないか、検査が落ちれば push を

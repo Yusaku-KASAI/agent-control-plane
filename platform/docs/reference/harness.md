@@ -192,7 +192,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
 作業領域の `.git/hooks/pre-push` が、push の前に[ターゲットの検査](target.md#checks)（`make check`）を
 回し、落ちれば push を断る。push する ref（消すものは除く）が今の HEAD でないときと、作業ツリーにコミットしていない
 変更か ignore されていない追跡していないファイルがあるときも、検査を回さずに断る。取り込んだことのないリモートの
-先頭を上書きする push は、注意を出して止める（下）。
+先頭を上書きする push と、認証情報を含むコミットの push も止める（下）。
 
 - push は検査の時間だけかかるので、Bash の `timeout` をそれに合わせる。検査が Bash の `timeout` の上限（10 分）より
   長いターゲットでは、push を `run_in_background` で始め、終わりの知らせで結果を確かめる。`--dry-run` の push でも
@@ -211,7 +211,7 @@ GitHub App や Slack アプリはエージェントごとに任意なので、�
   注意を出して止める（ほかの書き手のコミットが消えるため）。ふつうは取り込んでから（`git pull --rebase`）push し
   直す。上書きすると決めたときだけ、`ACP_PUSH_OVERWRITE=1` と `--force` を付けて push し直す
   （`ACP_PUSH_OVERWRITE=1 git push --force ...`）。この変数は検査（`make check`）には渡らない。
-- push するコミットのメッセージか足した行に、コンテナが持つ認証情報の値（GitHub App と Slack の Bot のトークン）か、
+- push するコミット（どのリモートのブランチにもないもの）のメッセージか足した行に、コンテナが持つ認証情報の値（GitHub App と Slack の Bot のトークン）か、
   よく知られた形の認証情報（GitHub と Slack のトークン、Anthropic と AWS の鍵、秘密鍵）があれば、フックが `acp pre-push:`
   で始まる文を出して止める（値は出さない）。値を消してコミットを作り直し（履歴から消す）、push し直す。止めずに通す
   変数はない。認証情報でないものが当たったら、依頼者に伝える（依頼者は作業領域の外から push できる）。

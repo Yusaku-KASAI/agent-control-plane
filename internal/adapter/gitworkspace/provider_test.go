@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -520,12 +521,22 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 	ghForm := "gh" + "s_" + strings.Repeat("A1", 18)
 	slackForm := "xo" + "xb-1234567890-" + strings.Repeat("a", 24)
 	keyForm := "-----BEGIN " + "RSA PRIVATE KEY-----"
+	// GitHub App installation tokens may come in a longer form, with . and _ in it.
+	ghLongForm := "gh" + "s_" + strings.Repeat("Ab3", 5) + "_" + strings.Repeat("x9", 20) + "." + strings.Repeat("Q", 10)
+	otherForms := []string{
+		"github" + "_pat_" + strings.Repeat("Z9_", 25),
+		"xa" + "pp-1-" + strings.Repeat("B", 20),
+		"sk" + "-ant-" + strings.Repeat("k", 30),
+		"AK" + "IA" + strings.Repeat("Q7", 8),
+	}
 	appToken := strings.Repeat("v", 30) + "app-token"
 	botToken := strings.Repeat("w", 30) + "bot-token"
 	tests := []struct {
 		name string
 		// prepare runs in the workspace before the push, the branch already pushed once.
-		prepare  func(t *testing.T, ws string)
+		prepare func(t *testing.T, ws string)
+		// ref is the branch pushed to, when not the one pushed before.
+		ref      string
 		wantPush bool
 	}{
 		{name: "an ordinary commit", wantPush: true, prepare: func(t *testing.T, ws string) {
@@ -554,6 +565,20 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 			git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "-m", "use "+ghForm)
 			commit(t, ws, "b.txt", "b")
 		}},
+		{name: "a token in the longer form of a GitHub App's", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghLongForm)
+		}},
+		{name: "a token pushed to a new branch", ref: branch + "-other", prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "token: "+ghForm)
+		}},
+		{name: "a form already on the default branch, merged in", wantPush: true, prepare: func(t *testing.T, ws string) {
+			other := filepath.Join(t.TempDir(), "other")
+			git(t, "", "clone", "--quiet", gitOutput(t, ws, "remote", "get-url", "origin"), other)
+			commit(t, other, "example.txt", "the example key "+otherForms[3])
+			git(t, other, "push", "--quiet", "origin", "HEAD:main")
+			git(t, ws, "fetch", "--quiet", "origin")
+			git(t, ws, "-c", "user.name=test", "-c", "user.email=test@example.com", "merge", "--quiet", "--no-edit", "origin/main")
+		}},
 		{name: "removing a token pushed before", wantPush: true, prepare: func(t *testing.T, ws string) {
 			commit(t, ws, "conf.txt", "token: "+ghForm)
 			git(t, ws, "push", "--quiet", "--no-verify", "origin", "HEAD:refs/heads/"+branch)
@@ -562,6 +587,16 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 		{name: "a short value of a credential file is no credential", wantPush: true, prepare: func(t *testing.T, ws string) {
 			commit(t, ws, "notes.txt", "short")
 		}},
+	}
+	for i, v := range otherForms {
+		tests = append(tests, struct {
+			name     string
+			prepare  func(t *testing.T, ws string)
+			ref      string
+			wantPush bool
+		}{name: "a well-known form " + strconv.Itoa(i), prepare: func(t *testing.T, ws string) {
+			commit(t, ws, "conf.txt", "value: "+v)
+		}})
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -584,7 +619,11 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 			tt.prepare(t, ws.Path)
 
 			before := gitOutput(t, f.remote, "for-each-ref")
-			cmd := exec.Command("git", "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
+			ref := branch
+			if tt.ref != "" {
+				ref = tt.ref
+			}
+			cmd := exec.Command("git", "push", "--quiet", "origin", "HEAD:refs/heads/"+ref)
 			cmd.Dir = ws.Path
 			cmd.Env = append(slices.DeleteFunc(os.Environ(), func(e string) bool {
 				return strings.HasPrefix(e, "GH_CONFIG_DIR=") || strings.HasPrefix(e, "SLACK_BOT_TOKEN_FILE=")
@@ -602,7 +641,7 @@ func TestProvider_Prepare_StopsPushingCredentials(t *testing.T) {
 			if !strings.Contains(string(out), "acp pre-push:") || !strings.Contains(string(out), "認証情報") {
 				t.Errorf("the push was refused, but not for a credential: %s", out)
 			}
-			for _, v := range []string{ghForm, slackForm, appToken, botToken} {
+			for _, v := range append([]string{ghForm, ghLongForm, slackForm, appToken, botToken}, otherForms...) {
 				if strings.Contains(string(out), v) {
 					t.Errorf("the refusal shows the value it found: %s", out)
 				}
