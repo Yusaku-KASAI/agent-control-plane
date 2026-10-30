@@ -44,7 +44,7 @@ type requestTurns struct {
 func (t *requestTurns) running() bool { return t.turn != noTurn }
 
 // unrequested tells that no request waits for the running turn's result, which then reaches people
-// only through the observer (SessionEvent.AgentStarted). It differs from the turn axis: the agent's
+// only through the observer (SessionEvent.Unrequested). It differs from the turn axis: the agent's
 // own turn may have taken in an injected request, and a requests' turn may have lost its requests to
 // a stop before it ended.
 func (t *requestTurns) unrequested() bool { return len(t.current) == 0 }

@@ -34,7 +34,7 @@ type line struct {
 	Session      string        `json:"session"`
 	Conversation *conversation `json:"conversation,omitempty"`
 	Requesters   []requester   `json:"requesters"`
-	AgentStarted bool          `json:"agent_started"`
+	Unrequested  bool          `json:"unrequested"`
 	Outcome      string        `json:"outcome"`
 	// Usage is null when the turn's usage cannot be told.
 	Usage         *usage `json:"usage"`
@@ -96,7 +96,7 @@ func newLine(u usecase.TurnRecord) line {
 		Agent:         string(u.Agent),
 		Session:       string(u.Session),
 		Requesters:    make([]requester, 0, len(u.Requesters)),
-		AgentStarted:  u.AgentStarted,
+		Unrequested:   u.Unrequested,
 		Outcome:       outcome(u.Result),
 		ReportedTotal: fromUsage(u.Result.Usage),
 	}

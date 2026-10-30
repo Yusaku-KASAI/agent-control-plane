@@ -34,7 +34,7 @@ func TestLog_Record(t *testing.T) {
 	})
 	log.Record(context.Background(), usecase.TurnRecord{
 		Agent: "repo-dev", Session: "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-		StartedAt: started, FinishedAt: started.Add(time.Minute), AgentStarted: true,
+		StartedAt: started, FinishedAt: started.Add(time.Minute), Unrequested: true,
 		Result: usecase.TurnResult{Error: true, UsageLimited: true, Usage: total},
 	})
 
@@ -48,11 +48,11 @@ func TestLog_Record(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
 	want := []string{
 		`{"finished_at":"2026-10-18T01:01:00Z","started_at":"2026-10-18T01:00:00Z","agent":"repo-dev","session":"0f8fad5b-d9cb-469f-a165-70867728950e",` +
-			`"conversation":{"platform":"slack","workspace":"T1","channel":"C1","thread":"1.0"},"requesters":[{"platform":"slack","id":"U_ALICE"}],"agent_started":false,"outcome":"succeeded",` +
+			`"conversation":{"platform":"slack","workspace":"T1","channel":"C1","thread":"1.0"},"requesters":[{"platform":"slack","id":"U_ALICE"}],"unrequested":false,"outcome":"succeeded",` +
 			`"usage":{"cost_usd":0.5,"models":{"claude-opus":{"input_tokens":4,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":0.5}}},` +
 			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}},"context_tokens":123456}`,
 		`{"finished_at":"2026-10-18T01:01:00Z","started_at":"2026-10-18T01:00:00Z","agent":"repo-dev","session":"6ba7b810-9dad-41d1-80b4-00c04fd430c8",` +
-			`"requesters":[],"agent_started":true,"outcome":"usage_limited","usage":null,` +
+			`"requesters":[],"unrequested":true,"outcome":"usage_limited","usage":null,` +
 			`"reported_total":{"cost_usd":1.5,"models":{"claude-opus":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cost_usd":1.5}}},"context_tokens":null}`,
 	}
 	if len(lines) != len(want) {

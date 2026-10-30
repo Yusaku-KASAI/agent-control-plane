@@ -177,7 +177,7 @@
     | `agent`、`session` | エージェント名とセッション ID |
     | `conversation` | セッションが始まったスレッド（記録の `conversation` と同じ形）。スレッドで始まっていなければ書かない |
     | `requesters` | 依頼者（`platform` と `id`）。依頼の入ったターンは、取り込まれた依頼の依頼者。依頼の入らなかったターン（[ターンの呼び方](requests.md#turn-names "在りか")）は、続けている依頼の依頼者。新しいプロセスで、まだどのターンにも依頼が入っていないときは、送った依頼の依頼者。`platform` と `id` の順に並べる |
-    | `agent_started` | 依頼の入らなかったターンか（[ターンの呼び方](requests.md#turn-names "在りか")）。記録はプロセスが終えたターンごとなので、依頼のターンが隠すターン（[ADR 0031](../../adr/app/0031-agent-turns-before-sent-prompts.md)）も `true` の行になる |
+    | `unrequested` | 依頼の入らなかったターンか（[ターンの呼び方](requests.md#turn-names "在りか")）。記録はプロセスが終えたターンごとなので、依頼のターンが隠すターン（[ADR 0031](../../adr/app/0031-agent-turns-before-sent-prompts.md)）も `true` の行になる。`unrequested` のない行（[ADR 0060](../../adr/app/0060-unrequested-turns-named-apart.md) の前に書いた行）は、同じ中身を `agent_started` に持つ |
     | `outcome` | `succeeded`、`error`、`usage_limited`（使用上限で断られた）、`interrupted`（止めた） |
     | `usage` | ターンの使用量（`cost_usd` と、モデルごとの `input_tokens`、`output_tokens`、`cache_read_input_tokens`、`cache_creation_input_tokens`、`cost_usd`）。分からなければ `null` |
     | `reported_total` | Claude Code が報告したセッションの合計（`usage` と同じ形） |

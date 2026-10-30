@@ -263,7 +263,7 @@ func githubIssuer(apps map[domain.AgentName]config.GitHubApp) (*githubapp.Issuer
 }
 
 // sessionObserver hands session events to the Slack bot of the session's agent. Sessions
-// started elsewhere have no thread to follow, so the agent's own turns are only logged.
+// started elsewhere have no thread to follow, so their unrequested turns are only logged.
 type sessionObserver struct {
 	log  *slog.Logger
 	mu   sync.Mutex
@@ -284,8 +284,8 @@ func (o *sessionObserver) Observe(s domain.Session, e usecase.SessionEvent) {
 		bot.Observe(s, e)
 		return
 	}
-	if e.Kind == usecase.SessionTurnFinished && e.AgentStarted {
-		o.log.Info("agent turn without a conversation", "agent", s.AgentName, "session", s.ID,
+	if e.Kind == usecase.SessionTurnFinished && e.Unrequested {
+		o.log.Info("unrequested turn without a conversation", "agent", s.AgentName, "session", s.ID,
 			"output", e.Result.Output, "error", e.Result.Error, "usage_limited", e.Result.UsageLimited)
 	}
 }

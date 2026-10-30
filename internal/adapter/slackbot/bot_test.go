@@ -236,7 +236,7 @@ func TestObservePostsNotices(t *testing.T) {
 	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
 	b, posts := recordingBot(t)
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionAbandoned, Status: usecase.SessionStatus{BackgroundTasks: 1}})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Output: "回答"}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Result: usecase.TurnResult{Output: "回答"}})
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionNotice, Notice: "知らせ"})
 	if got := posts(); !slices.Equal(got, []string{"知らせ"}) {
 		t.Errorf("posted %q, want only the notice", got)
@@ -286,21 +286,21 @@ func TestObserveSumsSpent(t *testing.T) {
 
 	// The agent's own turn takes the message over and adds to it.
 	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Spent: spent(0.25, 2)})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Spent: spent(0.25, 2)})
 	if want := (spentView{reported: true, costUSD: 1, sessionCostUSD: 2, sessionKnown: true}); m.view.spent != want {
 		t.Errorf("spent after the agent's own turn = %+v, want %+v", m.view.spent, want)
 	}
 
 	// A turn without the agent's result leaves the request's cost unknown.
 	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Result: usecase.TurnResult{Failed: true}})
 	if want := (spentView{reported: true, costUSD: 1, unknown: true, sessionCostUSD: 2, sessionKnown: true}); m.view.spent != want {
 		t.Errorf("spent after a failed turn = %+v, want %+v", m.view.spent, want)
 	}
 
 	// A turn whose session's total is not known keeps the last one shown.
 	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Spent: &usecase.Spent{}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Spent: &usecase.Spent{}})
 	if want := (spentView{reported: true, costUSD: 1, unknown: true, sessionCostUSD: 2, sessionKnown: true}); m.view.spent != want {
 		t.Errorf("spent after a turn without a known total = %+v, want %+v", m.view.spent, want)
 	}
@@ -358,14 +358,14 @@ func TestObserveKeepsContextSize(t *testing.T) {
 
 	// A turn that made no request keeps the size last known.
 	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{Failed: true}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Result: usecase.TurnResult{Failed: true}})
 	if m.view.contextTokens != 410_000 {
 		t.Errorf("contextTokens after a turn without a request = %d, want the last known", m.view.contextTokens)
 	}
 
 	// A compacted context goes under the threshold again.
 	b.statusFor(s, usecase.SessionEvent{Kind: usecase.SessionTurnStarted, AgentStarted: true})
-	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, AgentStarted: true, Result: usecase.TurnResult{ContextTokens: 30_000}})
+	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionTurnFinished, Unrequested: true, Result: usecase.TurnResult{ContextTokens: 30_000}})
 	if m.view.contextTokens != 30_000 {
 		t.Errorf("contextTokens after compacting = %d, want the latest", m.view.contextTokens)
 	}
