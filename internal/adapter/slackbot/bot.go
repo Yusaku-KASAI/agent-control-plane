@@ -316,13 +316,15 @@ func (b *Bot) MarkStopped(ctx context.Context, msg usecase.IncomingMessage) erro
 	return b.react(ctx, msg, stopReaction)
 }
 
+// react puts the reaction on the request's message. Slack's answer that it is already there, which a
+// retry after a call Slack took but did not answer in time gets, leaves it as wanted.
 func (b *Bot) react(ctx context.Context, msg usecase.IncomingMessage, name string) error {
 	ctx = context.WithoutCancel(ctx)
 	api, err := b.web(ctx)
 	if err != nil {
 		return err
 	}
-	return api.AddReactionContext(ctx, name, slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID})
+	return ignoreSlackError(api.AddReactionContext(ctx, name, slack.ItemRef{Channel: msg.Conversation.Channel, Timestamp: msg.MessageID}), "already_reacted")
 }
 
 // web returns a Web API client for the current bot token.
@@ -334,7 +336,7 @@ func (b *Bot) web(ctx context.Context) (*slack.Client, error) {
 	b.webMu.Lock()
 	defer b.webMu.Unlock()
 	if token != b.webToken {
-		b.webToken, b.webAPI = token, slack.New(token, slack.OptionAppLevelToken(b.appToken))
+		b.webToken, b.webAPI = token, newWebClient(token, b.appToken, defaultWebRetry)
 	}
 	return b.webAPI, nil
 }

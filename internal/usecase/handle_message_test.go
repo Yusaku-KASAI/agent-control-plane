@@ -47,6 +47,8 @@ func (a allowList) Allows(_ domain.AgentName, r domain.Requester) bool { return 
 type fakeResponder struct {
 	marks   []string
 	replies []string
+	// refuse makes a reply with this text fail, after recording it.
+	refuse string
 }
 
 func (f *fakeResponder) mark(name string) error {
@@ -80,6 +82,10 @@ func (f *fakeResponder) MarkStopped(context.Context, usecase.IncomingMessage) er
 
 func (f *fakeResponder) Reply(_ context.Context, _ usecase.IncomingMessage, text string) error {
 	f.replies = append(f.replies, text)
+	if text == f.refuse {
+		f.marks = append(f.marks, "reply refused")
+		return errors.New("refused")
+	}
 	return f.mark("reply")
 }
 
@@ -298,5 +304,51 @@ func TestHandleMessage_CleanSession(t *testing.T) {
 	}
 	if err := h.ForceCleanSession(context.Background(), "dev", alice, c, "2.0"); err != nil || !slices.Equal(cleanup.forced, []string{"2.0"}) {
 		t.Errorf("ForceCleanSession() = %v, forced %v; want the notice", err, cleanup.forced)
+	}
+}
+
+// An answer that cannot be posted is told by a short notice, and the message is marked failed instead
+// of its end, so that it does not look answered (#348). So is the answer of an interrupted turn.
+func TestHandleMessage_TellsAnAnswerNotPosted(t *testing.T) {
+	session := domain.Session{ID: "s-1"}
+	for _, tt := range []struct {
+		name        string
+		interrupted bool
+		refuse      string
+		marks       []string
+		replies     int
+	}{
+		{"answer posted", false, "", []string{"received", "reply", "answered"}, 1},
+		{"answer not posted", false, "done", []string{"received", "reply refused", "reply", "failed"}, 2},
+		{"interrupted answer posted", true, "", []string{"received", "reply", "stopped"}, 1},
+		{"interrupted answer not posted", true, "done", []string{"received", "reply refused", "reply", "failed"}, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			turns := &fakeTurns{out: usecase.RunAgentOutput{Output: "done", Interrupted: tt.interrupted, Session: session}}
+			responder := &fakeResponder{refuse: tt.refuse}
+
+			err := usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message)
+			if (err != nil) != (tt.refuse != "") {
+				t.Errorf("Execute() = %v, want the reply's error for the log only when it was refused", err)
+			}
+			if !slices.Equal(responder.marks, tt.marks) || len(responder.replies) != tt.replies {
+				t.Fatalf("marks = %q, replies = %q; want %q and %d replies", responder.marks, responder.replies, tt.marks, tt.replies)
+			}
+			if tt.replies == 2 && (!strings.Contains(responder.replies[1], "投稿できませんでした") || !strings.Contains(responder.replies[1], "s-1")) {
+				t.Errorf("notice = %q, want it to tell the answer was not posted and name the session", responder.replies[1])
+			}
+		})
+	}
+}
+
+// A notice that is no answer, such as that the request was stopped, has no answer to write again: one
+// that cannot be posted keeps its mark and adds no notice.
+func TestHandleMessage_KeepsTheMarkOfANoticeNotPosted(t *testing.T) {
+	turns := &fakeTurns{err: usecase.ErrStopped}
+	responder := &fakeResponder{refuse: "停止したため、この依頼は取り消しました。"}
+
+	_ = usecase.NewHandleMessage(turns, nil, allowList{alice: true}, responder).Execute(context.Background(), message)
+	if !slices.Equal(responder.marks, []string{"received", "reply refused", "stopped"}) {
+		t.Errorf("marks = %q, want the stopped mark after the refused notice", responder.marks)
 	}
 }
