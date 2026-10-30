@@ -659,17 +659,9 @@ cmd_answer() {
 # PR). What is written under them is free.
 readonly body_sections=(何を変えるか 検討した別の形 当てはめた決まり どう確かめたか 確かめていないこと)
 
-# body_lines: the lines of a body (the input, as one string), each with whether it is in a code block
-# (a fence line is) and the name of the section it heads, if it is a heading outside one.
-# shellcheck disable=SC2016 # a jq expression
-readonly body_lines='def body_lines: [foreach (split("\n")[]) as $l ({fence: false};
-    if $l | test("^\\s*(```|~~~)") then .fence = (.fence | not) | .line = $l | .head = null | .code = true
-    else .line = $l | .code = .fence | .head = (if .fence | not then ($l | capture("^## (?<n>.*?)\\s*$").n // null) else null end) end;
-    {line, head, code})];'
-
 # request_issues <body>: the issues the lines of Closes or Refs of the body name, each once, one to a line.
 request_issues() {
-  jq -Rrs --arg start "$issue_start_re" "$body_lines"' [body_lines[] | select(.code | not) | .line | capture($start; "i").issue]
+  jq -Rrs -L "$forms" --arg start "$issue_start_re" 'include "markdown"; [body_lines[] | select(.code | not) | .line | capture($start; "i").issue]
     | reduce .[] as $i ([]; if any(.[]; ascii_downcase == ($i | ascii_downcase)) then . else . + [$i] end) | .[]' <<<"$1"
 }
 
@@ -680,7 +672,7 @@ request_issues() {
 # body loses when it is written, do not count as what is written under a section.
 body_check() {
   local errors
-  errors=$(jq -Rrs --arg line "$issue_line_re" --arg start "$issue_start_re" --args "$body_lines"'
+  errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --args 'include "markdown";
     body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
