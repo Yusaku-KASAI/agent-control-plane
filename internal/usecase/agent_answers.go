@@ -139,8 +139,11 @@ func decideAnswer(h *heldAnswer, e SessionEvent) answerDecision {
 	case e.Kind == SessionUpdated && !e.Status.Running && e.Status.BackgroundTasks == 0:
 		return answerDecision{action: answerRelease}
 	case e.Kind == SessionAbandoned:
-		// The notice replaces the held answer, which spoke of work that is now cut short.
+		// The held answer spoke of work that is now cut short.
 		h.text = ""
+		if e.RequestsTold {
+			return answerDecision{}
+		}
 		return answerDecision{action: answerPost, text: abandonedNotice(e.Status)}
 	}
 	return answerDecision{}

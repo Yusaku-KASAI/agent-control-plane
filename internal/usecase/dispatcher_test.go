@@ -460,6 +460,13 @@ type env struct {
 
 func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 	t.Helper()
+	return newEnvObserving(t, opts, nil)
+}
+
+// newEnvObserving makes the dispatcher report to observer, which wraps e.observer; nil reports to
+// e.observer itself.
+func newEnvObserving(t *testing.T, opts usecase.DispatcherOptions, observer usecase.SessionObserver) env {
+	t.Helper()
 	if opts.IdleTimeout == 0 {
 		opts.IdleTimeout = time.Hour
 	}
@@ -479,7 +486,10 @@ func newEnv(t *testing.T, opts usecase.DispatcherOptions) env {
 	}
 	e.workspaces.sessions = e.sessions
 	e.sessions.onRemove = func(id domain.SessionID) { delete(e.workspaces.made, id) }
-	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, e.observer, e.usage, opts)
+	if observer == nil {
+		observer = e.observer
+	}
+	e.d = usecase.NewDispatcher(fakeRegistry{dev.Name: dev, pm.Name: pm}, e.sessions, e.workspaces, e.issuer, people, e.runner, observer, e.usage, opts)
 	t.Cleanup(e.d.Close)
 	return e
 }
@@ -1712,8 +1722,8 @@ func TestDispatcher_ShutdownInterruptsRunningTurn(t *testing.T) {
 	if len(finished) != 1 || !finished[0].Result.Interrupted {
 		t.Errorf("finished = %+v, want one interrupted turn", finished)
 	}
-	if got := e.observer.of(usecase.SessionAbandoned); len(got) != 0 {
-		t.Errorf("abandoned = %+v; the requester is told instead", got)
+	if got := e.observer.of(usecase.SessionAbandoned); len(got) != 1 || !got[0].RequestsTold {
+		t.Errorf("abandoned = %+v, want one told to the requester", got)
 	}
 }
 
@@ -1730,11 +1740,42 @@ func TestDispatcher_ShutdownAbandonsUnattendedWork(t *testing.T) {
 	e.d.Close()
 
 	abandoned := e.observer.of(usecase.SessionAbandoned)
-	if len(abandoned) != 1 || abandoned[0].Status.BackgroundTasks != 1 {
-		t.Errorf("abandoned = %+v, want one with the background task", abandoned)
+	if len(abandoned) != 1 || abandoned[0].Status.BackgroundTasks != 1 || abandoned[0].RequestsTold {
+		t.Errorf("abandoned = %+v, want one with the background task and no request told", abandoned)
 	}
 	if e.observer.flushedAt != len(e.observer.events) {
 		t.Errorf("flushed after %d of %d events, want after the last", e.observer.flushedAt, len(e.observer.events))
+	}
+}
+
+// The answer the agent held back while it waited speaks of work that the shutdown cuts short, whether
+// or not a request waits to be told of it.
+func TestDispatcher_ShutdownDropsHeldAnswerWhileRequestWaits(t *testing.T) {
+	observer := &fakeObserver{flushedAt: -1}
+	e := newEnvObserving(t, usecase.DispatcherOptions{}, usecase.NewAgentAnswers(observer))
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "start a build"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	p.background("build", "test")
+	p.finish("started")
+	wait(t, first)
+	p.background("test")
+	p.startTurn()
+	p.finish("待ちます")
+	eventually(t, func() bool { return len(observer.of(usecase.SessionTurnFinished)) == 2 })
+	p.startTurn()
+	eventually(t, func() bool { return len(observer.of(usecase.SessionTurnStarted)) == 3 })
+	// Received or not, the request waits: it is not sent into the agent's own turn.
+	queued := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "next"})
+	time.Sleep(20 * time.Millisecond)
+
+	e.d.Close()
+
+	if o := wait(t, queued); !errors.Is(o.err, usecase.ErrShuttingDown) {
+		t.Fatalf("queued error = %v, want ErrShuttingDown", o.err)
+	}
+	if got := observer.of(usecase.SessionNotice); len(got) != 0 {
+		t.Errorf("notices = %+v; the waiting request is told instead", got)
 	}
 }
 

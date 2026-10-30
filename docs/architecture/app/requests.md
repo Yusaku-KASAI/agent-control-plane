@@ -147,7 +147,7 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
 | 依頼の入らなかったターンが、回答を出さずに処理を残して終わった | 持ち続ける |
 | エージェントのターンが始まった | 持ち続ける（15 秒の待ちは止める） |
 | 15 秒の待ちの間に control-plane が止まる | 待たずに投稿する（`Flush`。`Dispatcher.Close` が最後の出来事のあとに呼ぶ） |
-| 中断の知らせを出す | 捨てる |
+| control-plane が止まるときに、ターンかバックグラウンドの処理を止めたか、起動したときに、前の実行が残した処理を止めた | 捨てる。待っている依頼がなければ、中断の知らせを投稿する（待っている依頼には、その返事が中断を伝える）（[ADR 0061](../../adr/app/0061-drop-held-answers-on-shutdown.md)） |
 
 依頼の入らなかったターンがエラー（使用上限を含む）で終わったら、バックグラウンドの処理が残っていても、エラーの知らせを
 すぐ投稿する（[ADR 0029](../../adr/app/0029-turns-ending-on-errors.md)）。使用上限の知らせは、上限ではない結果で
@@ -318,7 +318,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     止まり始めたあとに届いた依頼は受け付けない。
   - 起動するとき：依頼を受け付ける前に、前の実行が残したエージェントのコンテナを runner に消させ
     （[コンテナ](containers.md#runner "在りか")の `RemoveLeftovers`）、そのセッションのスレッドに、再起動で止めたことを知らせる。
-- **関係**：知らせは `SessionAbandoned` として [`AgentAnswers`](#agent-answers) に伝わり、そこで決めた文面が `sessionObserver` に伝わる。
+- **関係**：処理を止めたことは、待っている依頼があったか（`RequestsTold`）を添えて `SessionAbandoned` として [`AgentAnswers`](#agent-answers) に
+  伝わり、そこで決めた文面が `sessionObserver` に伝わる。
 
 <a id="observer"></a>
 

@@ -865,9 +865,8 @@ func (w *worker) shutdown() {
 		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
 	}
 	arrivals := w.d.takeArrivals(w)
-	waiting := w.turns.waiting() || len(arrivals) > 0
-	if !waiting && (running || len(w.turns.backgroundTasks()) > 0) {
-		w.observe(SessionEvent{Kind: SessionAbandoned})
+	if running || len(w.turns.backgroundTasks()) > 0 {
+		w.observe(SessionEvent{Kind: SessionAbandoned, RequestsTold: w.turns.waiting() || len(arrivals) > 0})
 	}
 	if running {
 		unrequested := w.turns.endTurn()
