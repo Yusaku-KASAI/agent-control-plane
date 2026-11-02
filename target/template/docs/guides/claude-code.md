@@ -2,7 +2,7 @@
 
 devcontainer の中で、人が Claude Code を対話で使うときの手順。設定の構成は
 [architecture/claude-code.md](../architecture/claude-code.md "在りか") に、ターゲットが有効にした platform のプラグインを
-入れる準備は platform の[対話で使う準備](../../../platform/docs/guides/use-interactively.md "在りか")にある。
+入れる準備は platform の[対話で使う準備](../../../../platform/docs/guides/use-interactively.md "在りか")にある。
 
 <a id="permissions"></a>
 

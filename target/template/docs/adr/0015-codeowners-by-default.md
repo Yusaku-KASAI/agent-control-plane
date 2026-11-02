@@ -8,7 +8,7 @@ amended_by: [16]
 
 ## Context
 
-既定のブランチへのマージに数える承認は、人に限る（[app ADR 0027](../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。
+既定のブランチへのマージに数える承認は、人に限る（[app ADR 0027](../../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)）。
 仕組みはリポジトリの持ち主で分かれ、個人のリポジトリでは `.github/CODEOWNERS` に人だけを書いてコードオーナーの承認を
 求め、organization のリポジトリでは人だけの team をルールセットの必須のレビュアーにする。
 

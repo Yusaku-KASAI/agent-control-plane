@@ -112,8 +112,8 @@ github/
 ### `bin/check-protection`
 
 - **責務**：リポジトリの既定のブランチに効くルールと CODEOWNERS が、[ターゲットの契約](../../../docs/reference/target.md#protection)の
-  既定のブランチの守りを満たすかを確かめる（[target-template の ADR 0016](../../../../template/docs/adr/0016-protection-checked-in-ci.md)、
-  [0017](../../../../template/docs/adr/0017-protection-check-follows-contract.md)）。満たさない項目を `NG` の行で出し、終了コードは
+  既定のブランチの守りを満たすかを確かめる（[target-template の ADR 0016](../../../../target/template/docs/adr/0016-protection-checked-in-ci.md)、
+  [0017](../../../../target/template/docs/adr/0017-protection-check-follows-contract.md)）。満たさない項目を `NG` の行で出し、終了コードは
   0 が通過、1 が抜け、2 が GitHub を読めない。
 - **置くもの / 置かないもの**：
   - 確かめる値は、その契約を API の側から読んだもので、契約を変えたらここも直す。platform は target-template を

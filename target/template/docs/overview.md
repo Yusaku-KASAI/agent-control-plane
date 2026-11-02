@@ -1,7 +1,7 @@
 # ターゲットの環境の全体像
 
-[ターゲット](../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
-ものは[ターゲットの契約](../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
+[ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
+ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
 agent-control-plane のリポジトリのルートにあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
 とおりに作る。
 
@@ -39,7 +39,7 @@ agent-control-plane のリポジトリのルートにあり、新しいターゲ
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` は共通 |
 | `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
 | `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
-| `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../platform/docs/reference/target.md#claudemd)にある） |
+| `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
 共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。
@@ -48,7 +48,7 @@ agent-control-plane のリポジトリのルートにあり、新しいターゲ
 
 ## 地図
 
-target-template の中の項目と前提の向き（[形式](../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
+target-template の中の項目と前提の向き（[形式](../../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |

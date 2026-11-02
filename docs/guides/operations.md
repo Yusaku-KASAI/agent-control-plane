@@ -11,7 +11,7 @@ control-plane のサーバーを手元で準備して動かす手順。
 
 - ターゲットとその隣のマーケットプレイス（platform は `agent-platform`）を同じ親ディレクトリに並べ、その親ディレクトリを
   `.env` の `ACP_HOST_ROOT` の下に置く（並べ方は[ホストでの配置](../../platform/docs/reference/target.md#host "在りか")と
-  [ホストの準備](../../template/docs/guides/devcontainer.md#host "在りか")）。platform はこのリポジトリの `platform/` にあるので、
+  [ホストの準備](../../target/template/docs/guides/devcontainer.md#host "在りか")）。platform はこのリポジトリの `platform/` にあるので、
   親ディレクトリでシンボリックリンクを張って隣に置く。
 
   ```bash
@@ -19,7 +19,7 @@ control-plane のサーバーを手元で準備して動かす手順。
   ```
 
 - `sessions.root` と `usage_log` も `ACP_HOST_ROOT` の下に、トークンや鍵のファイルは `ACP_SECRETS_DIR` の下に置く（置ける場所は [.env.example](../../.env.example "在りか")）。
-- ターゲットは、[新しいターゲットを作る](../../template/docs/guides/new-target.md)のとおりに用意しておく（イメージのビルドと、
+- ターゲットは、[新しいターゲットを作る](../../target/template/docs/guides/new-target.md)のとおりに用意しておく（イメージのビルドと、
   既定のブランチの守りを含む）。このリポジトリなら、devcontainer をビルドし、既定のブランチの守りを確かめておく。
 - Claude Code の認証：`claude setup-token` を実行し、表示された OAuth トークンをファイルに保存して
   `claude.oauth_token_path` で指す（API キーなら `api_key_path`）。
