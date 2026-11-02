@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Weekly, so that new vulnerabilities are found even while the files a check reads stay unchanged.
+  schedule:
+    - cron: "0 0 * * 1"
+
+# The default for jobs: read the repository only. A job's own permissions replace these, so a job
+# needing more lists everything it needs, contents: read included.
+permissions:
+  contents: read
+
+jobs:
+  check-concern:
+    name: check-${{ matrix.check }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Fill in: a row per check-<concern> stage, and per other image of this repository.
+          - { check: target, file: .devcontainer/Dockerfile, target: check-target }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.target || matrix.file }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          outputs: type=cacheonly
+          # Fill in: the checks that skip the cache on the weekly run (such as a vulnerability scan).
+          no-cache-filters: ''
+          # One scope per job: jobs writing the same scope would overwrite each other's cache.
+          cache-from: type=gha,scope=${{ matrix.check }}
+          cache-to: type=gha,scope=${{ matrix.check }},mode=max
+
+  # The conventions plugin's action. It needs no target toolchain, so it runs outside the devcontainer
+  # image.
+  check-docs:
+    runs-on: ubuntu-latest
+    # It runs code from the platform; reading is all it needs.
+    permissions:
+      contents: read
+    steps:
+      - uses: Yusaku-KASAI/agent-control-plane/platform/plugins/conventions/actions/check-docs@main
+
+  # The github plugin's action, as check-docs is. It reads the repository's settings and CODEOWNERS
+  # through the API, so it also fails when the protection is lost outside any pull request (as on the
+  # weekly run).
+  check-protection:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: Yusaku-KASAI/agent-control-plane/platform/plugins/github/actions/check-protection@main
+
+  # The one required status check. A job skipped because a need failed would count as passed, so
+  # this one always runs and fails on its own.
+  check:
+    needs: [check-concern, check-docs, check-protection]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          test "${{ needs.check-concern.result }}" = success
+          test "${{ needs.check-docs.result }}" = success
+          test "${{ needs.check-protection.result }}" = success

@@ -2,7 +2,7 @@
 
 [ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
 ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
-agent-control-plane のリポジトリのルートにあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
+写す元の `target/`（この文書の根の二つ上）にあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
 とおりに作る。
 
 ## 構成
@@ -41,6 +41,10 @@ agent-control-plane のリポジトリのルートにあり、新しいターゲ
 | `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
+
+ひな形のファイルでは、埋める場所に `Fill in:` で始まるコメントを置く（コメントを書けない `.claude/settings.json` を
+除く）。`CLAUDE.md` のひな形は置かない。`target/` の下の `CLAUDE.md` は、agent-control-plane でその下のファイルを読む
+エージェントに読み込まれるため。
 
 共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。
 
