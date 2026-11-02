@@ -22,7 +22,7 @@ cp -R <agent-control-plane>/target/. <新しいリポジトリ>/ && rm -r <新�
 
 ## 3. 埋める
 
-[ファイルの分類](../overview.md#files)の表の「ターゲットごとの部分」（ひな形では `Fill in:` のコメントの所）を、
+[ファイルの分類](../overview.md#files)の表の「ターゲットごとの部分」（ひな形では `Fill in:` のコメントの所と、コメントを書けない `.claude/settings.json` の部分）を、
 ターゲットのツールチェーンと関心に合わせて、それぞれの部分の文書（[devcontainer](../architecture/devcontainer.md)、
 [Claude Code の設定](../architecture/claude-code.md)、[CI](../architecture/ci.md)）に沿って埋める。`.devcontainer/.env.example` の
 `<repository>` と `.github/CODEOWNERS` の `<owner>` も埋める。

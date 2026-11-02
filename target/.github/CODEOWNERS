@@ -1,5 +1,5 @@
 # Approvals that count toward merging into the default branch must come from a human.
 # Personal repository: list only the human owner. Organization repository: delete this file and
-# require a human-only team in the ruleset instead (template/docs/guides/protection.md).
+# require a human-only team in the ruleset instead (agent-control-plane target/template/docs/guides/protection.md).
 # Fill in: the owner's GitHub user name.
 * @<owner>

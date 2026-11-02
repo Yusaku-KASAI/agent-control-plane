@@ -37,7 +37,7 @@
 | `.devcontainer/.env.example` | 埋める | リポジトリ名を含む値 |
 | `.github/workflows/ci.yml` | 埋める | 行列のジョブ（`check-<関心>` と、ターゲットのほかのイメージのビルド）と、定期実行でキャッシュを使わない検査。ワークフローの権限（`permissions: contents: read`）、`check-docs` と `check-protection` のジョブ（その権限を含む）と、`check` ジョブがそれらを待つことは共通 |
 | `Makefile` | 埋める | `check` が束ねる `check-<関心>` とその中身。`check-target` は共通 |
-| `.gitignore` | 埋める | `.devcontainer/.env` と `/.claude/worktrees/` の行は共通、ほかはターゲットごと |
+| `.gitignore` | 埋める | `.devcontainer/.env`、`/.claude/worktrees/`、`.claude/settings.local.json`、`CLAUDE.local.md` の行は共通、ほかはターゲットごと |
 | `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |

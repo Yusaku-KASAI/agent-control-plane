@@ -5,6 +5,6 @@
 .env.*
 !.env.example
 .devcontainer/.env
-# Fill in: what the toolchain builds or writes locally.
 CLAUDE.local.md
 **/CLAUDE.local.md
+# Fill in: what the toolchain builds or writes locally.
