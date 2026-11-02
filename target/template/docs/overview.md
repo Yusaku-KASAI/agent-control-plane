@@ -43,7 +43,7 @@
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
 ひな形のファイルでは、埋める場所に `Fill in:` で始まるコメントを置く（コメントを書けない `.claude/settings.json` を
-除く）。`CLAUDE.md` のひな形は置かない。`target/` の下の `CLAUDE.md` は、agent-control-plane でその下のファイルを読む
+除く）。値だけを埋める所（`.devcontainer/.env.example` の `<repository>`、`.github/CODEOWNERS` の `<owner>`）は、`<...>` で示す。`CLAUDE.md` のひな形は置かない。`target/` の下の `CLAUDE.md` は、agent-control-plane でその下のファイルを読む
 エージェントに読み込まれるため。
 
 共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。

@@ -2,8 +2,10 @@
 
 # COPY --from cannot expand build args, so pinned upstream images are aliased as stages here.
 ARG UV_VERSION=0.12.20
+# Fill in: the versions of the upstream images the toolchain copies from. A FROM line expands only
+# the ARGs declared before the first FROM.
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
-# Fill in: the upstream images the toolchain copies from, each aliased as a stage.
+# Fill in: those upstream images, each aliased as a stage.
 
 # Tools every target's agents use. Nothing here depends on the repository or the host, so the stage
 # can be shared by every target. Layers are ordered from least to most often changed.
