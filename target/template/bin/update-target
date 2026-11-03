@@ -1,0 +1,62 @@
+#!/bin/bash
+# Brings a target up to the copy source as it is now. Each file the copy source holds (outside
+# template/) is merged three ways: the target's file, the copy source's file at the commit the target
+# was copied or last updated from (template/base, or --base), and the copy source's file now.
+# Conflicts are left marked in the files. template/'s documents are then replaced (put-template).
+# The target's work tree must be clean, so that the update is one reviewable, undoable diff.
+# Usage: update-target [--base <agent-control-plane commit>] <target's directory>
+set -euo pipefail
+
+die() {
+	echo "update-target: $*" >&2
+	exit 1
+}
+
+base=
+if [[ ${1:-} == --base ]]; then
+	base=${2:?--base takes a commit}
+	shift 2
+fi
+dest=${1:?usage: update-target [--base <commit>] <target directory>}
+src=$(cd "$(dirname "$0")/../.." && pwd)
+repo=$(git -C "$src" rev-parse --show-toplevel)
+prefix=$(git -C "$src" rev-parse --show-prefix)
+
+[[ -z $(git -C "$dest" status --porcelain) ]] || die "$dest has uncommitted changes; commit or stash them first"
+[[ -z $(git -C "$src" status --porcelain -- .) ]] || die "the copy source has uncommitted changes"
+if [[ -z $base && -f $dest/template/base ]]; then
+	base=$(<"$dest/template/base")
+fi
+[[ -n $base ]] || die "$dest has no template/base; pass --base <the agent-control-plane commit it was copied from>"
+git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || die "$base is not a commit of agent-control-plane"
+head=$(git -C "$repo" rev-parse HEAD)
+
+conflicts=()
+old=$(mktemp)
+trap 'rm -f "$old"' EXIT
+while IFS= read -r -d '' path; do
+	[[ $path == template/* ]] && continue
+	name=${path%.tmpl}
+	if [[ ! -e $dest/$name ]]; then
+		mkdir -p "$(dirname "$dest/$name")"
+		cp "$src/$path" "$dest/$name"
+		continue
+	fi
+	git -C "$repo" show "$base:$prefix$path" >"$old" 2>/dev/null || : >"$old"
+	git merge-file -L target -L "template ${base:0:12}" -L "template ${head:0:12}" "$dest/$name" "$old" "$src/$path" ||
+		conflicts+=("$name")
+done < <(git -C "$src" ls-files -z -- .)
+
+removed=$(git -C "$repo" diff --name-only --diff-filter=D "$base" "$head" -- "$prefix" | sed "s|^$prefix||; s|\.tmpl$||" | grep -v '^template/' || true)
+
+"$src/template/bin/put-template" "$dest"
+
+echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; review git diff in $dest"
+if ((${#conflicts[@]})); then
+	echo "update-target: conflicts to resolve (marked <<<<<<< target):"
+	printf '  %s\n' "${conflicts[@]}"
+fi
+if [[ -n $removed ]]; then
+	echo "update-target: removed from the copy source since ${base:0:12}; remove them here if they came from it:"
+	while IFS= read -r f; do printf '  %s\n' "$f"; done <<<"$removed"
+fi

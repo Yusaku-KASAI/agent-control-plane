@@ -1,8 +1,8 @@
 #!/bin/bash
 # Copies the copy source (two directories above this script's directory) into a new target's
 # directory, as target-template's new-target procedure tells: with the .tmpl suffixes removed, and
-# with template/'s documents (not its tools) relinked for life outside agent-control-plane. The
-# directory must be empty but for .git, so that nothing there is overwritten.
+# with template/'s documents put as put-template puts them. The directory must be empty but for .git,
+# so that nothing there is overwritten.
 # Usage: copy-target <new repository's directory>
 set -euo pipefail
 
@@ -14,8 +14,7 @@ if [[ -n $(find "$dest" -mindepth 1 -maxdepth 1 ! -name .git -print -quit) ]]; t
 	exit 1
 fi
 cp -R "$src/." "$dest/"
-rm -r "$dest/template/bin"
-"$src/template/bin/relink-template" "$dest"
+"$src/template/bin/put-template" "$dest"
 find "$dest" -path "$dest/.git" -prune -o -name '*.tmpl' -print0 | while IFS= read -r -d '' f; do
 	mv "$f" "${f%.tmpl}"
 done
