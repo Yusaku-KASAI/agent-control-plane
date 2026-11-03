@@ -570,7 +570,12 @@ func (w *worker) run() {
 			}
 			answer <- false
 		case <-refresh.C:
+			wasIdle := w.turns.idle()
 			refresh.Reset(w.refreshCredentials())
+			if wasIdle && w.turns.idle() {
+				// Refreshing is no use of the session, so it leaves the idle timer running.
+				continue
+			}
 		case <-idle.C:
 			if w.turns.idle() && w.d.retire(w) {
 				w.stopProcess(nil)

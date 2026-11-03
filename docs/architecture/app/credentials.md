@@ -167,5 +167,6 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
     止め、実行中のターンを失敗にする。発行元が断ったとき（`domain.ErrCredentialsRefused`。GitHub App の宛先の
     確かめで断るときなど）は、やり直しても通らないので、すぐ止める（[ADR 0066](../../adr/app/0066-retry-credential-refresh-until-expiry.md)）。
   - 使える間は壁時計で比べる。ホストのスリープのあいだも失効は進むので、目覚めたあとの最初の失敗で止まりうる。
+  - 発行し直しとそのやり直しは、セッションを使ったことに数えず、休むまでの時間（[セッションのワーカー](sessions.md#worker "在りか")）を延ばさない。
 - **関係**：コンテナの中の `gh` と slack プラグインはファイルを毎回読むので、書き換えはそのまま効く。
   タイマーは[セッションのワーカー](sessions.md#worker "在りか")が持つ。

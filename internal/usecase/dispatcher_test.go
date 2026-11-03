@@ -1519,10 +1519,12 @@ func TestDispatcher_RefreshesCredentials(t *testing.T) {
 // leaving the running turn alone.
 func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{
-		CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond,
+		CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: 100 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
 	})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
 	p := e.runner.next(t)
+	// Past the lifetime of the credentials the process started with, those reissued since count.
+	time.Sleep(150 * time.Millisecond)
 	e.issuer.fail(errors.New("dial tcp: lookup api.github.com: server misbehaving"))
 	failedFrom := e.issuer.issues()
 	eventually(t, func() bool { return e.issuer.issues() >= failedFrom+3 })
@@ -1535,6 +1537,20 @@ func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
 	if o := wait(t, running); o.err != nil || o.out.Output != "done" {
 		t.Fatalf("Execute() = %+v, %v; want the turn to finish", o.out, o.err)
 	}
+}
+
+func TestDispatcher_RetryingCredentialRefreshLetsSessionIdle(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{
+		IdleTimeout:       50 * time.Millisecond,
+		CredentialRefresh: 5 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond,
+	})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	e.issuer.fail(errors.New("dial tcp: lookup api.github.com: server misbehaving"))
+	p.finish("done")
+	wait(t, first)
+	eventually(t, p.isClosed)
 }
 
 func TestDispatcher_StopsProcessWhenCredentialsCannotBeRefreshed(t *testing.T) {
