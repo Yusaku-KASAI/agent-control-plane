@@ -12,11 +12,25 @@ fail() {
 	echo "FAIL: $*" >&2
 	exit 1
 }
+# refused <part of the message> <what is checked> <command...>: the command fails, for that reason.
+refused() {
+	local want=$1 what=$2 err
+	shift 2
+	if err=$("$@" 2>&1 >/dev/null); then
+		fail "$what"
+	fi
+	grep -qF -- "$want" <<<"$err" || fail "$what (refused for another reason: $err)"
+}
 
-# Version A of a stand-in agent-control-plane that holds only the copy source.
+# A commit from before the copy source, then version A of a stand-in agent-control-plane that holds
+# only the copy source.
 mkdir "$w/acp"
-cp -R "$root/target" "$w/acp/target"
 git -C "$w/acp" init -q
+echo before >"$w/acp/README.md"
+git -C "$w/acp" add -A
+git -C "$w/acp" commit -qm "before the copy source"
+pre=$(git -C "$w/acp" rev-parse HEAD)
+cp -R "$root/target" "$w/acp/target"
 git -C "$w/acp" add -A
 git -C "$w/acp" commit -qm A
 a=$(git -C "$w/acp" rev-parse HEAD)
@@ -58,18 +72,18 @@ b=$(git -C "$w/acp" rev-parse HEAD)
 # Refused: a target with neither template/base nor --base, and a copy source older than the target.
 git -C "$w/t" mv template/base template/base.kept
 git -C "$w/t" commit -qm "hide base"
-! "$w/acp/target/template/bin/update-target" "$w/t" 2>/dev/null || fail "a target without template/base needs --base"
+refused 'has no template/base' "a target without template/base needs --base" "$w/acp/target/template/bin/update-target" "$w/t"
 git -C "$w/t" mv template/base.kept template/base
 git -C "$w/t" commit -qm "restore base"
 git -C "$w/acp" checkout -q "$a"
 echo "$b" >"$w/t/template/base"
 git -C "$w/t" commit -qam "pretend to be at B"
-! "$w/acp/target/template/bin/update-target" "$w/t" 2>/dev/null || fail "a copy source older than the target is refused"
+refused 'does not contain' "a copy source older than the target is refused" "$w/acp/target/template/bin/update-target" "$w/t"
 echo "$a" >"$w/t/template/base"
 git -C "$w/t" commit -qam "back at A"
 git -C "$w/acp" checkout -q main
 echo dirty >>"$w/acp/target/Makefile"
-! "$w/acp/target/template/bin/update-target" "$w/t" 2>/dev/null || fail "a copy source with uncommitted changes is refused"
+refused 'the copy source has uncommitted changes' "a copy source with uncommitted changes is refused" "$w/acp/target/template/bin/update-target" "$w/t"
 git -C "$w/acp" checkout -q -- target/Makefile
 
 out=$("$w/acp/target/template/bin/update-target" "$w/t")
@@ -107,7 +121,7 @@ git -C "$w/t" diff --name-only | grep -qx '.editorconfig' || fail "added files s
 
 # A dirty target and a directory outside git are refused.
 echo x >"$w/t/dirty"
-! "$w/acp/target/template/bin/update-target" "$w/t" 2>/dev/null || fail "a dirty target is refused"
+refused "$w/t has uncommitted changes" "a dirty target is refused" "$w/acp/target/template/bin/update-target" "$w/t"
 rm -f "$w/t/dirty"
 git -C "$w/t" add -A && git -C "$w/t" commit -qm merged
 
@@ -129,8 +143,7 @@ git -C "$w/t2" commit -qm "copied before template/base"
 grep -qx 'new in B' "$w/t2/.editorconfig" || fail "--base merges from the given version"
 git -C "$w/t2" add -A
 git -C "$w/t2" commit -qm merged
-empty=$(git -C "$w/acp" commit-tree "$(git -C "$w/acp" mktree </dev/null)" -m empty)
-! "$w/acp/target/template/bin/update-target" --base "$empty" "$w/t" 2>/dev/null || fail "a --base older than the copy source is refused"
+refused 'older than the copy source' "a --base from before the copy source is refused" "$w/acp/target/template/bin/update-target" --base "$pre" "$w/t"
 mkdir "$w/plain"
-! "$w/acp/target/template/bin/update-target" --base "$a" "$w/plain" 2>/dev/null || fail "a directory outside git is refused"
+refused 'is not a git work tree' "a directory outside git is refused" "$w/acp/target/template/bin/update-target" --base "$a" "$w/plain"
 echo "ok   update-target"

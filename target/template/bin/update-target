@@ -39,7 +39,8 @@ git -C "$repo" merge-base --is-ancestor "$base" "$head" ||
 	die "the copy source (${head:0:12}) does not contain $dest's version ${base:0:12}; run it from a later checkout (such as main)"
 
 # The starters of the target's own documents (README.md and docs/; CLAUDE.md is filled in, not the
-# target's own) are only added when missing: never merged, moved, or listed as gone.
+# target's own) are only added when new in the template and missing in the target: never merged,
+# moved, restored, or listed as gone.
 own_document() {
 	[[ $1 == README.md.tmpl || $1 == docs/* ]]
 }
