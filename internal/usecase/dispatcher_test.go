@@ -1519,7 +1519,7 @@ func TestDispatcher_RefreshesCredentials(t *testing.T) {
 // leaving the running turn alone.
 func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{
-		CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: 100 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
+		CredentialRefresh: 40 * time.Millisecond, CredentialLifetime: 100 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
 	})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
 	p := e.runner.next(t)
@@ -1531,8 +1531,11 @@ func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
 	if p.isClosed() {
 		t.Fatal("the process was stopped while its credentials were still usable")
 	}
+	p.mu.Lock()
+	updated := p.updated
+	p.mu.Unlock()
 	e.issuer.fail(nil)
-	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated >= 1 })
+	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated > updated })
 	p.finish("done")
 	if o := wait(t, running); o.err != nil || o.out.Output != "done" {
 		t.Fatalf("Execute() = %+v, %v; want the turn to finish", o.out, o.err)
@@ -1557,12 +1560,14 @@ func TestDispatcher_StopsProcessWhenCredentialsCannotBeRefreshed(t *testing.T) {
 	tests := map[string]struct {
 		opts usecase.DispatcherOptions
 		err  error
-		// tries is the number of reissues, or 0 for any.
-		tries int
+		// The number of reissues is at least minTries, and tries unless it is 0.
+		minTries, tries int
 	}{
+		// Retrying waits for CredentialRetry, not the next refresh, which comes only at the expiry.
 		"failing until they expire": {
-			opts: usecase.DispatcherOptions{CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: 60 * time.Millisecond, CredentialRetry: 5 * time.Millisecond},
-			err:  errors.New("dial tcp: lookup api.github.com: server misbehaving"),
+			opts:     usecase.DispatcherOptions{CredentialRefresh: 30 * time.Millisecond, CredentialLifetime: 60 * time.Millisecond, CredentialRetry: 5 * time.Millisecond},
+			err:      errors.New("dial tcp: lookup api.github.com: server misbehaving"),
+			minTries: 4,
 		},
 		"refused": {
 			opts:  usecase.DispatcherOptions{CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond},
@@ -1583,8 +1588,8 @@ func TestDispatcher_StopsProcessWhenCredentialsCannotBeRefreshed(t *testing.T) {
 			if !p.isClosed() {
 				t.Error("the process was left running")
 			}
-			if tries := e.issuer.issues() - 1; tt.tries != 0 && tries != tt.tries {
-				t.Errorf("reissued %d times, want %d", tries, tt.tries)
+			if tries := e.issuer.issues() - 1; tries < tt.minTries || (tt.tries != 0 && tries != tt.tries) {
+				t.Errorf("reissued %d times, want at least %d and exactly %d unless 0", tries, tt.minTries, tt.tries)
 			}
 		})
 	}
