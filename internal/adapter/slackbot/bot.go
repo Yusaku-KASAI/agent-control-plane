@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -218,7 +219,8 @@ func (b *Bot) Observe(s domain.Session, e usecase.SessionEvent) {
 const cleanedReaction = "broom"
 
 // MarkCleaned puts the cleaned mark on the message that started the conversation's thread. It gives
-// up after markTimeout: the session's lock is held meanwhile, refusing the thread's requests.
+// up after markTimeout: the session's lock is held meanwhile, refusing the thread's requests. A
+// message gone, as when a person deleted it, leaves nothing to mark (docs/adr/app/0066).
 func (b *Bot) MarkCleaned(ctx context.Context, c domain.Conversation) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), b.markTimeout)
 	defer cancel()
@@ -226,11 +228,11 @@ func (b *Bot) MarkCleaned(ctx context.Context, c domain.Conversation) error {
 	if err != nil {
 		return err
 	}
-	return ignoreSlackError(api.AddReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "already_reacted")
+	return ignoreSlackError(api.AddReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "already_reacted", messageGone)
 }
 
 // unmarkCleaned takes the cleaned mark off. It gives up after markTimeout too: held up long, it
-// could come after the mark of a later cleaning and take that off.
+// could come after the mark of a later cleaning and take that off. A message gone holds no mark.
 func (b *Bot) unmarkCleaned(ctx context.Context, c domain.Conversation) error {
 	ctx, cancel := context.WithTimeout(ctx, b.markTimeout)
 	defer cancel()
@@ -238,13 +240,17 @@ func (b *Bot) unmarkCleaned(ctx context.Context, c domain.Conversation) error {
 	if err != nil {
 		return err
 	}
-	return ignoreSlackError(api.RemoveReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "no_reaction")
+	return ignoreSlackError(api.RemoveReactionContext(ctx, cleanedReaction, slack.ItemRef{Channel: c.Channel, Timestamp: c.Thread}), "no_reaction", messageGone)
 }
 
-// ignoreSlackError drops the Slack error named code, which leaves things as wanted.
-func ignoreSlackError(err error, code string) error {
+// messageGone is Slack's answer when the message is not there. channel_not_found is not taken as
+// gone: Slack answers it for a channel the bot cannot see too, a setup to fix.
+const messageGone = "message_not_found"
+
+// ignoreSlackError drops the Slack errors named codes, which leave nothing to do.
+func ignoreSlackError(err error, codes ...string) error {
 	var resp slack.SlackErrorResponse
-	if errors.As(err, &resp) && resp.Err == code {
+	if errors.As(err, &resp) && slices.Contains(codes, resp.Err) {
 		return nil
 	}
 	return err

@@ -46,7 +46,8 @@ func TestPostMessageReturnsTheMessagesTS(t *testing.T) {
 }
 
 // The cleaned mark goes on the message that started the thread, and comes off when a session is
-// made in it again; Slack's answer that it is already so is no failure (docs/adr/app/0057).
+// made in it again; Slack's answer that it is already so, or that the message is gone, is no failure
+// (docs/adr/app/0057, 0066).
 func TestCleanedMark(t *testing.T) {
 	type call struct{ method, name, channel, ts string }
 	calls := make(chan call, 8)
@@ -75,7 +76,7 @@ func TestCleanedMark(t *testing.T) {
 		}
 	}
 
-	for _, answer = range []string{`{"ok":true}`, `{"ok":false,"error":"already_reacted"}`} {
+	for _, answer = range []string{`{"ok":true}`, `{"ok":false,"error":"already_reacted"}`, `{"ok":false,"error":"message_not_found"}`} {
 		if err := b.MarkCleaned(context.Background(), c); err != nil {
 			t.Errorf("MarkCleaned() answered %s = %v, want nil", answer, err)
 		}
@@ -90,10 +91,12 @@ func TestCleanedMark(t *testing.T) {
 	answer = `{"ok":false,"error":"no_reaction"}`
 	b.Observe(domain.Session{ID: "s", Conversation: c}, usecase.SessionEvent{Kind: usecase.SessionCreated})
 	want("/reactions.remove")
-	if err := b.unmarkCleaned(context.Background(), c); err != nil {
-		t.Errorf("unmarkCleaned() with no mark = %v, want nil", err)
+	for _, answer = range []string{`{"ok":false,"error":"no_reaction"}`, `{"ok":false,"error":"message_not_found"}`} {
+		if err := b.unmarkCleaned(context.Background(), c); err != nil {
+			t.Errorf("unmarkCleaned() answered %s = %v, want nil", answer, err)
+		}
+		want("/reactions.remove")
 	}
-	want("/reactions.remove")
 	answer = `{"ok":false,"error":"channel_not_found"}`
 	if err := b.unmarkCleaned(context.Background(), c); err == nil {
 		t.Error("unmarkCleaned() = nil on another error")

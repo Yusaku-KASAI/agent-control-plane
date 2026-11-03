@@ -194,8 +194,9 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
     同じメッセージが二度出る（状態メッセージなら、1 通目が途中の文面のまま残る）ことがある。依頼のメッセージへの
     リアクションは、もう付いている（`already_reacted`）を失敗にしない（[ADR 0063](../../adr/app/0063-retry-slack-calls-and-tell-lost-replies.md)）。
   - 片付けで消したスレッドの最初のメッセージに `:broom:` を付け（`MarkCleaned`）、そのスレッドでセッションが作られた
-    （`SessionCreated`）ら外す。もう付いている（`already_reacted`）、付いていない（`no_reaction`）は失敗にしない
-    （[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。
+    （`SessionCreated`）ら外す。もう付いている（`already_reacted`）、付いていない（`no_reaction`）、最初のメッセージが
+    ない（`message_not_found`）は失敗にしない（[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)、
+    [0066](../../adr/app/0066-cleaned-mark-gives-up-on-a-gone-message.md)）。
 - **関係**：`ChatResponder` を満たす。Bot のトークンは毎回 `slackauth.Source` から受け取る。
 - **当てはめた原則・パターン**：[関心の分離](../../../platform/plugins/principles/docs/reference/principles.md#soc)：Slack の受け方と書き方
   だけを持ち、依頼の扱いは `HandleMessage` に任せる。Slack に固有のこと（記号、ブロック、文字数の上限）はここに
