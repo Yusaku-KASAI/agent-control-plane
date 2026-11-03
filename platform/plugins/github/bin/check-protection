@@ -2,7 +2,8 @@
 # Checks that the default branch of a repository is protected as the target contract requires
 # (platform/docs/reference/target.md, "既定のブランチの守り"): no deletion or force push, only pull
 # requests, approvals that count only from humans, approvals dismissed on push, the required check
-# `check` from GitHub Actions, branches up to date before merging, and bypass only for pull requests. The expected values are an API-side
+# `check` from GitHub Actions, branches up to date before merging, and bypass only for pull
+# requests. The expected values are an API-side
 # reading of that contract; change them when it changes.
 #
 # Usage: check-protection [<owner>/<repo> [<ref>]]
@@ -120,8 +121,9 @@ if has "$checks | length > 0 and all(.integration_id == $actions_app)"; then
 else
   ng "the check 'check' is not required, or not only from GitHub Actions (Require status checks to pass)"
 fi
-# Without it, 'check' passes on a head that is not what the merge makes.
-if has '[.[] | select(.type == "required_status_checks") | .parameters | select(any(.required_status_checks[]; .context == "check"))] | any(.strict_required_status_checks_policy)'; then
+# Without it, 'check' may pass on a merge with an older base than the one the merge makes. GitHub
+# ignores the setting in a rule that requires no check.
+if has 'any(.[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy and (.parameters.required_status_checks | length > 0))'; then
   ok "a pull request must be up to date with $branch before merging"
 else
   ng "a pull request may be merged behind $branch (Require branches to be up to date before merging)"

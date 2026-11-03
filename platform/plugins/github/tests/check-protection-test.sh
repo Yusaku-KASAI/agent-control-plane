@@ -127,7 +127,10 @@ reset; jq '. + [{type: "required_status_checks", ruleset_id: 2, parameters: {str
   | map(if .type == "required_status_checks" and .ruleset_id == 1 then .parameters.strict_required_status_checks_policy = false else . end)' \
   "$state/rules.json" >"$state/x" && mv "$state/x" "$state/rules.json"
 echo '{"id": 2}' >"$state/ruleset2.json"; run
-expect "up to date only for another check fails" 1 "may be merged behind main"
+expect "up to date from another ruleset passes" 0 "must be up to date with main"
+reset; jq 'map(if .type == "required_status_checks" then .parameters.required_status_checks = [] else . end)' "$state/rules.json" >"$state/x" && mv "$state/x" "$state/rules.json"
+jq '. + [{type: "required_status_checks", ruleset_id: 1, parameters: {strict_required_status_checks_policy: false, required_status_checks: '"$actions_check"'}}]' "$state/rules.json" >"$state/x" && mv "$state/x" "$state/rules.json"; run
+expect "up to date in a rule that requires no check fails" 1 "may be merged behind main"
 
 admin='{"id": 1, "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request"}]}'
 reset; echo "$admin" >"$state/ruleset.json"; run; expect "bypass by admins for pull requests passes" 0 "only by admins"
