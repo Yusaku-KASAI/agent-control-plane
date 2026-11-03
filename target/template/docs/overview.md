@@ -3,7 +3,7 @@
 [ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
 ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
 写す元の `target/`（この文書の根の二つ上）にあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
-とおりに作る。
+とおりに作り、[ひな形の新しい版に合わせる](guides/update-target.md "在りか")。
 
 ## 構成
 
@@ -42,7 +42,8 @@
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
-写したターゲットは、環境のファイルのほかに、target-template の文書を `template/docs/` に持つ。写すときに、platform と
+写したターゲットは、環境のファイルのほかに、target-template の文書を `template/docs/` に、写したか合わせた版の
+agent-control-plane のコミットを `template/base` に持つ。写すときに、platform と
 control-plane へのリンクを GitHub へのリンクに書き換える（[ADR 0020](adr/0020-template-documents-linked-to-github-in-copies.md)）。
 
 ひな形のファイルでは、埋める場所に `Fill in:` で始まるコメントを置く（コメントを書けない `.claude/settings.json` を
@@ -68,4 +69,4 @@ target-template の中の項目と前提の向き（[形式](../../../platform/p
 | Claude Code の設定 | target-template | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
 | CI | target-template | `architecture/ci.md` | devcontainer |
 | 既定のブランチの守り | target-template | `guides/protection.md` | CI |
-| 新しいターゲットの作り方 | target-template | `guides/new-target.md` | devcontainer, Claude Code の設定, CI, 既定のブランチの守り |
+| ひな形の使い方 | target-template | `guides/new-target.md`, `guides/update-target.md` | devcontainer, Claude Code の設定, CI, 既定のブランチの守り |

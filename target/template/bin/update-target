@@ -1,0 +1,148 @@
+#!/bin/bash
+# Brings a target up to the copy source as it is now, merging each file three ways from the version in
+# template/base (or --base). What it does with each kind of file is target-template's ADR 0021.
+# Usage: update-target [--base <agent-control-plane commit>] <target's directory>
+set -euo pipefail
+
+die() {
+	echo "update-target: $*" >&2
+	exit 1
+}
+
+base=
+if [[ ${1:-} == --base ]]; then
+	base=${2:?--base takes a commit}
+	shift 2
+fi
+dest=${1:?usage: update-target [--base <commit>] <target directory>}
+src=$(cd "$(dirname "$0")/../.." && pwd)
+repo=$(git -C "$src" rev-parse --show-toplevel)
+prefix=$(git -C "$src" rev-parse --show-prefix)
+
+git -C "$dest" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "$dest is not a git work tree"
+[[ -z $(git -C "$dest" status --porcelain) ]] || die "$dest has uncommitted changes; commit or stash them first"
+[[ -z $(git -C "$src" status --porcelain -- .) ]] || die "the copy source has uncommitted changes"
+if [[ -z $base && -f $dest/template/base ]]; then
+	base=$(<"$dest/template/base")
+fi
+[[ -n $base ]] || die "$dest has no template/base; pass --base <the agent-control-plane commit it was copied from>"
+git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || die "$base is not a commit of agent-control-plane"
+git -C "$repo" cat-file -e "$base:${prefix}.devcontainer/Dockerfile" 2>/dev/null ||
+	die "$base has no ${prefix}.devcontainer/Dockerfile: it is older than the copy source; pass a later commit"
+head=$(git -C "$repo" rev-parse HEAD)
+if [[ $base == "$head" ]]; then
+	[[ -f $dest/template/base ]] || echo "$head" >"$dest/template/base"
+	echo "update-target: $dest is already at ${head:0:12}"
+	exit 0
+fi
+git -C "$repo" merge-base --is-ancestor "$base" "$head" ||
+	die "the copy source (${head:0:12}) does not contain $dest's version ${base:0:12}; run it from a later checkout (such as main)"
+
+# The starters of the target's own documents (README.md and docs/; CLAUDE.md is filled in, not the
+# target's own) are only added when new in the template and missing in the target: never merged,
+# moved, restored, or listed as gone.
+own_document() {
+	[[ $1 == README.md.tmpl || $1 == docs/* ]]
+}
+
+conflicts=()
+deleted_changed=()
+added=()
+moved=()
+old=$(mktemp)
+renames=$(mktemp)
+trap 'rm -f "$old" "$renames"' EXIT
+# Files the template renamed since the target's version, as "old<TAB>new" within the copy source: the
+# version the target has is looked up by the old name, and a filled-in file follows to the new name.
+git -C "$repo" -c core.quotePath=false diff -M --name-status --diff-filter=R "$base" "$head" -- "${prefix:-.}" |
+	while IFS=$'\t' read -r _ from to; do printf '%s\t%s\n' "${from#"$prefix"}" "${to#"$prefix"}"; done >"$renames"
+while IFS= read -r -d '' path; do
+	[[ $path == template/* ]] && continue
+	name=${path%.tmpl}
+	from=$(awk -F'\t' -v p="$path" '$2 == p { print $1 }' "$renames")
+	from=${from:-$path}
+	own=
+	own_document "$path" || own_document "$from" && own=1
+	if [[ -z $own && ${from%.tmpl} != "$name" && ! -e $dest/$name && -e $dest/${from%.tmpl} ]]; then
+		mkdir -p "$(dirname "$dest/$name")"
+		mv "$dest/${from%.tmpl}" "$dest/$name"
+		moved+=("${from%.tmpl} -> $name")
+	fi
+	# Gaining or losing .tmpl is a rename git may miss when the contents changed much as well.
+	if [[ $from == "$path" ]] && ! git -C "$repo" cat-file -e "$base:$prefix$from" 2>/dev/null; then
+		if [[ $path == *.tmpl ]]; then other=${path%.tmpl}; else other=$path.tmpl; fi
+		git -C "$repo" cat-file -e "$base:$prefix$other" 2>/dev/null && from=$other
+	fi
+	in_base=
+	if git -C "$repo" show "$base:$prefix$from" >"$old" 2>/dev/null; then
+		in_base=1
+	else
+		: >"$old"
+	fi
+	if [[ ! -e $dest/$name ]]; then
+		if [[ -z $in_base ]]; then
+			mkdir -p "$(dirname "$dest/$name")"
+			cp "$src/$path" "$dest/$name"
+			added+=("$name")
+		elif [[ -z $own ]] && ! cmp -s "$old" "$src/$path"; then
+			deleted_changed+=("$name")
+		fi
+		continue
+	fi
+	[[ -n $own ]] && continue
+	git merge-file -L target -L "template ${base:0:12}" -L "template ${head:0:12}" "$dest/$name" "$old" "$src/$path" ||
+		conflicts+=("$name")
+	# git merge-file merges contents only; a mode the template changed (such as making a script
+	# executable) is applied here.
+	mode_base=$(git -C "$repo" ls-tree "$base" -- "$prefix$from" | cut -d' ' -f1)
+	mode_head=$(git -C "$repo" ls-tree "$head" -- "$prefix$path" | cut -d' ' -f1)
+	if [[ -n $mode_base && $mode_base != "$mode_head" ]]; then
+		if [[ $mode_head == 100755 ]]; then chmod +x "$dest/$name"; else chmod -x "$dest/$name"; fi
+	fi
+done < <(git -C "$src" ls-files -z -- .)
+
+# Files gone from the copy source that the target still has.
+removed=()
+while IFS= read -r path; do
+	path=${path#"$prefix"}
+	[[ $path == template/* ]] && continue
+	own_document "$path" && continue
+	# A name the copy source still makes (only its .tmpl suffix added or dropped) is not gone.
+	[[ -e $src/${path%.tmpl} || -e $src/${path%.tmpl}.tmpl ]] && continue
+	[[ -e $dest/${path%.tmpl} ]] && removed+=("${path%.tmpl}")
+done < <(git -C "$repo" -c core.quotePath=false diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "${prefix:-.}")
+
+"$src/template/bin/put-template" "$dest"
+
+echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; review git status and git diff in $dest"
+# Empty arrays are not expanded: bash before 4.4 (macOS's /bin/bash) takes them as unset under set -u.
+if ((${#conflicts[@]})); then
+	echo "update-target: conflicts to resolve (marked <<<<<<< target in the files):"
+	printf '  %s\n' "${conflicts[@]}"
+fi
+if ((${#moved[@]})); then
+	echo "update-target: renamed in the template; moved here with what was filled in:"
+	printf '  %s\n' "${moved[@]}"
+fi
+if ((${#deleted_changed[@]})); then
+	echo "update-target: deleted here but changed in the template; restore them or keep them deleted:"
+	printf '  %s\n' "${deleted_changed[@]}"
+fi
+if ((${#removed[@]})); then
+	echo "update-target: removed or renamed in the copy source since ${base:0:12}; move what you filled in to the new"
+	echo "name if renamed, then remove them here if they came from it:"
+	printf '  %s\n' "${removed[@]}"
+fi
+# Added and moved files, template/ included, show in git diff once registered; ignored ones are left
+# as they are.
+if ((${#moved[@]})); then
+	for m in "${moved[@]}"; do
+		added+=("${m#* -> }")
+	done
+fi
+if ((${#added[@]})); then
+	for f in "${added[@]}"; do
+		git -C "$dest" check-ignore -q -- "$f" || git -C "$dest" add -N -- "$f"
+	done
+fi
+git -C "$dest" add -N -- template

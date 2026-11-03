@@ -1,0 +1,163 @@
+#!/bin/bash
+# Tests update-target: a target copied from version A of the copy source is brought to version B.
+# Runs on throwaway repositories made from this checkout's copy source. put-template leaves template/bin/
+# out of targets, so this test stays in agent-control-plane.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/../../.." && pwd)
+w=$(mktemp -d)
+trap 'rm -rf "$w"' EXIT
+git() { command git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main "$@"; }
+fail() {
+	echo "FAIL: $*" >&2
+	exit 1
+}
+# refused <part of the message> <what is checked> <command...>: the command fails, for that reason.
+refused() {
+	local want=$1 what=$2 err
+	shift 2
+	if err=$("$@" 2>&1 >/dev/null); then
+		fail "$what"
+	fi
+	grep -qF -- "$want" <<<"$err" || fail "$what (refused for another reason: $err)"
+}
+
+# A commit from before the copy source, then version A of a stand-in agent-control-plane that holds
+# only the copy source.
+mkdir "$w/acp"
+git -C "$w/acp" init -q
+echo before >"$w/acp/README.md"
+git -C "$w/acp" add -A
+git -C "$w/acp" commit -qm "before the copy source"
+pre=$(git -C "$w/acp" rev-parse HEAD)
+cp -R "$root/target" "$w/acp/target"
+git -C "$w/acp" add -A
+git -C "$w/acp" commit -qm A
+a=$(git -C "$w/acp" rev-parse HEAD)
+
+# A target copied from A, filled in: a check of its own, and the CODEOWNERS of an organization deleted.
+mkdir "$w/t"
+git -C "$w/t" init -q
+"$w/acp/target/template/bin/copy-target" "$w/t"
+[[ $(<"$w/t/template/base") == "$a" ]] || fail "copy-target records the copied commit in template/base"
+sed -i 's/^check: check-target$/check: check-target check-own/' "$w/t/Makefile"
+sed -i '1s/.*/# my-target/' "$w/t/CLAUDE.md"
+echo 'own text' >>"$w/t/README.md"
+echo '/ignored-new' >>"$w/t/.gitignore"
+echo '# filled in' >>"$w/t/.devcontainer/check-vscode-settings.py"
+printf '[*]\nown = 1\n' >"$w/t/.editorconfig"
+rm "$w/t/.github/CODEOWNERS" "$w/t/.devcontainer/.env.example" "$w/t/docs/overview.md"
+git -C "$w/t" add -A
+git -C "$w/t" commit -qm filled
+
+# Version B: a conflicting change, a clean change, a renamed file, a changed starter, a new file.
+sed -i 's/^check: check-target$/check: check-target check-new/' "$w/acp/target/Makefile"
+echo '# from B' >>"$w/acp/target/.devcontainer/tmux.conf"
+git -C "$w/acp" mv target/.devcontainer/check-vscode-settings.py target/.devcontainer/check-settings.py
+echo 'starter text from B' >>"$w/acp/target/README.md.tmpl"
+echo 'claude text from B' >>"$w/acp/target/CLAUDE.md.tmpl"
+echo '# from B' >>"$w/acp/target/.devcontainer/.env.example"
+echo 'overview text from B' >>"$w/acp/target/docs/overview.md.tmpl"
+git -C "$w/acp" rm -q target/docs/README.md.tmpl
+git -C "$w/acp" mv target/.github/CODEOWNERS target/.github/CODEOWNERS.org
+git -C "$w/acp" mv target/.gitignore target/.gitignore.tmpl
+sed -i '1i /from-B' "$w/acp/target/.gitignore.tmpl"
+# Gaining .tmpl while the contents change much, so that git sees no rename.
+git -C "$w/acp" mv target/.vscode/settings.json target/.vscode/settings.json.tmpl
+printf '{\n  "replaced": true\n}\n' >"$w/acp/target/.vscode/settings.json.tmpl"
+git -C "$w/acp" rm -q target/.devcontainer/docker-entrypoint.sh
+git -C "$w/acp" mv target/README.md.tmpl target/README-renamed.md.tmpl
+echo 'new in B' >"$w/acp/target/.editorconfig"
+echo 'new in B' >"$w/acp/target/ignored-new"
+echo 'new in B' >"$w/acp/target/.github/new-in-b"
+chmod +x "$w/acp/target/.devcontainer/tmux.conf"
+git -C "$w/acp" add -A
+git -C "$w/acp" commit -qm B
+b=$(git -C "$w/acp" rev-parse HEAD)
+
+# Refused: a target with neither template/base nor --base, and a copy source older than the target.
+git -C "$w/t" mv template/base template/base.kept
+git -C "$w/t" commit -qm "hide base"
+refused 'has no template/base' "a target without template/base needs --base" "$w/acp/target/template/bin/update-target" "$w/t"
+git -C "$w/t" mv template/base.kept template/base
+git -C "$w/t" commit -qm "restore base"
+git -C "$w/acp" checkout -q "$a"
+echo "$b" >"$w/t/template/base"
+git -C "$w/t" commit -qam "pretend to be at B"
+refused 'does not contain' "a copy source older than the target is refused" "$w/acp/target/template/bin/update-target" "$w/t"
+echo "$a" >"$w/t/template/base"
+git -C "$w/t" commit -qam "back at A"
+git -C "$w/acp" checkout -q main
+echo dirty >>"$w/acp/target/Makefile"
+refused 'the copy source has uncommitted changes' "a copy source with uncommitted changes is refused" "$w/acp/target/template/bin/update-target" "$w/t"
+git -C "$w/acp" checkout -q -- target/Makefile
+
+out=$("$w/acp/target/template/bin/update-target" "$w/t")
+echo "$out"
+
+grep -q '^<<<<<<< target' "$w/t/Makefile" || fail "a conflicting change is marked"
+grep -qx '  Makefile' <<<"$out" || fail "a conflict is listed"
+grep -qx '# from B' "$w/t/.devcontainer/tmux.conf" || fail "a clean change is merged"
+[[ -x $w/t/.devcontainer/tmux.conf ]] || fail "a mode changed in the template is applied"
+[[ -e $w/t/ignored-new ]] || fail "a new file the target ignores is still added"
+[[ ! -e $w/t/.github/CODEOWNERS ]] || fail "a file the target deleted, unchanged in the template, stays deleted"
+[[ ! -e $w/t/.devcontainer/.env.example ]] || fail "a file the target deleted stays deleted though the template changed it"
+grep -A1 'deleted here but changed' <<<"$out" | grep -qx '  .devcontainer/.env.example' ||
+	fail "a file deleted here but changed in the template is listed"
+[[ ! -e $w/t/docs/overview.md ]] || fail "a deleted starter of the target's own documents is not restored"
+! grep -q 'docs/overview.md' <<<"$out" || fail "a deleted starter of the target's own documents is not listed"
+grep -qx '# my-target' "$w/t/CLAUDE.md" || fail "CLAUDE.md keeps its filled title"
+grep -qx 'claude text from B' "$w/t/CLAUDE.md" || fail "CLAUDE.md takes the template's change"
+grep -qx '  .devcontainer/check-vscode-settings.py -> .devcontainer/check-settings.py' <<<"$out" || fail "a renamed file is listed as moved"
+[[ ! -e $w/t/.devcontainer/check-vscode-settings.py ]] || fail "a renamed file leaves its old name"
+grep -qx '# filled in' "$w/t/.devcontainer/check-settings.py" || fail "a renamed file keeps what was filled in"
+[[ ! -e $w/t/.github/CODEOWNERS.org ]] || fail "a file the target deleted stays deleted when the template renames it"
+! grep -q 'gitignore' <<<"$out" || fail "a file that only gained a .tmpl suffix is neither removed nor moved"
+grep -qx '/ignored-new' "$w/t/.gitignore" || fail "a file that only gained a .tmpl suffix keeps what was filled in"
+grep -qx '/from-B' "$w/t/.gitignore" || fail "a file that only gained a .tmpl suffix takes the template's change"
+grep -q '"replaced": true' "$w/t/.vscode/settings.json" || fail "a file that gained .tmpl with new contents takes them"
+! grep -q '^<<<<<<<' "$w/t/.vscode/settings.json" || fail "a file that gained .tmpl with new contents merges from its old version"
+removed_list=$(awk '/^update-target:/ { on = /removed or renamed/ } on && /^  / { print }' <<<"$out")
+grep -qx '  .devcontainer/docker-entrypoint.sh' <<<"$removed_list" || fail "a file gone from the template that the target has is listed"
+! grep -q 'CODEOWNERS\|check-vscode-settings\|docs/' <<<"$removed_list" || fail "deleted, moved and own files are not listed as removed"
+grep -q '^<<<<<<< target' "$w/t/.editorconfig" || fail "a file new in the template that the target has of its own is merged"
+grep -qx '  .editorconfig' <<<"$out" || fail "a file new in the template that the target has of its own is listed as a conflict"
+grep -q 'own text' "$w/t/README.md" || fail "the target's own README.md is not moved by a renamed starter"
+git -C "$w/t" diff --name-only | grep -qx '.devcontainer/check-settings.py' || fail "a moved file shows in git diff"
+! grep -q '^  docs/README.md$' <<<"$out" || fail "a starter of the target's own documents gone from the template is not listed"
+[[ -e $w/t/docs/README.md ]] || fail "the target's own documents stay when their starter is gone"
+grep -q 'own text' "$w/t/README.md" || fail "the target's own text stays"
+! grep -q 'starter text from B' "$w/t/README.md" || fail "a starter of the target's own documents is not merged"
+[[ -e $w/t/ignored-new ]] || fail "new files are added"
+git -C "$w/t" diff --name-only | grep -qx 'ignored-new' && fail "an added file the target ignores is not registered"
+git -C "$w/t" diff --name-only | grep -qx '.github/new-in-b' || fail "added files show in git diff"
+[[ $(<"$w/t/template/base") == "$b" ]] || fail "template/base moves to the new version"
+
+# A dirty target and a directory outside git are refused.
+echo x >"$w/t/dirty"
+refused "$w/t has uncommitted changes" "a dirty target is refused" "$w/acp/target/template/bin/update-target" "$w/t"
+rm -f "$w/t/dirty"
+git -C "$w/t" add -A && git -C "$w/t" commit -qm merged
+
+# The same version again does nothing.
+again=$("$w/acp/target/template/bin/update-target" "$w/t")
+grep -q 'already at' <<<"$again" || fail "the target's own version again does nothing"
+
+# A target without template/base, brought up with --base, ends with template/base at the version.
+mkdir "$w/t2"
+git -C "$w/t2" init -q
+git -C "$w/acp" checkout -q "$a"
+"$w/acp/target/template/bin/copy-target" "$w/t2" 2>/dev/null
+git -C "$w/acp" checkout -q main
+rm "$w/t2/template/base"
+git -C "$w/t2" add -A
+git -C "$w/t2" commit -qm "copied before template/base"
+"$w/acp/target/template/bin/update-target" --base "$a" "$w/t2" >/dev/null
+[[ $(<"$w/t2/template/base") == "$b" ]] || fail "--base brings a target without template/base up to the version"
+grep -qx 'new in B' "$w/t2/.editorconfig" || fail "--base merges from the given version"
+git -C "$w/t2" add -A
+git -C "$w/t2" commit -qm merged
+refused 'older than the copy source' "a --base from before the copy source is refused" "$w/acp/target/template/bin/update-target" --base "$pre" "$w/t"
+mkdir "$w/plain"
+refused 'is not a git work tree' "a directory outside git is refused" "$w/acp/target/template/bin/update-target" --base "$a" "$w/plain"
+echo "ok   update-target"

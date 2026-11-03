@@ -9,12 +9,16 @@ target-template のファイルから、新しいターゲットのリポジト�
 
 agent-control-plane の `target/` の下を、新しいリポジトリ（`.git` のほかは空）のルートに写す。`target/template/bin/copy-target` が、`.` で始まる
 ファイルとディレクトリも含めて写し、名前が `.tmpl` で終わるひな形の `.tmpl` を外す（[ファイルの分類](../overview.md#files)）。
-`template/` は文書（`template/docs/`）だけを写し、そこから platform と control-plane へのリンクを GitHub の `main` の同じ
-ファイルへのリンクに書き換える（[ADR 0020](../adr/0020-template-documents-linked-to-github-in-copies.md)）。
+`template/` は文書（`template/docs/`）だけを写し、写した版の agent-control-plane のコミットを `template/base` に書く（ひな形の
+新しい版に合わせるときに使う。[ターゲットをひな形の新しい版に合わせる](update-target.md "在りか")）。文書の中の platform と control-plane へのリンクは、GitHub の `main` の
+同じファイルへのリンクに書き換える（[ADR 0020](../adr/0020-template-documents-linked-to-github-in-copies.md)）。
 
 ```bash
 <agent-control-plane>/target/template/bin/copy-target <新しいリポジトリ>
 ```
+
+agent-control-plane は、変更のない、push 済みの作業ツリー（ふつうは `main`）で回す。変更があると `template/base` は
+書かれず、push していないコミットは、あとで合わせるときに別の clone から見つからない。
 
 ## 2. 入口と文書の根を書く
 
