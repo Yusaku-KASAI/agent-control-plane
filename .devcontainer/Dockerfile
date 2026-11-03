@@ -141,3 +141,10 @@ FROM check-base AS check-target
 COPY --chown=node:node .devcontainer .devcontainer
 COPY --chown=node:node .vscode .vscode
 RUN make check-target
+
+# The copy source of new targets, compared with this repository's common files and checked as a copy.
+FROM check-base AS check-template
+COPY --chown=node:node .devcontainer .devcontainer
+COPY --chown=node:node target target
+COPY --chown=node:node platform/plugins/conventions/bin platform/plugins/conventions/bin
+RUN make check-template

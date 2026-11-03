@@ -10,23 +10,25 @@ Dockerfile の Go のツールチェーンと検査のステージ、Makefile �
 
 ```
 Dockerfile のステージ（矢印は元にするか、コピーする向き）
-  base ─▶ go ─▶ check-base ─▶ check-go、check-platform（このリポジトリの検査）
+  base ─▶ go ─▶ check-base ─▶ check-go、check-platform、check-template（このリポジトリの検査）
   go-source ─▶ go-tools ─▶ go
   go-source ─▶ go
 
 Makefile                .devcontainer/Dockerfile   .github/workflows/ci.yml
 check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジョブ ─┐
        ├─ check-platform ◀─ check-platform   ◀─ check-platform ジョブ ─┤
-       ├─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┼─▶ check ジョブ
+       ├─ check-target   ◀─ check-target     ◀─ check-target   ジョブ ─┤
+       ├─ check-template ◀─ check-template   ◀─ check-template ジョブ ─┼─▶ check ジョブ
        └─ check-docs（手元）                                           │
                             ルートの Dockerfile ◀─ check-image ジョブ ─┤
+        target/.devcontainer/Dockerfile ◀─ check-template-image ジョブ ─┤
                             check-docs アクション ◀─ check-docs ジョブ ─┤
                 check-protection アクション ◀─ check-protection ジョブ ─┘
 ```
 
 - ツールチェーンのステージは `go`。devcontainer のイメージ（`agent-control-plane-devcontainer`）になり、
   control-plane はこのリポジトリのエージェントも同じイメージで動かす（設定の `agents[].target.image`。例は [acp.example.yaml](../../../acp.example.yaml "在りか")）。
-- 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-docs` を足したもの。`check-docs` は、
+- 検査の関心は、共通の `check-target` に、`check-go`、`check-platform`、`check-template`、`check-docs` を足したもの。`check-docs` は、
   このリポジトリにある conventions の文書の検査（`platform/plugins/conventions/bin/check-docs`）を回す。手元では
   `make check-docs` で、CI ではターゲットと同じく conventions の複合アクションで回す。CI では `@main` ではなく
   リポジトリの中のパスで呼び、PR の版のアクションを確かめる（[template の ADR 0014](../../../target/template/docs/adr/0014-target-independent-checks-as-platform-actions.md)）。`check-protection`
@@ -76,6 +78,24 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 
 - **責務**：`platform/` のプラグインを検証し、そのシェルのスクリプトを shellcheck にかけ、プラグインの試験
   （`platform/plugins/*/tests/*-test.sh`）をすべて回す。試験は名前で見つけるので、足した試験は Makefile に並べなくても回る。
+
+### `check-template`（ルール、ステージ、CI のジョブ）
+
+- **責務**：新しいターゲットの写す元（`target/`）を確かめる。共通のファイル（`.devcontainer/` の `docker-entrypoint.sh`、
+  `init-host.sh`、`tmux.conf`、`check-vscode-settings.py`）がこのリポジトリのものと同じであることと、`target/` を新しい
+  ターゲットを作る手順と同じ `target/template/bin/copy-target` で一時ディレクトリに写し（`template/` を除き、`.tmpl` を
+  外す）、その中で `make check` と conventions の `check-docs` が通ること。`copy-target` も shellcheck にかける。
+- **関係**：共通のファイルの一覧は、target-template の[ファイルの分類](../../../target/template/docs/overview.md#files)の
+  共通の行に合わせる。埋めるファイルの共通の部分のずれと、`CLAUDE.md.tmpl` の節がターゲットの契約に合うかは確かめない。
+- **当てはめた原則・パターン**：[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)：
+  このリポジトリが使う共通のファイルと、ターゲットに写すひな形が同じであることを、両方を前提にしてよい control-plane で
+  確かめる。
+
+### CI の `check-template-image`
+
+- **責務**：写す元の `target/.devcontainer/Dockerfile` を、`target/` を文脈にして `check-target` のステージまでビルドし、
+  ひな形のイメージ（空のツールチェーンのステージ）がそのままビルドでき、そのステージの `make check-target` が通ることを確かめる。
+- **関係**：文脈は `target/` で、`target/.devcontainer/Dockerfile.dockerignore` を使う。
 
 ### CI の `check-image`
 

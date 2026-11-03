@@ -7,16 +7,19 @@ target-template のファイルから、新しいターゲットのリポジト�
 
 ## 1. ファイルを写す
 
-agent-control-plane の `target/` の下を、`template/` を除いて、新しいリポジトリのルートに写す（`.` で始まるファイルと
-ディレクトリも含める）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れるので写さない。
+agent-control-plane の `target/` の下を、新しいリポジトリ（`.git` のほかは空）のルートに写す。`target/template/bin/copy-target` が、`.` で始まる
+ファイルとディレクトリも含めて写し、`template/` を除き、名前が `.tmpl` で終わるひな形の `.tmpl` を外す
+（[ファイルの分類](../overview.md#files)）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れる
+ので写さない。
 
 ```bash
-cp -R <agent-control-plane>/target/. <新しいリポジトリ>/ && rm -r <新しいリポジトリ>/template
+<agent-control-plane>/target/template/bin/copy-target <新しいリポジトリ>
 ```
 
-## 2. 入口と文書の根を置く
+## 2. 入口と文書の根を書く
 
-`README.md`、`docs/README.md`、`CLAUDE.md` を置く。器は conventions の
+1 で名前を戻した `README.md`、`docs/README.md`、`docs/overview.md`、`CLAUDE.md` の `Fill in:` の所と `<リポジトリ名>` を、
+そのリポジトリのものに書く。器は conventions の
 [形式：文書の根](../../../../platform/plugins/conventions/docs/reference/formats.md#layout "在りか")に、`CLAUDE.md` の節は
 [ターゲットの契約の CLAUDE.md](../../../../platform/docs/reference/target.md#claudemd "在りか")にある。
 

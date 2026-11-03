@@ -1,7 +1,7 @@
-.PHONY: check check-go check-platform check-target check-docs fmt test build
+.PHONY: check check-go check-platform check-target check-template check-docs fmt test build
 
 # One target per concern, so that CI can run each from only the files it reads.
-check: check-go check-platform check-target check-docs
+check: check-go check-platform check-target check-template check-docs
 
 check-go:
 	# govulncheck runs on .devcontainer/Dockerfile's Go, while acp is built with Dockerfile's; a bump
@@ -25,6 +25,18 @@ check-platform:
 check-target:
 	shellcheck .devcontainer/*.sh
 	python3 .devcontainer/check-vscode-settings.py
+
+# The copy source of new targets (target/): its common files are the ones this repository runs, and
+# a copy of it, made as a new target is, passes that target's checks.
+check-template:
+	for f in docker-entrypoint.sh init-host.sh tmux.conf check-vscode-settings.py; do \
+		cmp .devcontainer/$$f target/.devcontainer/$$f || exit 1; \
+	done
+	shellcheck target/template/bin/copy-target
+	d=$$(mktemp -d) && trap 'rm -rf "$$d"' EXIT \
+		&& target/template/bin/copy-target "$$d" \
+		&& $(MAKE) -C "$$d" check \
+		&& cd "$$d" && $(CURDIR)/platform/plugins/conventions/bin/check-docs
 
 check-docs:
 	platform/plugins/conventions/bin/check-docs
