@@ -102,8 +102,10 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		usagelog.New(cfg.UsageLog, log),
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
-			// Installation tokens live for an hour. A try issues one and reads its reach, each
-			// call bounded by 30 seconds, so the last try ends before the hour.
+			// Installation tokens live for an hour. A try makes the calls of every issuer, each
+			// bounded by 30 seconds: two for the installation token and its reach and, when the
+			// Slack token is due, one more after any refresh under way. The last try ends before
+			// the hour.
 			CredentialRefresh:  40 * time.Minute,
 			CredentialLifetime: 55 * time.Minute,
 			CredentialRetry:    time.Minute,

@@ -183,8 +183,10 @@ type fakeProcess struct {
 	interrupted bool
 	stoppedTask []string
 	updated     int
-	coAuthors   []domain.GitIdentity
-	closed      bool
+	// updateErr is what UpdateCredentials returns, without counting the update.
+	updateErr error
+	coAuthors []domain.GitIdentity
+	closed    bool
 	// closeErr is what Close returns, as when the process had to be stopped.
 	closeErr error
 	// sendErr is what Send returns, without recording the prompt.
@@ -255,8 +257,17 @@ func (p *fakeProcess) Err() error                          { return p.err }
 func (p *fakeProcess) UpdateCredentials(context.Context, domain.Credentials) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.updateErr != nil {
+		return p.updateErr
+	}
 	p.updated++
 	return nil
+}
+
+func (p *fakeProcess) failUpdates(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.updateErr = err
 }
 
 func (p *fakeProcess) SetCoAuthors(_ context.Context, people []domain.GitIdentity) error {
@@ -1518,27 +1529,35 @@ func TestDispatcher_RefreshesCredentials(t *testing.T) {
 // A reissue that fails while the credentials the process has are still usable is tried again,
 // leaving the running turn alone.
 func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
-	e := newEnv(t, usecase.DispatcherOptions{
-		CredentialRefresh: 80 * time.Millisecond, CredentialLifetime: 200 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
-	})
-	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
-	p := e.runner.next(t)
-	// Past the lifetime of the credentials the process started with, those reissued since count.
-	time.Sleep(250 * time.Millisecond)
-	e.issuer.fail(errors.New("dial tcp: lookup api.github.com: server misbehaving"))
-	failedFrom := e.issuer.issues()
-	eventually(t, func() bool { return e.issuer.issues() >= failedFrom+3 })
-	if p.isClosed() {
-		t.Fatal("the process was stopped while its credentials were still usable")
+	tests := map[string]func(e env, p *fakeProcess, err error){
+		"issuing fails": func(e env, _ *fakeProcess, err error) { e.issuer.fail(err) },
+		"writing fails": func(_ env, p *fakeProcess, err error) { p.failUpdates(err) },
 	}
-	p.mu.Lock()
-	updated := p.updated
-	p.mu.Unlock()
-	e.issuer.fail(nil)
-	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated > updated })
-	p.finish("done")
-	if o := wait(t, running); o.err != nil || o.out.Output != "done" {
-		t.Fatalf("Execute() = %+v, %v; want the turn to finish", o.out, o.err)
+	for name, fail := range tests {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, usecase.DispatcherOptions{
+				CredentialRefresh: 80 * time.Millisecond, CredentialLifetime: 200 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
+			})
+			running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
+			p := e.runner.next(t)
+			// Past the lifetime of the credentials the process started with, those reissued since count.
+			time.Sleep(250 * time.Millisecond)
+			fail(e, p, errors.New("dial tcp: lookup api.github.com: server misbehaving"))
+			failedFrom := e.issuer.issues()
+			eventually(t, func() bool { return e.issuer.issues() >= failedFrom+3 })
+			if p.isClosed() {
+				t.Fatal("the process was stopped while its credentials were still usable")
+			}
+			p.mu.Lock()
+			updated := p.updated
+			p.mu.Unlock()
+			fail(e, p, nil)
+			eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated > updated })
+			p.finish("done")
+			if o := wait(t, running); o.err != nil || o.out.Output != "done" {
+				t.Fatalf("Execute() = %+v, %v; want the turn to finish", o.out, o.err)
+			}
+		})
 	}
 }
 
