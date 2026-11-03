@@ -69,6 +69,11 @@ type DispatcherOptions struct {
 	IdleTimeout time.Duration
 	// CredentialRefresh is how often credentials of a running process are reissued.
 	CredentialRefresh time.Duration
+	// CredentialLifetime is how long credentials stay usable after they are issued. A failed
+	// reissue is tried again every CredentialRetry while the next try still comes before then; a
+	// refusal (domain.ErrCredentialsRefused) or one that would not stops the process.
+	CredentialLifetime time.Duration
+	CredentialRetry    time.Duration
 	// StopTimeout bounds a graceful process exit before it is stopped.
 	StopTimeout time.Duration
 }
@@ -503,8 +508,11 @@ type worker struct {
 	// done is closed once the worker has given up the session's lock.
 	done chan struct{}
 
-	proc  Process
-	turns requestTurns
+	proc Process
+	// credentialsIssuedAt is when the process's credentials began to be issued, on the wall clock
+	// as they expire while the host sleeps too.
+	credentialsIssuedAt time.Time
+	turns               requestTurns
 	// startedAt and activity are those of the running turn; the agent may start one by itself.
 	startedAt time.Time
 	activity  string
@@ -521,7 +529,7 @@ func (w *worker) run() {
 	}()
 	idle := time.NewTimer(w.d.opts.IdleTimeout)
 	defer idle.Stop()
-	refresh := time.NewTicker(w.d.opts.CredentialRefresh)
+	refresh := time.NewTimer(w.d.opts.CredentialRefresh)
 	defer refresh.Stop()
 
 	for {
@@ -562,7 +570,7 @@ func (w *worker) run() {
 			}
 			answer <- false
 		case <-refresh.C:
-			w.refreshCredentials()
+			refresh.Reset(w.refreshCredentials())
 		case <-idle.C:
 			if w.turns.idle() && w.d.retire(w) {
 				w.stopProcess(nil)
@@ -706,6 +714,7 @@ func (w *worker) ensureProcess() error {
 	if w.proc != nil {
 		return nil
 	}
+	issuedAt := time.Now().Round(0)
 	creds, err := w.d.credentials.Issue(w.d.ctx, w.agent)
 	if err != nil {
 		return fmt.Errorf("issue credentials: %w", err)
@@ -714,7 +723,7 @@ func (w *worker) ensureProcess() error {
 	if err != nil {
 		return fmt.Errorf("start agent process: %w", err)
 	}
-	w.proc = proc
+	w.proc, w.credentialsIssuedAt = proc, issuedAt
 	return nil
 }
 
@@ -819,17 +828,27 @@ func (w *worker) processExited() {
 	w.stopProcess(err)
 }
 
-func (w *worker) refreshCredentials() {
+// refreshCredentials reissues the credentials of the running process and returns when to do it
+// next. The process keeps those it has while it may try again before they expire.
+func (w *worker) refreshCredentials() time.Duration {
 	if w.proc == nil {
-		return
+		return w.d.opts.CredentialRefresh
 	}
+	issuedAt := time.Now().Round(0)
 	creds, err := w.d.credentials.Issue(w.d.ctx, w.agent)
 	if err == nil {
 		err = w.proc.UpdateCredentials(w.d.ctx, creds)
 	}
-	if err != nil {
-		w.stopProcess(fmt.Errorf("refresh credentials: %w", err))
+	if err == nil {
+		w.credentialsIssuedAt = issuedAt
+		return w.d.opts.CredentialRefresh
 	}
+	expiry := w.credentialsIssuedAt.Add(w.d.opts.CredentialLifetime)
+	if errors.Is(err, domain.ErrCredentialsRefused) || !time.Now().Round(0).Add(w.d.opts.CredentialRetry).Before(expiry) {
+		w.stopProcess(fmt.Errorf("refresh credentials: %w", err))
+		return w.d.opts.CredentialRefresh
+	}
+	return w.d.opts.CredentialRetry
 }
 
 // markUsed records that the agent may have changed the work now: a turn begins, one ends without

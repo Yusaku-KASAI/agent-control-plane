@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-03
 amends: [11]
+amended_by: [66]
 ---
 
 # 0018. 認証情報はセッションごとのディレクトリのファイルで渡し、control-plane が失効前に更新する

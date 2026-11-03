@@ -102,9 +102,12 @@ func listenAndServe(ctx context.Context, configPath, addr, token string, log *sl
 		usagelog.New(cfg.UsageLog, log),
 		usecase.DispatcherOptions{
 			IdleTimeout: cfg.IdleTimeout,
-			// Installation tokens live for an hour.
-			CredentialRefresh: 40 * time.Minute,
-			StopTimeout:       30 * time.Second,
+			// Installation tokens live for an hour. A try issues one and reads its reach, each
+			// call bounded by 30 seconds, so the last try ends before the hour.
+			CredentialRefresh:  40 * time.Minute,
+			CredentialLifetime: 55 * time.Minute,
+			CredentialRetry:    time.Minute,
+			StopTimeout:        30 * time.Second,
 		},
 	)
 	cleaner := usecase.NewSessionCleaner(usecase.SessionCleanerDeps{
