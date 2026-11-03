@@ -96,7 +96,7 @@ docker compose logs control-plane | grep 'posting a notice to the thread failed'
 
 ログは control-plane のコンテナを作り直すと消えるので、`docker compose up -d --build` の前に探す。消えたあとは、
 セッションを片付けるまで、会話の履歴（[セッション](../architecture/app/sessions.md "在りか")）に回答が残る。止めるときに
-Slack とつながらなかった知らせは、ログにも残らない（[ADR 0064](../adr/app/0064-log-lost-notices-for-the-operator.md "在りか")）。
+Slack とつながらなかった知らせは、ログにも残らない（[ADR 0065](../adr/app/0065-log-lost-notices-for-the-operator.md "在りか")）。
 
 ## Slack のトークンを取り直す
 
