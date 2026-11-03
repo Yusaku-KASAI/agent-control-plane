@@ -88,7 +88,7 @@ docker network disconnect agent-control-plane_default "$dev"
 
 依頼の入らなかったターンの回答など、依頼を待たない知らせを Slack に投稿できなかったときは、スレッドには何も出ず、
 ログに、セッション、チャンネル、スレッド、文面（`text`）が残る（[状態メッセージ](../architecture/app/requests.md#status "在りか")）。
-答えが来ないスレッドがあれば、次で探す。文面は引用符で囲まれ、改行は `\n` になっている。
+答えが来ないスレッドがあれば、次で探す。文面は `text=` のあとにあり、空白や改行を含むものは引用符で囲まれ、改行は `\n` になっている。
 
 ```bash
 docker compose logs control-plane | grep 'posting a notice to the thread failed'
