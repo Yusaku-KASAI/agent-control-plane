@@ -750,10 +750,11 @@ scope_message() {
 # whatever follows it on the line, and its sentences close no issue by a keyword: an issue is closed
 # by the line of Closes alone. A sentence is what is outside such a start of a line, code blocks and
 # inline code, read both a paragraph (up to a blank line or a code block) at a time, as one line, and
-# a line at a time: GitHub reads inline code within a block, which may be the paragraph or a line of it
-# (an item of a list, a heading), and either reading that finds a keyword refuses it (ADR 0038). Lines in code blocks are not headings, and name no issue. Such lines with nothing
-# after the issue, the attribution line and the old marker of the head, which the body loses when it
-# is written, do not count as what is written under a section.
+# a line at a time: GitHub reads inline code within a block, which may be the paragraph or a line of
+# it (an item of a list, a heading), and either reading that finds a keyword refuses it (ADR 0038).
+# Lines in code blocks are not headings, and name no issue. Such lines with nothing after the issue,
+# the attribution line and the old marker of the head, which the body loses when it is written, do
+# not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --arg closing "$closing_re" \
