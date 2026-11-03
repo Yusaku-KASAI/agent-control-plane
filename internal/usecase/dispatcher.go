@@ -163,8 +163,8 @@ func (r turnReply) output(agent domain.AgentName) (RunAgentOutput, error) {
 }
 
 // Stop ends everything the session is doing: the running turn, the background tasks the agent
-// would resume after, and the prompts waiting in the queue. A request the worker has not taken yet,
-// as while it starts the agent, may stay and be sent later. It does nothing to an idle session.
+// would resume after, and the requests that came before it, whether waiting in the queue or not
+// taken by the worker yet. A request that comes after it goes on. It does nothing to an idle session.
 func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id domain.SessionID) error {
 	s, err := d.sessions.Find(ctx, id)
 	if err != nil {
@@ -175,11 +175,18 @@ func (d *Dispatcher) Stop(ctx context.Context, agentName domain.AgentName, id do
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if w, ok := d.workers[id]; ok {
-		select {
-		case w.stops <- struct{}{}:
-		default:
-		}
+	w, ok := d.workers[id]
+	if !ok {
+		return nil
+	}
+	// Withdrawn under the same lock as the stop is signalled, so that takeArrival tells the requests
+	// that came before the stop, which the worker must not send, from those after it.
+	for _, r := range w.takeArrivals() {
+		r.answer(turnReply{session: s, err: ErrStopped})
+	}
+	select {
+	case w.stops <- struct{}{}:
+	default:
 	}
 	return nil
 }
@@ -402,21 +409,26 @@ func (d *Dispatcher) submit(ctx context.Context, agent domain.Agent, s domain.Se
 
 // takeArrival hands the worker the first request waiting for it. The worker takes one at a time,
 // so that each stays withdrawable by StopRequest until the worker is about to take it in.
-func (d *Dispatcher) takeArrival(w *worker) (request, bool) {
+// stopFirst tells that Stop was called before the request came, so the worker must stop before it
+// takes the request in, or the stop would end a request that came after it.
+func (d *Dispatcher) takeArrival(w *worker) (r request, ok, stopFirst bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if len(w.arrivals) == 0 {
-		return request{}, false
+		return request{}, false, false
 	}
-	r := w.arrivals[0]
+	select {
+	case <-w.stops:
+		stopFirst = true
+	default:
+	}
+	r = w.arrivals[0]
 	w.arrivals = w.arrivals[1:]
-	return r, true
+	return r, true, stopFirst
 }
 
-// takeArrivals hands the worker every request waiting for it, as when it shuts down.
-func (d *Dispatcher) takeArrivals(w *worker) []request {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+// takeArrivals hands over every request waiting for the worker; the caller holds the dispatcher's mu.
+func (w *worker) takeArrivals() []request {
 	rs := w.arrivals
 	w.arrivals = nil
 	return rs
@@ -522,9 +534,12 @@ func (w *worker) run() {
 			// Sending between takes lets an injected request join the turn the one before began. Once
 			// the dispatcher is closing, the rest are left for shutdown to answer as cut short.
 			for w.d.ctx.Err() == nil {
-				r, ok := w.d.takeArrival(w)
+				r, ok, stopFirst := w.d.takeArrival(w)
 				if !ok {
 					break
+				}
+				if stopFirst {
+					w.stop()
 				}
 				w.accept(r)
 				w.sendNext()
@@ -864,7 +879,9 @@ func (w *worker) shutdown() {
 		// Lets the agent record the turn as interrupted before its input closes.
 		_ = w.proc.Interrupt(context.WithoutCancel(w.d.ctx))
 	}
-	arrivals := w.d.takeArrivals(w)
+	w.d.mu.Lock()
+	arrivals := w.takeArrivals()
+	w.d.mu.Unlock()
 	if running || len(w.turns.backgroundTasks()) > 0 {
 		w.observe(SessionEvent{Kind: SessionAbandoned, RequestsTold: w.turns.waiting() || len(arrivals) > 0})
 	}

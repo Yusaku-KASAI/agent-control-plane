@@ -839,6 +839,49 @@ func (p *fakeProcess) stoppedTasks() []string {
 	return slices.Clone(p.stoppedTask)
 }
 
+// Stopping the session ends the requests that came before it, including those the worker has not
+// taken yet, as while it starts the agent, and leaves those that come after it. The worker is held
+// in Start within its takes, so it meets the stop when it takes the request after it.
+func TestDispatcher_StopEndsRequestsThatCameBeforeIt(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{})
+	gate := make(chan struct{})
+	e.runner.gate = gate
+	release := sync.OnceFunc(func() { close(gate) })
+	// A failure must not leave the worker held in Start, or Close waits for it.
+	t.Cleanup(release)
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "first"})
+	eventually(t, func() bool { return len(e.runner.starts()) == 1 })
+	waiting := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "waiting"})
+	injected := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "also", Inject: true})
+	// The worker is held in Start, so it has not taken the requests.
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 2 })
+	if err := e.d.Stop(context.Background(), dev.Name, existingID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	for name, ch := range map[string]<-chan outcome{"waiting": waiting, "injected": injected} {
+		if o := wait(t, ch); !errors.Is(o.err, usecase.ErrStopped) {
+			t.Fatalf("%s request = %+v, %v; want ErrStopped", name, o.out, o.err)
+		}
+	}
+	after := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "after"})
+	eventually(t, func() bool { return e.d.Arrivals(existingID) == 1 })
+	release()
+	p := e.runner.next(t)
+	// The worker took the first request before the stop, so the stop ends it once it is sent,
+	// withdrawn or with its turn interrupted by whether the agent has taken it in.
+	if o := wait(t, first); !errors.Is(o.err, usecase.ErrStopped) && !o.out.Interrupted {
+		t.Fatalf("first request = %+v, %v; want it stopped", o.out, o.err)
+	}
+	eventually(t, func() bool { return len(p.sent()) == 2 })
+	if got := p.sent(); got[1] != "after" {
+		t.Fatalf("sent %q; want only the request after the stop sent after the first", got)
+	}
+	p.finish("two")
+	if o := wait(t, after); o.err != nil || o.out.Output != "two" {
+		t.Fatalf("request after the stop = %+v, %v; want it answered", o.out, o.err)
+	}
+}
+
 // A request waiting in the queue is withdrawn alone; the running turn and the other waiting
 // requests go on.
 func TestDispatcher_StopRequestWaitingInQueue(t *testing.T) {
