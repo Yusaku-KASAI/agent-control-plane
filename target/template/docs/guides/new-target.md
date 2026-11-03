@@ -17,6 +17,9 @@ agent-control-plane の `target/` の下を、新しいリポジトリ（`.git` 
 <agent-control-plane>/target/template/bin/copy-target <新しいリポジトリ>
 ```
 
+agent-control-plane は、変更のない、push 済みの作業ツリー（ふつうは `main`）で回す。変更があると `template/base` は
+書かれず、push していないコミットは、あとで合わせるときに別の clone から見つからない。
+
 ## 2. 入口と文書の根を書く
 
 1 で名前を戻した `README.md`、`docs/README.md`、`docs/overview.md`、`CLAUDE.md` の `Fill in:` の所と `<リポジトリ名>` を、
