@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-26
 amends: [39]
+amended_by: [55]
 ---
 
 # 0048. ロールに共通の但し書きは conventions で一度だけ定義し、ロールの指示から外す

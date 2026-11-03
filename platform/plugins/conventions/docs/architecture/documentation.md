@@ -11,7 +11,7 @@
 | 何を検査にし、検査をどこに置くか | [検査の扱い方](../reference/checks.md "在りか") |
 | 文書を書く順 | [文書を書く](../guides/write-docs.md "在りか") |
 
-判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0041](../adr/0041-reasons-by-kind.md)、[0047](../adr/0047-principles-listed-by-name-and-source.md)、[0048](../adr/0048-role-common-rules-defined-once.md) にある。
+判断の理由は ADR [0002](../adr/0002-documents-by-distribution-context.md)、[0003](../adr/0003-type-first-docs-and-platform-kernel.md)、[0005](../adr/0005-principles-and-conventions-plugins.md)、[0006](../adr/0006-nested-items-and-prerequisite-directions.md)、[0008](../adr/0008-maps-per-level-and-the-whole.md)、[0009](../adr/0009-definitions-and-delivery.md)、[0020](../adr/0020-scene-procedures-start-by-reading.md)、[0021](../adr/0021-purpose-procedures-and-triage.md)、[0039](../adr/0039-documentation-explains-and-references-hold-rules.md)、[0041](../adr/0041-reasons-by-kind.md)、[0047](../adr/0047-principles-listed-by-name-and-source.md)、[0048](../adr/0048-role-common-rules-defined-once.md)、[0055](../adr/0055-non-writers-keep-shared-places-and-try-freely-in-their-own.md) にある。
 原則とパターンは[設計の原則](../../../principles/docs/reference/principles.md "在りか")と[設計のパターン](../../../principles/docs/reference/patterns.md "在りか")にある。
 
 ## 構成
@@ -132,10 +132,11 @@ Diátaxis の 4 つの種類のうち解説、手順、参照を使い、チュ�
 手順は役割（ロール）では切らない。役割は、権限と隔離の境界（書けるもの、残せる所）で、使うモデルも持つ。手順と役割は
 多対多になり、どの目的の手順を受け持つかは役割ごとの指示の「受け持つ手順」に書く。役割の書ける範囲は作業領域と
 GitHub についてのもので、ほかの書き先（チャットへの投稿など）は、セッションを動かすハーネスの契約による。作業領域を
-書ける範囲に持たない役割は、作業領域の主の作業ツリー（そのファイル、index、HEAD）と、作業領域のブランチと、ほかの
-worktree の HEAD を変えない。試すための編集や検査は、隔離して動くときの自分の worktree か作業領域の外の一時的な場所で
-し、GitHub に書くための作業用のファイルは作業領域の外の一時的な場所に置く。読むために作業ツリーを取り出すときに
-変わってよいのは、worktree の登録と、ブランチでない refs（remote-tracking など）だけ。
+書ける範囲に持たない役割は、作業領域の主の作業ツリー（そのファイル、index、HEAD）と、作業領域のブランチを変えない。そこでの変更は、
+書ける役割のコミットに紛れるか、ブランチにしかないコミットを失わせるか、作業領域の片付けを止めるため。試すための
+編集や検査は、自分だけが使う所（隔離して動くときの自分の worktree か、作業領域の外の一時的な場所）でし、その中は自由に
+変えてよい。自分の worktree に残ったものは、戻さずに worktree ごと消してよい。GitHub に書くための作業用のファイルは、
+作業領域の外の一時的な場所に置く。
 振り分けと役割ごとの指示が食い違うときは、役割ごとの指示に従う。手順の形は[形式：手順](../reference/formats.md#procedure "在りか")に、「始めに読む」の段と
 起点への並べ方は[届け方の決まり：目的の手順の読ませ方](../reference/delivery.md#procedures "在りか")にある。
 
