@@ -10,13 +10,17 @@ target-template のファイルから、新しいターゲットのリポジト�
 agent-control-plane の `target/` の下を、`template/` を除いて、新しいリポジトリのルートに写す（`.` で始まるファイルと
 ディレクトリも含める）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れるので写さない。
 
+名前が `.tmpl` で終わるひな形は、写したら `.tmpl` を外す（[ファイルの分類](../overview.md#files)）。
+
 ```bash
 cp -R <agent-control-plane>/target/. <新しいリポジトリ>/ && rm -r <新しいリポジトリ>/template
+find <新しいリポジトリ> -name '*.tmpl' -exec sh -c 'mv "$1" "${1%.tmpl}"' _ {} \;
 ```
 
 ## 2. 入口と文書の根を置く
 
-`README.md`、`docs/README.md`、`CLAUDE.md` を置く。器は conventions の
+1 で名前を戻した `README.md`、`docs/README.md`、`docs/overview.md`、`CLAUDE.md` の `Fill in:` の所と `<リポジトリ名>` を、
+そのリポジトリのものに書く。器は conventions の
 [形式：文書の根](../../../../platform/plugins/conventions/docs/reference/formats.md#layout "在りか")に、`CLAUDE.md` の節は
 [ターゲットの契約の CLAUDE.md](../../../../platform/docs/reference/target.md#claudemd "在りか")にある。
 

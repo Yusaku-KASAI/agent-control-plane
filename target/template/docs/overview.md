@@ -43,8 +43,13 @@
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
 ひな形のファイルでは、埋める場所に `Fill in:` で始まるコメントを置く（コメントを書けない `.claude/settings.json` を
-除く）。値だけを埋める所（`.devcontainer/.env.example` の `<repository>`、`.github/CODEOWNERS` の `<owner>`）は、`<...>` で示す。`CLAUDE.md` のひな形は置かない。`target/` の下の `CLAUDE.md` は、agent-control-plane でその下のファイルを読む
-エージェントに読み込まれるため。
+除く）。値だけを埋める所（`.devcontainer/.env.example` の `<repository>`、`.github/CODEOWNERS` の `<owner>`）は、`<...>` で示す。Markdown では、
+HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
+
+`CLAUDE.md`、`README.md`、`docs/README.md`、`docs/overview.md` のひな形は、名前の終わりに `.tmpl` を足して置き、写したら
+外す（[ADR 0019](adr/0019-renamed-templates-for-entry-documents.md)）。`target/` の下の `CLAUDE.md` は agent-control-plane で
+その下のファイルを読むエージェントに読み込まれ、`.md` で終わる文書は agent-control-plane の文書として検査されるため。
+`README.md` と `docs/` は、ファイルの分類では固有で、ひな形は書き始めの器だけを持つ。
 
 共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、検査では確かめない。
 
