@@ -209,7 +209,8 @@ acp run / stop ─▶ httpapi ─▶ Dispatcher（応答の本文で結果を返
   書き換える（[ADR 0019](../../adr/app/0019-chat-controls-and-status.md)）。
   エージェントのターンは、そのセッションの最後の状態メッセージを書き換えて使う
   （[ADR 0028](../../adr/app/0028-quiet-agent-started-turns.md)）。依頼の入らなかったターンの回答と中断の知らせは、
-  [`AgentAnswers`](#agent-answers) が決めた文面（`SessionNotice`）をそのまま投稿する。
+  [`AgentAnswers`](#agent-answers) が決めた文面（`SessionNotice`）をそのまま投稿する。投稿できなかったら、スレッドには
+  知らせず、エラーのログに、セッション ID、チャンネル、スレッド、文面を残す（[ADR 0064](../../adr/app/0064-log-lost-notices-for-the-operator.md)）。
 - **置くもの / 置かないもの**：
   - **見せるもの**：状態（実行中、完了、中断、失敗、使用上限で停止）、経過時間、実行中はエージェントの
     直近 10 件の発言と今の作業、終わったあとは費用の見積もり、待っている依頼とバックグラウンドの処理の数、
