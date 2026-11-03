@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -165,6 +166,9 @@ func TestIssuer_Issue_RefusesAWideInstallation(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), tt.fix) {
 				t.Errorf("Issue() error = %v, want one naming %s and telling to fix %s", err, tt.want, tt.fix)
 			}
+			if !errors.Is(err, domain.ErrCredentialsRefused) {
+				t.Errorf("Issue() error = %v, want it to be ErrCredentialsRefused", err)
+			}
 			if got != (domain.Credentials{}) {
 				t.Errorf("Issue() = %+v, want no credentials", got)
 			}
@@ -192,6 +196,9 @@ func TestIssuer_Issue_RefusesWhenTheReachCannotBeRead(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "403") {
 		t.Errorf("Issue() error = %v, want the status of the unread list", err)
 	}
+	if errors.Is(err, domain.ErrCredentialsRefused) {
+		t.Errorf("Issue() error = %v, want an unread list not to be a refusal, as it may read next time", err)
+	}
 	if got != (domain.Credentials{}) {
 		t.Errorf("Issue() = %+v, want no credentials", got)
 	}
@@ -205,8 +212,12 @@ func TestIssuer_Issue_Failures(t *testing.T) {
 	issuer := NewIssuer(map[domain.AgentName]App{dev.Name: {ID: 1, InstallationID: 99, PrivateKey: newKey(t)}}, srv.URL, srv.Client(),
 		originOf(t, "https://github.com/owner/repo.git"))
 
-	if _, err := issuer.Issue(context.Background(), dev); err == nil || !strings.Contains(err.Error(), "Bad credentials") {
+	_, err := issuer.Issue(context.Background(), dev)
+	if err == nil || !strings.Contains(err.Error(), "Bad credentials") {
 		t.Errorf("Issue() error = %v, want the GitHub message", err)
+	}
+	if errors.Is(err, domain.ErrCredentialsRefused) {
+		t.Errorf("Issue() error = %v, want a failed request not to be a refusal", err)
 	}
 	if got, err := issuer.Issue(context.Background(), domain.Agent{Name: "no-app"}); err != nil || got != (domain.Credentials{}) {
 		t.Errorf("Issue(agent without app) = %+v, %v; want empty credentials", got, err)

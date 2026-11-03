@@ -106,8 +106,8 @@ func (i *Issuer) targetRepo(ctx context.Context, app App, agent domain.Agent) (s
 	}
 	target, ok := parseRepo(origin)
 	if !ok {
-		return "", fmt.Errorf("github app %d of agent %q: the target has no GitHub origin to hold the installation to; point the target's origin at its GitHub repository, or drop the agent's github app",
-			app.ID, agent.Name)
+		return "", fmt.Errorf("%w: github app %d of agent %q: the target has no GitHub origin to hold the installation to; point the target's origin at its GitHub repository, or drop the agent's github app",
+			domain.ErrCredentialsRefused, app.ID, agent.Name)
 	}
 	return target, nil
 }
@@ -120,8 +120,8 @@ func (i *Issuer) checkReach(ctx context.Context, app App, agent domain.Agent, ta
 		return err
 	}
 	if err := reachOnly(target, selection, repos); err != nil {
-		return fmt.Errorf("github app %d (installation %d) of agent %q: %w; choose only the target's repository in the installation's Repository access",
-			app.ID, app.InstallationID, agent.Name, err)
+		return fmt.Errorf("%w: github app %d (installation %d) of agent %q: %w; choose only the target's repository in the installation's Repository access",
+			domain.ErrCredentialsRefused, app.ID, app.InstallationID, agent.Name, err)
 	}
 	return nil
 }

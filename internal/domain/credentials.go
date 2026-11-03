@@ -1,5 +1,11 @@
 package domain
 
+import "errors"
+
+// ErrCredentialsRefused tells that an issuer refused to hand out credentials for what the agent is
+// set up as, which no retry mends until the setup changes.
+var ErrCredentialsRefused = errors.New("credentials refused")
+
 // Credentials are issued per turn and handed to the agent's container. Zero values mean
 // the agent has no such access.
 type Credentials struct {

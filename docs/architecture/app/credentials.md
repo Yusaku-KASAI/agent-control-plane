@@ -92,8 +92,8 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
   インストールの範囲と App の権限で決まる（[ADR 0053](../../adr/app/0053-limit-github-app-reach-by-installation.md)）。
   発行の前にターゲットの `origin` のリポジトリを決め（GitHub の `origin` がなければ発行しない）、発行したトークンで
   `GET /installation/repositories` を読み、インストールが「Only select repositories」で、届くのがそのリポジトリだけの
-  ときにだけ渡す。ほかは、直す所（インストールの Repository access か、ターゲットの `origin`）を添えたエラーにする
-  （[ADR 0054](../../adr/app/0054-refuse-a-token-that-reaches-beyond-the-target.md)）。
+  ときにだけ渡す。ほかは、直す所（インストールの Repository access か、ターゲットの `origin`）を添えたエラーにし、やり直しても
+  通らない断りとして `domain.ErrCredentialsRefused` を包む（[ADR 0054](../../adr/app/0054-refuse-a-token-that-reaches-beyond-the-target.md)）。
   トークンは 1 時間で失効し、手元には持ち続けない。
   秘密鍵は起動時に読み込む（PKCS#1 か PKCS#8 の RSA）。
 - **関係**：エージェントは自分の App のトークンだけを受け取り、できることは App の権限で決まる
@@ -116,7 +116,7 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
       それまでは今のトークンを返す。失効は壁時計で比べる（ホストのスリープのあいだも進む）。
     - 更新に失敗し続けたとき：失効までは control-plane とエージェントが今のトークンを使える。失効までに
       更新できなければ、`Token` がエラーを返すので control-plane の投稿と発行が止まり、動いているセッションは
-      次の書き換えでプロセスが止まる（[動いている間の更新](#refresh)）。エージェントのファイルは書き換えの
+      書き換えのやり直しが今の認証情報の使える間に通らなければプロセスが止まる（[動いている間の更新](#refresh)）。エージェントのファイルは書き換えの
       ときにしか変わらないので、失効の前の最後の書き換えまでに更新できなければ、そのファイルのトークンは
       次の書き換えより先に失効し、その間はエージェントの Slack の操作が失敗する。
 - **関係**：同じ `Source` を、control-plane の Slack Bot（`slackbot`）とエージェントへの発行の両方が使うので、
@@ -158,8 +158,15 @@ runner が acp-credentials/<セッション ID>/ に書く ◀── dispatcher 
 ### 動いている間の更新（`internal/usecase/dispatcher.go`）
 
 - **責務**：セッションのコンテナが動いている間、認証情報を一定間隔で発行し直して書き換えさせる。
-- **置くもの / 置かないもの**：ワーカーごとのタイマー（`CredentialRefresh`。`serve.go` で 40 分。インストール
-  トークンの 1 時間より短い）。コンテナがなければ何もしない。発行か書き換えに失敗したら、そのプロセスを止め、
-  実行中のターンを失敗にする。
+- **置くもの / 置かないもの**：
+  - ワーカーごとのタイマー（`CredentialRefresh`。`serve.go` で 40 分。インストールトークンの 1 時間より短い）。
+    コンテナがなければ何もしない。
+  - 発行か書き換えに失敗したとき：今の認証情報が使える間（`CredentialLifetime`。発行し始めた時から `serve.go` で
+    55 分。インストールトークンの 1 時間から、最後のやり直しにかかる時間を引いたもの）は、プロセスを止めず、
+    `CredentialRetry`（`serve.go` で 1 分）ごとにやり直す。次のやり直しがその間に収まらなければ、そのプロセスを
+    止め、実行中のターンを失敗にする。発行元が断ったとき（`domain.ErrCredentialsRefused`。GitHub App の宛先の
+    確かめで断るときなど）は、やり直しても通らないので、すぐ止める（[ADR 0066](../../adr/app/0066-retry-credential-refresh-until-expiry.md)）。
+  - 使える間は壁時計で比べる。ホストのスリープのあいだも失効は進むので、目覚めたあとの最初の失敗で止まりうる。
+  - 発行し直しとそのやり直しは、セッションを使ったことに数えず、休むまでの時間（[セッションのワーカー](sessions.md#worker "在りか")）を延ばさない。
 - **関係**：コンテナの中の `gh` と slack プラグインはファイルを毎回読むので、書き換えはそのまま効く。
   タイマーは[セッションのワーカー](sessions.md#worker "在りか")が持つ。

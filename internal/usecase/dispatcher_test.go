@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -160,6 +161,18 @@ func (f *fakeIssuer) Issue(context.Context, domain.Agent) (domain.Credentials, e
 	return domain.Credentials{GitHubToken: "token"}, f.err
 }
 
+func (f *fakeIssuer) fail(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err = err
+}
+
+func (f *fakeIssuer) issues() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.issued
+}
+
 // fakeProcess answers each prompt when the test calls finish, mimicking a turn that runs until done.
 type fakeProcess struct {
 	mu      sync.Mutex
@@ -170,8 +183,10 @@ type fakeProcess struct {
 	interrupted bool
 	stoppedTask []string
 	updated     int
-	coAuthors   []domain.GitIdentity
-	closed      bool
+	// updateErr is what UpdateCredentials returns, without counting the update.
+	updateErr error
+	coAuthors []domain.GitIdentity
+	closed    bool
 	// closeErr is what Close returns, as when the process had to be stopped.
 	closeErr error
 	// sendErr is what Send returns, without recording the prompt.
@@ -242,8 +257,17 @@ func (p *fakeProcess) Err() error                          { return p.err }
 func (p *fakeProcess) UpdateCredentials(context.Context, domain.Credentials) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.updateErr != nil {
+		return p.updateErr
+	}
 	p.updated++
 	return nil
+}
+
+func (p *fakeProcess) failUpdates(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.updateErr = err
 }
 
 func (p *fakeProcess) SetCoAuthors(_ context.Context, people []domain.GitIdentity) error {
@@ -1500,6 +1524,94 @@ func TestDispatcher_RefreshesCredentials(t *testing.T) {
 	eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated >= 2 })
 	p.finish("done")
 	wait(t, running)
+}
+
+// A reissue that fails while the credentials the process has are still usable is tried again,
+// leaving the running turn alone.
+func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
+	tests := map[string]func(e env, p *fakeProcess, err error){
+		"issuing fails": func(e env, _ *fakeProcess, err error) { e.issuer.fail(err) },
+		"writing fails": func(_ env, p *fakeProcess, err error) { p.failUpdates(err) },
+	}
+	for name, fail := range tests {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, usecase.DispatcherOptions{
+				CredentialRefresh: 80 * time.Millisecond, CredentialLifetime: 200 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
+			})
+			running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
+			p := e.runner.next(t)
+			// Past the lifetime of the credentials the process started with, those reissued since count.
+			time.Sleep(250 * time.Millisecond)
+			fail(e, p, errors.New("dial tcp: lookup api.github.com: server misbehaving"))
+			failedFrom := e.issuer.issues()
+			eventually(t, func() bool { return e.issuer.issues() >= failedFrom+3 })
+			if p.isClosed() {
+				t.Fatal("the process was stopped while its credentials were still usable")
+			}
+			p.mu.Lock()
+			updated := p.updated
+			p.mu.Unlock()
+			fail(e, p, nil)
+			eventually(t, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.updated > updated })
+			p.finish("done")
+			if o := wait(t, running); o.err != nil || o.out.Output != "done" {
+				t.Fatalf("Execute() = %+v, %v; want the turn to finish", o.out, o.err)
+			}
+		})
+	}
+}
+
+func TestDispatcher_RetryingCredentialRefreshLetsSessionIdle(t *testing.T) {
+	e := newEnv(t, usecase.DispatcherOptions{
+		IdleTimeout:       50 * time.Millisecond,
+		CredentialRefresh: 5 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond,
+	})
+	first := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "hi"})
+	p := e.runner.next(t)
+	eventually(t, func() bool { return len(p.sent()) == 1 })
+	e.issuer.fail(errors.New("dial tcp: lookup api.github.com: server misbehaving"))
+	p.finish("done")
+	wait(t, first)
+	eventually(t, p.isClosed)
+}
+
+func TestDispatcher_StopsProcessWhenCredentialsCannotBeRefreshed(t *testing.T) {
+	tests := map[string]struct {
+		opts usecase.DispatcherOptions
+		err  error
+		// The number of reissues is at least minTries, and tries unless it is 0.
+		minTries, tries int
+	}{
+		// Retrying waits for CredentialRetry, not the next refresh, which comes only at the expiry.
+		"failing until they expire": {
+			opts:     usecase.DispatcherOptions{CredentialRefresh: 30 * time.Millisecond, CredentialLifetime: 150 * time.Millisecond, CredentialRetry: 5 * time.Millisecond},
+			err:      errors.New("dial tcp: lookup api.github.com: server misbehaving"),
+			minTries: 8,
+		},
+		"refused": {
+			opts:  usecase.DispatcherOptions{CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond},
+			err:   fmt.Errorf("%w: the installation reaches \"all\" repositories", domain.ErrCredentialsRefused),
+			tries: 1,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t, tt.opts)
+			running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
+			p := e.runner.next(t)
+			e.issuer.fail(tt.err)
+			o := wait(t, running)
+			if !errors.Is(o.err, tt.err) || !strings.Contains(o.err.Error(), "refresh credentials") {
+				t.Fatalf("Execute() error = %v, want the failed refresh", o.err)
+			}
+			if !p.isClosed() {
+				t.Error("the process was left running")
+			}
+			if tries := e.issuer.issues() - 1; tries < tt.minTries || (tt.tries != 0 && tries != tt.tries) {
+				t.Errorf("reissued %d times, want at least %d and exactly %d unless 0", tries, tt.minTries, tt.tries)
+			}
+		})
+	}
 }
 
 func TestDispatcher_ProcessExitFailsRunningTurn(t *testing.T) {
