@@ -5,26 +5,26 @@ Links that leave template/ (to the platform or the control plane) would break in
 become links to the same files on GitHub at main, where targets also take the platform's actions.
 ADR references (amends and the like) that leave template/ have no file to point at, so they are
 dropped; the ADR's text still names them.
-A link whose file is missing in agent-control-plane fails the copy, since no check of the copy can
-follow a link to GitHub.
-Usage: relink-template <copied target's directory> <agent-control-plane's path of the copy source>
+Usage: relink-template <copied target's directory>
 """
 import os
 import re
 import sys
 
 REPOSITORY = "https://github.com/Yusaku-KASAI/agent-control-plane/blob/main"
-CHECKOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+# This script sits in <copy source>/template/bin/; the copy source sits in agent-control-plane's root.
+SOURCE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SOURCE_IN_REPOSITORY = os.path.relpath(SOURCE, os.path.dirname(SOURCE))
 LINK = re.compile(r"(\]\()([^)\s#]+)((?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\))")
 REFERENCE = re.compile(r"^(amends|amended_by|supersedes|superseded_by):\s*\[(.*)\]\s*$", re.M)
 
 
-def main(dest, source_in_repository):
+def main(dest):
     template = os.path.join(dest, "template")
     for directory, _, names in os.walk(template):
         for name in names:
             if name.endswith(".md"):
-                relink(os.path.join(directory, name), dest, source_in_repository)
+                relink(os.path.join(directory, name), dest)
 
 
 def leaves(path, target, dest):
@@ -32,7 +32,7 @@ def leaves(path, target, dest):
     return os.path.relpath(resolved, os.path.join(dest, "template")).startswith(".."), resolved
 
 
-def relink(path, dest, source_in_repository):
+def relink(path, dest):
     with open(path, encoding="utf-8") as f:
         text = f.read()
 
@@ -43,9 +43,7 @@ def relink(path, dest, source_in_repository):
         outside, resolved = leaves(path, target, dest)
         if not outside:
             return m.group(0)
-        inside = os.path.normpath(os.path.join(source_in_repository, os.path.relpath(resolved, dest)))
-        if inside.startswith("..") or not os.path.exists(os.path.join(CHECKOUT, inside)):
-            sys.exit(f"relink-template: {path}: {target} is not a file of agent-control-plane ({inside})")
+        inside = os.path.normpath(os.path.join(SOURCE_IN_REPOSITORY, os.path.relpath(resolved, dest)))
         return f"{m.group(1)}{REPOSITORY}/{inside}{m.group(3)}"
 
     def references(m):
@@ -63,4 +61,4 @@ def relink(path, dest, source_in_repository):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(sys.argv[1])

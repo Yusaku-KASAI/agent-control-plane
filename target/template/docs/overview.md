@@ -40,8 +40,10 @@
 | `.gitignore` | 埋める | `.devcontainer/.env`、`/.claude/worktrees/`、`.claude/settings.local.json`、`CLAUDE.local.md` の行は共通、ほかはターゲットごと |
 | `.github/CODEOWNERS` | 埋める | 持ち主のユーザー名。organization のリポジトリでは消す（team で守る。[ADR 0015](adr/0015-codeowners-by-default.md)） |
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
-| `template/docs/`（target-template の文書） | 共通 | —（写すときに、platform と control-plane へのリンクを GitHub へのリンクに書き換える。[ADR 0020](adr/0020-template-documents-linked-to-github-in-copies.md)） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
+
+写したターゲットは、環境のファイルのほかに、target-template の文書を `template/docs/` に持つ。写すときに、platform と
+control-plane へのリンクを GitHub へのリンクに書き換える（[ADR 0020](adr/0020-template-documents-linked-to-github-in-copies.md)）。
 
 ひな形のファイルでは、埋める場所に `Fill in:` で始まるコメントを置く（コメントを書けない `.claude/settings.json` を
 除く）。値だけを埋める所（`.devcontainer/.env.example` の `<repository>`、`.github/CODEOWNERS` の `<owner>`）は、`<...>` で示す。Markdown では、

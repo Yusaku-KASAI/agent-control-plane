@@ -146,7 +146,5 @@ RUN make check-target
 FROM check-base AS check-template
 COPY --chown=node:node .devcontainer .devcontainer
 COPY --chown=node:node target target
-# The links of target-template's documents point here, and a copy's links must still find them.
-COPY --chown=node:node platform platform
-COPY --chown=node:node docs docs
+COPY --chown=node:node platform/plugins/conventions/bin platform/plugins/conventions/bin
 RUN make check-template

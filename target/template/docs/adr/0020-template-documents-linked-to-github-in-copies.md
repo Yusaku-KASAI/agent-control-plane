@@ -21,13 +21,14 @@ agent-control-plane の中の相対パスなので、写した先では切れ、
 - ADR の frontmatter の参照（`amends` など）のうち `template/` の外を指すものは、写した先では指すファイルがないので外す。
   本文の記述は残る。
 - 写した先の最上位の地図（`docs/overview.md` のひな形）に、target-template の項目（`../template/`）を置き、入口
-  （`README.md` と `CLAUDE.md` のひな形）から `template/docs/README.md` へリンクする。写す道具（`template/bin/`）は写さない。
+  から、ターゲット自身の索引（`docs/README.md` のひな形）を通して `template/docs/README.md` へたどれるようにする。写す道具（`template/bin/`）は写さない。
 
 ## Alternatives
 
 - **写す元のリンクも GitHub の URL にする**：agent-control-plane の `check-docs` が実在と地図の向きを確かめられなくなる。
-- **写した先の配置（platform は隣の `agent-platform`）に合わせた相対パスにする**：写す元とターゲットでディレクトリの
-  深さが違い、同じリンクで両方は指せない。ターゲットの中から外のファイルを指すので、ターゲットの検査でも確かめられない。
+- **写すときに、写した先の配置（platform は隣の `agent-platform`）に合わせた相対パスに書き換える**：エージェントが
+  手元にマウントした、動いているプラグインと同じ版の platform を読める利点がある。ただ、control-plane の文書には隣に
+  当たるものがなく、ターゲットの CI には隣のリポジトリがないので、リンクがターゲットの `check-docs` で切れる。
 - **リンクを外し、名前だけで指す**：読み手が出典へたどれず、前提のリンクが表していた見直しの向きも消える。
 - **写したコミットの版を指す**：その場の作業ツリーのコミットは GitHub にないことがあり、リンクが切れうる。
 
@@ -35,6 +36,5 @@ agent-control-plane の中の相対パスなので、写した先では切れ、
 
 - 写した先の文書の外へのリンクは、`main` の今の版を指し、写したときの版とずれうる。ターゲットのエージェントも、
   手元にマウントした platform ではなく GitHub の `main` を読み、動いているプラグインの版とずれうる。
-- 写した先では行き先を確かめられないので、書き換えるときに、行き先が agent-control-plane に実在することを確かめる。
 - target-template を別のリポジトリに切り出したら、書き換え先（`relink-template` の `REPOSITORY`）を変える。
 - 写した先で、外へのリンクは外のリンクとして扱われ、ターゲットの `check-docs` は確かめない。

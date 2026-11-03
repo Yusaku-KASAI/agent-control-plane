@@ -15,7 +15,7 @@ if [[ -n $(find "$dest" -mindepth 1 -maxdepth 1 ! -name .git -print -quit) ]]; t
 fi
 cp -R "$src/." "$dest/"
 rm -r "$dest/template/bin"
-"$src/template/bin/relink-template" "$dest" target
+"$src/template/bin/relink-template" "$dest"
 find "$dest" -path "$dest/.git" -prune -o -name '*.tmpl' -print0 | while IFS= read -r -d '' f; do
 	mv "$f" "${f%.tmpl}"
 done
