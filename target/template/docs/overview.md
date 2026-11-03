@@ -1,4 +1,4 @@
-# ターゲットの環境の全体像
+# target-template の全体像
 
 [ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
 ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
@@ -64,8 +64,9 @@ HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
 ## 地図
 
 target-template の中の項目と前提の向き（[形式](../../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
-target-template は、ターゲットの環境（上の[構成](#parts)の部分）と、それを写して合わせるひな形の使い方からなる。環境は
-文書を持たない集まりで、その部分の項目もこの地図に書く。
+target-template は、ターゲットの環境（上の[構成](#parts)の部分と、[ファイルの分類](#files)のファイル）と、それをターゲットに
+配る仕組み（写す元から写し、新しい版に合わせる。手順と `template/bin/` の道具）からなる。ターゲットの環境は文書を
+持たない集まりで、その部分の項目もこの地図に書く。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
@@ -74,4 +75,4 @@ target-template は、ターゲットの環境（上の[構成](#parts)の部分
 | Claude Code の設定 | ターゲットの環境 | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
 | CI | ターゲットの環境 | `architecture/ci.md` | devcontainer |
 | 既定のブランチの守り | ターゲットの環境 | `guides/protection.md` | CI |
-| ひな形の使い方 | target-template | `guides/new-target.md`, `guides/update-target.md` | ターゲットの環境 |
+| ひな形の配り方 | target-template | `guides/new-target.md`, `guides/update-target.md` | ターゲットの環境 |
