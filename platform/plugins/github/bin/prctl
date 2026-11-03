@@ -87,12 +87,16 @@ readonly issue_line_re=$issue_start_re'\s*$'
 # which GitHub closes by as well (ADR 0038). Not after a letter, a digit or _, as in "prefix #2".
 readonly closing_re='(?<![A-Za-z0-9_])(?<word>'$closing_words'):?\s*[\[<]?(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+|GH-[0-9]+|https?://github\.com/[\w.-]+/[\w.-]+/issues/[0-9]+)'
 
-# Inline code as GitHub reads it (CommonMark): a run of backquotes not escaped by a backslash, up to
-# the next run of as many, neither of them part of a longer run. A run with no such end is text, as
-# is an escaped backquote, so a keyword between them closes an issue (ADR 0038). A backslash escaped
-# itself before a backquote is taken as escaping it, which reads more as a sentence, not less.
+# Inline code as GitHub reads it (CommonMark), read from the left: an escape (a backslash and the
+# character after it), or a run of backquotes up to the next run of as many, neither of them part of a
+# longer run. Only the code is taken out; an escaped backquote and a run with no such end stay as
+# text, so a keyword between them closes an issue (ADR 0038). Read from the left, so that a backslash
+# escaped itself does not escape the backquote after it.
 # shellcheck disable=SC2016 # backquotes of Markdown, not a command substitution
-readonly inline_code_re='(?<![`\\])(?<q>`+)(?!`).*?(?<!`)\k<q>(?!`)'
+readonly inline_code_re='(?<e>\\.)|(?<q>`+)(?!`)(?<c>.*?(?<!`)\k<q>(?!`))?'
+# The start of a line that begins a block of its own (an item of a list, a heading, a quote or a row
+# of a table): inline code does not run across blocks.
+readonly block_start_re='^\s*([-*+]\s|[0-9]+[.)]\s|#{1,6}(\s|$)|>|\|)'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -748,14 +752,14 @@ scope_message() {
 # its lines that close or refer to an issue name one issue, the request's (writing.md: PR),
 # whatever follows it on the line, and its sentences close no issue by a keyword: an issue is closed
 # by the line of Closes alone. A sentence is what is outside such a start of a line, code blocks and
-# inline code, read a paragraph (up to a blank line or a code block) at a time, as one line. Lines in
-# code blocks are not headings, and name no issue. Such lines with nothing after the issue, the
-# attribution line and the old marker of the head, which the body loses when it is written, do not
-# count as what is written under a section.
+# inline code, read a paragraph (up to a blank line, a code block or the start of another block) at a
+# time, as one line. Lines in code blocks are not headings, and name no issue. Such lines with nothing
+# after the issue, the attribution line and the old marker of the head, which the body loses when it
+# is written, do not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --arg closing "$closing_re" \
-    --arg code "$inline_code_re" --args 'include "markdown";
+    --arg code "$inline_code_re" --arg block "$block_start_re" --args 'include "markdown";
     body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
@@ -776,9 +780,10 @@ body_check() {
          | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
         ([$prose[] | capture($start; "i").issue | ascii_downcase] | unique
          | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end),
-        (reduce ($lines[] | if .code or (.line | test("^\\s*$")) then null else .line | sub($start; ""; "i") end) as $l
-           ([""]; if $l == null then . + [""] else .[length - 1] += " " + $l end)
-         | .[] | gsub($code; "") | capture($closing; "gi")
+        (reduce ($lines[] | if .code or (.line | test("^\\s*$")) then null
+                            else {block: (.line | test($block)), text: (.line | sub($start; ""; "i"))} end) as $l
+           ([""]; if $l == null then . + [""] elif $l.block then . + [$l.text] else .[length - 1] += " " + $l.text end)
+         | .[] | gsub($code; if .e then .e elif .c == null then .q else "" end) | capture($closing; "gi")
          | "a sentence closes \(.issue) by \"\(.word)\": do not use a closing keyword in a sentence; to close the issue, write Closes #N (or owner/repo#N) on a line of its own") ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
