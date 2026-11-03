@@ -146,5 +146,6 @@ RUN make check-target
 FROM check-base AS check-template
 COPY --chown=node:node .devcontainer .devcontainer
 COPY --chown=node:node target target
+COPY --chown=node:node test test
 COPY --chown=node:node platform/plugins/conventions/bin platform/plugins/conventions/bin
 RUN make check-template

@@ -1,9 +1,12 @@
 #!/bin/bash
-# Brings a target up to the copy source as it is now. Each file the copy source holds (outside
-# template/) is merged three ways: the target's file, the copy source's file at the commit the target
-# was copied or last updated from (template/base, or --base), and the copy source's file now.
-# Conflicts are left marked in the files. template/'s documents are then replaced (put-template).
-# The target's work tree must be clean, so that the update is one reviewable, undoable diff.
+# Brings a target up to the copy source as it is now, the way copier's update does. Each file the copy
+# source holds (outside template/) is merged three ways: the target's file, the copy source's file at
+# the commit the target was copied or last updated from (template/base, or --base), and the copy
+# source's file now. Conflicts are left marked in the files. The .tmpl starters of the target's own
+# documents (all but CLAUDE.md, which has the contract's sections) are only added when missing.
+# A file the target deleted stays deleted unless the template changed it. template/'s documents are
+# then replaced (put-template). The target must be a clean git work tree, so that the update is one
+# reviewable, undoable diff; added files are registered with git add -N to show in it.
 # Usage: update-target [--base <agent-control-plane commit>] <target's directory>
 set -euo pipefail
 
@@ -22,6 +25,7 @@ src=$(cd "$(dirname "$0")/../.." && pwd)
 repo=$(git -C "$src" rev-parse --show-toplevel)
 prefix=$(git -C "$src" rev-parse --show-prefix)
 
+git -C "$dest" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "$dest is not a git work tree"
 [[ -z $(git -C "$dest" status --porcelain) ]] || die "$dest has uncommitted changes; commit or stash them first"
 [[ -z $(git -C "$src" status --porcelain -- .) ]] || die "the copy source has uncommitted changes"
 if [[ -z $base && -f $dest/template/base ]]; then
@@ -29,31 +33,49 @@ if [[ -z $base && -f $dest/template/base ]]; then
 fi
 [[ -n $base ]] || die "$dest has no template/base; pass --base <the agent-control-plane commit it was copied from>"
 git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || die "$base is not a commit of agent-control-plane"
+git -C "$repo" cat-file -e "$base:${prefix}.devcontainer/Dockerfile" 2>/dev/null ||
+	die "$base has no ${prefix}.devcontainer/Dockerfile: it is older than the copy source; pass a later commit"
 head=$(git -C "$repo" rev-parse HEAD)
 
 conflicts=()
+added=()
 old=$(mktemp)
 trap 'rm -f "$old"' EXIT
 while IFS= read -r -d '' path; do
 	[[ $path == template/* ]] && continue
 	name=${path%.tmpl}
+	in_base=
+	if git -C "$repo" show "$base:$prefix$path" >"$old" 2>/dev/null; then
+		in_base=1
+	else
+		: >"$old"
+	fi
 	if [[ ! -e $dest/$name ]]; then
-		mkdir -p "$(dirname "$dest/$name")"
-		cp "$src/$path" "$dest/$name"
+		if [[ -z $in_base ]]; then
+			mkdir -p "$(dirname "$dest/$name")"
+			cp "$src/$path" "$dest/$name"
+			added+=("$name")
+		elif ! cmp -s "$old" "$src/$path"; then
+			conflicts+=("$name (deleted here, changed in the template)")
+		fi
 		continue
 	fi
-	git -C "$repo" show "$base:$prefix$path" >"$old" 2>/dev/null || : >"$old"
+	[[ $path == *.tmpl && $path != CLAUDE.md.tmpl ]] && continue
 	git merge-file -L target -L "template ${base:0:12}" -L "template ${head:0:12}" "$dest/$name" "$old" "$src/$path" ||
 		conflicts+=("$name")
 done < <(git -C "$src" ls-files -z -- .)
 
-removed=$(git -C "$repo" diff --name-only --diff-filter=D "$base" "$head" -- "$prefix" | sed "s|^$prefix||; s|\.tmpl$||" | grep -v '^template/' || true)
+removed=$(git -C "$repo" diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "$prefix" |
+	sed "s|^$prefix||; s|\.tmpl$||" | grep -v '^template/' || true)
 
 "$src/template/bin/put-template" "$dest"
+if ((${#added[@]})); then
+	git -C "$dest" add -N -- "${added[@]}"
+fi
 
-echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; review git diff in $dest"
+echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; review git status and git diff in $dest"
 if ((${#conflicts[@]})); then
-	echo "update-target: conflicts to resolve (marked <<<<<<< target):"
+	echo "update-target: conflicts to resolve (marked <<<<<<< target in the files):"
 	printf '  %s\n' "${conflicts[@]}"
 fi
 if [[ -n $removed ]]; then
