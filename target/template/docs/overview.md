@@ -9,16 +9,20 @@
 
 ## 構成
 
-target-template は、環境の部分（devcontainer、Claude Code の設定、CI、既定のブランチの守り）と、それをターゲットに配る
-ひな形の配り方からなる。
+target-template は、環境の部分と、それをターゲットに写して合わせる、ひな形の配り方からなる。
+
+環境の部分：
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
 | devcontainer | `.devcontainer/`（イメージ、compose、VS Code の配線、ホストの準備）、`.vscode/settings.json`、`.gitignore` の `.devcontainer/.env` の行 | [architecture/devcontainer.md](architecture/devcontainer.md "在りか")、[guides/devcontainer.md](guides/devcontainer.md "在りか") |
-| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、回答の言語、worktree の作り方、対話のときの権限）、`.gitignore` の Claude Code の行 | [architecture/claude-code.md](architecture/claude-code.md "在りか")、[guides/claude-code.md](guides/claude-code.md "在りか") |
+| Claude Code の設定 | `.claude/settings.json`（プラグインの宣言、回答の言語、worktree の作り方、対話のときの権限）、`CLAUDE.md`（節の中身）、`.gitignore` の Claude Code の行 | [architecture/claude-code.md](architecture/claude-code.md "在りか")、[guides/claude-code.md](guides/claude-code.md "在りか") |
 | CI | `Makefile` の `check-<関心>`、`.github/workflows/ci.yml` | [architecture/ci.md](architecture/ci.md "在りか") |
 | 既定のブランチの守り | `.github/CODEOWNERS`（承認する人）と、リポジトリの設定のルールセット | [guides/protection.md](guides/protection.md "在りか") |
-| ひな形の配り方 | 写す元の `target/` から写し、新しい版に合わせる道具（`template/bin/`）、入口と文書の根のひな形（`CLAUDE.md`、`README.md`、`docs/` の `.tmpl`）、写したターゲットが持つ `template/docs/` と `template/base` | [guides/new-target.md](guides/new-target.md "在りか")、[guides/update-target.md](guides/update-target.md "在りか") |
+
+ひな形の配り方：写す元の `target/` から写し、新しい版に合わせる道具（`template/bin/`）と、そのための仕組み（入口と文書の根の
+ひな形を `.tmpl` の名前で置いて写したら戻すこと、写したターゲットが持つ `template/docs/` と `template/base`）。手順は
+[guides/new-target.md](guides/new-target.md "在りか") と [guides/update-target.md](guides/update-target.md "在りか") にある。
 
 <a id="files"></a>
 
@@ -68,8 +72,7 @@ HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
 ## 地図
 
 target-template の中の項目と前提の向き（[形式](../../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
-環境の部分は、[構成](#parts)の devcontainer、Claude Code の設定、CI、既定のブランチの守りの項目をまとめる、文書を
-持たない集まりで、その部分の項目もこの地図に書く。
+環境の部分は、[構成](#parts)の環境の部分の項目をまとめる、文書を持たない集まりで、その中の項目もこの地図に書く。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
