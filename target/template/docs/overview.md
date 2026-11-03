@@ -1,7 +1,6 @@
 # target-template の全体像
 
-[ターゲット](../../../platform/docs/reference/glossary.md)に共通のファイルのひな形（ターゲットの環境の部分と、それをターゲットに
-配る仕組み）と、その構成。ターゲットが用意する
+[ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
 ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
 写す元の `target/`（この文書の根の二つ上）にあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
 とおりに作り、[ひな形の新しい版に合わせる](guides/update-target.md "在りか")。
@@ -10,7 +9,8 @@
 
 ## 構成
 
-target-template は、ターゲットの環境の部分（表の上の 4 行）と、それをターゲットに配る仕組み（表の最後の行）からなる。
+target-template は、環境の部分（devcontainer、Claude Code の設定、CI、既定のブランチの守り）と、それをターゲットに配る
+ひな形の配り方からなる。
 
 | 部分 | 中身 | 文書 |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ target-template は、ターゲットの環境の部分（表の上の 4 行）�
 
 ## ファイルの分類
 
-ターゲットのファイルは、target-template と比べて次の 3 つに分かれる。
+ターゲットの環境を作るファイルは、target-template と比べて次の 3 つに分かれる。
 
 | 分類 | 意味 |
 | --- | --- |
@@ -48,7 +48,7 @@ target-template は、ターゲットの環境の部分（表の上の 4 行）�
 | `CLAUDE.md` | 埋める | 節の中身（節は[ターゲットの契約](../../../platform/docs/reference/target.md#claudemd)にある） |
 | それ以外（アプリのコード、文書、ADR） | 固有 | — |
 
-写したターゲットは、写したファイルのほかに、target-template の文書を `template/docs/` に、写したか合わせた版の
+写したターゲットは、環境のファイルのほかに、target-template の文書を `template/docs/` に、写したか合わせた版の
 agent-control-plane のコミットを `template/base` に持つ。写すときに、platform と
 control-plane へのリンクを GitHub へのリンクに書き換える（[ADR 0020](adr/0020-template-documents-linked-to-github-in-copies.md)）。
 
@@ -68,14 +68,14 @@ HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
 ## 地図
 
 target-template の中の項目と前提の向き（[形式](../../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
-ターゲットの環境は、[構成](#parts)の環境の部分の項目をまとめる、文書を持たない集まりで、その部分の項目もこの地図に書く。
-ひな形の配り方は、構成の最後の行の部分。
+環境の部分は、[構成](#parts)の devcontainer、Claude Code の設定、CI、既定のブランチの守りの項目をまとめる、文書を
+持たない集まりで、その部分の項目もこの地図に書く。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| ターゲットの環境 | target-template | | |
-| devcontainer | ターゲットの環境 | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
-| Claude Code の設定 | ターゲットの環境 | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
-| CI | ターゲットの環境 | `architecture/ci.md` | devcontainer |
-| 既定のブランチの守り | ターゲットの環境 | `guides/protection.md` | CI |
-| ひな形の配り方 | target-template | `guides/new-target.md`, `guides/update-target.md` | ターゲットの環境 |
+| 環境の部分 | target-template | | |
+| devcontainer | 環境の部分 | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
+| Claude Code の設定 | 環境の部分 | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
+| CI | 環境の部分 | `architecture/ci.md` | devcontainer |
+| 既定のブランチの守り | 環境の部分 | `guides/protection.md` | CI |
+| ひな形の配り方 | target-template | `guides/new-target.md`, `guides/update-target.md` | 環境の部分 |

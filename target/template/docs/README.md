@@ -7,7 +7,7 @@
 
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
-| [overview.md](overview.md) | 解説 | target-template の全体の構成（ターゲットの環境の部分と、ひな形の配り方）、ファイルの分類（共通 / 埋める / 固有）、地図 |
+| [overview.md](overview.md) | 解説 | target-template の全体の構成（環境の部分と、ひな形の配り方）、ファイルの分類（共通 / 埋める / 固有）、地図 |
 | [guides/new-target.md](guides/new-target.md) | 手順 | 新しいターゲットを作る（ファイルを写す、入口と文書の根を書く、埋める、確かめる、守る、control-plane から動かす） |
 | [guides/update-target.md](guides/update-target.md) | 手順 | ターゲットをひな形の新しい版に合わせる（三方向のマージ、ぶつかった所の解き方、確かめる） |
 | [architecture/devcontainer.md](architecture/devcontainer.md) | 解説 | devcontainer の方針と構成、ターミナルと VS Code の設定 |
