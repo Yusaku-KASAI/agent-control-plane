@@ -94,7 +94,7 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 ### CI の `check-template-image`
 
 - **責務**：写す元の `target/.devcontainer/Dockerfile` を、`target/` を文脈にして `check-target` のステージまでビルドし、
-  ひな形のイメージ（空のツールチェーンのステージ）がそのままビルドでき、写したままの `make check` が通ることを確かめる。
+  ひな形のイメージ（空のツールチェーンのステージ）がそのままビルドでき、そのステージの `make check-target` が通ることを確かめる。
 - **関係**：文脈は `target/` で、`target/.devcontainer/Dockerfile.dockerignore` を使う。
 
 ### CI の `check-image`

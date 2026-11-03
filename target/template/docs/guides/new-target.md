@@ -7,7 +7,7 @@ target-template のファイルから、新しいターゲットのリポジト�
 
 ## 1. ファイルを写す
 
-agent-control-plane の `target/` の下を、新しいリポジトリのルートに写す。`target/template/bin/copy-target` が、`.` で始まる
+agent-control-plane の `target/` の下を、新しいリポジトリ（`.git` のほかは空）のルートに写す。`target/template/bin/copy-target` が、`.` で始まる
 ファイルとディレクトリも含めて写し、`template/` を除き、名前が `.tmpl` で終わるひな形の `.tmpl` を外す
 （[ファイルの分類](../overview.md#files)）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れる
 ので写さない。

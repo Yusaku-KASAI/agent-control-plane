@@ -51,8 +51,7 @@ HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
 その下のファイルを読むエージェントに読み込まれ、`.md` で終わる文書は agent-control-plane の文書として検査されるため。
 `README.md` と `docs/` は、ファイルの分類では固有で、ひな形は書き始めの器だけを持つ。
 
-共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、ターゲットの検査では確かめない
-（agent-control-plane のルートの共通のファイルは、control-plane の[検査](../../../docs/architecture/codebase/devcontainer.md "在りか")が確かめる）。
+共通と埋めるファイルの共通の部分が target-template と食い違っていないことは、ターゲットの検査では確かめない。
 
 <a id="map-target-template"></a>
 
