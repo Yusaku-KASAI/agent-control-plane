@@ -94,13 +94,6 @@ readonly closing_re='(?<![A-Za-z0-9_])(?<word>'$closing_words'):?\s*[\[<]?(?<iss
 # escaped itself does not escape the backquote after it.
 # shellcheck disable=SC2016 # backquotes of Markdown, not a command substitution
 readonly inline_code_re='(?<e>\\.)|(?<q>`+)(?!`)(?<c>.*?(?<!`)\k<q>(?!`))?'
-# The start of a line that begins a block of its own even in the middle of a paragraph, as CommonMark
-# reads it: inline code does not run across blocks, but runs across the lines of one paragraph. An
-# item of a bullet list with something in it, one of an ordered list from 1 (from any number after an
-# item), a heading, and a quote after a line that is not one. Other lines (a quote after a quote, a
-# row with no line of a table under it) go on with the paragraph.
-readonly block_start_re='^\s*([-*+]\s+\S|1[.)]\s|#{1,6}(\s|$))'
-readonly ordered_item_re='^\s*[0-9]+[.)]\s' list_item_re='^\s*([-*+]|[0-9]+[.)])\s' quote_re='^\s*>'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -756,15 +749,15 @@ scope_message() {
 # its lines that close or refer to an issue name one issue, the request's (writing.md: PR),
 # whatever follows it on the line, and its sentences close no issue by a keyword: an issue is closed
 # by the line of Closes alone. A sentence is what is outside such a start of a line, code blocks and
-# inline code, read a paragraph (up to a blank line, a code block or the start of another block) at a
-# time, as one line. Lines in code blocks are not headings, and name no issue. Such lines with nothing
+# inline code, read both a paragraph (up to a blank line or a code block) at a time, as one line, and
+# a line at a time: GitHub reads inline code within a block, which may be the paragraph or a line of it
+# (an item of a list, a heading), and either reading that finds a keyword refuses it (ADR 0038). Lines in code blocks are not headings, and name no issue. Such lines with nothing
 # after the issue, the attribution line and the old marker of the head, which the body loses when it
 # is written, do not count as what is written under a section.
 body_check() {
   local errors
   errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --arg closing "$closing_re" \
-    --arg code "$inline_code_re" --arg block "$block_start_re" --arg ordered "$ordered_item_re" \
-    --arg item "$list_item_re" --arg quote "$quote_re" --args 'include "markdown";
+    --arg code "$inline_code_re" --args 'include "markdown";
     body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
@@ -785,13 +778,11 @@ body_check() {
          | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
         ([$prose[] | capture($start; "i").issue | ascii_downcase] | unique
          | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end),
-        (reduce (range(0; $lines | length) as $i | (if $i > 0 then $lines[$i - 1].line else "" end) as $prev
-                 | $lines[$i] | if .code or (.line | test("^\\s*$")) then null
-                   else {block: (.line | test($block) or (test($ordered) and ($prev | test($item)))
-                                   or (test($quote) and ($prev | test($quote) | not))),
-                         text: (.line | sub($start; ""; "i"))} end) as $l
-           ([""]; if $l == null then . + [""] elif $l.block then . + [$l.text] else .[length - 1] += " " + $l.text end)
-         | .[] | gsub($code; if .e then .e elif .c == null then .q else "" end) | capture($closing; "gi")
+        ([$lines[] | if .code or (.line | test("^\\s*$")) then null else .line | sub($start; ""; "i") end]
+         | [(reduce .[] as $l ([""]; if $l == null then . + [""] else .[length - 1] += " " + $l end) | .[]),
+            (.[] | values)]
+         | [.[] | gsub($code; if .e then .e elif .c == null then .q else "" end) | capture($closing; "gi")]
+         | unique_by(.issue, .word) | .[]
          | "a sentence closes \(.issue) by \"\(.word)\": do not use a closing keyword in a sentence; to close the issue, write Closes #N (or owner/repo#N) on a line of its own") ]
     | .[]' "${body_sections[@]}" <<<"$(without_marker "$1")")
   [[ -z $errors ]] || die "the body is not in the form (writing.md: PR; see the github skill):"$'\n'"$errors"
