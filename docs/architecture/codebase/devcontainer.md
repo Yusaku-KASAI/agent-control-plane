@@ -83,8 +83,9 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
 
 - **責務**：新しいターゲットの写す元（`target/`）を確かめる。共通のファイル（`.devcontainer/` の `docker-entrypoint.sh`、
   `init-host.sh`、`tmux.conf`、`check-vscode-settings.py`）がこのリポジトリのものと同じであることと、`target/` を新しい
-  ターゲットを作る手順と同じ `target/template/bin/copy-target` で一時ディレクトリに写し（`template/` を除き、`.tmpl` を
-  外す）、その中で `make check` と conventions の `check-docs` が通ること。`copy-target` も shellcheck にかける。
+  ターゲットを作る手順と同じ `target/template/bin/copy-target` で一時ディレクトリに写し（`.tmpl` を外し、
+  `template/docs/` のリンクを書き換える）、その中で `make check` と conventions の `check-docs` が通ること。`copy-target` も
+  shellcheck にかける。
 - **関係**：共通のファイルの一覧は、target-template の[ファイルの分類](../../../target/template/docs/overview.md#files)の
   共通の行に合わせる。埋めるファイルの共通の部分のずれと、`CLAUDE.md.tmpl` の節がターゲットの契約に合うかは確かめない。
 - **当てはめた原則・パターン**：[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)：
