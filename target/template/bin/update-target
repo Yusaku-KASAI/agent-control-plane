@@ -68,6 +68,11 @@ while IFS= read -r -d '' path; do
 		mv "$dest/${from%.tmpl}" "$dest/$name"
 		moved+=("${from%.tmpl} -> $name")
 	fi
+	# Gaining or losing .tmpl is a rename git may miss when the contents changed much as well.
+	if [[ $from == "$path" ]] && ! git -C "$repo" cat-file -e "$base:$prefix$from" 2>/dev/null; then
+		if [[ $path == *.tmpl ]]; then other=${path%.tmpl}; else other=$path.tmpl; fi
+		git -C "$repo" cat-file -e "$base:$prefix$other" 2>/dev/null && from=$other
+	fi
 	in_base=
 	if git -C "$repo" show "$base:$prefix$from" >"$old" 2>/dev/null; then
 		in_base=1
