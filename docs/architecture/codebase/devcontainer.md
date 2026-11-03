@@ -85,8 +85,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   `init-host.sh`、`tmux.conf`、`check-vscode-settings.py`）がこのリポジトリのものと同じであることと、`target/` を新しい
   ターゲットを作る手順と同じ `target/template/bin/copy-target` で一時ディレクトリに写し（`.tmpl` を外し、
   `template/docs/` のリンクを書き換える）、その中で `make check` と conventions の `check-docs` が通ること。`target/template/bin/` のシェルの
-  スクリプトを shellcheck にかけ、`test/update-target-test.sh` で `update-target` を試す（写す元の版 A と B を一時的な
-  リポジトリに作り、A から写して埋めたターゲットを B に合わせる）。書き換えたリンクの行き先は確かめない（写す元の相対リンクの行き先は、このリポジトリの `check-docs` が確かめる）。
+  スクリプトを shellcheck にかけ、target-template の `update-target` の試験（`target/template/bin/update-target-test`）を
+  回す。書き換えたリンクの行き先は確かめない（写す元の相対リンクの行き先は、このリポジトリの `check-docs` が確かめる）。
 - **関係**：共通のファイルの一覧は、target-template の[ファイルの分類](../../../target/template/docs/overview.md#files)の
   共通の行に合わせる。埋めるファイルの共通の部分のずれと、`CLAUDE.md.tmpl` の節がターゲットの契約に合うかは確かめない。
 - **当てはめた原則・パターン**：[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)：

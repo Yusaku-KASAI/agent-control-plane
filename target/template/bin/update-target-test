@@ -1,9 +1,10 @@
 #!/bin/bash
-# Tests target/template/bin/update-target: a target copied from version A of the copy source is
-# brought to version B. Runs on throwaway repositories made from this checkout's target/.
+# Tests update-target: a target copied from version A of the copy source is brought to version B.
+# Runs on throwaway repositories made from this checkout's copy source. put-template leaves template/bin/
+# out of targets, so this test stays in agent-control-plane.
 set -euo pipefail
 
-root=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$(dirname "$0")/../../.." && pwd)
 w=$(mktemp -d)
 trap 'rm -rf "$w"' EXIT
 git() { command git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main "$@"; }
@@ -28,6 +29,7 @@ git -C "$w/t" init -q
 sed -i 's/^check: check-target$/check: check-target check-own/' "$w/t/Makefile"
 sed -i '1s/.*/# my-target/' "$w/t/CLAUDE.md"
 echo 'own text' >>"$w/t/README.md"
+echo '/ignored-new' >>"$w/t/.gitignore"
 rm "$w/t/.github/CODEOWNERS" "$w/t/.devcontainer/.env.example" "$w/t/docs/overview.md"
 git -C "$w/t" add -A
 git -C "$w/t" commit -qm filled
@@ -41,6 +43,8 @@ echo 'claude text from B' >>"$w/acp/target/CLAUDE.md.tmpl"
 echo '# from B' >>"$w/acp/target/.devcontainer/.env.example"
 echo 'overview text from B' >>"$w/acp/target/docs/overview.md.tmpl"
 echo 'new in B' >"$w/acp/target/.editorconfig"
+echo 'new in B' >"$w/acp/target/ignored-new"
+chmod +x "$w/acp/target/.devcontainer/tmux.conf"
 git -C "$w/acp" add -A
 git -C "$w/acp" commit -qm B
 b=$(git -C "$w/acp" rev-parse HEAD)
@@ -68,6 +72,8 @@ echo "$out"
 grep -q '^<<<<<<< target' "$w/t/Makefile" || fail "a conflicting change is marked"
 grep -qx '  Makefile' <<<"$out" || fail "a conflict is listed"
 grep -qx '# from B' "$w/t/.devcontainer/tmux.conf" || fail "a clean change is merged"
+[[ -x $w/t/.devcontainer/tmux.conf ]] || fail "a mode changed in the template is applied"
+[[ -e $w/t/ignored-new ]] || fail "a new file the target ignores is still added"
 [[ ! -e $w/t/.github/CODEOWNERS ]] || fail "a file the target deleted, unchanged in the template, stays deleted"
 [[ ! -e $w/t/.devcontainer/.env.example ]] || fail "a file the target deleted stays deleted though the template changed it"
 grep -A1 'deleted here but changed' <<<"$out" | grep -qx '  .devcontainer/.env.example' ||

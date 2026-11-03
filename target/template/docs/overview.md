@@ -3,7 +3,7 @@
 [ターゲット](../../../platform/docs/reference/glossary.md)に共通の環境のファイルと、その構成。ターゲットが用意する
 ものは[ターゲットの契約](../../../platform/docs/reference/target.md)が定め、ここにあるファイルはそれを満たす。ひな形のファイルは
 写す元の `target/`（この文書の根の二つ上）にあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
-とおりに作る。
+とおりに作り、[ひな形の新しい版に合わせる](guides/update-target.md "在りか")。
 
 ## 構成
 
