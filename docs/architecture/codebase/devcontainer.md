@@ -85,7 +85,8 @@ check ─┬─ check-go       ◀─ check-go         ◀─ check-go       ジ
   `init-host.sh`、`tmux.conf`、`check-vscode-settings.py`）がこのリポジトリのものと同じであることと、`target/` を新しい
   ターゲットを作る手順と同じ `target/template/bin/copy-target` で一時ディレクトリに写し（`.tmpl` を外し、
   `template/docs/` のリンクを書き換える）、その中で `make check` と conventions の `check-docs` が通ること。`copy-target` も
-  shellcheck にかける。
+  shellcheck にかける。ステージは、target-template の文書のリンクの行き先（`platform/` と `docs/`）もコピーする。写すときに、
+  書き換えた行き先が実在するかを確かめるため。
 - **関係**：共通のファイルの一覧は、target-template の[ファイルの分類](../../../target/template/docs/overview.md#files)の
   共通の行に合わせる。埋めるファイルの共通の部分のずれと、`CLAUDE.md.tmpl` の節がターゲットの契約に合うかは確かめない。
 - **当てはめた原則・パターン**：[契約の試験](../../../platform/plugins/principles/docs/reference/patterns.md#contract-test)：

@@ -5,6 +5,8 @@ Links that leave template/ (to the platform or the control plane) would break in
 become links to the same files on GitHub at main, where targets also take the platform's actions.
 ADR references (amends and the like) that leave template/ have no file to point at, so they are
 dropped; the ADR's text still names them.
+A link whose file is missing in agent-control-plane fails the copy, since no check of the copy can
+follow a link to GitHub.
 Usage: relink-template <copied target's directory> <agent-control-plane's path of the copy source>
 """
 import os
@@ -12,6 +14,7 @@ import re
 import sys
 
 REPOSITORY = "https://github.com/Yusaku-KASAI/agent-control-plane/blob/main"
+CHECKOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
 LINK = re.compile(r"(\]\()([^)\s#]+)((?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\))")
 REFERENCE = re.compile(r"^(amends|amended_by|supersedes|superseded_by):\s*\[(.*)\]\s*$", re.M)
 
@@ -41,6 +44,8 @@ def relink(path, dest, source_in_repository):
         if not outside:
             return m.group(0)
         inside = os.path.normpath(os.path.join(source_in_repository, os.path.relpath(resolved, dest)))
+        if inside.startswith("..") or not os.path.exists(os.path.join(CHECKOUT, inside)):
+            sys.exit(f"relink-template: {path}: {target} is not a file of agent-control-plane ({inside})")
         return f"{m.group(1)}{REPOSITORY}/{inside}{m.group(3)}"
 
     def references(m):
