@@ -85,6 +85,8 @@ target-template の[既定のブランチの守りの用意](../../../target/tem
 - 既定のブランチは消せず、force push できない。
 - 既定のブランチへの変更は PR 経由に限り、必須のチェック `check` を求める。`check` を報告する元は GitHub Actions に
   限る。
+- マージの前に、PR のブランチが向き先の最新に合っていることを求める。`check` が確かめたツリーを、そのままマージの
+  結果にするため（[ADR 0040](../adr/0040-require-branches-up-to-date-before-merging.md)）。
 - PR に承認を 1 件求め、承認する主体を人に限る。個人のリポジトリでは `.github/CODEOWNERS` に人だけを書いて
   コードオーナーの承認を求め、organization のリポジトリでは人だけの team を必須のレビュアーにする。エージェントの
   GitHub App は、CODEOWNERS の持ち主にも team にも入れない。
