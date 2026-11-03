@@ -686,6 +686,18 @@ for said in 'Fixed: owner/repo#2' 'resolves https://github.com/owner/repo/issues
   check "a sentence closing an issue by \"$said\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"$said"' の続き' 2>&1 || true)" \
     "a sentence closes ${said#* } by \"${said%%[: ]*}\""
 done
+# GitHub closes by these too: a link, an autolink, GH-N, and backquotes that make no inline code, as an
+# escaped one, runs of different lengths, a backslash in inline code, which escapes nothing there, or one
+# escaped itself, which leaves the backquote after it to start inline code (ADR 0038).
+# shellcheck disable=SC2016 # backquotes of Markdown
+for said in 'fixes [#2](https://github.com/owner/repo/issues/2)|#2' 'Fixes: [owner/repo#2](u)|owner/repo#2' \
+  'closes <https://github.com/owner/repo/issues/2>|https://github.com/owner/repo/issues/2' 'fixes GH-2|GH-2' \
+  '\` fixes #2 \`|#2' '` fixes #2 ``|#2' '`a\` fixes #2 `|#2' '\\`a` fixes #2 `b`|#2'; do
+  check "a sentence closing an issue by \"${said%|*}\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"${said%|*}"' の続き' 2>&1 || true)" \
+    "a sentence closes ${said#*|} by"
+done
+check "a title closing an issue by GH-N is refused" "$("$prctl" create 'fixes GH-2 の直し' - <<<"$good" 2>&1 || true)" \
+  'the title closes GH-2 by "fixes"'
 check "a sentence closing the request issue is refused" "$("$prctl" create t - <<<"$good"$'\nこれは fixes #1 の続き' 2>&1 || true)" \
   'a sentence closes #1 by "fixes"'
 check "a sentence closing the issue of Refs is refused" \
@@ -705,8 +717,28 @@ check "a title touching an issue goes on" "$("$prctl" create '#2 の続き' - <<
 check "a sentence across lines is read as one" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n#2 の続き' 2>&1 || true)" \
   'a sentence closes #2 by "fixes"'
 # shellcheck disable=SC2016 # backquotes of Markdown
-for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書かない' 'これは ``a ` fixes #2`` と書かない' 'これは prefix #2 にも触れる'; do
+# GitHub does not close by these: a URL of www. with or without its scheme, or a keyword in emphasis (ADR 0038).
+for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書かない' 'これは ``a ` fixes #2`` と書かない' 'これは prefix #2 にも触れる' \
+  'これは fixes www.github.com/owner/repo/issues/2 と書かない' 'これは fixes https://www.github.com/owner/repo/issues/2 と書かない' \
+  'これは **fixes** #2 と書かない' 'これは \``fixes #2` と書かない'; do
   check "\"$said\" closes no issue" "$("$prctl" create t - <<<"$good"$'\n'"$said" 2>&1 || true)" "already has an open PR"
+done
+# GitHub reads inline code within a block: across the lines of a paragraph, but not across items of a
+# list or a heading. Read both as one paragraph and a line at a time, a keyword outside the code in
+# either is refused (ADR 0038).
+# shellcheck disable=SC2016 # backquotes of Markdown
+for said in '- 一つ目は ` で終わる\n- 二つ目は fixes #2 と ` を持つ@not across items of a list' \
+  'これは ` で終わる\n### 見出しは fixes #2 と ` を持つ@not across a heading' \
+  'これは ` で終わる\n> 引用は fixes #2 と ` を持つ@not into a quote' \
+  'これは a ` で終わる\n---\nb fixes #2 ` を持つ@not across the line under a heading' \
+  '1. a ` で終わる\n2. b fixes #2 ` を持つ@not across items of an ordered list' \
+  '> これは `a\n> b` fixes #2 `c`@across the lines of a quote, as one paragraph' \
+  'これは `a\n2. b` fixes #2 `c`@across a line of 2., which goes on with the paragraph' \
+  'これは `a\n| b` fixes #2 `c`@across a line of |, which goes on with the paragraph' \
+  'これは `a\n    - ` fixes #2 `c`@across an indented line, which goes on with the paragraph' \
+  '- これは `a\n  2. ` fixes #2 `c`@across a line of 2. in an item, which goes on with it'; do
+  check "inline code is read ${said#*@}" \
+    "$("$prctl" create t - <<<"$good"$'\n'"$(printf '%b' "${said%@*}")" 2>&1 || true)" 'a sentence closes #2 by "fixes"'
 done
 check "a blank line ends a sentence" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n\n#2 の続き' 2>&1 || true)" "already has an open PR"
 check "a sentence in a code block closes no issue" "$("$prctl" create t - <<<"$good"$'\n```\nfixes #2\n```' 2>&1 || true)" "already has an open PR"
@@ -1075,10 +1107,10 @@ check "prctl mode normal takes the label off" "$(jq -c '[.labels[].name]' "$stat
 
 # GitHub closes an issue by a keyword in a commit message of the PR once the commit reaches the
 # default branch, whatever the body says.
-jq -n --arg c "$n2" '[{sha: $c, commit: {message: "直す\n\nこれは Fixes #7 の続きで、closes\nowner/repo#8 も"}},
+jq -n --arg c "$n2" '[{sha: $c, commit: {message: "直す\n\nこれは Fixes #7 の続きで、closes\nowner/repo#8 も、fixes GH-10 と fixes [#11](u) も"}},
   {sha: "0123456789abcdef", commit: {message: "#7 の続き（prefix #9、Refs #9）"}}]' >"$state/commits.json"
 out=$(stop_hook)
-check "a commit message closing an issue holds the turn" "$out" "commit ${n2:0:12} closes #7 by \\\"Fixes\\\"; commit ${n2:0:12} closes owner/repo#8 by \\\"closes\\\""
+check "a commit message closing an issue holds the turn" "$out" "commit ${n2:0:12} closes #7 by \\\"Fixes\\\"; commit ${n2:0:12} closes owner/repo#8 by \\\"closes\\\"; commit ${n2:0:12} closes GH-10 by \\\"fixes\\\"; commit ${n2:0:12} closes #11 by \\\"fixes\\\""
 check "a commit message closing an issue says how to reword it" "$out" "git commit --amend"
 check "the commits are read from the base up to the pushed head" "$(cat "$state/last-compare")" "main...$n2"
 lacks "a commit message touching an issue is let be" "$out" "closes #7" "0123456789ab"

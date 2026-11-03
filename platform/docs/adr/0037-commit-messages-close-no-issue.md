@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-30
 amends: [35]
+amended_by: [38]
 ---
 
 # 0037. コミットメッセージと PR のタイトルでも閉じるキーワードを使わず、prctl が PR のコミットとタイトルを読んで知らせる
