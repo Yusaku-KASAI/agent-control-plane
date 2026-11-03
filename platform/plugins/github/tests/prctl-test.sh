@@ -724,8 +724,17 @@ for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書か�
   check "\"$said\" closes no issue" "$("$prctl" create t - <<<"$good"$'\n'"$said" 2>&1 || true)" "already has an open PR"
 done
 # shellcheck disable=SC2016 # backquotes of Markdown
-check "inline code does not run across items of a list" \
-  "$("$prctl" create t - <<<"$good"$'\n- 一つ目は ` で終わる\n- 二つ目は fixes #2 と ` を持つ' 2>&1 || true)" 'a sentence closes #2 by "fixes"'
+# Inline code does not run across blocks, but runs across the lines of one paragraph, as GitHub reads it.
+# shellcheck disable=SC2016 # backquotes of Markdown
+for said in '- 一つ目は ` で終わる\n- 二つ目は fixes #2 と ` を持つ@not across items of a list' \
+  'これは ` で終わる\n### 見出しは fixes #2 と ` を持つ@not across a heading' \
+  'これは ` で終わる\n> 引用は fixes #2 と ` を持つ@not into a quote' \
+  '> これは `a\n> b` fixes #2 `c`@across the lines of a quote, as one paragraph' \
+  'これは `a\n2. b` fixes #2 `c`@across a line of 2., which goes on with the paragraph' \
+  'これは `a\n| b` fixes #2 `c`@across a line of |, which goes on with the paragraph'; do
+  check "inline code is read ${said#*@}" \
+    "$("$prctl" create t - <<<"$good"$'\n'"$(printf '%b' "${said%@*}")" 2>&1 || true)" 'a sentence closes #2 by "fixes"'
+done
 check "a blank line ends a sentence" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n\n#2 の続き' 2>&1 || true)" "already has an open PR"
 check "a sentence in a code block closes no issue" "$("$prctl" create t - <<<"$good"$'\n```\nfixes #2\n```' 2>&1 || true)" "already has an open PR"
 # shellcheck disable=SC2001 # a line-wise edit of a sample body

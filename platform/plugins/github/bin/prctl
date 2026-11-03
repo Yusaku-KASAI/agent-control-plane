@@ -94,9 +94,13 @@ readonly closing_re='(?<![A-Za-z0-9_])(?<word>'$closing_words'):?\s*[\[<]?(?<iss
 # escaped itself does not escape the backquote after it.
 # shellcheck disable=SC2016 # backquotes of Markdown, not a command substitution
 readonly inline_code_re='(?<e>\\.)|(?<q>`+)(?!`)(?<c>.*?(?<!`)\k<q>(?!`))?'
-# The start of a line that begins a block of its own (an item of a list, a heading, a quote or a row
-# of a table): inline code does not run across blocks.
-readonly block_start_re='^\s*([-*+]\s|[0-9]+[.)]\s|#{1,6}(\s|$)|>|\|)'
+# The start of a line that begins a block of its own even in the middle of a paragraph, as CommonMark
+# reads it: inline code does not run across blocks, but runs across the lines of one paragraph. An
+# item of a bullet list with something in it, one of an ordered list from 1 (from any number after an
+# item), a heading, and a quote after a line that is not one. Other lines (a quote after a quote, a
+# row with no line of a table under it) go on with the paragraph.
+readonly block_start_re='^\s*([-*+]\s+\S|1[.)]\s|#{1,6}(\s|$))'
+readonly ordered_item_re='^\s*[0-9]+[.)]\s' list_item_re='^\s*([-*+]|[0-9]+[.)])\s' quote_re='^\s*>'
 
 die() { echo "prctl: $*" >&2; exit 1; }
 
@@ -759,7 +763,8 @@ scope_message() {
 body_check() {
   local errors
   errors=$(jq -Rrs -L "$forms" --arg line "$issue_line_re" --arg start "$issue_start_re" --arg closing "$closing_re" \
-    --arg code "$inline_code_re" --arg block "$block_start_re" --args 'include "markdown";
+    --arg code "$inline_code_re" --arg block "$block_start_re" --arg ordered "$ordered_item_re" \
+    --arg item "$list_item_re" --arg quote "$quote_re" --args 'include "markdown";
     body_lines as $lines
     | [$lines | to_entries[] | select(.value.head != null) | {at: .key, name: .value.head}] as $heads
     | ($ARGS.positional) as $want
@@ -780,8 +785,11 @@ body_check() {
          | "a line of Closes or Refs names more issues than the request (mention others in a sentence): \(.)"),
         ([$prose[] | capture($start; "i").issue | ascii_downcase] | unique
          | if length > 1 then "the lines of Closes or Refs name more issues than the request (mention others in a sentence): \(join(", "))" else empty end),
-        (reduce ($lines[] | if .code or (.line | test("^\\s*$")) then null
-                            else {block: (.line | test($block)), text: (.line | sub($start; ""; "i"))} end) as $l
+        (reduce (range(0; $lines | length) as $i | (if $i > 0 then $lines[$i - 1].line else "" end) as $prev
+                 | $lines[$i] | if .code or (.line | test("^\\s*$")) then null
+                   else {block: (.line | test($block) or (test($ordered) and ($prev | test($item)))
+                                   or (test($quote) and ($prev | test($quote) | not))),
+                         text: (.line | sub($start; ""; "i"))} end) as $l
            ([""]; if $l == null then . + [""] elif $l.block then . + [$l.text] else .[length - 1] += " " + $l.text end)
          | .[] | gsub($code; if .e then .e elif .c == null then .q else "" end) | capture($closing; "gi")
          | "a sentence closes \(.issue) by \"\(.word)\": do not use a closing keyword in a sentence; to close the issue, write Closes #N (or owner/repo#N) on a line of its own") ]
