@@ -36,5 +36,5 @@
 
 ## 4. 確かめてコミットする
 
-`git status` と `git diff` で変更（足したファイルも `git diff` に出る）を読み、`make check` を通してから、PR にする。
+`git status` と `git diff` で変更（足したファイルも、ターゲットが ignore するもののほかは `git diff` に出る）を読み、`make check` を通してから、PR にする。
 PR の本文には、ひな形のどの版からどの版に合わせたか（`template/base` の差分）を書く。

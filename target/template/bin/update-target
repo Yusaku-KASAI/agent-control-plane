@@ -38,6 +38,7 @@ git -C "$repo" cat-file -e "$base:${prefix}.devcontainer/Dockerfile" 2>/dev/null
 	die "$base has no ${prefix}.devcontainer/Dockerfile: it is older than the copy source; pass a later commit"
 head=$(git -C "$repo" rev-parse HEAD)
 if [[ $base == "$head" ]]; then
+	[[ -f $dest/template/base ]] || echo "$head" >"$dest/template/base"
 	echo "update-target: $dest is already at ${head:0:12}"
 	exit 0
 fi
@@ -82,12 +83,18 @@ while IFS= read -r -d '' path; do
 	fi
 done < <(git -C "$src" ls-files -z -- .)
 
-removed=$(git -C "$repo" diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "$prefix" |
-	sed "s|^$prefix||; s|\.tmpl$||" | grep -v '^template/' || true)
+# Files gone from the copy source that the target still has; the starters of its own documents are its own.
+removed=()
+while IFS= read -r path; do
+	path=${path#"$prefix"}
+	[[ $path == template/* || ($path == *.tmpl && $path != CLAUDE.md.tmpl) ]] && continue
+	[[ -e $dest/${path%.tmpl} ]] && removed+=("${path%.tmpl}")
+done < <(git -C "$repo" diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "${prefix:-.}")
 
 "$src/template/bin/put-template" "$dest"
 
 echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; review git status and git diff in $dest"
+# Empty arrays are not expanded: bash before 4.4 (macOS's /bin/bash) takes them as unset under set -u.
 if ((${#conflicts[@]})); then
 	echo "update-target: conflicts to resolve (marked <<<<<<< target in the files):"
 	printf '  %s\n' "${conflicts[@]}"
@@ -96,12 +103,15 @@ if ((${#deleted_changed[@]})); then
 	echo "update-target: deleted here but changed in the template; restore them or keep them deleted:"
 	printf '  %s\n' "${deleted_changed[@]}"
 fi
-if [[ -n $removed ]]; then
+if ((${#removed[@]})); then
 	echo "update-target: removed or renamed in the copy source since ${base:0:12}; move what you filled in to the new"
 	echo "name if renamed, then remove them here if they came from it:"
-	while IFS= read -r f; do printf '  %s\n' "$f"; done <<<"$removed"
+	printf '  %s\n' "${removed[@]}"
 fi
-# Added files show in git diff once registered; ones the target ignores are left as they are.
-for f in "${added[@]}"; do
-	git -C "$dest" check-ignore -q -- "$f" || git -C "$dest" add -N -- "$f"
-done
+# Added files, template/ included, show in git diff once registered; ignored ones are left as they are.
+if ((${#added[@]})); then
+	for f in "${added[@]}"; do
+		git -C "$dest" check-ignore -q -- "$f" || git -C "$dest" add -N -- "$f"
+	done
+fi
+git -C "$dest" add -N -- template
