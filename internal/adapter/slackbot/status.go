@@ -281,10 +281,13 @@ func (b *Bot) statusFor(s domain.Session, e usecase.SessionEvent) *statusMessage
 	return m
 }
 
+// postAsync posts a notice no request waits for. Nobody in the thread learns when it fails, so the
+// log carries the thread and the text for the operator to pass on.
 func (b *Bot) postAsync(s domain.Session, text string) {
 	b.writes.Go(func() {
 		if err := b.Post(context.Background(), s.Conversation, text); err != nil {
-			b.log.Warn("posting to the thread failed", "session", s.ID, "err", err)
+			b.log.Error("posting a notice to the thread failed", "session", s.ID,
+				"channel", s.Conversation.Channel, "thread", s.Conversation.Thread, "text", text, "err", err)
 		}
 	})
 }

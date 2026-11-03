@@ -1,7 +1,9 @@
 package slackbot
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -240,6 +242,25 @@ func TestObservePostsNotices(t *testing.T) {
 	b.observe(s, usecase.SessionEvent{Kind: usecase.SessionNotice, Notice: "知らせ"})
 	if got := posts(); !slices.Equal(got, []string{"知らせ"}) {
 		t.Errorf("posted %q, want only the notice", got)
+	}
+}
+
+// A notice that cannot be posted reaches nobody in the thread, so the log must keep enough to pass it on.
+func TestPostAsyncLogsLostNotice(t *testing.T) {
+	var out bytes.Buffer
+	b := New("dev", "", failingTokens{}, nil, nil, nil, 0, slog.New(slog.NewJSONHandler(&out, nil)))
+	s := domain.Session{ID: "sess", Conversation: domain.Conversation{Platform: "slack", Channel: "C1", Thread: "1.0"}}
+	b.post(s, "失われる回答")
+	b.writes.Wait()
+	var rec map[string]any
+	if err := json.Unmarshal(out.Bytes(), &rec); err != nil {
+		t.Fatalf("log %q: %v", out.String(), err)
+	}
+	want := map[string]any{"level": "ERROR", "session": "sess", "channel": "C1", "thread": "1.0", "text": "失われる回答"}
+	for k, v := range want {
+		if rec[k] != v {
+			t.Errorf("log %s = %v, want %v", k, rec[k], v)
+		}
 	}
 }
 

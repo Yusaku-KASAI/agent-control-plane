@@ -84,6 +84,20 @@ unset ACP_API_TOKEN
 docker network disconnect agent-control-plane_default "$dev"
 ```
 
+## スレッドに届かなかった知らせを探す
+
+依頼の入らなかったターンの回答など、依頼を待たない知らせを Slack に投稿できなかったときは、スレッドには何も出ず、
+ログに、セッション、チャンネル、スレッド、文面（`text`）が残る（[状態メッセージ](../architecture/app/requests.md#status "在りか")）。
+答えが来ないスレッドがあれば、次で探す。文面は `text=` のあとにあり、空白や改行を含むものは引用符で囲まれ、改行は `\n` になっている。
+
+```bash
+docker compose logs control-plane | grep 'posting a notice to the thread failed'
+```
+
+ログは control-plane のコンテナを作り直すと消えるので、`docker compose up -d --build` の前に探す。消えたあとは、
+セッションを片付けるまで、会話の履歴（[セッション](../architecture/app/sessions.md "在りか")）に回答が残る。止めるときに
+Slack とつながらなかった知らせは、ログにも残らない（[ADR 0064](../adr/app/0064-log-lost-notices-for-the-operator.md "在りか")）。
+
 ## Slack のトークンを取り直す
 
 ローテーションの状態（`acp-state` ボリューム）を失ったとき、更新できなくなったとき、最初のトークンがないときは、
