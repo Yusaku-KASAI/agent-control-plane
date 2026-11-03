@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-10-19
 amends: ["../../../../docs/adr/0012-pr-body-sections.md"]
+amended_by: [54]
 ---
 
 # 0023. 作る前に別の形を挙げ、PR の本文の決まった節に残して、レビューで問い直す

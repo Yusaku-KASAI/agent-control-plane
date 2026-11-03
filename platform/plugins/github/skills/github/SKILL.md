@@ -71,6 +71,9 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
   残す。指摘への答えは、`review.json` の `answers` に書く。
+- 頼む文には、変更の意図と検討した別の形の在りかとして、PR を作る前は `prctl create` に渡す本文のファイルの絶対パスを、
+  作ったあとは `gh pr view <番号> --json body --jq .body` を書く（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の
+  「頼む」の 3 段）。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の「答える」）。
 - push で head が進んだら、通常なら PR 全体を、念入りなら `prctl unreviewed` の範囲（終える前の PR 全体のレビューの
   指摘への直しなら、PR 全体）をレビューさせて残す。通常の PR に
