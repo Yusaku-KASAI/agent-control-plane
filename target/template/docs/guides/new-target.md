@@ -8,9 +8,9 @@ target-template のファイルから、新しいターゲットのリポジト�
 ## 1. ファイルを写す
 
 agent-control-plane の `target/` の下を、新しいリポジトリ（`.git` のほかは空）のルートに写す。`target/template/bin/copy-target` が、`.` で始まる
-ファイルとディレクトリも含めて写し、`template/` を除き、名前が `.tmpl` で終わるひな形の `.tmpl` を外す
-（[ファイルの分類](../overview.md#files)）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れる
-ので写さない。
+ファイルとディレクトリも含めて写し、名前が `.tmpl` で終わるひな形の `.tmpl` を外す（[ファイルの分類](../overview.md#files)）。
+`template/` は文書（`template/docs/`）だけを写し、そこから platform と control-plane へのリンクを GitHub の `main` の同じ
+ファイルへのリンクに書き換える（[ADR 0020](../adr/0020-template-documents-linked-to-github-in-copies.md)）。
 
 ```bash
 <agent-control-plane>/target/template/bin/copy-target <新しいリポジトリ>
