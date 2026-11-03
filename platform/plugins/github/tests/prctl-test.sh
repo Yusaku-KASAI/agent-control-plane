@@ -686,6 +686,17 @@ for said in 'Fixed: owner/repo#2' 'resolves https://github.com/owner/repo/issues
   check "a sentence closing an issue by \"$said\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"$said"' の続き' 2>&1 || true)" \
     "a sentence closes ${said#* } by \"${said%%[: ]*}\""
 done
+# GitHub closes by these too: a link, an autolink, GH-N, and backquotes that make no inline code, as an
+# escaped one, runs of different lengths, or a backslash in inline code, which escapes nothing there (ADR 0038).
+# shellcheck disable=SC2016 # backquotes of Markdown
+for said in 'fixes [#2](https://github.com/owner/repo/issues/2)|#2' 'Fixes: [owner/repo#2](u)|owner/repo#2' \
+  'closes <https://github.com/owner/repo/issues/2>|https://github.com/owner/repo/issues/2' 'fixes GH-2|GH-2' \
+  '\` fixes #2 \`|#2' '` fixes #2 ``|#2' '`a\` fixes #2 `|#2'; do
+  check "a sentence closing an issue by \"${said%|*}\" is refused" "$("$prctl" create t - <<<"$good"$'\nこれは '"${said%|*}"' の続き' 2>&1 || true)" \
+    "a sentence closes ${said#*|} by"
+done
+check "a title closing an issue by GH-N is refused" "$("$prctl" create 'fixes GH-2 の直し' - <<<"$good" 2>&1 || true)" \
+  'the title closes GH-2 by "fixes"'
 check "a sentence closing the request issue is refused" "$("$prctl" create t - <<<"$good"$'\nこれは fixes #1 の続き' 2>&1 || true)" \
   'a sentence closes #1 by "fixes"'
 check "a sentence closing the issue of Refs is refused" \
@@ -705,7 +716,10 @@ check "a title touching an issue goes on" "$("$prctl" create '#2 の続き' - <<
 check "a sentence across lines is read as one" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n#2 の続き' 2>&1 || true)" \
   'a sentence closes #2 by "fixes"'
 # shellcheck disable=SC2016 # backquotes of Markdown
-for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書かない' 'これは ``a ` fixes #2`` と書かない' 'これは prefix #2 にも触れる'; do
+# GitHub does not close by these: a URL of www. with or without its scheme, or a keyword in emphasis (ADR 0038).
+for said in 'これは Refs #2 にも触れる' 'これは `fixes #2` と書かない' 'これは ``a ` fixes #2`` と書かない' 'これは prefix #2 にも触れる' \
+  'これは fixes www.github.com/owner/repo/issues/2 と書かない' 'これは fixes https://www.github.com/owner/repo/issues/2 と書かない' \
+  'これは **fixes** #2 と書かない'; do
   check "\"$said\" closes no issue" "$("$prctl" create t - <<<"$good"$'\n'"$said" 2>&1 || true)" "already has an open PR"
 done
 check "a blank line ends a sentence" "$("$prctl" create t - <<<"$good"$'\nこれは fixes\n\n#2 の続き' 2>&1 || true)" "already has an open PR"
