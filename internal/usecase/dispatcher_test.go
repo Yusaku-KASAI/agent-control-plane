@@ -1519,12 +1519,12 @@ func TestDispatcher_RefreshesCredentials(t *testing.T) {
 // leaving the running turn alone.
 func TestDispatcher_RetriesCredentialRefreshBeforeExpiry(t *testing.T) {
 	e := newEnv(t, usecase.DispatcherOptions{
-		CredentialRefresh: 40 * time.Millisecond, CredentialLifetime: 100 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
+		CredentialRefresh: 80 * time.Millisecond, CredentialLifetime: 200 * time.Millisecond, CredentialRetry: 5 * time.Millisecond,
 	})
 	running := e.execute(usecase.RunAgentInput{AgentName: dev.Name, SessionID: existingID, Prompt: "long task"})
 	p := e.runner.next(t)
 	// Past the lifetime of the credentials the process started with, those reissued since count.
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	e.issuer.fail(errors.New("dial tcp: lookup api.github.com: server misbehaving"))
 	failedFrom := e.issuer.issues()
 	eventually(t, func() bool { return e.issuer.issues() >= failedFrom+3 })
@@ -1565,9 +1565,9 @@ func TestDispatcher_StopsProcessWhenCredentialsCannotBeRefreshed(t *testing.T) {
 	}{
 		// Retrying waits for CredentialRetry, not the next refresh, which comes only at the expiry.
 		"failing until they expire": {
-			opts:     usecase.DispatcherOptions{CredentialRefresh: 30 * time.Millisecond, CredentialLifetime: 60 * time.Millisecond, CredentialRetry: 5 * time.Millisecond},
+			opts:     usecase.DispatcherOptions{CredentialRefresh: 30 * time.Millisecond, CredentialLifetime: 150 * time.Millisecond, CredentialRetry: 5 * time.Millisecond},
 			err:      errors.New("dial tcp: lookup api.github.com: server misbehaving"),
-			minTries: 4,
+			minTries: 8,
 		},
 		"refused": {
 			opts:  usecase.DispatcherOptions{CredentialRefresh: 20 * time.Millisecond, CredentialLifetime: time.Hour, CredentialRetry: 5 * time.Millisecond},
