@@ -840,8 +840,8 @@ func (p *fakeProcess) stoppedTasks() []string {
 }
 
 // Stopping the session ends the requests that came before it, including those the worker has not
-// taken yet, as while it starts the agent, and leaves those that come after it. The test repeats to
-// try the start and the stop and the request after it in different orders.
+// taken yet, as while it starts the agent, and leaves those that come after it. The test repeats so
+// that the worker meets the stop both on its own and while it takes the request after it.
 func TestDispatcher_StopEndsRequestsThatCameBeforeIt(t *testing.T) {
 	for range 20 {
 		e := newEnv(t, usecase.DispatcherOptions{})
