@@ -72,8 +72,8 @@ PR を作るときは、タイトルと本文を書くだけでよい（`prctl c
 - PR を作る前のレビューは、PR 全体の差分のレビュー（`"scope": "pr"`、すべての観点）にし、`prctl create` のあとに
   残す。指摘への答えは、`review.json` の `answers` に書く。
 - 頼む文には、変更の意図と検討した別の形の在りかとして、PR を作る前は `prctl create` に渡す本文のファイルの絶対パスを、
-  作ったあとは `gh pr view <番号> --json body --jq .body` を書く（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の
-  「頼む」の 3 段）。
+  作ったあとは `gh pr view <番号> --json body --jq .body` を書く。作ったあとは、`prctl update` で本文を今の head に
+  合わせてから頼む（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の「頼む」の 3 段）。
 - 指摘への直しは、すべての指摘に答えを決めてから、まとめて push する（[レビューを頼んで答える](../../../conventions/docs/guides/request-review.md)の「答える」）。
 - push で head が進んだら、通常なら PR 全体を、念入りなら `prctl unreviewed` の範囲（終える前の PR 全体のレビューの
   指摘への直しなら、PR 全体）をレビューさせて残す。通常の PR に
@@ -142,7 +142,7 @@ prctl worktree default                  # 既定のブランチの head を取�
 prctl worktree remove default
 ```
 
-- 本文の最初の節（何を変えるか）は変更の意図なので、本文は観点「別の形」で別の形を挙げたあとに読む（レビューするの
+- 本文の最初の節（何を変えるか）は変更の意図なので、本文は観点「別の形」で別の形を挙げて文に書き出したあとに読む（レビューするの
   2 段と 4 段）。先に、`prctl worktree pr` が出すタイトル（`title:`）と依頼の Issue（`issue:`。本文の `Closes` か `Refs` の
   行を、本文の検査と同じ形で読んだもの）だけを見て、Issue から依頼を読む。依頼の Issue がなければ（`none`）、タイトルから
   挙げる。
