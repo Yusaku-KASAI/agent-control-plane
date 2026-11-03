@@ -30,5 +30,6 @@ date: 2026-11-03
 
 ## Consequences
 
-- ひな形の形は、`target/` を写して名前を戻したものに `check-docs` を回して確かめられる。
+- `target/` を写して名前を戻したものに `check-docs` を回せば、入口からの届き方、リンク、文書の根の形を確かめられる。
+  `CLAUDE.md.tmpl` の節がターゲットの契約の CLAUDE.md の節と合うかは、それでは確かめられない。
 - `CLAUDE.md.tmpl` は、ターゲットの契約の CLAUDE.md の節を写す。契約が変わったら、ひな形も直す。

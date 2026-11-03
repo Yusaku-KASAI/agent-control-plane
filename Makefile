@@ -32,9 +32,9 @@ check-template:
 	for f in docker-entrypoint.sh init-host.sh tmux.conf check-vscode-settings.py; do \
 		cmp .devcontainer/$$f target/.devcontainer/$$f || exit 1; \
 	done
+	shellcheck target/template/bin/copy-target
 	d=$$(mktemp -d) && trap 'rm -rf "$$d"' EXIT \
-		&& cp -R target/. "$$d" && rm -r "$$d/template" \
-		&& find "$$d" -name '*.tmpl' -exec sh -c 'mv "$$1" "$${1%.tmpl}"' _ {} \; \
+		&& target/template/bin/copy-target "$$d" \
 		&& $(MAKE) -C "$$d" check \
 		&& cd "$$d" && $(CURDIR)/platform/plugins/conventions/bin/check-docs
 

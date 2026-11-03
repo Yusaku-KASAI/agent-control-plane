@@ -8,7 +8,7 @@
 | 文書 | 種類 | 何があるか |
 | --- | --- | --- |
 | [overview.md](overview.md) | 解説 | ターゲットの環境の全体の構成、ファイルの分類（共通 / 埋める / 固有） |
-| [guides/new-target.md](guides/new-target.md) | 手順 | 新しいターゲットを作る（ファイルを写す、入口と文書の根を置く、埋める、確かめる、守る、control-plane から動かす） |
+| [guides/new-target.md](guides/new-target.md) | 手順 | 新しいターゲットを作る（ファイルを写す、入口と文書の根を書く、埋める、確かめる、守る、control-plane から動かす） |
 | [architecture/devcontainer.md](architecture/devcontainer.md) | 解説 | devcontainer の方針と構成、ターミナルと VS Code の設定 |
 | [architecture/claude-code.md](architecture/claude-code.md) | 解説 | Claude Code の設定（プラグインの宣言、回答の言語、worktree の作り方、対話のときの権限） |
 | [architecture/ci.md](architecture/ci.md) | 解説 | CI の構成 |
