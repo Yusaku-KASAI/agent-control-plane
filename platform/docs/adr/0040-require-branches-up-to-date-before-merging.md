@@ -29,7 +29,7 @@ GitHub Enterprise Cloud のもの）でしか使えない。依頼者のター�
 
 - ターゲットの契約の既定のブランチの守りに、マージの前に PR のブランチが向き先の最新に合っていることを足す
   （ルールセットの Require status checks to pass の Require branches to be up to date before merging、API では
-  `check` を求める `required_status_checks` のルールの `strict_required_status_checks_policy`）。`check` が確かめた
+  `required_status_checks` のルールの `strict_required_status_checks_policy`）。`check` が確かめた
   ツリーが、そのままマージの結果のツリーになる。
 - github プラグインの `check-protection` が、これを確かめる。
 - 遅れた PR は、向き先を PR のブランチに取り込んで（merge）、`check` を回し直してからマージする。取り込むのは、PR の画面の
