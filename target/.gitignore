@@ -1,0 +1,11 @@
+# Common to every target: the host's values for the devcontainer, the worktrees of subagents run with
+# isolation: worktree, and Claude Code's local-only settings and instructions.
+.devcontainer/.env
+/.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Fill in: this repository's local-only files and build output, such as:
+.env
+.env.*
+!.env.example

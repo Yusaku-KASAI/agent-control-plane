@@ -7,23 +7,25 @@ target-template のファイルから、新しいターゲットのリポジト�
 
 ## 1. ファイルを写す
 
-[ファイルの分類](../overview.md#files)の共通と埋めるファイルを、agent-control-plane のリポジトリのルートから、新しい
-リポジトリの同じパスに写す。ルートのファイルは agent-control-plane が自分のために埋めた版で、共通の部分にも
-そのリポジトリだけの形がある（どこかは control-plane の
-[devcontainer](../../../../docs/architecture/codebase/devcontainer.md "在りか") にある）。写したら、共通の部分を、それぞれの部分の
-文書（[devcontainer](../architecture/devcontainer.md)、[Claude Code の設定](../architecture/claude-code.md)、
-[CI](../architecture/ci.md)）の形に合わせる。
+agent-control-plane の `target/` の下を、`template/` を除いて、新しいリポジトリのルートに写す（`.` で始まるファイルと
+ディレクトリも含める）。`template/` の文書は、platform と control-plane への相対リンクが写した先で切れるので写さない。
+
+```bash
+cp -R <agent-control-plane>/target/. <新しいリポジトリ>/ && rm -r <新しいリポジトリ>/template
+```
 
 ## 2. 入口と文書の根を置く
 
-`README.md` と `docs/README.md` を置き、1 で写した `CLAUDE.md` をそのリポジトリのものに書き換える。器は conventions の
+`README.md`、`docs/README.md`、`CLAUDE.md` を置く。器は conventions の
 [形式：文書の根](../../../../platform/plugins/conventions/docs/reference/formats.md#layout "在りか")に、`CLAUDE.md` の節は
 [ターゲットの契約の CLAUDE.md](../../../../platform/docs/reference/target.md#claudemd "在りか")にある。
 
 ## 3. 埋める
 
-[ファイルの分類](../overview.md#files)の表の「ターゲットごとの部分」を、ターゲットのツールチェーンと関心に合わせて、
-それぞれの部分の文書に沿って埋める。
+[ファイルの分類](../overview.md#files)の表の「ターゲットごとの部分」（ひな形では `Fill in:` のコメントの所と、コメントを書けない `.claude/settings.json` の部分）を、
+ターゲットのツールチェーンと関心に合わせて、それぞれの部分の文書（[devcontainer](../architecture/devcontainer.md)、
+[Claude Code の設定](../architecture/claude-code.md)、[CI](../architecture/ci.md)）に沿って埋める。`.devcontainer/.env.example` の
+`<repository>` と `.github/CODEOWNERS` の `<owner>` も埋める。
 
 ## 4. 手元で確かめる
 

@@ -1,0 +1,110 @@
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "dockerComposeFile": ["compose.yaml"],
+  "service": "dev-container",
+  "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
+  // VS Code only attaches: the container is built, started and stopped by docker compose commands.
+  // With the container up, compose up does nothing.
+  "overrideCommand": false,
+  "shutdownAction": "none",
+  "runServices": [],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        // Fill in: the toolchain's extensions.
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "timonwong.shellcheck",
+        "mkhl.shfmt",
+        "sohamkamani.code-eol",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "esbenp.prettier-vscode",
+        "EditorConfig.EditorConfig",
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        // Keep identical to .vscode/settings.json (make check-target checks).
+        "claudeCode.respectGitIgnore": true,
+        "claudeCode.useCtrlEnterToSend": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.wordWrap": "on",
+        "files.autoSave": "onFocusChange",
+        "files.eol": "\n",
+        "accessibility.signals.terminalBell": {
+          "sound": "on"
+        },
+        "terminal.integrated.enableVisualBell": true, // in case the sound is missed
+        "terminal.integrated.bellDuration": 150,
+        "terminal.integrated.defaultProfile.linux": "tmux",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          },
+          "tmux": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session -A -s \"${PWD/$HOME/\\~}\""]
+          },
+          "tmux-new": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session"]
+          }
+        },
+        "prettier.printWidth": 100,
+        "prettier.tabWidth": 2,
+        // Fill in: the toolchain extensions' settings. Tools are pinned in the image; keep an extension
+        // from installing its own.
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        // Keep the Python extension from injecting venv activation into terminal sessions.
+        "python.terminal.activateEnvironment": false,
+        "shellcheck.useWorkspaceRootAsCwd": true,
+        "yaml.format.enable": true,
+        "[Dockerfile]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "files.autoSave": "onFocusChange"
+        },
+        "[shellscript]": {
+          "editor.defaultFormatter": "mkhl.shfmt",
+          "editor.formatOnSave": true,
+          "files.autoSave": "onFocusChange"
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[yml][yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  },
+  "remoteUser": "node",
+  // The image is built with the host UID/GID; VS Code must not change it.
+  "updateRemoteUserUID": false
+}
