@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-30
-amended_by: [37, 38]
+amended_by: [37, 39]
 ---
 
 # 0035. prctl の本文の検査は、文の中の閉じるキーワードも読み、文の中で Issue を閉じる本文を断る

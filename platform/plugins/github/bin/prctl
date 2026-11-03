@@ -84,13 +84,13 @@ readonly issue_start_re='^\s*([-*+]\s+|[0-9]+[.)]\s+|>\s*)*(?<word>'$closing_wor
 readonly issue_line_re=$issue_start_re'\s*$'
 # A keyword in a sentence and the issue after it, which GitHub closes too: by #N, owner/repo#N, GH-N
 # or the URL of the issue, also as the text of a link ("[#N](URL)") or in an autolink ("<URL>"),
-# which GitHub closes by as well (ADR 0038). Not after a letter, a digit or _, as in "prefix #2".
+# which GitHub closes by as well (ADR 0039). Not after a letter, a digit or _, as in "prefix #2".
 readonly closing_re='(?<![A-Za-z0-9_])(?<word>'$closing_words'):?\s*[\[<]?(?<issue>([\w.-]+/[\w.-]+)?#[0-9]+|GH-[0-9]+|https?://github\.com/[\w.-]+/[\w.-]+/issues/[0-9]+)'
 
 # Inline code as GitHub reads it (CommonMark), read from the left: an escape (a backslash and the
 # character after it), or a run of backquotes up to the next run of as many, neither of them part of a
 # longer run. Only the code is taken out; an escaped backquote and a run with no such end stay as
-# text, so a keyword between them closes an issue (ADR 0038). Read from the left, so that a backslash
+# text, so a keyword between them closes an issue (ADR 0039). Read from the left, so that a backslash
 # escaped itself does not escape the backquote after it.
 # shellcheck disable=SC2016 # backquotes of Markdown, not a command substitution
 readonly inline_code_re='(?<e>\\.)|(?<q>`+)(?!`)(?<c>.*?(?<!`)\k<q>(?!`))?'
@@ -751,7 +751,7 @@ scope_message() {
 # by the line of Closes alone. A sentence is what is outside such a start of a line, code blocks and
 # inline code, read both a paragraph (up to a blank line or a code block) at a time, as one line, and
 # a line at a time: GitHub reads inline code within a block, which may be the paragraph or a line of
-# it (an item of a list, a heading), and either reading that finds a keyword refuses it (ADR 0038).
+# it (an item of a list, a heading), and either reading that finds a keyword refuses it (ADR 0039).
 # Lines in code blocks are not headings, and name no issue. Such lines with nothing after the issue,
 # the attribution line and the old marker of the head, which the body loses when it is written, do
 # not count as what is written under a section.
