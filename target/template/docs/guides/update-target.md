@@ -8,8 +8,9 @@
 
 ターゲットの `template/base` に、写したか前に合わせたときの agent-control-plane のコミットがある。ないターゲット
 （`template/base` を書く前に写したもの）は、写したときのコミットを探して 2 段で `--base` に渡す。写す元が `target/` の
-形になる前のコミットは渡せない。そのターゲットは、一度 `target/` と比べて手で合わせ、合わせた版を `template/base` に
-書いてから使う。
+形になる前のコミットは渡せない。そのターゲットは、一度 `target/` と比べて手で合わせ、
+`<agent-control-plane>/target/template/bin/put-template <ターゲット>` で、`template/` の文書と、合わせた版の
+`template/base` を置いてから使う。
 
 ## 2. 合わせる
 

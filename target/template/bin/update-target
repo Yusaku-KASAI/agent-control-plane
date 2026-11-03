@@ -53,7 +53,7 @@ renames=$(mktemp)
 trap 'rm -f "$old" "$renames"' EXIT
 # Files the template renamed since the target's version, as "old<TAB>new" within the copy source: the
 # version the target has is looked up by the old name, and a filled-in file follows to the new name.
-git -C "$repo" diff -M --name-status --diff-filter=R "$base" "$head" -- "${prefix:-.}" |
+git -C "$repo" -c core.quotePath=false diff -M --name-status --diff-filter=R "$base" "$head" -- "${prefix:-.}" |
 	while IFS=$'\t' read -r _ from to; do printf '%s\t%s\n' "${from#"$prefix"}" "${to#"$prefix"}"; done >"$renames"
 while IFS= read -r -d '' path; do
 	[[ $path == template/* ]] && continue
@@ -104,7 +104,7 @@ while IFS= read -r path; do
 	# A name the copy source still makes (only its .tmpl suffix added or dropped) is not gone.
 	[[ -e $src/${path%.tmpl} || -e $src/${path%.tmpl}.tmpl ]] && continue
 	[[ -e $dest/${path%.tmpl} ]] && removed+=("${path%.tmpl}")
-done < <(git -C "$repo" diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "${prefix:-.}")
+done < <(git -C "$repo" -c core.quotePath=false diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "${prefix:-.}")
 
 "$src/template/bin/put-template" "$dest"
 

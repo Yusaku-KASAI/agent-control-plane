@@ -108,8 +108,27 @@ git -C "$w/t" diff --name-only | grep -qx '.editorconfig' || fail "added files s
 # A dirty target and a directory outside git are refused.
 echo x >"$w/t/dirty"
 ! "$w/acp/target/template/bin/update-target" "$w/t" 2>/dev/null || fail "a dirty target is refused"
-git -C "$w/t" checkout -q -- . && rm -f "$w/t/dirty"
+rm -f "$w/t/dirty"
 git -C "$w/t" add -A && git -C "$w/t" commit -qm merged
+
+# The same version again does nothing.
+again=$("$w/acp/target/template/bin/update-target" "$w/t")
+grep -q 'already at' <<<"$again" || fail "the target's own version again does nothing"
+
+# A target without template/base, brought up with --base, ends with template/base at the version.
+mkdir "$w/t2"
+git -C "$w/t2" init -q
+git -C "$w/acp" checkout -q "$a"
+"$w/acp/target/template/bin/copy-target" "$w/t2" 2>/dev/null
+git -C "$w/acp" checkout -q main
+rm "$w/t2/template/base"
+git -C "$w/t2" add -A
+git -C "$w/t2" commit -qm "copied before template/base"
+"$w/acp/target/template/bin/update-target" --base "$a" "$w/t2" >/dev/null
+[[ $(<"$w/t2/template/base") == "$b" ]] || fail "--base brings a target without template/base up to the version"
+grep -qx 'new in B' "$w/t2/.editorconfig" || fail "--base merges from the given version"
+git -C "$w/t2" add -A
+git -C "$w/t2" commit -qm merged
 empty=$(git -C "$w/acp" commit-tree "$(git -C "$w/acp" mktree </dev/null)" -m empty)
 ! "$w/acp/target/template/bin/update-target" --base "$empty" "$w/t" 2>/dev/null || fail "a --base older than the copy source is refused"
 mkdir "$w/plain"
