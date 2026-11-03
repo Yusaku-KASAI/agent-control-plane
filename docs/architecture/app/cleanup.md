@@ -152,7 +152,8 @@ head コミットは、閉じたときの先頭）。
     メッセージへの `:broom:`）。記録を消すとロックが外れ、同じスレッドでそのあと作るセッションが印を外すので、外すより
     前に付いているようにするため。ロックを持つあいだは同じスレッドへの依頼を断るので、付けるのは 30 秒で諦める。
     付けられなかったときは片付けの失敗として返すが、消したことは変えず、今すぐの片付けでも判定できなかったとは
-    知らせない（[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。残したら理由を挙げて
+    知らせない（[ADR 0057](../../adr/app/0057-mark-cleaned-threads-with-a-broom.md)）。付ける先のメッセージが消えて
+    いるときは、付けずに済ませ、失敗にしない（[ADR 0066](../../adr/app/0066-cleaned-mark-gives-up-on-a-gone-message.md)）。残したら理由を挙げて
     促す（いつ知らせるかは上の[判定](#cleanup-rules)）。保持期間ごとに 1 回だけにするため `kept_notified_at` を使い、
     知らせはロックを持たずに投稿し、投稿できてから `kept_notified_at` を書く。スレッドで始まっていないセッションへの知らせは、
     [sessionObserver](requests.md#observer "在りか") が捨てる。
