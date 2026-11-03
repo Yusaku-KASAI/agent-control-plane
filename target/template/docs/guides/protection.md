@@ -1,8 +1,8 @@
 # 既定のブランチの守りの用意
 
 ターゲットのリポジトリで、既定のブランチへの変更を PR 経由に限り、マージに数える承認を人に限る手順。何を守るか
-は[ターゲットの契約](../../../../platform/docs/reference/target.md#protection "在りか")に、理由は [app ADR 0027](../../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)
-と [ADR 0015](../adr/0015-codeowners-by-default.md) にある。
+は[ターゲットの契約](../../../../platform/docs/reference/target.md#protection "在りか")に、理由は [app ADR 0027](../../../../docs/adr/app/0027-require-human-approval-in-ruleset.md)、
+platform の [ADR 0040](../../../../platform/docs/adr/0040-require-branches-up-to-date-before-merging.md)、[ADR 0015](../adr/0015-codeowners-by-default.md) にある。
 
 <a id="approvers"></a>
 
@@ -31,6 +31,10 @@
 | 承認する人（個人のリポジトリ） | Require review from Code Owners をオン |
 | 承認する人（organization のリポジトリ） | Required reviewers に上の team を足し、ファイルのパターンは `*`、必須の承認数は 1 にする。承認数が 0 だと team は通知されるだけで、承認は求められない |
 | Require status checks to pass | オン。必須のチェックは `check` だけで、報告する元は GitHub Actions にする（[CI](../architecture/ci.md "在りか")）。元を固定しないと、コミットの状態を書ける誰でも `check` の成功を付けられる |
+| Require branches to be up to date before merging | オン。並べた PR が、それぞれでは `check` を通るのに合わせると落ちる変更（同じ番号の ADR など）を、マージの前に止める |
+
+遅れた PR は、PR の画面の Update branch（向き先を PR のブランチに merge する）か、PR のブランチへの push で向き先を
+取り込み、`check` と承認し直しを待ってからマージする。
 
 ルールセットの `require_extra_approval_for_unattributed_changes` は、オンでもオフでもよい。この守りには数えない。
 

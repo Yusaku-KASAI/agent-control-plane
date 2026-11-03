@@ -49,12 +49,12 @@ fail() { echo "FAIL $1"; failures=$((failures + 1)); }
 # A repository protected as the guide sets it up, for a personal repository.
 actions_check='[{"context": "check", "integration_id": 15368}]'
 rules() {
-  jq -n --argjson pr "$1" --argjson checks "${2:-$actions_check}" '[
+  jq -n --argjson pr "$1" --argjson checks "${2:-$actions_check}" --argjson strict "${3:-true}" '[
     {type: "deletion", ruleset_id: 1},
     {type: "non_fast_forward", ruleset_id: 1},
     {type: "pull_request", ruleset_id: 1, parameters: ({required_approving_review_count: 1,
       dismiss_stale_reviews_on_push: true, require_code_owner_review: true, required_reviewers: []} + $pr)},
-    {type: "required_status_checks", ruleset_id: 1, parameters: {required_status_checks: $checks}}]' >"$state/rules.json"
+    {type: "required_status_checks", ruleset_id: 1, parameters: {strict_required_status_checks_policy: $strict, required_status_checks: $checks}}]' >"$state/rules.json"
 }
 reset() {
   rm -f "$state"/*
@@ -121,6 +121,13 @@ reset; rules '{}' '[]'; run; expect "no required check fails" 1 "'check' is not 
 reset; rules '{}' '[{"context": "check", "integration_id": 15368}, {"context": "check", "integration_id": 99}]'; run
 expect "a required check also from another source fails" 1 "not only from GitHub Actions"
 reset; rules '{}' '[{"context": "check"}]'; run; expect "a required check from any source fails" 1 "not only from GitHub Actions"
+reset; run; expect "a required check on branches up to date passes" 0 "must be up to date with main"
+reset; rules '{}' "$actions_check" false; run; expect "merging a branch behind fails" 1 "may be merged behind main"
+reset; jq '. + [{type: "required_status_checks", ruleset_id: 2, parameters: {strict_required_status_checks_policy: true, required_status_checks: [{context: "other", integration_id: 15368}]}}]
+  | map(if .type == "required_status_checks" and .ruleset_id == 1 then .parameters.strict_required_status_checks_policy = false else . end)' \
+  "$state/rules.json" >"$state/x" && mv "$state/x" "$state/rules.json"
+echo '{"id": 2}' >"$state/ruleset2.json"; run
+expect "up to date only for another check fails" 1 "may be merged behind main"
 
 admin='{"id": 1, "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request"}]}'
 reset; echo "$admin" >"$state/ruleset.json"; run; expect "bypass by admins for pull requests passes" 0 "only by admins"
