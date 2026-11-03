@@ -38,6 +38,12 @@ fi
 git -C "$repo" merge-base --is-ancestor "$base" "$head" ||
 	die "the copy source (${head:0:12}) does not contain $dest's version ${base:0:12}; run it from a later checkout (such as main)"
 
+# The starters of the target's own documents (README.md and docs/; CLAUDE.md is filled in, not the
+# target's own) are only added when missing: never merged, moved, or listed as gone.
+own_document() {
+	[[ $1 == README.md.tmpl || $1 == docs/* ]]
+}
+
 conflicts=()
 deleted_changed=()
 added=()
@@ -54,7 +60,9 @@ while IFS= read -r -d '' path; do
 	name=${path%.tmpl}
 	from=$(awk -F'\t' -v p="$path" '$2 == p { print $1 }' "$renames")
 	from=${from:-$path}
-	if [[ ${from%.tmpl} != "$name" && ! -e $dest/$name && -e $dest/${from%.tmpl} ]]; then
+	own=
+	own_document "$path" || own_document "$from" && own=1
+	if [[ -z $own && ${from%.tmpl} != "$name" && ! -e $dest/$name && -e $dest/${from%.tmpl} ]]; then
 		mkdir -p "$(dirname "$dest/$name")"
 		mv "$dest/${from%.tmpl}" "$dest/$name"
 		moved+=("${from%.tmpl} -> $name")
@@ -65,8 +73,6 @@ while IFS= read -r -d '' path; do
 	else
 		: >"$old"
 	fi
-	own=
-	[[ $path == *.tmpl && $path != CLAUDE.md.tmpl ]] && own=1
 	if [[ ! -e $dest/$name ]]; then
 		if [[ -z $in_base ]]; then
 			mkdir -p "$(dirname "$dest/$name")"
@@ -89,11 +95,12 @@ while IFS= read -r -d '' path; do
 	fi
 done < <(git -C "$src" ls-files -z -- .)
 
-# Files gone from the copy source that the target still has; the starters of its own documents are its own.
+# Files gone from the copy source that the target still has.
 removed=()
 while IFS= read -r path; do
 	path=${path#"$prefix"}
-	[[ $path == template/* || ($path == *.tmpl && $path != CLAUDE.md.tmpl) ]] && continue
+	[[ $path == template/* ]] && continue
+	own_document "$path" && continue
 	# A name the copy source still makes (only its .tmpl suffix added or dropped) is not gone.
 	[[ -e $src/${path%.tmpl} || -e $src/${path%.tmpl}.tmpl ]] && continue
 	[[ -e $dest/${path%.tmpl} ]] && removed+=("${path%.tmpl}")
@@ -120,7 +127,13 @@ if ((${#removed[@]})); then
 	echo "name if renamed, then remove them here if they came from it:"
 	printf '  %s\n' "${removed[@]}"
 fi
-# Added files, template/ included, show in git diff once registered; ignored ones are left as they are.
+# Added and moved files, template/ included, show in git diff once registered; ignored ones are left
+# as they are.
+if ((${#moved[@]})); then
+	for m in "${moved[@]}"; do
+		added+=("${m#* -> }")
+	done
+fi
 if ((${#added[@]})); then
 	for f in "${added[@]}"; do
 		git -C "$dest" check-ignore -q -- "$f" || git -C "$dest" add -N -- "$f"

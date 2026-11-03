@@ -46,6 +46,8 @@ echo 'overview text from B' >>"$w/acp/target/docs/overview.md.tmpl"
 git -C "$w/acp" rm -q target/docs/README.md.tmpl
 git -C "$w/acp" mv target/.github/CODEOWNERS target/.github/CODEOWNERS.org
 git -C "$w/acp" mv target/.gitignore target/.gitignore.tmpl
+sed -i '1i /from-B' "$w/acp/target/.gitignore.tmpl"
+git -C "$w/acp" mv target/README.md.tmpl target/README-renamed.md.tmpl
 echo 'new in B' >"$w/acp/target/.editorconfig"
 echo 'new in B' >"$w/acp/target/ignored-new"
 chmod +x "$w/acp/target/.devcontainer/tmux.conf"
@@ -92,6 +94,9 @@ grep -qx '# filled in' "$w/t/.devcontainer/check-settings.py" || fail "a renamed
 [[ ! -e $w/t/.github/CODEOWNERS.org ]] || fail "a file the target deleted stays deleted when the template renames it"
 ! grep -q 'gitignore' <<<"$out" || fail "a file that only gained a .tmpl suffix is neither removed nor moved"
 grep -qx '/ignored-new' "$w/t/.gitignore" || fail "a file that only gained a .tmpl suffix keeps what was filled in"
+grep -qx '/from-B' "$w/t/.gitignore" || fail "a file that only gained a .tmpl suffix takes the template's change"
+grep -q 'own text' "$w/t/README.md" || fail "the target's own README.md is not moved by a renamed starter"
+git -C "$w/t" diff --name-only | grep -qx '.devcontainer/check-settings.py' || fail "a moved file shows in git diff"
 ! grep -q '^  docs/README.md$' <<<"$out" || fail "a starter of the target's own documents gone from the template is not listed"
 [[ -e $w/t/docs/README.md ]] || fail "the target's own documents stay when their starter is gone"
 grep -q 'own text' "$w/t/README.md" || fail "the target's own text stays"
