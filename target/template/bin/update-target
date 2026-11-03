@@ -1,13 +1,6 @@
 #!/bin/bash
-# Brings a target up to the copy source as it is now: like copier's update, it records the version a
-# target came from and merges three ways, here file by file. Each file the copy
-# source holds (outside template/) is merged three ways: the target's file, the copy source's file at
-# the commit the target was copied or last updated from (template/base, or --base), and the copy
-# source's file now. Conflicts are left marked in the files. The .tmpl starters of the target's own
-# documents (all but CLAUDE.md, which has the contract's sections) are only added when missing.
-# A file the target deleted stays deleted unless the template changed it. template/'s documents are
-# then replaced (put-template). The target must be a clean git work tree, so that the update is one
-# reviewable, undoable diff; added files are registered with git add -N to show in it.
+# Brings a target up to the copy source as it is now, merging each file three ways from the version in
+# template/base (or --base). What it does with each kind of file is target-template's ADR 0021.
 # Usage: update-target [--base <agent-control-plane commit>] <target's directory>
 set -euo pipefail
 
@@ -48,13 +41,26 @@ git -C "$repo" merge-base --is-ancestor "$base" "$head" ||
 conflicts=()
 deleted_changed=()
 added=()
+moved=()
 old=$(mktemp)
-trap 'rm -f "$old"' EXIT
+renames=$(mktemp)
+trap 'rm -f "$old" "$renames"' EXIT
+# Files the template renamed since the target's version, as "old<TAB>new" within the copy source: the
+# version the target has is looked up by the old name, and a filled-in file follows to the new name.
+git -C "$repo" diff -M --name-status --diff-filter=R "$base" "$head" -- "${prefix:-.}" |
+	while IFS=$'\t' read -r _ from to; do printf '%s\t%s\n' "${from#"$prefix"}" "${to#"$prefix"}"; done >"$renames"
 while IFS= read -r -d '' path; do
 	[[ $path == template/* ]] && continue
 	name=${path%.tmpl}
+	from=$(awk -F'\t' -v p="$path" '$2 == p { print $1 }' "$renames")
+	from=${from:-$path}
+	if [[ ${from%.tmpl} != "$name" && ! -e $dest/$name && -e $dest/${from%.tmpl} ]]; then
+		mkdir -p "$(dirname "$dest/$name")"
+		mv "$dest/${from%.tmpl}" "$dest/$name"
+		moved+=("${from%.tmpl} -> $name")
+	fi
 	in_base=
-	if git -C "$repo" show "$base:$prefix$path" >"$old" 2>/dev/null; then
+	if git -C "$repo" show "$base:$prefix$from" >"$old" 2>/dev/null; then
 		in_base=1
 	else
 		: >"$old"
@@ -76,7 +82,7 @@ while IFS= read -r -d '' path; do
 		conflicts+=("$name")
 	# git merge-file merges contents only; a mode the template changed (such as making a script
 	# executable) is applied here.
-	mode_base=$(git -C "$repo" ls-tree "$base" -- "$prefix$path" | cut -d' ' -f1)
+	mode_base=$(git -C "$repo" ls-tree "$base" -- "$prefix$from" | cut -d' ' -f1)
 	mode_head=$(git -C "$repo" ls-tree "$head" -- "$prefix$path" | cut -d' ' -f1)
 	if [[ -n $mode_base && $mode_base != "$mode_head" ]]; then
 		if [[ $mode_head == 100755 ]]; then chmod +x "$dest/$name"; else chmod -x "$dest/$name"; fi
@@ -88,6 +94,8 @@ removed=()
 while IFS= read -r path; do
 	path=${path#"$prefix"}
 	[[ $path == template/* || ($path == *.tmpl && $path != CLAUDE.md.tmpl) ]] && continue
+	# A name the copy source still makes (only its .tmpl suffix added or dropped) is not gone.
+	[[ -e $src/${path%.tmpl} || -e $src/${path%.tmpl}.tmpl ]] && continue
 	[[ -e $dest/${path%.tmpl} ]] && removed+=("${path%.tmpl}")
 done < <(git -C "$repo" diff --no-renames --name-only --diff-filter=D "$base" "$head" -- "${prefix:-.}")
 
@@ -98,6 +106,10 @@ echo "update-target: merged the copy source from ${base:0:12} to ${head:0:12}; r
 if ((${#conflicts[@]})); then
 	echo "update-target: conflicts to resolve (marked <<<<<<< target in the files):"
 	printf '  %s\n' "${conflicts[@]}"
+fi
+if ((${#moved[@]})); then
+	echo "update-target: renamed in the template; moved here with what was filled in:"
+	printf '  %s\n' "${moved[@]}"
 fi
 if ((${#deleted_changed[@]})); then
 	echo "update-target: deleted here but changed in the template; restore them or keep them deleted:"

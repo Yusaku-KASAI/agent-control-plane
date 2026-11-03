@@ -32,8 +32,8 @@ check-template:
 	for f in docker-entrypoint.sh init-host.sh tmux.conf check-vscode-settings.py; do \
 		cmp .devcontainer/$$f target/.devcontainer/$$f || exit 1; \
 	done
-	shellcheck target/template/bin/copy-target target/template/bin/put-template target/template/bin/update-target \
-		target/template/bin/update-target-test
+	# Only the shell scripts: relink-template is Python.
+	shellcheck $$(grep -lE '^#!.*[/ ](ba)?sh$$' target/template/bin/*)
 	target/template/bin/update-target-test
 	d=$$(mktemp -d) && trap 'rm -rf "$$d"' EXIT \
 		&& target/template/bin/copy-target "$$d" \

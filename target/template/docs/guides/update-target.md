@@ -14,7 +14,7 @@
 ## 2. 合わせる
 
 ターゲットの変更をコミットしてから、agent-control-plane の合わせたい版（ふつうは `main`、変更のない作業ツリー）で
-回す。`template/base` より古い版からは回せない。
+回す（push 済みにする理由は[新しいターゲットを作る](new-target.md "在りか")の 1 段）。`template/base` より古い版からは回せない。
 
 ```bash
 <agent-control-plane>/target/template/bin/update-target [--base <コミット>] <ターゲット>
