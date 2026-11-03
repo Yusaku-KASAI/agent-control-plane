@@ -5,6 +5,8 @@
 写す元の `target/`（この文書の根の二つ上）にあり、新しいターゲットは[新しいターゲットを作る](guides/new-target.md "在りか")の
 とおりに作り、[ひな形の新しい版に合わせる](guides/update-target.md "在りか")。
 
+<a id="parts"></a>
+
 ## 構成
 
 | 部分 | 中身 | 文書 |
@@ -62,11 +64,14 @@ HTML のコメント（`<!-- Fill in: ... -->`）を印にする。
 ## 地図
 
 target-template の中の項目と前提の向き（[形式](../../../platform/plugins/conventions/docs/reference/formats.md#map "在りか")）。
+target-template は、ターゲットの環境（上の[構成](#parts)の部分）と、それを写して合わせるひな形の使い方からなる。環境は
+文書を持たない集まりで、その部分の項目もこの地図に書く。
 
 | 項目 | 親 | 置き場所 | 前提にする |
 | --- | --- | --- | --- |
-| devcontainer | target-template | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
-| Claude Code の設定 | target-template | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
-| CI | target-template | `architecture/ci.md` | devcontainer |
-| 既定のブランチの守り | target-template | `guides/protection.md` | CI |
-| ひな形の使い方 | target-template | `guides/new-target.md`, `guides/update-target.md` | devcontainer, Claude Code の設定, CI, 既定のブランチの守り |
+| ターゲットの環境 | target-template | | |
+| devcontainer | ターゲットの環境 | `architecture/devcontainer.md`, `guides/devcontainer.md` | |
+| Claude Code の設定 | ターゲットの環境 | `architecture/claude-code.md`, `guides/claude-code.md` | devcontainer |
+| CI | ターゲットの環境 | `architecture/ci.md` | devcontainer |
+| 既定のブランチの守り | ターゲットの環境 | `guides/protection.md` | CI |
+| ひな形の使い方 | target-template | `guides/new-target.md`, `guides/update-target.md` | ターゲットの環境 |
